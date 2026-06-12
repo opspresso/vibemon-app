@@ -40,10 +40,11 @@ npm start
 ```
 
 ### Key Files
-- **ESP32**: `esp32.ino` (main orchestrator), `config.h` (constants), `TFT_Compat.h` (LovyanGFX wrapper, defines `TFT_eSPI`/`TFT_eSprite` aliases), `LGFX_ESP32C6.hpp` (dual-board display driver, `configure(boardType)` called before `init()`), `sprites.h` (rendering), `ui_elements.h` (status text, icons), `state.h` (globals, timers, `g_boardType`), `display.h` (screen drawing), `project_lock.h` (lock logic), `input.h` (JSON parsing), `wifi_manager.h` (WiFi/HTTP/WebSocket), `wifi_portal.h` (captive portal HTML)
+- **ESP32**: `esp32.ino` (main orchestrator), `config.h` (constants), `TFT_Compat.h` (LovyanGFX wrapper, defines `TFT_eSPI`/`TFT_eSprite` aliases), `LGFX_ESP32C6.hpp` (dual-board display driver, `configure(boardType)` called before `init()`), `sprites.h` (rendering), `img_clawd.h`/`img_codex.h`/`img_kiro.h`/`img_claw.h` (per-character 128×128 RGB565 bitmaps used by `sprites.h`), `ui_elements.h` (status text, icons), `state.h` (globals, timers, `g_boardType`), `display.h` (screen drawing), `project_lock.h` (lock logic), `input.h` (JSON parsing), `wifi_manager.h` (WiFi/HTTP/WebSocket), `wifi_portal.h` (captive portal HTML), `credentials.h.example` (WiFi/WebSocket/board config template → copy to `credentials.h`)
 - **Desktop**: `main.js` (entry point), `modules/*.cjs` (http-server, http-utils, multi-window-manager, state-manager, tray-manager, validators, ws-client), `renderer.js` + `index.html` (renderer)
 - **Shared**: `desktop/shared/` folder (config, constants)
 - **Config Data**: `desktop/shared/data/constants.json` (single source of truth - window dimensions, animation settings, limits)
+- **Tools**: `tools/png_to_rgb565.py` (PNG → ESP32 `img_*.h` RGB565 header; magenta `0xF81F` = transparent), `tools/rgb565_to_png.py` (reverse, regenerates `images/img_*.png`)
 - **Documentation**: `README.md`, `CLAUDE.md`, `docs/*`, `desktop/README.md` (npm package)
 
 ## Key Patterns
