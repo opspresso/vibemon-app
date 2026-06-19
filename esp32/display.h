@@ -137,9 +137,7 @@ void drawMetricRow(int y, void (*iconFn)(TFT_eSPI&, int, int, uint16_t, int, uin
   tft.setTextSize(1);
   char valueText[5];
   snprintf(valueText, sizeof(valueText), "%d%%", percent);
-  int16_t x1, y1;
-  uint16_t w, h;
-  tft.getTextBounds(valueText, METRIC_TEXT_X, y, &x1, &y1, &w, &h);
+  int w = tft.textWidth(valueText);
   tft.setCursor(METRIC_TEXT_X + METRIC_TEXT_W - w, y);
   tft.print(valueText);
   tft.setFont(nullptr);
