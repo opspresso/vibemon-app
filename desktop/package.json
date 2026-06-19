@@ -4,7 +4,7 @@
   "description": "AI assistant status monitor",
   "main": "main.js",
   "bin": {
-    "vibemon": "./bin/cli.js"
+    "vibemon": "bin/cli.js"
   },
   "scripts": {
     "start": "electron .",
@@ -33,7 +33,7 @@
   ],
   "repository": {
     "type": "git",
-    "url": "https://github.com/nalbam/vibemon-app.git"
+    "url": "git+https://github.com/nalbam/vibemon-app.git"
   },
   "homepage": "https://nalbam.github.io/vibemon-app/",
   "bugs": {

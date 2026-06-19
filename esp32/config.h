@@ -29,6 +29,7 @@
 #define USAGEWEEK_Y   298  // text bottom ~312
 #define METRIC_ICON_X  10  // pixel icon left
 #define METRIC_TEXT_X  24  // "NN%" text left
+#define METRIC_TEXT_W  32  // right-aligned "100%" text width
 #define METRIC_BAR_X   62  // inline bar left (after "100%")
 #define METRIC_BAR_W  100  // bar width (62..162)
 #define METRIC_BAR_H    8  // bar height (centered in row)

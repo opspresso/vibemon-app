@@ -134,9 +134,13 @@ void drawMetricRow(int y, void (*iconFn)(TFT_eSPI&, int, int, uint16_t, int, uin
   tft.setTextColor(textColor);
   tft.setFont(&fonts::FreeSans9pt7b);
   tft.setTextSize(1);
-  tft.setCursor(METRIC_TEXT_X, y);
-  tft.print(percent);
-  tft.print("%");
+  char valueText[5];
+  snprintf(valueText, sizeof(valueText), "%d%%", percent);
+  int16_t x1, y1;
+  uint16_t w, h;
+  tft.getTextBounds(valueText, METRIC_TEXT_X, y, &x1, &y1, &w, &h);
+  tft.setCursor(METRIC_TEXT_X + METRIC_TEXT_W - w, y);
+  tft.print(valueText);
   tft.setFont(nullptr);
   drawMemoryBar(tft, METRIC_BAR_X, y + 2, METRIC_BAR_W, METRIC_BAR_H, percent, bgColor);
 }
