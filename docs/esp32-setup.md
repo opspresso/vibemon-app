@@ -4,6 +4,35 @@ VibeMon ESP32 devices support automatic WiFi and WebSocket token configuration t
 
 ## Quick Start
 
+### Arduino IDE Setup
+
+Install Arduino IDE 2.x, then install the ESP32 board package and required libraries before opening `esp32/esp32.ino`.
+
+1. **Install ESP32 board support**
+   - Open **Arduino IDE → Settings** (or **Preferences**).
+   - Add this URL to **Additional boards manager URLs**:
+     ```text
+     https://espressif.github.io/arduino-esp32/package_esp32_index.json
+     ```
+   - Open **Tools → Board → Boards Manager...**.
+   - Search `esp32` and install **esp32 by Espressif Systems**.
+
+2. **Install required libraries**
+   - Open **Tools → Manage Libraries...**.
+   - Install these libraries:
+     - `ArduinoJson` by Benoit Blanchon
+     - `WebSockets` by Markus Sattler
+     - `LovyanGFX` by lovyan03
+
+3. **Select the ESP32-C6 board and upload settings**
+   - Open `esp32/esp32.ino` in Arduino IDE.
+   - Select **Tools → Board → ESP32 Arduino → ESP32C6 Dev Module**.
+   - Select the serial port from **Tools → Port**.
+   - Set **Tools → Partition Scheme → Huge APP (3MB No OTA/1MB SPIFFS)**.
+   - Keep the other board options at their defaults unless your board vendor documents different values.
+
+> The firmware exceeds the default app partition size. VibeMon uses neither OTA nor a filesystem, so the Huge APP partition scheme is the recommended Arduino IDE setting.
+
 ### First-Time Setup (Recommended)
 
 1. **Flash Firmware**
@@ -13,7 +42,7 @@ cp credentials.h.example credentials.h
 # Flash to ESP32 (WiFi and WebSocket enabled by default)
 ```
 
-> **Arduino IDE:** Select **Tools → Board → ESP32 Arduino → ESP32C6 Dev Module** (search `ESP32C6 Dev Module` in the board selector), then set **Tools → Partition Scheme → Huge APP (3MB No OTA/1MB SPIFFS)** before uploading. The firmware exceeds the ~1.25MB app region of the default scheme; VibeMon uses neither OTA nor a filesystem (WiFi credentials are stored in NVS).
+> **Arduino IDE:** Complete the setup above before uploading.
 
 2. **Connect to Setup Network**
 - SSID: `VibeMon-Setup`
