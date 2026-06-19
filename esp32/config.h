@@ -15,18 +15,18 @@
 
 // Layout positions (adjusted for 128x128 character on 172x320 screen)
 #define CHAR_X_BASE   22   // (172 - 128) / 2 = 22
-#define CHAR_Y_BASE   18   // Base Y position (float ±5px → 13~23)
+#define CHAR_Y_BASE   10   // Base Y position (float ±5px → 5~15)
 #define FLOAT_AMPLITUDE_X 3  // Floating animation amplitude X (pixels)
 #define FLOAT_AMPLITUDE_Y 5  // Floating animation amplitude Y (pixels)
-#define STATUS_TEXT_Y 160  // size 3 (24px) → bottom 184
-#define LOADING_Y     190  // dots after status text (gap 6px) → bottom ~198
-#define PROJECT_Y     200  // info rows: 19px spacing (compact to fit metric rows)
+#define STATUS_TEXT_Y 150  // size 3 (24px) → bottom 174
+#define LOADING_Y     180  // dots after status text (gap 6px) → bottom ~188
+#define PROJECT_Y     198  // info rows: 21px spacing (compact to fit metric rows)
 #define TOOL_Y        219
-#define MODEL_Y       238
+#define MODEL_Y       240
 // Metric rows (single-line: icon + inline bar + NN%): memory, 5h usage, weekly usage
-#define MEMORY_Y      258  // font ~14px → bottom 272
-#define USAGE5H_Y     278
-#define USAGEWEEK_Y   298  // text bottom ~312
+#define MEMORY_Y      261  // font ~14px → bottom 275
+#define USAGE5H_Y     282
+#define USAGEWEEK_Y   303  // text bottom ~317
 #define METRIC_ICON_X  10  // pixel icon left
 #define METRIC_BAR_X   24  // inline bar left
 #define METRIC_BAR_W  100  // bar width (24..124)
