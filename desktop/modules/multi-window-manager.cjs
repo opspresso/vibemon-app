@@ -574,11 +574,13 @@ class MultiWindowManager {
     // Check if state changed
     const stateChanged = oldState.state !== newState.state;
 
-    // Check if info fields changed (tool, model, memory, character)
+    // Check if info fields changed (tool, model, memory, usage, character)
     const infoChanged = !stateChanged && (
       oldState.tool !== newState.tool ||
       oldState.model !== newState.model ||
       oldState.memory !== newState.memory ||
+      oldState.usage5h !== newState.usage5h ||
+      oldState.usageWeek !== newState.usageWeek ||
       oldState.character !== newState.character
     );
 

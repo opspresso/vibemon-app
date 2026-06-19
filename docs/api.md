@@ -21,7 +21,9 @@ Default port: Desktop App `19280`, ESP32 WiFi `80`
 | `project` | 100 chars | String |
 | `tool` | 50 chars | String |
 | `model` | 50 chars | String |
-| `memory` | - | Integer 0-100 |
+| `memory` | - | Integer 0-100 (context-window usage) |
+| `usage5h` | - | Integer 0-100 (5-hour plan-usage window) |
+| `usageWeek` | - | Integer 0-100 (weekly plan-usage window) |
 | `character` | - | `clawd`, `codex`, `kiro`, or `claw` |
 | `terminalId` | 100 chars | Desktop only. Terminal session ID with prefix: `iterm2:w0t0p0:UUID` (from `ITERM_SESSION_ID`) or `ghostty:12345` (from `GHOSTTY_PID`) |
 
@@ -71,7 +73,9 @@ curl -X POST http://127.0.0.1:19280/status \
 | `tool` | string | Tool name (e.g., `Bash`, `Read`, `Edit`) |
 | `project` | string | Project name |
 | `model` | string | Model name (e.g., `opus`, `sonnet`) |
-| `memory` | number | Memory usage (0-100) |
+| `memory` | number | Context-window usage (0-100) |
+| `usage5h` | number | 5-hour plan-usage window (0-100) |
+| `usageWeek` | number | Weekly plan-usage window (0-100) |
 | `character` | string | `clawd`, `codex`, `kiro`, or `claw` |
 | `terminalId` | string | Desktop only. Terminal ID for click-to-focus (e.g., `iterm2:w0t0p0:UUID` or `ghostty:12345`) |
 
@@ -108,7 +112,7 @@ curl http://127.0.0.1:19280/status
 {
   "windowCount": 2,
   "projects": {
-    "my-project": {"state": "working", "tool": "Bash", "model": "opus", "memory": 45},
+    "my-project": {"state": "working", "tool": "Bash", "model": "opus", "memory": 45, "usage5h": 36, "usageWeek": 37},
     "other-project": {"state": "idle"}
   }
 }

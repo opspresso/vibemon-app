@@ -135,4 +135,34 @@ void drawBrainIcon(TFT_eSPI &tft, int x, int y, uint16_t color, int s = 1, uint1
   tft.fillRect(x + 7*s, y, s, s, bg);
 }
 
+// Draw clock icon (5-hour usage window) - s=1: 10x10 pixels
+void drawClockIcon(TFT_eSPI &tft, int x, int y, uint16_t color, int s = 1, uint16_t bg = 0x0000) {
+  int cx = x + 5*s;
+  int cy = y + 5*s;
+  int r = 5*s;
+  // Hollow ring
+  tft.fillCircle(cx, cy, r, color);
+  tft.fillCircle(cx, cy, r - s, bg);
+  // Hands (hour up, minute right) from center
+  tft.fillRect(cx, cy - 3*s, s, 3*s, color);
+  tft.fillRect(cx, cy, 3*s, s, color);
+}
+
+// Draw calendar icon (weekly usage window) - s=1: 10x10 pixels
+void drawCalendarIcon(TFT_eSPI &tft, int x, int y, uint16_t color, int s = 1, uint16_t bg = 0x0000) {
+  // Binding tabs
+  tft.fillRect(x + 2*s, y, s, 2*s, color);
+  tft.fillRect(x + 7*s, y, s, 2*s, color);
+  // Body
+  tft.fillRect(x, y + s, 10*s, 9*s, color);
+  // Header separator (cut through with background color)
+  tft.fillRect(x + s, y + 4*s, 8*s, s, bg);
+  // Day cells (cut through with background color)
+  tft.fillRect(x + 2*s, y + 6*s, s, s, bg);
+  tft.fillRect(x + 5*s, y + 6*s, s, s, bg);
+  tft.fillRect(x + 8*s, y + 6*s, s, s, bg);
+  tft.fillRect(x + 2*s, y + 8*s, s, s, bg);
+  tft.fillRect(x + 5*s, y + 8*s, s, s, bg);
+}
+
 #endif // UI_ELEMENTS_H

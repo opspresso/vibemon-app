@@ -127,6 +127,20 @@ void drawInfoRow(int y, void (*iconFn)(TFT_eSPI&, int, int, uint16_t, int, uint1
   tft.setFont(nullptr);
 }
 
+// Helper: Draw a single-line metric row: [icon] [NN%] [inline bar]
+// Used for memory and plan-usage (5h / weekly); reuses drawMemoryBar gradient.
+void drawMetricRow(int y, void (*iconFn)(TFT_eSPI&, int, int, uint16_t, int, uint16_t), int percent, uint16_t textColor, uint16_t bgColor) {
+  iconFn(tft, METRIC_ICON_X, y + 2, textColor, 1, bgColor);
+  tft.setTextColor(textColor);
+  tft.setFont(&fonts::FreeSans9pt7b);
+  tft.setTextSize(1);
+  tft.setCursor(METRIC_TEXT_X, y);
+  tft.print(percent);
+  tft.print("%");
+  tft.setFont(nullptr);
+  drawMemoryBar(tft, METRIC_BAR_X, y + 2, METRIC_BAR_W, METRIC_BAR_H, percent, bgColor);
+}
+
 // =============================================================================
 // Main Status Drawing
 // =============================================================================
@@ -188,19 +202,18 @@ void drawInfoSection(uint16_t bgColor, uint16_t textColor) {
     drawInfoRow(MODEL_Y, drawRobotIcon, currentModel, textColor, bgColor);
   }
 
-  // Memory usage (hide on start state)
-  if (currentMemory > 0 && currentState != STATE_START) {
-    tft.setTextColor(textColor);
-    tft.setFont(&fonts::FreeSans9pt7b);
-    tft.setTextSize(1);
-    drawBrainIcon(tft, 10, MEMORY_Y + 2, textColor, 1, bgColor);
-    tft.setCursor(24, MEMORY_Y);
-    tft.print(currentMemory);
-    tft.print("%");
-    tft.setFont(nullptr);
-
-    // Memory bar (below percentage)
-    drawMemoryBar(tft, MEMORY_BAR_X, MEMORY_BAR_Y, MEMORY_BAR_W, MEMORY_BAR_H, currentMemory, bgColor);
+  // Metric rows (memory + plan usage) as single-line [icon] [NN%] [bar].
+  // Hidden on start state; each row hidden when its value is 0.
+  if (currentState != STATE_START) {
+    if (currentMemory > 0) {
+      drawMetricRow(MEMORY_Y, drawBrainIcon, currentMemory, textColor, bgColor);
+    }
+    if (currentUsage5h > 0) {
+      drawMetricRow(USAGE5H_Y, drawClockIcon, currentUsage5h, textColor, bgColor);
+    }
+    if (currentUsageWeek > 0) {
+      drawMetricRow(USAGEWEEK_Y, drawCalendarIcon, currentUsageWeek, textColor, bgColor);
+    }
   }
 }
 

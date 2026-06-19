@@ -20,14 +20,18 @@
 #define FLOAT_AMPLITUDE_Y 5  // Floating animation amplitude Y (pixels)
 #define STATUS_TEXT_Y 160  // size 3 (24px) → bottom 184
 #define LOADING_Y     190  // dots after status text (gap 6px) → bottom ~198
-#define PROJECT_Y     204  // info rows: 25px spacing (+1px from previous 24px)
-#define TOOL_Y        229
-#define MODEL_Y       254
-#define MEMORY_Y      279  // font ~14px → bottom 293
-#define MEMORY_BAR_X  10
-#define MEMORY_BAR_Y  299  // 5px gap after memory text
-#define MEMORY_BAR_W  152
-#define MEMORY_BAR_H  6    // bar bottom 303 → 17px bottom margin
+#define PROJECT_Y     200  // info rows: 19px spacing (compact to fit metric rows)
+#define TOOL_Y        219
+#define MODEL_Y       238
+// Metric rows (single-line: icon + NN% + inline bar): memory, 5h usage, weekly usage
+#define MEMORY_Y      258  // font ~14px → bottom 272
+#define USAGE5H_Y     278
+#define USAGEWEEK_Y   298  // text bottom ~312
+#define METRIC_ICON_X  10  // pixel icon left
+#define METRIC_TEXT_X  24  // "NN%" text left
+#define METRIC_BAR_X   62  // inline bar left (after "100%")
+#define METRIC_BAR_W  100  // bar width (62..162)
+#define METRIC_BAR_H    8  // bar height (centered in row)
 #define BRAND_Y       308  // start screen only (size 1, 8px)
 
 // Animation timing

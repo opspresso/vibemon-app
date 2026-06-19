@@ -81,6 +81,25 @@ function validateMemory(memory) {
 }
 
 /**
+ * Validate a plan-usage percentage (number 0-100)
+ * @param {number} value
+ * @param {string} label - Field name for error messages
+ * @returns {{valid: boolean, error: string|null}}
+ */
+function validateUsage(value, label) {
+  if (value === undefined || value === null || value === '') {
+    return { valid: true, error: null };
+  }
+  if (typeof value !== 'number') {
+    return { valid: false, error: `${label} must be a number` };
+  }
+  if (!Number.isInteger(value) || value < 0 || value > 100) {
+    return { valid: false, error: `${label} must be an integer between 0 and 100` };
+  }
+  return { valid: true, error: null };
+}
+
+/**
  * Validate tool name
  * @param {string} tool
  * @returns {{valid: boolean, error: string|null}}
@@ -156,6 +175,12 @@ function validateStatusPayload(data) {
   const memoryResult = validateMemory(data.memory);
   if (!memoryResult.valid) return memoryResult;
 
+  const usage5hResult = validateUsage(data.usage5h, 'usage5h');
+  if (!usage5hResult.valid) return usage5hResult;
+
+  const usageWeekResult = validateUsage(data.usageWeek, 'usageWeek');
+  if (!usageWeekResult.valid) return usageWeekResult;
+
   const toolResult = validateTool(data.tool);
   if (!toolResult.valid) return toolResult;
 
@@ -173,6 +198,7 @@ module.exports = {
   validateCharacter,
   validateProject,
   validateMemory,
+  validateUsage,
   validateTool,
   validateModel,
   validateTerminalId,

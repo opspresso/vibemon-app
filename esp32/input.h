@@ -242,6 +242,20 @@ bool processStatusData(JsonObject doc) {
     infoChanged = true;
   }
 
+  // Parse plan usage (5-hour + weekly, 0-100). Account-global: NOT cleared on
+  // project change, so usage persists across projects.
+  int usage5hVal = doc["usage5h"] | -1;
+  if (usage5hVal >= 0 && usage5hVal <= 100 && usage5hVal != currentUsage5h) {
+    currentUsage5h = usage5hVal;
+    infoChanged = true;
+  }
+
+  int usageWeekVal = doc["usageWeek"] | -1;
+  if (usageWeekVal >= 0 && usageWeekVal <= 100 && usageWeekVal != currentUsageWeek) {
+    currentUsageWeek = usageWeekVal;
+    infoChanged = true;
+  }
+
   // Parse character (use isValidCharacter() for dynamic validation)
   const char* charInput = doc["character"] | "";
   if (strlen(charInput) > 0 && isValidCharacter(charInput) && strcmp(charInput, currentCharacter) != 0) {

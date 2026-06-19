@@ -7,6 +7,7 @@ const {
   validateCharacter,
   validateProject,
   validateMemory,
+  validateUsage,
   validateTool,
   validateModel,
   validateStatusPayload
@@ -138,6 +139,32 @@ describe('validateMemory', () => {
   });
 });
 
+describe('validateUsage', () => {
+  test('accepts undefined/null/empty', () => {
+    [undefined, null, ''].forEach(value => {
+      expect(validateUsage(value, 'usage5h').valid).toBe(true);
+    });
+  });
+
+  test('accepts valid usage values', () => {
+    [0, 36, 100].forEach(value => {
+      expect(validateUsage(value, 'usage5h').valid).toBe(true);
+    });
+  });
+
+  test('rejects out-of-range and non-integer values', () => {
+    [101, -1, 12.5].forEach(value => {
+      expect(validateUsage(value, 'usageWeek').valid).toBe(false);
+    });
+  });
+
+  test('includes the field label in errors', () => {
+    const result = validateUsage('50%', 'usageWeek');
+    expect(result.valid).toBe(false);
+    expect(result.error).toContain('usageWeek');
+  });
+});
+
 describe('validateTool', () => {
   test('accepts undefined tool', () => {
     const result = validateTool(undefined);
@@ -229,6 +256,27 @@ describe('validateStatusPayload', () => {
     });
     expect(result.valid).toBe(false);
     expect(result.error).toContain('0 and 100');
+  });
+
+  test('accepts payload with usage5h and usageWeek', () => {
+    const result = validateStatusPayload({
+      state: 'working',
+      character: 'clawd',
+      project: 'my-project',
+      memory: 50,
+      usage5h: 36,
+      usageWeek: 37
+    });
+    expect(result.valid).toBe(true);
+    expect(result.error).toBeNull();
+  });
+
+  test('rejects invalid usage in payload', () => {
+    const result = validateStatusPayload({
+      usage5h: 150
+    });
+    expect(result.valid).toBe(false);
+    expect(result.error).toContain('usage5h');
   });
 
   test('accepts payload with tool, model', () => {
