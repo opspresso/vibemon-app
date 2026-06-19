@@ -13,7 +13,7 @@ cp credentials.h.example credentials.h
 # Flash to ESP32 (WiFi and WebSocket enabled by default)
 ```
 
-> **Arduino IDE:** Set **Tools → Partition Scheme → Huge APP (3MB No OTA/1MB SPIFFS)** before uploading. The firmware exceeds the ~1.25MB app region of the default scheme; VibeMon uses neither OTA nor a filesystem (WiFi credentials are stored in NVS).
+> **Arduino IDE:** Select **Tools → Board → ESP32 Arduino → ESP32C6 Dev Module** (search `ESP32C6 Dev Module` in the board selector), then set **Tools → Partition Scheme → Huge APP (3MB No OTA/1MB SPIFFS)** before uploading. The firmware exceeds the ~1.25MB app region of the default scheme; VibeMon uses neither OTA nor a filesystem (WiFi credentials are stored in NVS).
 
 2. **Connect to Setup Network**
 - SSID: `VibeMon-Setup`
