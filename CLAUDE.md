@@ -55,7 +55,7 @@ npm start
 - **Working text**: Tool-based fixed text via `getWorkingText(tool)` (Bash→Running, Read→Reading, Edit→Editing, Write→Writing, Grep/WebSearch→Searching, Glob→Scanning, WebFetch→Fetching, Task→Tasking, default→Working)
 - **JSON fields**: `{"state", "tool", "project", "model", "memory", "usage5h", "usageWeek", "character"}` (Desktop adds `"terminalId"` for click-to-focus)
 - **Characters**: `clawd` (orange), `codex` (green), `kiro` (white ghost), `claw` (red)
-- **Metric rows**: memory (🧠), 5h usage (⏱️), weekly usage (📅) each render as a single line `[icon] [NN%] [bar]` at the bottom; `usage5h`/`usageWeek` are plan-usage % (0-100) from statusline's `usage.json`
+- **Metric rows**: memory (🧠), 5h usage (⏱️), weekly usage (📅) each render as a single line `[icon] [bar] [NN%]` at the bottom; `usage5h`/`usageWeek` are plan-usage % (0-100) from statusline's `usage.json`
 - **Memory hidden on start**: Memory not displayed during `start` state
 - **Project change resets**: Model/memory cleared when project changes (usage is account-global, not reset)
 - **Sparkle effect (start, working)**: Animated 4-point star sparkle

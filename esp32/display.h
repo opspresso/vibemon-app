@@ -127,10 +127,11 @@ void drawInfoRow(int y, void (*iconFn)(TFT_eSPI&, int, int, uint16_t, int, uint1
   tft.setFont(nullptr);
 }
 
-// Helper: Draw a single-line metric row: [icon] [NN%] [inline bar]
+// Helper: Draw a single-line metric row: [icon] [inline bar] [NN%]
 // Used for memory and plan-usage (5h / weekly); reuses drawMemoryBar gradient.
 void drawMetricRow(int y, void (*iconFn)(TFT_eSPI&, int, int, uint16_t, int, uint16_t), int percent, uint16_t textColor, uint16_t bgColor) {
   iconFn(tft, METRIC_ICON_X, y + 2, textColor, 1, bgColor);
+  drawMemoryBar(tft, METRIC_BAR_X, y + 2, METRIC_BAR_W, METRIC_BAR_H, percent, bgColor);
   tft.setTextColor(textColor);
   tft.setFont(&fonts::FreeSans9pt7b);
   tft.setTextSize(1);
@@ -142,7 +143,6 @@ void drawMetricRow(int y, void (*iconFn)(TFT_eSPI&, int, int, uint16_t, int, uin
   tft.setCursor(METRIC_TEXT_X + METRIC_TEXT_W - w, y);
   tft.print(valueText);
   tft.setFont(nullptr);
-  drawMemoryBar(tft, METRIC_BAR_X, y + 2, METRIC_BAR_W, METRIC_BAR_H, percent, bgColor);
 }
 
 // =============================================================================
@@ -206,7 +206,7 @@ void drawInfoSection(uint16_t bgColor, uint16_t textColor) {
     drawInfoRow(MODEL_Y, drawRobotIcon, currentModel, textColor, bgColor);
   }
 
-  // Metric rows (memory + plan usage) as single-line [icon] [NN%] [bar].
+  // Metric rows (memory + plan usage) as single-line [icon] [bar] [NN%].
   // Hidden on start state; each row hidden when its value is 0.
   if (currentState != STATE_START) {
     if (currentMemory > 0) {

@@ -23,15 +23,15 @@
 #define PROJECT_Y     200  // info rows: 19px spacing (compact to fit metric rows)
 #define TOOL_Y        219
 #define MODEL_Y       238
-// Metric rows (single-line: icon + NN% + inline bar): memory, 5h usage, weekly usage
+// Metric rows (single-line: icon + inline bar + NN%): memory, 5h usage, weekly usage
 #define MEMORY_Y      258  // font ~14px → bottom 272
 #define USAGE5H_Y     278
 #define USAGEWEEK_Y   298  // text bottom ~312
 #define METRIC_ICON_X  10  // pixel icon left
-#define METRIC_TEXT_X  24  // "NN%" text left
+#define METRIC_BAR_X   24  // inline bar left
+#define METRIC_BAR_W  100  // bar width (24..124)
+#define METRIC_TEXT_X 132  // "NN%" text left (after bar)
 #define METRIC_TEXT_W  32  // right-aligned "100%" text width
-#define METRIC_BAR_X   62  // inline bar left (after "100%")
-#define METRIC_BAR_W  100  // bar width (62..162)
 #define METRIC_BAR_H    8  // bar height (centered in row)
 #define BRAND_Y       308  // start screen only (size 1, 8px)
 
