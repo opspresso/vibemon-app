@@ -90,7 +90,7 @@ See [ESP32 Setup Guide](docs/esp32-setup.md) for detailed instructions.
 - [API Reference](docs/api.md) - Complete HTTP API documentation
 - [ESP32 Setup Guide](docs/esp32-setup.md) - WiFi provisioning, WebSocket token configuration
 
-For full documentation, visit **[docs.vibemon.io](https://docs.vibemon.io)**.
+For full documentation, visit **[vibemon.io/docs](https://vibemon.io/docs)**.
 
 ## States
 
@@ -117,7 +117,7 @@ See [Features](docs/features.md) for animations, working state text, and more.
 | `codex` | Green | Codex |
 | `kiro` | White | Kiro |
 | `claw` | Red | OpenClaw |
-| `daangni` | White/teal | Manual only (Character Lock) |
+| `daangni` | Peach/teal | Manual only (Character Lock) |
 
 ### Character Lock
 
@@ -219,14 +219,14 @@ See [Features](docs/features.md) for lock modes and bridge notes.
 | Hook not working | Verify Python 3: `python3 --version` |
 | Captive portal doesn't open | Navigate to `http://192.168.4.1` manually |
 | WiFi connection fails | Check password, ensure 2.4GHz network |
-| Device won't enter setup mode | Send `POST /wifi-reset` to clear credentials |
+| Device won't enter setup mode | Send `POST /wifi-reset` with body `{"confirm":true}` to clear credentials |
 
 See [Features](docs/features.md) for desktop app details, [ESP32 Setup Guide](docs/esp32-setup.md) for hardware troubleshooting.
 
 ## Related Projects
 
 - [vibemon](https://github.com/opspresso/vibemon) - Cloud dashboard & API ([vibemon.io](https://vibemon.io))
-- [vibemon-docs](https://github.com/opspresso/vibemon-docs) - Agent hook installation & setup guide ([docs.vibemon.io](https://docs.vibemon.io))
+- [vibemon-docs](https://github.com/opspresso/vibemon-docs) - Agent hook installation & setup guide ([vibemon.io/docs](https://vibemon.io/docs))
 - [vibemon-static](https://github.com/opspresso/vibemon-static) - Static assets & embeddable rendering engine ([static.vibemon.io](https://static.vibemon.io))
 
 ## License

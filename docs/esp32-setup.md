@@ -268,7 +268,7 @@ esptool.py --port /dev/ttyUSB0 erase_region 0x9000 0x6000
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
-| `/*` | GET | Configuration page (HTML) |
+| `/*` | Any (catch-all) | Configuration page (HTML) |
 | `/scan` | GET | WiFi networks list (JSON) |
 | `/save` | POST | Save WiFi + token, reboot |
 
@@ -300,34 +300,51 @@ See [API Reference](api.md) for full request/response details.
 ### Code Flow
 
 ```cpp
-void setup() {
+void setupWiFi() {
   // Load WiFi credentials from NVS (fallback to credentials.h defines)
   loadWiFiCredentials();
 
   if (strlen(wifiSSID) == 0) {
     // No credentials → Start provisioning
     startProvisioningMode();
-  } else {
-    // Try to connect (3 rounds × 20 attempts)
-    WiFi.begin(wifiSSID, wifiPassword);
-
-    if (connection fails after all retries) {
-      // Enter provisioning mode directly
-      // Saved credentials are preserved for retry
-      startProvisioningMode();
-    }
+    return;
   }
+
+  // Try to connect (3 rounds × 20 attempts)
+  for (retry rounds) {
+    WiFi.begin(wifiSSID, wifiPassword);
+    // wait up to 20 attempts for WL_CONNECTED
+  }
+
+  if (still not connected after all retries) {
+    // Enter provisioning mode directly
+    // Saved credentials are preserved for retry
+    startProvisioningMode();
+    return;
+  }
+
+  server.begin();  // HTTP server only starts once WiFi connects
 }
 
 void setupWebSocket() {
-  // Load token from NVS (or use WS_TOKEN define as fallback)
-  loadWebSocketToken();
+  // Load token from NVS only if not already loaded (or use WS_TOKEN define as fallback)
+  if (strlen(wsToken) == 0) {
+    loadWebSocketToken();
+  }
 
-  // Add token to WebSocket URL
-  snprintf(wsPath, "/?token=%s", wsToken);
+  // Add token to WebSocket URL only if one is set
+  if (strlen(wsToken) > 0) {
+    snprintf(wsPath, sizeof(wsPath), "%s?token=%s", WS_PATH, wsToken);
+  } else {
+    safeCopyStr(wsPath, WS_PATH);
+  }
 
-  // Connect to WebSocket server
+  // Connect to WebSocket server (SSL is compile-time optional via WS_USE_SSL)
+#if WS_USE_SSL
   webSocket.beginSSL(WS_HOST, WS_PORT, wsPath);
+#else
+  webSocket.begin(WS_HOST, WS_PORT, wsPath);
+#endif
 }
 ```
 

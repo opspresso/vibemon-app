@@ -41,7 +41,7 @@ npm start
 
 ### Key Files
 - **ESP32**: `esp32.ino` (main orchestrator), `config.h` (constants), `TFT_Compat.h` (LovyanGFX wrapper, defines `TFT_eSPI`/`TFT_eSprite` aliases), `LGFX_ESP32C6.hpp` (dual-board display driver, `configure(boardType)` called before `init()`), `sprites.h` (rendering), `img_clawd.h`/`img_codex.h`/`img_kiro.h`/`img_claw.h` (per-character 128×128 RGB565 bitmaps used by `sprites.h`), `ui_elements.h` (status text, icons), `state.h` (globals, timers, `g_boardType`), `display.h` (screen drawing), `project_lock.h` (lock logic), `input.h` (JSON parsing), `wifi_manager.h` (WiFi/HTTP/WebSocket), `wifi_portal.h` (captive portal HTML), `credentials.h.example` (WiFi/WebSocket/board config template → copy to `credentials.h`)
-- **Desktop**: `main.js` (entry point), `modules/*.cjs` (http-server, http-utils, multi-window-manager, bubble-window-manager, state-manager, tray-manager, validators, ws-client), `renderer.js` + `index.html` (renderer; loads the character/canvas rendering engine from the remote `vibemon-engine-standalone.js`)
+- **Desktop**: `main.js` (entry point), `preload.js` (Electron contextBridge/IPC), `modules/*.cjs` (http-server, http-utils, multi-window-manager, bubble-window-manager, state-manager, tray-manager, validators, ws-client), `renderer.js` + `index.html`/`bubble.html`/`dashboard.html`/`stats.html` (renderer views; `renderer.js` loads the character/canvas rendering engine from the remote `vibemon-engine-standalone.js`)
 - **Shared**: `desktop/shared/` folder (config, constants)
 - **Config Data**: `desktop/shared/data/constants.json` (single source of truth - window dimensions, animation settings, limits)
 - **Tools**: `tools/png_to_rgb565.py` (PNG → ESP32 `img_*.h` RGB565 header; magenta `0xF81F` = transparent), `tools/rgb565_to_png.py` (reverse, regenerates `images/img_*.png`)
@@ -54,13 +54,13 @@ npm start
 - **Floating**: Cosine/Sine wave offset (X: ±3px, Y: ±5px, ~3.2s cycle)
 - **Working text**: Tool-based fixed text via `getWorkingText(tool)` (Bash→Running, Read→Reading, Edit→Editing, Write→Writing, Grep/WebSearch→Searching, Glob→Scanning, WebFetch→Fetching, Task→Tasking, default→Working)
 - **JSON fields**: `{"state", "tool", "project", "model", "memory", "usage5h", "usageWeek", "character"}` (Desktop adds `"terminalId"` for click-to-focus)
-- **Characters**: `clawd` (orange), `codex` (green), `kiro` (white ghost), `claw` (red), `daangni` (white/teal, manual only)
+- **Characters**: `clawd` (orange), `codex` (green), `kiro` (white ghost), `claw` (red), `daangni` (peach/teal, manual only)
 - **Character Lock**: Persisted `characterLock` setting (`'auto'` default, or a `CHARACTER_NAMES` entry) forces every window to show one character regardless of what each project's status reports; applied in `MultiWindowManager.routeStatusUpdate()` so it covers stateRegistry, window state, and the IPC payload uniformly. Switch via tray menu (**Character Lock**) or `POST /character-lock`.
 - **Metric rows**: memory (🧠), 5h usage (⏱️), weekly usage (📅) each render as a single line `[icon] [bar] [NN%]` at the bottom; `usage5h`/`usageWeek` are plan-usage % (0-100) from statusline's `usage.json`
 - **Memory hidden on start**: Memory not displayed during `start` state
 - **Project change resets**: Model/memory cleared when project changes (usage is account-global, not reset)
 - **Sparkle effect (start, working)**: Animated 4-point star sparkle
-- **Sunglasses (working)**: Dark green sunglasses with frame and shine (EYE_FOCUSED)
+- **Glasses (working)**: Frame-only glasses, lenses stay clear so the eyes underneath remain visible (EYE_GLASSES)
 - **Loading dots speed**: Thinking/planning/packing states use 3x slower animation than working state
 - **Snap to corner**: Windows can be dragged freely, including past screen edges while the drag is in progress; once movement settles (150ms debounce, i.e. the drag ends) the window is clamped back fully on-screen, snapping flush to a corner if it landed within 30px of one
 - **Remembered position**: A window's settled position is saved (per-project for Window Mode, one shared spot for Character Mode's window) and used as the spawn point the next time a window is created for that key

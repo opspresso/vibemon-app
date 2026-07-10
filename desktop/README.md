@@ -41,7 +41,7 @@ The app launches in the system tray and listens on `http://127.0.0.1:19280`.
 ## Features
 
 - **Frameless Window** - Clean floating design
-- **Always on Top** - Always displayed above other windows
+- **Always on Top** - Stays above other windows while active (configurable modes)
 - **System Tray** - Quick control from the menu bar
 - **Multi-window** - One window per project (up to 5)
 - **Snap to Corner** - Auto-snaps near screen edges

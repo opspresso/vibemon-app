@@ -78,8 +78,11 @@ curl -X POST http://127.0.0.1:19280/status \
 | `memory` | number | Context-window usage (0-100) |
 | `usage5h` | number | 5-hour plan-usage window (0-100) |
 | `usageWeek` | number | Weekly plan-usage window (0-100) |
-| `character` | string | `clawd`, `codex`, `kiro`, or `claw` |
+| `character` | string | `clawd`, `codex`, `kiro`, `claw`, or `daangni` (Desktop only — ESP32 silently ignores `daangni`) |
 | `terminalId` | string | Desktop only. Terminal ID for click-to-focus (e.g., `iterm2:w0t0p0:UUID` or `ghostty:12345`) |
+
+> **Desktop:** An unrecognized `state` value is rejected with a `400` error.
+> **ESP32:** An unrecognized `state` value is silently treated as `idle` — no error is returned.
 
 Agent bridges usually set `character` automatically:
 - `clawd` for Claude Code
@@ -224,6 +227,8 @@ curl -X POST http://127.0.0.1:19280/window-mode \
 {"success": true, "mode": "single", "windowCount": 1, "lockedProject": null}
 ```
 
+> On an invalid `mode`, the response is `{"success": false, "error": "Invalid mode: <mode>", "validModes": ["multi", "single"]}`.
+
 ### GET /app-mode (Desktop only)
 
 Get current app mode.
@@ -251,6 +256,8 @@ curl -X POST http://127.0.0.1:19280/app-mode \
 ```json
 {"success": true, "mode": "character", "windowCount": 1}
 ```
+
+> On an invalid `mode`, the response is `{"success": false, "error": "Invalid mode: <mode>", "validModes": ["character", "window", "input"]}`.
 
 ### GET /character-lock (Desktop only)
 
@@ -280,7 +287,7 @@ curl -X POST http://127.0.0.1:19280/character-lock \
 {"success": true, "character": "daangni"}
 ```
 
-> On an invalid `mode`, the response is `{"success": false, "error": "Invalid mode: <mode>", "validModes": ["multi", "single"]}`.
+> On an invalid `character`, the response is `{"success": false, "error": "Invalid character: <character>", "validCharacters": ["auto", "clawd", "codex", "kiro", "claw", "daangni"]}`.
 
 ---
 
@@ -392,7 +399,9 @@ curl -X POST http://192.168.0.185/lock-mode \
 
 > **ESP32:** Changing lock mode resets the current lock (`lockedProject` becomes null) and persists the new mode to Flash storage.
 >
-> On an invalid `mode`, the response is `{"success": false, "error": "Invalid mode: <mode>", "validModes": [...]}` listing the accepted mode keys.
+> **Desktop:** On an invalid `mode`, the response is `{"success": false, "error": "Invalid mode: <mode>", "validModes": [...]}` listing the accepted mode keys.
+>
+> **ESP32:** On an invalid `mode`, the response is HTTP 400 with `{"error": "Invalid mode. Valid modes: first-project, on-thinking"}` (no `success` field).
 
 ---
 
@@ -458,6 +467,8 @@ curl http://127.0.0.1:19280/stats/data
   "lastUpdated": "2026-01-29T12:00:00Z"
 }
 ```
+
+> Errors: `404` `{"error": "Stats file not found: ~/.claude/stats-cache.json"}` if the cache doesn't exist; `500` `{"error": "Failed to parse stats file: <message>"}` or `{"error": "Failed to read stats file: <message>"}` on other failures.
 
 ---
 
@@ -550,7 +561,7 @@ See [ESP32 Setup Guide](esp32-setup.md#reset-wifi-settings) for details.
 |------|---------|-------|
 | `200` | Success | Success (also used for some errors — check `success` field) |
 | `400` | Bad request (validation error) | Bad request (missing body or invalid input) |
-| `404` | Not found | - |
+| `404` | Not found | Likely, via the `WebServer` library's default unmatched-route handler (normal mode registers no custom `onNotFound`) |
 | `408` | Request timeout | - |
 | `413` | Payload too large (>10KB) | - |
 | `429` | Too many requests (rate limited) | - |
