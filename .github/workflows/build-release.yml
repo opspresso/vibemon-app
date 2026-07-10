@@ -1,0 +1,170 @@
+name: Build and Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to build'
+        required: true
+        default: 'v0.0.0'
+
+jobs:
+  build:
+    runs-on: ${{ matrix.os }}
+
+    strategy:
+      matrix:
+        os: [macos-latest, windows-latest]
+      fail-fast: false
+
+    defaults:
+      run:
+        working-directory: desktop
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: npm ci || npm install
+
+      - name: Sync version from tag
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            TAG_VERSION="${{ inputs.version }}"
+          else
+            TAG_VERSION="${{ github.ref_name }}"
+          fi
+          VERSION="${TAG_VERSION#v}"
+          npm version "$VERSION" --no-git-tag-version --allow-same-version
+
+      - name: Move electron to devDependencies for packaging
+        shell: bash
+        run: |
+          # electron-builder refuses to build unless "electron" is a devDependency,
+          # but bin/cli.js requires('electron') at runtime so npx installs need it
+          # under "dependencies". Rewrite it here only for this CI build; the
+          # committed package.json (used by npm/npx) is never touched.
+          node -e "
+            const fs = require('fs');
+            const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+            if (pkg.dependencies && pkg.dependencies.electron) {
+              pkg.devDependencies = pkg.devDependencies || {};
+              pkg.devDependencies.electron = pkg.dependencies.electron;
+              delete pkg.dependencies.electron;
+              fs.writeFileSync('package.json', JSON.stringify(pkg, null, 2) + '\n');
+            }
+          "
+
+      - name: Import macOS codesign certificate
+        if: matrix.os == 'macos-latest'
+        uses: apple-actions/import-codesign-certs@v7
+        with:
+          p12-file-base64: ${{ secrets.APPLE_CERTIFICATE_BASE64 }}
+          p12-password: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+
+      - name: Prepare for app notarization
+        if: matrix.os == 'macos-latest'
+        shell: bash
+        run: |
+          mkdir -p "$HOME/private_keys/"
+          echo '${{ secrets.API_KEY_SECRET }}' > "$HOME/private_keys/AuthKey_${{ secrets.API_KEY_ID }}.p8"
+
+          echo "APPLE_API_KEY=$HOME/private_keys/AuthKey_${{ secrets.API_KEY_ID }}.p8" >> "$GITHUB_ENV"
+          echo "APPLE_API_KEY_ID=${{ secrets.API_KEY_ID }}" >> "$GITHUB_ENV"
+          echo "APPLE_API_ISSUER=${{ secrets.API_KEY_ISSUER_ID }}" >> "$GITHUB_ENV"
+
+      - name: Build Electron app on macOS
+        if: matrix.os == 'macos-latest'
+        run: npx electron-builder --mac --publish never
+
+      - name: Build Electron app on Windows
+        if: matrix.os == 'windows-latest'
+        shell: bash
+        run: npx electron-builder --win --publish never
+        env:
+          CSC_LINK: ${{ secrets.WINDOWS_CERTS }}
+          CSC_KEY_PASSWORD: ${{ secrets.WINDOWS_CERTS_PASSWORD }}
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{ matrix.os }}-artifacts
+          path: |
+            desktop/dist/*.dmg
+            desktop/dist/*.zip
+            desktop/dist/*.exe
+            desktop/dist/*.yml
+          if-no-files-found: ignore
+
+  release:
+    needs: [build]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v8
+        with:
+          path: artifacts
+
+      - name: Get tag message
+        id: tag_message
+        run: |
+          TAG_REF=$(curl -s \
+            -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+            "https://api.github.com/repos/${{ github.repository }}/git/refs/tags/${{ github.ref_name }}")
+
+          OBJECT_TYPE=$(echo "$TAG_REF" | jq -r '.object.type')
+          OBJECT_SHA=$(echo "$TAG_REF" | jq -r '.object.sha')
+
+          TAG_MESSAGE=""
+          if [ "$OBJECT_TYPE" = "tag" ]; then
+            TAG_MESSAGE=$(curl -s \
+              -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+              "https://api.github.com/repos/${{ github.repository }}/git/tags/$OBJECT_SHA" | \
+              jq -r '.message')
+          fi
+
+          if [ -z "$TAG_MESSAGE" ] || [ "$TAG_MESSAGE" = "null" ]; then
+            PREV_TAG=$(git describe --tags --abbrev=0 "${{ github.ref_name }}^" 2>/dev/null || echo "")
+            if [ -n "$PREV_TAG" ]; then
+              TAG_MESSAGE=$(printf '## Changes since %s\n\n%s\n' \
+                "$PREV_TAG" \
+                "$(git log --pretty='- %s' "$PREV_TAG..${{ github.ref_name }}" --no-merges)")
+            else
+              TAG_MESSAGE="Release ${{ github.ref_name }}"
+            fi
+          fi
+
+          echo "$TAG_MESSAGE" > release_notes.md
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: Release ${{ github.ref_name }}
+          draft: false
+          prerelease: false
+          body_path: release_notes.md
+          files: |
+            artifacts/**/*.dmg
+            artifacts/**/*.zip
+            artifacts/**/*.exe
+            artifacts/**/latest*.yml

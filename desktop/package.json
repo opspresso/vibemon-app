@@ -75,10 +75,15 @@
       "target": [
         "dmg",
         "zip"
-      ]
+      ],
+      "entitlements": "entitlements.mac.plist",
+      "entitlementsInherit": "entitlements.mac.plist",
+      "hardenedRuntime": true,
+      "gatekeeperAssess": false
     },
     "win": {
       "icon": "assets/icon.ico",
+      "artifactName": "${productName}-${version}-${arch}.${ext}",
       "target": [
         {
           "target": "nsis",
