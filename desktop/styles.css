@@ -82,9 +82,40 @@ html, body {
 /* Device Frame */
 .device-frame {
   -webkit-app-region: drag;
+  position: relative;
   background: rgba(45, 45, 45, 0.95);
   padding: 0;
   border-radius: 0 0 12px 12px;
   box-shadow: 0 10px 40px rgba(0,0,0,0.5);
+}
+
+/* Character Only Mode: hide title bar and device frame chrome, keep only the character */
+body.character-only-mode .title-bar {
+  display: none;
+}
+
+body.character-only-mode .device-frame {
+  background: transparent;
+  box-shadow: none;
+  border-radius: 0;
+}
+
+/* The rendering engine (vibemon-engine-standalone.js) paints its own
+   background color and info/usage lines as inline styles on #vibemon-display
+   and its children on every render() call, so only a stylesheet !important
+   rule (which outranks a plain inline style) can override them here. */
+body.character-only-mode #vibemon-display {
+  background: transparent !important;
+}
+
+body.character-only-mode .vibemon-status-text,
+body.character-only-mode .vibemon-loading-dots,
+body.character-only-mode .vibemon-project-text,
+body.character-only-mode .vibemon-tool-text,
+body.character-only-mode .vibemon-model-text,
+body.character-only-mode .vibemon-memory-text,
+body.character-only-mode .vibemon-usage5h-text,
+body.character-only-mode .vibemon-usageweek-text {
+  display: none !important;
 }
 

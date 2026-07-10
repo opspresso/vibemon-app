@@ -6,12 +6,62 @@ const STATIC_BASE = 'https://static.vibemon.io';
 // VibeMon engine instance
 let vibeMonEngine = null;
 
-// IPC cleanup function
+// IPC cleanup functions
 let cleanupStateListener = null;
+let cleanupDisplayModeListener = null;
+
+let characterOnlyMode = false;
+
+/**
+ * The rendering engine (loaded from static.vibemon.io, not part of this repo)
+ * paints its full-canvas state-color background directly as canvas pixels
+ * (ctx.fillRect(0, 0, 128, 128)) before drawing the character sprite on top,
+ * with no option to disable it. In character-only mode we want that backdrop
+ * fully transparent, so intercept that specific full-canvas fill on the
+ * character canvas and clear it instead of painting it. Small fillRect calls
+ * (eyes, effects, icon canvases) are left untouched. This relies on the
+ * engine's current internal implementation and may need updating if the
+ * remote engine's rendering changes.
+ */
+function patchCharacterCanvasBackground() {
+  const originalGetContext = HTMLCanvasElement.prototype.getContext;
+  HTMLCanvasElement.prototype.getContext = function (type, ...args) {
+    const ctx = originalGetContext.call(this, type, ...args);
+    if (type === '2d' && this.classList?.contains('vibemon-canvas') && !ctx.__vibemonBgPatched) {
+      const canvas = this;
+      const originalFillRect = ctx.fillRect.bind(ctx);
+      ctx.fillRect = (x, y, w, h) => {
+        if (characterOnlyMode && x === 0 && y === 0 && w === canvas.width && h === canvas.height) {
+          ctx.clearRect(0, 0, w, h);
+          return;
+        }
+        originalFillRect(x, y, w, h);
+      };
+      ctx.__vibemonBgPatched = true;
+    }
+    return ctx;
+  };
+}
+
+/**
+ * Apply a display-mode payload (character-only mode) from either the push
+ * ('display-mode-update') or the pull (getDisplayMode). The speech bubble
+ * itself is rendered in its own window by the main process
+ * (modules/bubble-window-manager.cjs); this only toggles the CSS class that
+ * hides this window's own title bar/device frame/engine info panel.
+ */
+function applyDisplayMode(data) {
+  if (!data || typeof data !== 'object') return;
+
+  characterOnlyMode = !!data.characterOnlyMode;
+  document.body.classList.toggle('character-only-mode', characterOnlyMode);
+}
 
 // Initialize
 async function init() {
   const container = document.getElementById('vibemon-display');
+
+  patchCharacterCanvasBackground();
 
   // Get platform info for emoji detection
   let useEmoji = false;
@@ -48,6 +98,21 @@ async function init() {
     });
   }
 
+  // Listen for display-mode updates (character-only mode)
+  if (window.electronAPI?.onDisplayModeUpdate) {
+    cleanupDisplayModeListener = window.electronAPI.onDisplayModeUpdate(applyDisplayMode);
+  }
+
+  // The main process also pushes display-mode once at window creation, but
+  // that push can race ahead of this async init() (engine/image loading) and
+  // get dropped before the listener above is registered. Pull the current
+  // settings directly once we're actually ready, so it's correct regardless.
+  if (window.electronAPI?.getDisplayMode) {
+    window.electronAPI.getDisplayMode().then(applyDisplayMode).catch((error) => {
+      console.error('Failed to fetch display mode:', error);
+    });
+  }
+
   // Right-click context menu (works on all platforms)
   document.addEventListener('contextmenu', (e) => {
     e.preventDefault();
@@ -75,6 +140,10 @@ function cleanup() {
   if (cleanupStateListener) {
     cleanupStateListener();
     cleanupStateListener = null;
+  }
+  if (cleanupDisplayModeListener) {
+    cleanupDisplayModeListener();
+    cleanupDisplayModeListener = null;
   }
 }
 

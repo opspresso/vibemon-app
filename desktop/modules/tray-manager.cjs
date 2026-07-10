@@ -10,10 +10,17 @@ const {
   STATE_COLORS, CHARACTER_CONFIG, DEFAULT_CHARACTER,
   HTTP_PORT, LOCK_MODES, ALWAYS_ON_TOP_MODES,
   VALID_STATES, CHARACTER_NAMES, TRAY_ICON_SIZE,
-  STATS_CACHE_PATH
+  STATS_CACHE_PATH, SPEECH_BUBBLE_FIELDS
 } = require('../shared/config.cjs');
 
 const COLOR_EYE = '#000000';
+
+const SPEECH_BUBBLE_FIELD_LABELS = {
+  project: 'Project',
+  memory: 'Memory',
+  usage5h: 'Usage 5h',
+  usageWeek: 'Usage Week'
+};
 
 // Tray icon cache for performance
 const trayIconCache = new Map();
@@ -508,6 +515,21 @@ class TrayManager {
     }));
   }
 
+  buildSpeechBubbleSubmenu() {
+    const fields = this.windowManager.getSpeechBubbleFields();
+
+    return SPEECH_BUBBLE_FIELDS.map(field => ({
+      label: SPEECH_BUBBLE_FIELD_LABELS[field] || field,
+      type: 'checkbox',
+      checked: !!fields[field],
+      click: () => {
+        const current = this.windowManager.getSpeechBubbleFields();
+        this.windowManager.setSpeechBubbleField(field, !current[field]);
+        this.updateMenu();
+      }
+    }));
+  }
+
   buildWebSocketStatusMenu() {
     if (!this.wsClient) {
       return [];
@@ -600,6 +622,19 @@ class TrayManager {
           this.windowManager.setWindowMode(newMode);
           this.updateMenu();
         }
+      },
+      {
+        label: 'Character Only Mode',
+        type: 'checkbox',
+        checked: this.windowManager.getCharacterOnlyMode(),
+        click: () => {
+          this.windowManager.setCharacterOnlyMode(!this.windowManager.getCharacterOnlyMode());
+          this.updateMenu();
+        }
+      },
+      {
+        label: 'Speech Bubble',
+        submenu: this.buildSpeechBubbleSubmenu()
       },
       {
         label: 'Open at Login',

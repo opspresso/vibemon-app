@@ -21,6 +21,7 @@ class HttpServer {
     this.windowManager = windowManager;
     this.app = app;
     this.onStateUpdate = null;  // Callback for menu/icon updates
+    this.onProjectSwitched = null;  // Callback: (oldProjectId) => void, single-mode window reuse
     this.onError = null;        // Callback for server errors
 
     // Rate limiting state
@@ -254,6 +255,9 @@ class HttpServer {
       if (result.switchedProject) {
         // Clean up old project's timers
         this.stateManager.cleanupProject(result.switchedProject);
+        if (this.onProjectSwitched) {
+          this.onProjectSwitched(result.switchedProject);
+        }
       }
     }
 

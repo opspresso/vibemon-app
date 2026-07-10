@@ -1,6 +1,6 @@
 {
   "name": "vibemon",
-  "version": "1.11.5",
+  "version": "1.12.0",
   "description": "AI assistant status monitor",
   "main": "main.js",
   "bin": {
@@ -41,6 +41,7 @@
   },
   "dependencies": {
     "canvas": "^3.2.1",
+    "d3-force": "^3.0.0",
     "dotenv": "^17.2.3",
     "electron": "^35.7.5",
     "electron-store": "^8.2.0",
@@ -58,6 +59,7 @@
     "preload.js",
     "index.html",
     "stats.html",
+    "bubble.html",
     "renderer.js",
     "styles.css",
     "assets/",

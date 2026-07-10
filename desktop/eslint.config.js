@@ -23,7 +23,8 @@ const browserGlobals = {
   requestAnimationFrame: 'readonly',
   cancelAnimationFrame: 'readonly',
   URL: 'readonly',
-  Image: 'readonly'
+  Image: 'readonly',
+  HTMLCanvasElement: 'readonly'
 };
 
 const jestGlobals = {

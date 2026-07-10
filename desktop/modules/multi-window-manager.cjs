@@ -17,7 +17,10 @@ const {
   SNAP_DEBOUNCE,
   LOCK_MODES,
   ALWAYS_ON_TOP_MODES,
-  ACTIVE_STATES
+  ACTIVE_STATES,
+  SPEECH_BUBBLE_FIELDS,
+  CHAR_Y_BASE,
+  CHAR_SIZE
 } = require('../shared/config.cjs');
 
 // Platform-specific always-on-top level
@@ -25,11 +28,21 @@ const {
 // Windows/Linux: 'screen-saver' (required for window visibility in WSL/Windows)
 const ALWAYS_ON_TOP_LEVEL = process.platform === 'darwin' ? 'floating' : 'screen-saver';
 
+// Character Only Mode window height: just tall enough for the character
+// sprite (CHAR_Y_BASE + CHAR_SIZE) plus a little clearance for its floating
+// animation, instead of the full WINDOW_HEIGHT which leaves a tall empty
+// transparent area below the character (the engine's own info panel, hidden
+// in this mode, normally fills that space).
+const CHARACTER_ONLY_WINDOW_HEIGHT = CHAR_Y_BASE + CHAR_SIZE + 12;
+
 class MultiWindowManager {
   constructor() {
     this.windows = new Map();  // Map<projectId, { window, state }>
     this.snapTimers = new Map();  // Map<projectId, timerId>
     this.onWindowClosed = null;  // callback: (projectId) => void
+    this.onStateUpdated = null;  // callback: (projectId) => void, fires after state/info changes
+    this.onWindowMoved = null;  // callback: (projectId) => void
+    this.onDisplayModeChanged = null;  // callback: () => void
 
     // Persistent settings
     this.store = new Store({
@@ -38,7 +51,9 @@ class MultiWindowManager {
         lockedProject: null,
         lockMode: 'on-thinking',  // 'first-project' or 'on-thinking'
         alwaysOnTopMode: 'active-only',  // 'active-only', 'all', or 'disabled'
-        projectList: []  // Persisted project list for lock menu
+        projectList: [],  // Persisted project list for lock menu
+        characterOnlyMode: false,  // Hide title bar/device frame, show speech bubble instead
+        speechBubbleFields: { project: true, memory: true, usage5h: true, usageWeek: true }
       }
     });
 
@@ -47,6 +62,8 @@ class MultiWindowManager {
     this.lockedProject = this.store.get('lockedProject');
     this.lockMode = this.store.get('lockMode');
     this.alwaysOnTopMode = this.store.get('alwaysOnTopMode');
+    this.characterOnlyMode = this.store.get('characterOnlyMode');
+    this.speechBubbleFields = this.store.get('speechBubbleFields');
 
     // Project list (tracks all projects seen) - persisted
     this.projectList = this.store.get('projectList') || [];
@@ -228,6 +245,78 @@ class MultiWindowManager {
   }
 
   // ============================================================================
+  // Display Mode Management (Character Only Mode)
+  // ============================================================================
+
+  /**
+   * Get character-only mode (hides title bar/device frame, shows speech bubble instead)
+   * @returns {boolean}
+   */
+  getCharacterOnlyMode() {
+    return this.characterOnlyMode;
+  }
+
+  /**
+   * Set character-only mode and broadcast to all open windows
+   * @param {boolean} enabled
+   */
+  setCharacterOnlyMode(enabled) {
+    this.characterOnlyMode = !!enabled;
+    this.store.set('characterOnlyMode', this.characterOnlyMode);
+
+    // Shrink/restore every open window's height to match — Character Only
+    // Mode hides everything below the character sprite, so the window
+    // shouldn't keep the tall empty area the normal mode's info panel fills.
+    const height = this.characterOnlyMode ? CHARACTER_ONLY_WINDOW_HEIGHT : WINDOW_HEIGHT;
+    for (const [, entry] of this.windows) {
+      if (this.isWindowValid(entry)) {
+        entry.window.setSize(WINDOW_WIDTH, height);
+      }
+    }
+
+    this.broadcastDisplayMode();
+  }
+
+  /**
+   * Get speech bubble field visibility
+   * @returns {{project: boolean, memory: boolean, usage5h: boolean, usageWeek: boolean}}
+   */
+  getSpeechBubbleFields() {
+    return this.speechBubbleFields;
+  }
+
+  /**
+   * Set visibility for a single speech bubble field and broadcast to all open windows
+   * @param {string} field - One of SPEECH_BUBBLE_FIELDS
+   * @param {boolean} enabled
+   */
+  setSpeechBubbleField(field, enabled) {
+    if (!SPEECH_BUBBLE_FIELDS.includes(field)) return;
+
+    this.speechBubbleFields = { ...this.speechBubbleFields, [field]: !!enabled };
+    this.store.set('speechBubbleFields', this.speechBubbleFields);
+    this.broadcastDisplayMode();
+  }
+
+  /**
+   * Send current display-mode settings to every open window
+   */
+  broadcastDisplayMode() {
+    const payload = {
+      characterOnlyMode: this.characterOnlyMode,
+      speechBubbleFields: this.speechBubbleFields
+    };
+    for (const [, entry] of this.windows) {
+      if (this.isWindowValid(entry) && !entry.window.webContents.isDestroyed()) {
+        entry.window.webContents.send('display-mode-update', payload);
+      }
+    }
+    if (this.onDisplayModeChanged) {
+      this.onDisplayModeChanged();
+    }
+  }
+
+  // ============================================================================
   // Window Position Calculation
   // ============================================================================
 
@@ -325,7 +414,7 @@ class MultiWindowManager {
     // macOS: Use 'panel' type to prevent focus stealing
     const windowOptions = {
       width: WINDOW_WIDTH,
-      height: WINDOW_HEIGHT,
+      height: this.characterOnlyMode ? CHARACTER_ONLY_WINDOW_HEIGHT : WINDOW_HEIGHT,
       x: position.x,
       y: position.y,
       frame: false,
@@ -378,6 +467,12 @@ class MultiWindowManager {
         window.webContents.send('state-update', windowEntry.state);
       }
 
+      // Send current display-mode settings (character-only mode, speech bubble fields)
+      window.webContents.send('display-mode-update', {
+        characterOnlyMode: this.characterOnlyMode,
+        speechBubbleFields: this.speechBubbleFields
+      });
+
       // Arrange all windows by state and name
       this.arrangeWindowsByName();
     });
@@ -417,6 +512,11 @@ class MultiWindowManager {
     // Handle window move for snap to edges
     // Use windowEntry.currentProjectId to get the current project (handles single-mode reuse)
     window.on('move', () => {
+      // Notify immediately (not debounced) so the speech bubble window can
+      // follow along live while this window is being dragged.
+      if (this.onWindowMoved) {
+        this.onWindowMoved(windowEntry.currentProjectId);
+      }
       this.handleWindowMove(windowEntry.currentProjectId);
     });
 
@@ -430,6 +530,12 @@ class MultiWindowManager {
    * Within each group: sorted by project name (Z first = rightmost)
    */
   arrangeWindowsByName() {
+    // Character Only Mode windows are meant to be freely positioned like a
+    // desktop pet — don't auto-rearrange them back into the grid on every
+    // state change. handleWindowMove()'s off-screen clamp still applies
+    // regardless, since that's a separate code path.
+    if (this.characterOnlyMode) return;
+
     // Collect all windows with projectId and state
     const windowsList = [];
     for (const [projectId, entry] of this.windows) {
@@ -493,30 +599,25 @@ class MultiWindowManager {
       const display = screen.getDisplayMatching(bounds);
       const { workArea } = display;
 
-      let newX = bounds.x;
-      let newY = bounds.y;
-      let shouldSnap = false;
+      // Hard clamp first: never leave the window partially or fully off-screen,
+      // regardless of how far past the edge it was dragged.
+      let newX = Math.min(Math.max(bounds.x, workArea.x), workArea.x + workArea.width - bounds.width);
+      let newY = Math.min(Math.max(bounds.y, workArea.y), workArea.y + workArea.height - bounds.height);
 
-      // Check horizontal snap (left or right edge)
-      if (Math.abs(bounds.x - workArea.x) < SNAP_THRESHOLD) {
+      // Snap flush to the nearest edge when already close to it.
+      if (Math.abs(newX - workArea.x) < SNAP_THRESHOLD) {
         newX = workArea.x;
-        shouldSnap = true;
-      } else if (Math.abs((bounds.x + bounds.width) - (workArea.x + workArea.width)) < SNAP_THRESHOLD) {
+      } else if (Math.abs((newX + bounds.width) - (workArea.x + workArea.width)) < SNAP_THRESHOLD) {
         newX = workArea.x + workArea.width - bounds.width;
-        shouldSnap = true;
       }
 
-      // Check vertical snap (top or bottom edge)
-      if (Math.abs(bounds.y - workArea.y) < SNAP_THRESHOLD) {
+      if (Math.abs(newY - workArea.y) < SNAP_THRESHOLD) {
         newY = workArea.y;
-        shouldSnap = true;
-      } else if (Math.abs((bounds.y + bounds.height) - (workArea.y + workArea.height)) < SNAP_THRESHOLD) {
+      } else if (Math.abs((newY + bounds.height) - (workArea.y + workArea.height)) < SNAP_THRESHOLD) {
         newY = workArea.y + workArea.height - bounds.height;
-        shouldSnap = true;
       }
 
-      // Apply snap if needed
-      if (shouldSnap && (newX !== bounds.x || newY !== bounds.y)) {
+      if (newX !== bounds.x || newY !== bounds.y) {
         entry.window.setPosition(newX, newY);
       }
     }, SNAP_DEBOUNCE);
@@ -591,6 +692,9 @@ class MultiWindowManager {
 
     // Mutate entry's state property (entry object must be preserved for event handler closures)
     entry.state = { ...newState };
+    if (this.onStateUpdated) {
+      this.onStateUpdated(projectId);
+    }
     return { updated: true, stateChanged, infoChanged };
   }
 

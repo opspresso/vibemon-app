@@ -61,6 +61,8 @@
 
   "ACTIVE_STATES": ["thinking", "planning", "working", "notification", "packing", "alert"],
 
+  "SPEECH_BUBBLE_FIELDS": ["project", "memory", "usage5h", "usageWeek"],
+
   "VALID_STATES": ["start", "idle", "thinking", "planning", "working", "packing", "notification", "done", "sleep", "alert"],
 
   "CHARACTER_NAMES": ["clawd", "kiro", "claw", "codex"],

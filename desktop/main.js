@@ -19,6 +19,7 @@ const { exec } = require('child_process');
 // Modules
 const { StateManager } = require('./modules/state-manager.cjs');
 const { MultiWindowManager } = require('./modules/multi-window-manager.cjs');
+const { BubbleWindowManager } = require('./modules/bubble-window-manager.cjs');
 const { TrayManager } = require('./modules/tray-manager.cjs');
 const { HttpServer } = require('./modules/http-server.cjs');
 const { WsClient } = require('./modules/ws-client.cjs');
@@ -37,9 +38,35 @@ if (!gotTheLock) {
 // Initialize managers
 const stateManager = new StateManager();
 const windowManager = new MultiWindowManager();
+const bubbleWindowManager = new BubbleWindowManager((projectId) => windowManager.getWindow(projectId));
 let trayManager = null;
 let httpServer = null;
 let wsClient = null;
+
+function getBubbleOptions(projectId) {
+  return {
+    state: windowManager.getState(projectId),
+    speechBubbleFields: windowManager.getSpeechBubbleFields(),
+    characterOnlyMode: windowManager.getCharacterOnlyMode()
+  };
+}
+
+// Refresh a project's speech bubble whenever its state/info changes
+windowManager.onStateUpdated = (projectId) => {
+  bubbleWindowManager.update(projectId, getBubbleOptions(projectId));
+};
+
+// Keep the speech bubble following live while its character window is dragged
+windowManager.onWindowMoved = (projectId) => {
+  bubbleWindowManager.reposition(projectId);
+};
+
+// Character Only Mode / speech bubble field toggles affect every open window
+windowManager.onDisplayModeChanged = () => {
+  for (const projectId of windowManager.getProjectIds()) {
+    bubbleWindowManager.update(projectId, getBubbleOptions(projectId));
+  }
+};
 
 // Handle second instance launch attempt
 app.on('second-instance', () => {
@@ -83,6 +110,7 @@ stateManager.onWindowCloseTimeout = (projectId) => {
 // Set up window manager callback for when windows are closed
 windowManager.onWindowClosed = (projectId) => {
   stateManager.cleanupProject(projectId);
+  bubbleWindowManager.destroy(projectId);
   if (trayManager) {
     trayManager.updateMenu();
     trayManager.updateIcon();
@@ -130,6 +158,7 @@ function handleWsStatusUpdate(data) {
     // Project was switched in single mode
     if (result.switchedProject) {
       stateManager.cleanupProject(result.switchedProject);
+      bubbleWindowManager.destroy(result.switchedProject);
     }
   }
 
@@ -179,6 +208,17 @@ function handleWsStatusDelete(projectId) {
 // IPC handlers
 ipcMain.handle('get-version', () => {
   return app.getVersion();
+});
+
+// Renderer's engine/image loading is async and can outlast the main
+// process's one-shot 'display-mode-update' push sent at window ready-to-show,
+// dropping that event if the renderer's listener isn't registered yet. This
+// lets the renderer pull the current settings once it's actually ready.
+ipcMain.handle('get-display-mode', () => {
+  return {
+    characterOnlyMode: windowManager.getCharacterOnlyMode(),
+    speechBubbleFields: windowManager.getSpeechBubbleFields()
+  };
 });
 
 ipcMain.on('close-window', (event) => {
@@ -322,6 +362,9 @@ app.whenReady().then(() => {
       trayManager.updateMenu();
     }
   };
+  httpServer.onProjectSwitched = (oldProjectId) => {
+    bubbleWindowManager.destroy(oldProjectId);
+  };
   httpServer.onError = (err) => {
     if (err.code === 'EADDRINUSE') {
       dialog.showErrorBox(
@@ -372,9 +415,13 @@ app.on('before-quit', () => {
   stateManager.onStateTimeout = null;
   stateManager.onWindowCloseTimeout = null;
   windowManager.onWindowClosed = null;
+  windowManager.onStateUpdated = null;
+  windowManager.onWindowMoved = null;
+  windowManager.onDisplayModeChanged = null;
 
   stateManager.cleanup();
   windowManager.cleanup();
+  bubbleWindowManager.cleanup();
   if (trayManager) {
     trayManager.cleanup();
   }
