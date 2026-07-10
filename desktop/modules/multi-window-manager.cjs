@@ -28,8 +28,8 @@ const {
 // Windows/Linux: 'screen-saver' (required for window visibility in WSL/Windows)
 const ALWAYS_ON_TOP_LEVEL = process.platform === 'darwin' ? 'floating' : 'screen-saver';
 
-// Character Only Mode window height: just tall enough for the character
-// sprite (CHAR_Y_BASE + CHAR_SIZE) plus a little clearance for its floating
+// Character Mode window height: just tall enough for the character sprite
+// (CHAR_Y_BASE + CHAR_SIZE) plus a little clearance for its floating
 // animation, instead of the full WINDOW_HEIGHT which leaves a tall empty
 // transparent area below the character (the engine's own info panel, hidden
 // in this mode, normally fills that space).
@@ -44,6 +44,7 @@ class MultiWindowManager {
     this.onAlwaysOnTopChanged = null;  // callback: (projectId) => void, fires after a window's always-on-top flag changes
     this.onWindowMoved = null;  // callback: (projectId) => void
     this.onDisplayModeChanged = null;  // callback: () => void
+    this.onResyncNeeded = null;  // callback: () => void, fires after leaving Input Mode
 
     // Persistent settings
     this.store = new Store({
@@ -53,8 +54,8 @@ class MultiWindowManager {
         lockMode: 'on-thinking',  // 'first-project' or 'on-thinking'
         alwaysOnTopMode: 'active-only',  // 'active-only', 'all', or 'disabled'
         projectList: [],  // Persisted project list for lock menu
-        characterOnlyMode: false,  // Hide title bar/device frame, show speech bubble instead
-        speechBubbleFields: { project: true, memory: true, usage5h: true, usageWeek: true }
+        speechBubbleFields: { project: true, memory: true, usage5h: true, usageWeek: true },
+        windowPositions: {}  // { [positionKey]: {x, y} } - last dragged position, restored on next creation
       }
     });
 
@@ -63,11 +64,31 @@ class MultiWindowManager {
     this.lockedProject = this.store.get('lockedProject');
     this.lockMode = this.store.get('lockMode');
     this.alwaysOnTopMode = this.store.get('alwaysOnTopMode');
-    this.characterOnlyMode = this.store.get('characterOnlyMode');
     this.speechBubbleFields = this.store.get('speechBubbleFields');
+    this.windowPositions = this.store.get('windowPositions');
 
     // Project list (tracks all projects seen) - persisted
     this.projectList = this.store.get('projectList') || [];
+
+    // App mode: 'window' (per-project windows), 'character' (single persistent
+    // character+bubble), or 'input' (headless, state collection only).
+    // Not in the `defaults` above on purpose — an unset key must be
+    // distinguishable from an explicit 'window', so first run after an
+    // upgrade can migrate from the legacy characterOnlyMode checkbox instead
+    // of silently defaulting to 'window'.
+    this.appMode = this.store.get('appMode');
+    if (this.appMode === undefined) {
+      this.appMode = this.store.get('characterOnlyMode') === true ? 'character' : 'window';
+      this.store.set('appMode', this.appMode);
+    }
+
+    // Latest known state per project, independent of whether a window exists
+    // for it — lets Input Mode collect status in the background and lets any
+    // mode switch immediately recover the last known state.
+    this.stateRegistry = new Map();
+
+    // Character Mode's single persistent window always targets this project.
+    this.focusedProjectId = null;
   }
 
   // ============================================================================
@@ -117,6 +138,99 @@ class MultiWindowManager {
    */
   isMultiMode() {
     return this.windowMode === 'multi';
+  }
+
+  // ============================================================================
+  // App Mode Management (Character / Window / Input)
+  // ============================================================================
+
+  /**
+   * Get current app mode
+   * @returns {'character'|'window'|'input'}
+   */
+  getAppMode() {
+    return this.appMode;
+  }
+
+  /**
+   * @returns {boolean} whether the app is currently in Character Mode
+   */
+  isCharacterMode() {
+    return this.appMode === 'character';
+  }
+
+  /**
+   * Pick which project Character Mode's window should show when entering
+   * the mode with state already sitting in stateRegistry (e.g. switching
+   * from Window/Input Mode mid-session) — prefers an active project,
+   * falling back to whichever was seen first.
+   * @returns {string|null}
+   */
+  pickInitialFocus() {
+    for (const [projectId, state] of this.stateRegistry) {
+      if (state && ACTIVE_STATES.includes(state.state)) {
+        return projectId;
+      }
+    }
+    const first = this.stateRegistry.keys().next();
+    return first.done ? null : first.value;
+  }
+
+  /**
+   * Set app mode
+   * @param {'character'|'window'|'input'} mode
+   */
+  setAppMode(mode) {
+    if (mode !== 'character' && mode !== 'window' && mode !== 'input') return;
+    if (mode === this.appMode) return;
+
+    this.appMode = mode;
+    this.store.set('appMode', mode);
+    this.focusedProjectId = null;
+
+    if (mode === 'character') {
+      const initialFocus = this.pickInitialFocus();
+
+      if (initialFocus) {
+        // Reuse/retarget an existing window if one is available (avoids a
+        // destroy-then-recreate race on the window we're about to keep),
+        // then discard every other leftover window from the previous mode.
+        const result = this.createWindow(initialFocus);
+        // A reused window keeps whatever size it had in the previous mode
+        // (createWindow() only sets the height on brand-new windows) — shrink
+        // it to Character Mode's height explicitly.
+        if (this.isWindowValid(this.windows.get(initialFocus))) {
+          result.window.setSize(WINDOW_WIDTH, CHARACTER_ONLY_WINDOW_HEIGHT);
+        }
+        this.updateState(initialFocus, this.stateRegistry.get(initialFocus));
+        for (const projectId of this.getProjectIds()) {
+          if (projectId !== initialFocus) {
+            this.discardWindow(projectId);
+          }
+        }
+        // A reused window already had its one-shot 'display-mode-update' push
+        // sent back when it was first created (possibly in a different app
+        // mode) — push the current settings again so it actually hides its
+        // title bar/device frame now that it's showing the character.
+        this.broadcastDisplayMode();
+      } else {
+        for (const projectId of this.getProjectIds()) {
+          this.discardWindow(projectId);
+        }
+      }
+      return;
+    }
+
+    // Leaving Character Mode, or switching to/from Input Mode: none of the
+    // previous mode's windows carry over as-is.
+    for (const projectId of this.getProjectIds()) {
+      this.discardWindow(projectId);
+    }
+
+    if (mode === 'window' && this.onResyncNeeded) {
+      // Recreate per-project windows from whatever state is tracked.
+      this.onResyncNeeded();
+    }
   }
 
   // ============================================================================
@@ -246,37 +360,8 @@ class MultiWindowManager {
   }
 
   // ============================================================================
-  // Display Mode Management (Character Only Mode)
+  // Display Mode Management (Speech Bubble)
   // ============================================================================
-
-  /**
-   * Get character-only mode (hides title bar/device frame, shows speech bubble instead)
-   * @returns {boolean}
-   */
-  getCharacterOnlyMode() {
-    return this.characterOnlyMode;
-  }
-
-  /**
-   * Set character-only mode and broadcast to all open windows
-   * @param {boolean} enabled
-   */
-  setCharacterOnlyMode(enabled) {
-    this.characterOnlyMode = !!enabled;
-    this.store.set('characterOnlyMode', this.characterOnlyMode);
-
-    // Shrink/restore every open window's height to match — Character Only
-    // Mode hides everything below the character sprite, so the window
-    // shouldn't keep the tall empty area the normal mode's info panel fills.
-    const height = this.characterOnlyMode ? CHARACTER_ONLY_WINDOW_HEIGHT : WINDOW_HEIGHT;
-    for (const [, entry] of this.windows) {
-      if (this.isWindowValid(entry)) {
-        entry.window.setSize(WINDOW_WIDTH, height);
-      }
-    }
-
-    this.broadcastDisplayMode();
-  }
 
   /**
    * Get speech bubble field visibility
@@ -304,7 +389,7 @@ class MultiWindowManager {
    */
   broadcastDisplayMode() {
     const payload = {
-      characterOnlyMode: this.characterOnlyMode,
+      characterOnlyMode: this.isCharacterMode(),
       speechBubbleFields: this.speechBubbleFields
     };
     for (const [, entry] of this.windows) {
@@ -322,43 +407,114 @@ class MultiWindowManager {
   // ============================================================================
 
   /**
-   * Calculate window position by index
-   * Index 0 = rightmost (top-right corner)
-   * Each subsequent index moves left by (WINDOW_WIDTH + WINDOW_GAP)
-   * @param {number} index - Window index (0 = rightmost)
+   * Key used to save/restore a window's last dragged position. Character
+   * Mode shares one window across whichever project is focused, so it uses a
+   * fixed key instead of the (constantly changing) focused project id;
+   * Window Mode saves one position per project.
+   * @param {string} projectId
+   * @returns {string}
+   */
+  positionKeyFor(projectId) {
+    return this.isCharacterMode() ? '__character__' : projectId;
+  }
+
+  /**
+   * @param {string} positionKey
+   * @returns {{x: number, y: number}|null}
+   */
+  getSavedWindowPosition(positionKey) {
+    return this.windowPositions[positionKey] || null;
+  }
+
+  /**
+   * Persist a window's position, keyed by positionKeyFor(). Used as the spawn
+   * position the next time a window is created for that key — existing open
+   * windows are left alone (e.g. Window Mode's grid keeps managing them after
+   * creation; only the initial spawn point comes from here).
+   * @param {string} positionKey
+   * @param {{x: number, y: number}} position
+   */
+  saveWindowPosition(positionKey, position) {
+    this.windowPositions = { ...this.windowPositions, [positionKey]: position };
+    this.store.set('windowPositions', this.windowPositions);
+  }
+
+  /**
+   * Clamp a candidate spawn position (e.g. restored from a saved position)
+   * to whichever display it falls on, so a screen/monitor configuration
+   * change since it was saved can't spawn the window off-screen.
+   * @param {{x: number, y: number}} position
+   * @param {number} height
    * @returns {{x: number, y: number}}
    */
-  calculatePosition(index) {
-    const { workArea } = screen.getPrimaryDisplay();
-    const x = workArea.x + workArea.width - WINDOW_WIDTH - (index * (WINDOW_WIDTH + WINDOW_GAP));
-    const y = workArea.y;
+  clampPositionToScreen(position, height) {
+    const display = screen.getDisplayMatching({ x: position.x, y: position.y, width: WINDOW_WIDTH, height });
+    const { workArea } = display;
+    const x = Math.min(Math.max(position.x, workArea.x), workArea.x + workArea.width - WINDOW_WIDTH);
+    const y = Math.min(Math.max(position.y, workArea.y), workArea.y + workArea.height - height);
     return { x, y };
   }
 
   /**
-   * Check if more windows can be created
-   * Considers MAX_WINDOWS limit and screen width
+   * Number of window columns that fit in the given work area width.
+   * @param {Electron.Rectangle} workArea
+   * @returns {number}
+   */
+  gridColumns(workArea) {
+    return Math.max(1, Math.floor((workArea.width + WINDOW_GAP) / (WINDOW_WIDTH + WINDOW_GAP)));
+  }
+
+  /**
+   * Number of window rows that fit in the given work area height.
+   * @param {Electron.Rectangle} workArea
+   * @returns {number}
+   */
+  gridRows(workArea) {
+    const windowHeight = this.isCharacterMode() ? CHARACTER_ONLY_WINDOW_HEIGHT : WINDOW_HEIGHT;
+    return Math.max(1, Math.floor((workArea.height + WINDOW_GAP) / (windowHeight + WINDOW_GAP)));
+  }
+
+  /**
+   * Calculate window position within a 2D grid.
+   * Row 0 is topmost; within a row, col 0 is rightmost (matches the previous
+   * single-row layout, extended to wrap into a new row below once a row
+   * fills up, like tiles on a board).
+   * @param {number} index - Window index (0 = most prominent: top row, rightmost)
+   * @returns {{x: number, y: number}}
+   */
+  calculateGridPosition(index) {
+    const { workArea } = screen.getPrimaryDisplay();
+    const cols = this.gridColumns(workArea);
+    const col = index % cols;
+    const row = Math.floor(index / cols);
+    const windowHeight = this.isCharacterMode() ? CHARACTER_ONLY_WINDOW_HEIGHT : WINDOW_HEIGHT;
+
+    const x = workArea.x + workArea.width - WINDOW_WIDTH - (col * (WINDOW_WIDTH + WINDOW_GAP));
+    const y = workArea.y + (row * (windowHeight + WINDOW_GAP));
+    return { x, y };
+  }
+
+  /**
+   * Check if more windows can be created.
+   * Considers MAX_WINDOWS limit and whether the 2D grid still has a free cell
+   * on screen — once the grid is full (both across and down), no more
+   * windows are created.
    * @returns {boolean}
    */
   canCreateWindow() {
-    // Check MAX_WINDOWS limit
     if (this.windows.size >= MAX_WINDOWS) {
       return false;
     }
 
-    // Check if there's enough screen space
     const { workArea } = screen.getPrimaryDisplay();
-    const requiredWidth = (this.windows.size + 1) * (WINDOW_WIDTH + WINDOW_GAP) - WINDOW_GAP;
-    if (requiredWidth > workArea.width) {
-      return false;
-    }
+    const gridCapacity = this.gridColumns(workArea) * this.gridRows(workArea);
 
-    return true;
+    return this.windows.size < gridCapacity;
   }
 
   /**
    * Create a window for a project
-   * In single mode: reuses existing window or respects lock
+   * In single mode (or Character Mode): reuses existing window or respects lock
    * In multi mode: creates new window per project
    * @param {string} projectId - Project identifier
    * @returns {{window: BrowserWindow|null, blocked: boolean, switchedProject: string|null}}
@@ -370,10 +526,14 @@ class MultiWindowManager {
       return { window: existing.window, blocked: false, switchedProject: null };
     }
 
-    // Single window mode handling
-    if (this.windowMode === 'single') {
-      // If locked to different project, block
-      if (this.lockedProject && this.lockedProject !== projectId) {
+    // Single-window family: Window Mode's single sub-mode reuses/locks a
+    // window per the user's lock settings; Character Mode always reuses the
+    // one persistent window instead (no lock — focus is automatic, see
+    // selectFocus()).
+    const isCharacterMode = this.isCharacterMode();
+    if (this.windowMode === 'single' || isCharacterMode) {
+      // If locked to different project, block (Window Mode's single sub-mode only)
+      if (!isCharacterMode && this.lockedProject && this.lockedProject !== projectId) {
         return { window: null, blocked: true, switchedProject: null };
       }
 
@@ -405,17 +565,25 @@ class MultiWindowManager {
       return { window: null, blocked: false, switchedProject: null };
     }
 
-    // Calculate position for new window (will be the newest, so rightmost)
-    const index = 0;
-    const position = this.calculatePosition(index);
+    const windowHeight = this.isCharacterMode() ? CHARACTER_ONLY_WINDOW_HEIGHT : WINDOW_HEIGHT;
 
-    // Shift existing windows to the left
+    // Spawn at this project's/Character Mode's last dragged position if one
+    // was saved, otherwise the default top-right grid slot. Window Mode's
+    // grid still takes over immediately after (see arrangeWindowsByName()),
+    // so this mainly matters for Character Mode's window, which isn't
+    // auto-rearranged.
+    const savedPosition = this.getSavedWindowPosition(this.positionKeyFor(projectId));
+    const position = savedPosition
+      ? this.clampPositionToScreen(savedPosition, windowHeight)
+      : this.calculateGridPosition(0);
+
+    // Shift existing windows into the grid
     // Windows will be arranged after ready-to-show
 
     // macOS: Use 'panel' type to prevent focus stealing
     const windowOptions = {
       width: WINDOW_WIDTH,
-      height: this.characterOnlyMode ? CHARACTER_ONLY_WINDOW_HEIGHT : WINDOW_HEIGHT,
+      height: windowHeight,
       x: position.x,
       y: position.y,
       frame: false,
@@ -470,7 +638,7 @@ class MultiWindowManager {
 
       // Send current display-mode settings (character-only mode, speech bubble fields)
       window.webContents.send('display-mode-update', {
-        characterOnlyMode: this.characterOnlyMode,
+        characterOnlyMode: this.isCharacterMode(),
         speechBubbleFields: this.speechBubbleFields
       });
 
@@ -531,11 +699,11 @@ class MultiWindowManager {
    * Within each group: sorted by project name (Z first = rightmost)
    */
   arrangeWindowsByName() {
-    // Character Only Mode windows are meant to be freely positioned like a
-    // desktop pet — don't auto-rearrange them back into the grid on every
+    // Character Mode's window is meant to be freely positioned like a
+    // desktop pet — don't auto-rearrange it back into the grid on every
     // state change. handleWindowMove()'s off-screen clamp still applies
     // regardless, since that's a separate code path.
-    if (this.characterOnlyMode) return;
+    if (this.isCharacterMode()) return;
 
     // Collect all windows with projectId and state
     const windowsList = [];
@@ -557,10 +725,10 @@ class MultiWindowManager {
       return b.projectId.localeCompare(a.projectId);
     });
 
-    // Assign positions (index 0 = rightmost)
+    // Assign grid positions (index 0 = top row, rightmost)
     let index = 0;
     for (const { entry } of windowsList) {
-      const position = this.calculatePosition(index);
+      const position = this.calculateGridPosition(index);
       entry.window.setPosition(position.x, position.y);
       index++;
     }
@@ -621,6 +789,12 @@ class MultiWindowManager {
       if (newX !== bounds.x || newY !== bounds.y) {
         entry.window.setPosition(newX, newY);
       }
+
+      // Remember where this settled so the next window created for this
+      // project (or Character Mode's window) spawns here instead of the
+      // default corner. Re-read currentProjectId in case the window was
+      // reused for a different project during the debounce window.
+      this.saveWindowPosition(this.positionKeyFor(entry.currentProjectId), { x: newX, y: newY });
     }, SNAP_DEBOUNCE);
 
     this.snapTimers.set(projectId, timerId);
@@ -700,6 +874,130 @@ class MultiWindowManager {
   }
 
   /**
+   * Get the latest known state for a project, even if no window currently
+   * exists for it (e.g. Input Mode, or after a mode switch closed windows).
+   * @param {string} projectId
+   * @returns {Object|null}
+   */
+  getRegisteredState(projectId) {
+    return this.stateRegistry.get(projectId) || null;
+  }
+
+  /**
+   * Get all projects with a known state, independent of window existence.
+   * @returns {Object.<string, Object>}
+   */
+  getRegisteredStates() {
+    const result = {};
+    for (const [projectId, state] of this.stateRegistry) {
+      result[projectId] = state;
+    }
+    return result;
+  }
+
+  /**
+   * Decide which project Character Mode's single window should show, given
+   * an incoming status update. An active-state project always takes focus;
+   * otherwise the most recently updated project keeps focus unless the
+   * currently focused project is itself still active.
+   * @param {string} projectId
+   * @param {string} state
+   * @returns {string} the projectId that should now be focused
+   */
+  selectFocus(projectId, state) {
+    if (ACTIVE_STATES.includes(state)) {
+      this.focusedProjectId = projectId;
+      return this.focusedProjectId;
+    }
+
+    if (!this.focusedProjectId) {
+      this.focusedProjectId = projectId;
+      return this.focusedProjectId;
+    }
+
+    const focusedState = this.stateRegistry.get(this.focusedProjectId);
+    const focusedIsActive = focusedState && ACTIVE_STATES.includes(focusedState.state);
+    if (!focusedIsActive) {
+      this.focusedProjectId = projectId;
+    }
+
+    return this.focusedProjectId;
+  }
+
+  /**
+   * Ensure a window exists for projectId per the current window/lock mode,
+   * apply auto-lock, and update its state. Always records the incoming state
+   * in stateRegistry first, regardless of outcome, so state survives even
+   * when no window is created for it.
+   * Shared by the HTTP POST /status and WebSocket status-update paths, which
+   * otherwise duplicate this exact sequence.
+   * @param {string} projectId
+   * @param {Object} stateData - validated/normalized state data
+   * @returns {{
+   *   blocked: boolean,
+   *   maxWindowsReached: boolean,
+   *   switchedProject: string|null,
+   *   updateResult: {updated: boolean, stateChanged: boolean, infoChanged: boolean}
+   * }}
+   */
+  routeStatusUpdate(projectId, stateData) {
+    this.stateRegistry.set(projectId, stateData);
+
+    if (this.appMode === 'input') {
+      // Input Mode collects state in the background only — no window is ever
+      // created for it.
+      return {
+        blocked: false, maxWindowsReached: false, switchedProject: null,
+        updateResult: { updated: false, stateChanged: false, infoChanged: false }
+      };
+    }
+
+    if (this.isCharacterMode()) {
+      const focusedProjectId = this.selectFocus(projectId, stateData.state);
+
+      if (focusedProjectId !== projectId) {
+        // Focus stayed on a different (still-active) project — state was
+        // recorded above, but the single visible window doesn't change.
+        return {
+          blocked: false, maxWindowsReached: false, switchedProject: null,
+          updateResult: { updated: false, stateChanged: false, infoChanged: false }
+        };
+      }
+
+      const result = this.createWindow(focusedProjectId);
+      const updateResult = this.updateState(focusedProjectId, stateData);
+      return { blocked: false, maxWindowsReached: false, switchedProject: result.switchedProject, updateResult };
+    }
+
+    let switchedProject = null;
+
+    if (!this.getWindow(projectId)) {
+      const result = this.createWindow(projectId);
+
+      if (result.blocked) {
+        return {
+          blocked: true, maxWindowsReached: false, switchedProject: null,
+          updateResult: { updated: false, stateChanged: false, infoChanged: false }
+        };
+      }
+
+      if (!result.window) {
+        return {
+          blocked: false, maxWindowsReached: true, switchedProject: null,
+          updateResult: { updated: false, stateChanged: false, infoChanged: false }
+        };
+      }
+
+      switchedProject = result.switchedProject;
+    }
+
+    this.applyAutoLock(projectId, stateData.state);
+    const updateResult = this.updateState(projectId, stateData);
+
+    return { blocked: false, maxWindowsReached: false, switchedProject, updateResult };
+  }
+
+  /**
    * Check if window exists for project
    * @param {string} projectId
    * @returns {boolean}
@@ -745,6 +1043,37 @@ class MultiWindowManager {
   closeAllWindows() {
     for (const [projectId] of this.windows) {
       this.closeWindow(projectId);
+    }
+  }
+
+  /**
+   * Close a window and remove its map entry immediately, instead of waiting
+   * for the async 'closed' event — needed when the caller must see
+   * `this.windows` reflect the removal within the same tick (e.g. an app
+   * mode switch that reuses one window while discarding the rest). Still
+   * fires onWindowClosed synchronously so cleanup (timers, speech bubble)
+   * runs exactly as it would on a normal close; the eventual real 'closed'
+   * event becomes a no-op since its own guard sees the entry already gone.
+   * @param {string} projectId
+   */
+  discardWindow(projectId) {
+    const entry = this.windows.get(projectId);
+    if (!entry) return;
+
+    this.windows.delete(projectId);
+
+    const snapTimer = this.snapTimers.get(projectId);
+    if (snapTimer) {
+      clearTimeout(snapTimer);
+      this.snapTimers.delete(projectId);
+    }
+
+    if (this.isWindowValid(entry)) {
+      entry.window.close();
+    }
+
+    if (this.onWindowClosed) {
+      this.onWindowClosed(projectId);
     }
   }
 

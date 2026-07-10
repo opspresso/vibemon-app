@@ -47,7 +47,7 @@ function getBubbleOptions(projectId) {
   return {
     state: windowManager.getState(projectId),
     speechBubbleFields: windowManager.getSpeechBubbleFields(),
-    characterOnlyMode: windowManager.getCharacterOnlyMode()
+    characterOnlyMode: windowManager.isCharacterMode()
   };
 }
 
@@ -71,6 +71,15 @@ windowManager.onDisplayModeChanged = () => {
 // Keep the speech bubble's always-on-top flag matching its character window's
 windowManager.onAlwaysOnTopChanged = (projectId) => {
   bubbleWindowManager.syncAlwaysOnTop(projectId);
+};
+
+// After leaving Input Mode, replay every project's last known state through
+// the normal ingestion pipeline so windows reappear immediately instead of
+// waiting for the next external status update.
+windowManager.onResyncNeeded = () => {
+  for (const stateData of Object.values(windowManager.getRegisteredStates())) {
+    handleWsStatusUpdate(stateData);
+  }
 };
 
 // Handle second instance launch attempt
@@ -145,33 +154,26 @@ function handleWsStatusUpdate(data) {
   // Get projectId from data or use default
   const projectId = stateData.project || 'default';
 
-  // Create window if not exists
-  if (!windowManager.getWindow(projectId)) {
-    const result = windowManager.createWindow(projectId);
+  const routeResult = windowManager.routeStatusUpdate(projectId, stateData);
 
-    // Blocked by lock in single mode
-    if (result.blocked) {
-      return;
-    }
-
-    // No window created (max limit in multi mode)
-    if (!result.window) {
-      console.log(`WebSocket: Max windows limit (${MAX_WINDOWS}) reached`);
-      return;
-    }
-
-    // Project was switched in single mode
-    if (result.switchedProject) {
-      stateManager.cleanupProject(result.switchedProject);
-      bubbleWindowManager.destroy(result.switchedProject);
-    }
+  // Blocked by lock in single mode
+  if (routeResult.blocked) {
+    return;
   }
 
-  // Apply auto-lock after window is successfully created (single mode only)
-  windowManager.applyAutoLock(projectId, stateData.state);
+  // No window created (max limit in multi mode)
+  if (routeResult.maxWindowsReached) {
+    console.log(`WebSocket: Max windows limit (${MAX_WINDOWS}) reached`);
+    return;
+  }
 
-  // Update window state via windowManager (with change detection)
-  const updateResult = windowManager.updateState(projectId, stateData);
+  // Project was switched in single mode
+  if (routeResult.switchedProject) {
+    stateManager.cleanupProject(routeResult.switchedProject);
+    bubbleWindowManager.destroy(routeResult.switchedProject);
+  }
+
+  const updateResult = routeResult.updateResult;
 
   // No change - skip unnecessary updates
   if (!updateResult.updated) {
@@ -221,7 +223,7 @@ ipcMain.handle('get-version', () => {
 // lets the renderer pull the current settings once it's actually ready.
 ipcMain.handle('get-display-mode', () => {
   return {
-    characterOnlyMode: windowManager.getCharacterOnlyMode(),
+    characterOnlyMode: windowManager.isCharacterMode(),
     speechBubbleFields: windowManager.getSpeechBubbleFields()
   };
 });

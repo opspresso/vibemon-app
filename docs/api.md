@@ -48,6 +48,7 @@ Default port: Desktop App `19280`, ESP32 WiFi `80`
 | POST /unlock | ✓ | ✓ |
 | GET/POST /lock-mode | ✓ | ✓ |
 | GET/POST /window-mode | ✓ | - |
+| GET/POST /app-mode | ✓ | - |
 | GET /stats | ✓ | - |
 | GET /stats/data | ✓ | - |
 | POST /reboot | - | ✓ |
@@ -220,6 +221,34 @@ curl -X POST http://127.0.0.1:19280/window-mode \
 **Response:**
 ```json
 {"success": true, "mode": "single", "windowCount": 1, "lockedProject": null}
+```
+
+### GET /app-mode (Desktop only)
+
+Get current app mode.
+
+```bash
+curl http://127.0.0.1:19280/app-mode
+```
+
+**Response:**
+```json
+{"mode": "window", "windowCount": 2}
+```
+
+### POST /app-mode (Desktop only)
+
+Set app mode (`character`, `window`, or `input`).
+
+```bash
+curl -X POST http://127.0.0.1:19280/app-mode \
+  -H "Content-Type: application/json" \
+  -d '{"mode":"character"}'
+```
+
+**Response:**
+```json
+{"success": true, "mode": "character", "windowCount": 1}
 ```
 
 > On an invalid `mode`, the response is `{"success": false, "error": "Invalid mode: <mode>", "validModes": ["multi", "single"]}`.

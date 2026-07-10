@@ -24,6 +24,11 @@ const LINK_DISTANCE = 100;
 const BIAS_DISTANCE = 100;
 const SCREEN_MARGIN = 8;
 
+// How close the character window's edge must be to the work area's edge to
+// count as "pinned" there (Character Mode continuously clamps its window on
+// screen, so a pinned edge sits flush — this just tolerates rounding).
+const EDGE_PIN_EPSILON = 2;
+
 // Must match multi-window-manager.cjs's ALWAYS_ON_TOP_LEVEL so the bubble
 // stacks at the same level as its character window.
 const ALWAYS_ON_TOP_LEVEL = process.platform === 'darwin' ? 'floating' : 'screen-saver';
@@ -298,11 +303,29 @@ class BubbleWindowManager {
     let biasXOffset = onRightHalf ? -BIAS_DISTANCE : BIAS_DISTANCE;
     const spaceX = biasXOffset < 0 ? charCenterX - workArea.x : workArea.x + workArea.width - charCenterX;
     if (spaceX < requiredClearance) biasXOffset = -biasXOffset;
-    const biasX = charCenterX + biasXOffset;
 
     let biasYOffset = -BIAS_DISTANCE; // prefer above, matching a speech bubble's usual placement
     const spaceAbove = charCenterY - workArea.y;
     if (spaceAbove < requiredClearance) biasYOffset = BIAS_DISTANCE;
+
+    // The character window is continuously clamped on screen (see
+    // multi-window-manager.cjs's 'will-move' handler), so when it's pinned
+    // flush against an edge, force the bubble onto the axis that still has
+    // room instead of the usual diagonal bias: pinned top/bottom -> bubble
+    // beside the character; pinned left/right -> bubble above/below it.
+    // A corner pin satisfies both checks — top/bottom wins there.
+    const pinnedTop = charBounds.y <= workArea.y + EDGE_PIN_EPSILON;
+    const pinnedBottom = (charBounds.y + charBounds.height) >= (workArea.y + workArea.height - EDGE_PIN_EPSILON);
+    const pinnedLeft = charBounds.x <= workArea.x + EDGE_PIN_EPSILON;
+    const pinnedRight = (charBounds.x + charBounds.width) >= (workArea.x + workArea.width - EDGE_PIN_EPSILON);
+
+    if (pinnedTop || pinnedBottom) {
+      biasYOffset = 0;
+    } else if (pinnedLeft || pinnedRight) {
+      biasXOffset = 0;
+    }
+
+    const biasX = charCenterX + biasXOffset;
     const biasY = charCenterY + biasYOffset;
 
     const nodes = [

@@ -97,32 +97,62 @@ The `working` state displays fixed text based on the active tool:
   - 75-89%: Yellow (warning)
   - 90-100%: Red (critical)
 
-## Window Mode
+## App Mode
 
-The Desktop App supports two window modes:
+The Desktop App supports three mutually-exclusive top-level modes:
 
 | Mode | Description |
+|------|-------------|
+| `character` | One persistent character window + following speech bubble; never disappears |
+| `window` | Per-project windows (multi or single sub-mode) - **Default** |
+| `input` | No windows shown at all; status is still collected in the background |
+
+Switch via the system tray menu (**App Mode** submenu) or API:
+
+```bash
+curl -X POST http://127.0.0.1:19280/app-mode \
+  -H "Content-Type: application/json" \
+  -d '{"mode":"character"}'
+```
+
+Switching modes doesn't lose data: whatever was tracked in the background (Input Mode) or shown in a different mode is kept and immediately reflected once you switch back.
+
+### Character Mode
+
+- Exactly one window exists, always — it's never destroyed the way per-project windows are on a sleep timeout
+- Shows whichever project is currently "focused": a project in an active state (thinking, planning, working, packing, notification, alert) always takes focus; otherwise the most recently updated project keeps it
+- Can be dragged past the screen edge while the drag is in progress; once you let go, it's clamped back fully on-screen
+- Reappears at the same spot you last left it, across restarts
+- The speech bubble follows the character everywhere:
+  - If the character is pinned to the top or bottom edge, the bubble moves beside it
+  - If the character is pinned to the left or right edge, the bubble moves above or below it
+- Shows just the character and its speech bubble — no title bar, device frame, status text, or metric rows
+
+### Window Mode
+
+Per-project windows, with two sub-modes:
+
+| Sub-mode | Description |
 |------|-------------|
 | `multi` | One window per project (max 5) - **Default** |
 | `single` | One window with project lock support |
 
-### Multi-Window Mode (Default)
+#### Multi-Window Mode (Default)
 
 - Each project gets its own window
-- Windows arranged by state and name:
-  - **Right side**: Active states (thinking, planning, working, packing, notification, alert)
-  - **Left side**: Inactive states (start, idle, done, sleep)
-  - Within each group, sorted by project name (Z first = rightmost)
-- Max 5 windows (or screen limit)
+- Windows tile into a 2D grid, filled from the top-right:
+  - Filled row-first (active states first, then inactive, sorted by project name descending within each group), wrapping into a new row below once a row's width fills up
+  - Stops creating new windows once the grid runs out of screen space (both across and down), or the 5-window cap is hit — whichever comes first
 - 10px gap between windows
+- The grid re-flows whenever a state changes or a window closes
 
-### Single-Window Mode
+#### Single-Window Mode
 
 - Only one window at a time
 - Project lock feature available
 - When switching projects, the same window is reused
 
-### Switching Modes
+#### Switching Window Mode's sub-mode
 
 Use the system tray menu or API:
 
@@ -131,6 +161,12 @@ curl -X POST http://127.0.0.1:19280/window-mode \
   -H "Content-Type: application/json" \
   -d '{"mode":"single"}'
 ```
+
+### Input Mode
+
+- No character or per-project windows are shown
+- Status updates (`POST /status`, WebSocket) are still validated and recorded in the background
+- Switching to Character Mode or Window Mode immediately shows whatever was last tracked, instead of waiting for the next status update
 
 ## Project Lock
 
@@ -184,7 +220,8 @@ OpenClaw uses its plugin bridge instead of a Python hook CLI.
 - **Always on Top**: Stays visible above other windows (configurable modes)
 - **System Tray**: Quick access from menubar/taskbar
 - **Draggable**: Move window anywhere on screen
-- **Snap to corner**: Auto-snaps to screen corners (30px threshold)
+- **Snap to corner**: Can be dragged past the screen edge mid-drag; once you let go, it's clamped back on-screen, snapping flush to a corner within a 30px threshold
+- **Remembered position**: Each window spawns at the position it was last dragged to (per-project in Window Mode, one shared spot in Character Mode)
 - **Click to focus terminal**: Click window to switch to iTerm2/Ghostty tab (macOS only)
 
 ### Always on Top Modes
@@ -213,30 +250,22 @@ When running Claude Code in multiple terminal tabs, clicking a VibeMon window au
 - macOS only (uses AppleScript)
 - iTerm2 or Ghostty terminal
 
-### Character Only Mode
-
-Shrinks the window to show just the character, hiding the title bar, device frame, status text, and metric rows.
-
-- Toggled via the system tray menu (**Character Only Mode**)
-- When enabled, project/memory/usage info can still be shown via **Speech Bubble** fields instead
-
 ### Speech Bubble
 
-A small, transparent, click-through window per project that displays selected info fields (project name, memory, 5h usage, weekly usage) next to the character. Positioned automatically so it never overlaps the character window and stays on-screen, with an animated slide when it needs to move.
+A small, transparent, click-through window that displays selected info fields (project name, memory, 5h usage, weekly usage) next to the character. Positioned automatically so it never overlaps the character window and stays on-screen, with an animated slide when it needs to move. Only shown in [Character Mode](#character-mode).
 
-- Toggled per field via the system tray menu (**Speech Bubble** submenu: Project / Memory / Usage 5h / Usage Week)
-- Intended to pair with **Character Only Mode**, which hides the same info from the main window
+- Toggled per field via the system tray menu (**Speech Bubble** submenu: Project / Memory / Usage 5h / Usage Week), shown only while **App Mode** is set to Character
 
 ### System Tray Menu
 
-- View active windows and their states
+- Switch App Mode (Character / Window / Input)
+- View active windows and their states (Window Mode only)
 - Manually change state (per window)
 - Switch character (Clawd/Codex/Kiro/Claw)
-- Rearrange windows (multi-window mode only)
-- Toggle Always on Top
-- Toggle window mode (Multi/Single)
-- Toggle Character Only Mode
-- Speech Bubble field toggles (Project/Memory/Usage 5h/Usage Week)
+- Rearrange windows (Window Mode, multi sub-mode only)
+- Toggle Always on Top (Character/Window Mode)
+- Toggle Window Mode's sub-mode (Multi/Single)
+- Speech Bubble field toggles (Character Mode only; Project/Memory/Usage 5h/Usage Week)
 - Open at Login toggle
 - Project lock (in single mode)
 - Claude Stats

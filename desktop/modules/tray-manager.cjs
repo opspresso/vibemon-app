@@ -8,7 +8,7 @@ const fs = require('fs');
 const path = require('path');
 const {
   STATE_COLORS, CHARACTER_CONFIG, DEFAULT_CHARACTER,
-  HTTP_PORT, LOCK_MODES, ALWAYS_ON_TOP_MODES,
+  HTTP_PORT, LOCK_MODES, ALWAYS_ON_TOP_MODES, APP_MODES,
   VALID_STATES, CHARACTER_NAMES, TRAY_ICON_SIZE,
   STATS_CACHE_PATH, SPEECH_BUBBLE_FIELDS
 } = require('../shared/config.cjs');
@@ -501,6 +501,21 @@ class TrayManager {
     return items;
   }
 
+  buildAppModeSubmenu() {
+    const currentMode = this.windowManager.getAppMode();
+
+    return Object.entries(APP_MODES).map(([mode, label]) => ({
+      label: label,
+      type: 'radio',
+      checked: currentMode === mode,
+      click: () => {
+        this.windowManager.setAppMode(mode);
+        this.updateMenu();
+        this.updateIcon();
+      }
+    }));
+  }
+
   buildAlwaysOnTopSubmenu() {
     const currentMode = this.windowManager.getAlwaysOnTopMode();
 
@@ -576,15 +591,82 @@ class TrayManager {
     ];
   }
 
+  /**
+   * Menu items specific to the current app mode — Window Mode's per-project
+   * window management, Character Mode's speech bubble settings, or nothing
+   * extra for Input Mode (which has no windows or bubble to configure).
+   * @param {'character'|'window'|'input'} appMode
+   * @param {number} windowCount
+   * @returns {Array}
+   */
+  buildModeSection(appMode, windowCount) {
+    if (appMode === 'window') {
+      return [
+        {
+          label: 'Windows',
+          submenu: this.buildWindowsSubmenu()
+        },
+        {
+          label: 'Rearrange',
+          enabled: windowCount > 1 && this.windowManager.isMultiMode(),
+          click: () => {
+            this.windowManager.arrangeWindowsByName();
+          }
+        },
+        { type: 'separator' },
+        {
+          label: 'Always on Top',
+          submenu: this.buildAlwaysOnTopSubmenu()
+        },
+        {
+          label: 'Multi-Window Mode',
+          type: 'checkbox',
+          checked: this.windowManager.isMultiMode(),
+          click: () => {
+            const newMode = this.windowManager.isMultiMode() ? 'single' : 'multi';
+            this.windowManager.setWindowMode(newMode);
+            this.updateMenu();
+          }
+        },
+        ...(this.windowManager.isMultiMode() ? [] : [{
+          label: 'Project Lock',
+          submenu: this.buildProjectLockSubmenu()
+        }])
+      ];
+    }
+
+    if (appMode === 'character') {
+      return [
+        {
+          label: 'Always on Top',
+          submenu: this.buildAlwaysOnTopSubmenu()
+        },
+        {
+          label: 'Speech Bubble',
+          submenu: this.buildSpeechBubbleSubmenu()
+        }
+      ];
+    }
+
+    // Input Mode shows nothing, so there's no window/bubble setting to expose.
+    return [];
+  }
+
   buildMenuTemplate() {
+    const appMode = this.windowManager.getAppMode();
     const projectIds = this.windowManager.getProjectIds();
     const windowCount = projectIds.length;
     const state = this.getFirstWindowState();
 
-    // Build status display based on window count
+    // Build status display based on app mode and window count
     let statusLabel;
-    if (windowCount === 0) {
-      statusLabel = 'No active windows';
+    if (appMode === 'input') {
+      const trackedCount = Object.keys(this.windowManager.getRegisteredStates()).length;
+      statusLabel = trackedCount === 0
+        ? 'Input Mode: no projects tracked yet'
+        : `Input Mode: ${trackedCount} project(s) tracked`;
+    } else if (windowCount === 0) {
+      statusLabel = appMode === 'character' ? 'Character Mode: waiting for status' : 'No active windows';
     } else if (windowCount === 1) {
       statusLabel = `${state.project || 'Unknown'}: ${state.state}`;
     } else {
@@ -598,44 +680,11 @@ class TrayManager {
       },
       { type: 'separator' },
       {
-        label: 'Windows',
-        submenu: this.buildWindowsSubmenu()
-      },
-      {
-        label: 'Rearrange',
-        enabled: windowCount > 1 && this.windowManager.isMultiMode(),
-        click: () => {
-          this.windowManager.arrangeWindowsByName();
-        }
+        label: 'App Mode',
+        submenu: this.buildAppModeSubmenu()
       },
       { type: 'separator' },
-      {
-        label: 'Always on Top',
-        submenu: this.buildAlwaysOnTopSubmenu()
-      },
-      {
-        label: 'Multi-Window Mode',
-        type: 'checkbox',
-        checked: this.windowManager.isMultiMode(),
-        click: () => {
-          const newMode = this.windowManager.isMultiMode() ? 'single' : 'multi';
-          this.windowManager.setWindowMode(newMode);
-          this.updateMenu();
-        }
-      },
-      {
-        label: 'Character Only Mode',
-        type: 'checkbox',
-        checked: this.windowManager.getCharacterOnlyMode(),
-        click: () => {
-          this.windowManager.setCharacterOnlyMode(!this.windowManager.getCharacterOnlyMode());
-          this.updateMenu();
-        }
-      },
-      {
-        label: 'Speech Bubble',
-        submenu: this.buildSpeechBubbleSubmenu()
-      },
+      ...this.buildModeSection(appMode, windowCount),
       {
         label: 'Open at Login',
         type: 'checkbox',
@@ -646,10 +695,6 @@ class TrayManager {
           this.updateMenu();
         }
       },
-      ...(this.windowManager.isMultiMode() ? [] : [{
-        label: 'Project Lock',
-        submenu: this.buildProjectLockSubmenu()
-      }]),
       { type: 'separator' },
       {
         label: 'Claude Stats',

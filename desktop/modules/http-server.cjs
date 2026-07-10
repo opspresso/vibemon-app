@@ -189,6 +189,12 @@ class HttpServer {
       case 'POST /window-mode':
         await this.handlePostWindowMode(req, res);
         break;
+      case 'GET /app-mode':
+        this.handleGetAppMode(res);
+        break;
+      case 'POST /app-mode':
+        await this.handlePostAppMode(req, res);
+        break;
       case 'GET /stats':
         await this.handleGetStatsPage(res);
         break;
@@ -225,47 +231,40 @@ class HttpServer {
     const stateData = stateValidation.data;  // Extract normalized data
 
     // Get projectId from data or use default
-    let projectId = stateData.project || 'default';
+    const projectId = stateData.project || 'default';
 
-    // Create window if not exists
-    if (!this.windowManager.getWindow(projectId)) {
-      const result = this.windowManager.createWindow(projectId);
+    const routeResult = this.windowManager.routeStatusUpdate(projectId, stateData);
 
-      // Blocked by lock in single mode
-      if (result.blocked) {
-        sendJson(res, 200, {
-          success: false,
-          error: 'Project locked',
-          lockedProject: this.windowManager.getLockedProject()
-        });
-        return;
-      }
+    // Blocked by lock in single mode
+    if (routeResult.blocked) {
+      sendJson(res, 200, {
+        success: false,
+        error: 'Project locked',
+        lockedProject: this.windowManager.getLockedProject()
+      });
+      return;
+    }
 
-      // No window created (max limit in multi mode)
-      if (!result.window) {
-        sendJson(res, 200, {
-          success: false,
-          error: `Maximum windows limit (${MAX_WINDOWS}) reached`,
-          windowCount: this.windowManager.getWindowCount()
-        });
-        return;
-      }
+    // No window created (max limit in multi mode)
+    if (routeResult.maxWindowsReached) {
+      sendJson(res, 200, {
+        success: false,
+        error: `Maximum windows limit (${MAX_WINDOWS}) reached`,
+        windowCount: this.windowManager.getWindowCount()
+      });
+      return;
+    }
 
-      // Project was switched in single mode
-      if (result.switchedProject) {
-        // Clean up old project's timers
-        this.stateManager.cleanupProject(result.switchedProject);
-        if (this.onProjectSwitched) {
-          this.onProjectSwitched(result.switchedProject);
-        }
+    // Project was switched in single mode
+    if (routeResult.switchedProject) {
+      // Clean up old project's timers
+      this.stateManager.cleanupProject(routeResult.switchedProject);
+      if (this.onProjectSwitched) {
+        this.onProjectSwitched(routeResult.switchedProject);
       }
     }
 
-    // Apply auto-lock after window is successfully created (single mode only)
-    this.windowManager.applyAutoLock(projectId, stateData.state);
-
-    // Update window state via windowManager (with change detection)
-    const updateResult = this.windowManager.updateState(projectId, stateData);
+    const updateResult = routeResult.updateResult;
 
     // No change - skip unnecessary updates
     if (!updateResult.updated) {
@@ -566,6 +565,51 @@ class HttpServer {
       mode: this.windowManager.getWindowMode(),
       windowCount: this.windowManager.getWindowCount(),
       lockedProject: this.windowManager.getLockedProject()
+    });
+  }
+
+  handleGetAppMode(res) {
+    sendJson(res, 200, {
+      mode: this.windowManager.getAppMode(),
+      windowCount: this.windowManager.getWindowCount()
+    });
+  }
+
+  async handlePostAppMode(req, res) {
+    const { data, error, statusCode } = await parseJsonBody(req, MAX_PAYLOAD_SIZE);
+
+    if (error) {
+      sendError(res, statusCode, error);
+      return;
+    }
+
+    const mode = data.mode;
+
+    if (!mode) {
+      sendError(res, 400, 'Mode is required');
+      return;
+    }
+
+    if (mode !== 'character' && mode !== 'window' && mode !== 'input') {
+      sendJson(res, 200, {
+        success: false,
+        error: `Invalid mode: ${mode}`,
+        validModes: ['character', 'window', 'input']
+      });
+      return;
+    }
+
+    this.windowManager.setAppMode(mode);
+
+    // Update tray menu
+    if (this.onStateUpdate) {
+      this.onStateUpdate(true);
+    }
+
+    sendJson(res, 200, {
+      success: true,
+      mode: this.windowManager.getAppMode(),
+      windowCount: this.windowManager.getWindowCount()
     });
   }
 

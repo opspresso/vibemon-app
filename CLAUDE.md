@@ -61,7 +61,8 @@ npm start
 - **Sparkle effect (start, working)**: Animated 4-point star sparkle
 - **Sunglasses (working)**: Dark green sunglasses with frame and shine (EYE_FOCUSED)
 - **Loading dots speed**: Thinking/planning/packing states use 3x slower animation than working state
-- **Snap to corner**: Window snaps to screen corners when dragged within 30px of edges (150ms debounce)
+- **Snap to corner**: Windows can be dragged freely, including past screen edges while the drag is in progress; once movement settles (150ms debounce, i.e. the drag ends) the window is clamped back fully on-screen, snapping flush to a corner if it landed within 30px of one
+- **Remembered position**: A window's settled position is saved (per-project for Window Mode, one shared spot for Character Mode's window) and used as the spawn point the next time a window is created for that key
 - **Window close timer**: Desktop window auto-closes after 10min in sleep state; reopens on new status
 - **Click to focus terminal**: Click window to switch to corresponding iTerm2 or Ghostty tab (macOS only, uses `terminalId` from `ITERM_SESSION_ID` or `GHOSTTY_PID`)
 - **Open at Login**: Configurable via system tray menu; uses Electron `app.setLoginItemSettings()` to auto-start on macOS login
@@ -71,15 +72,23 @@ npm start
 - **Always on Top Modes**: `active-only` (default), `all`, `disabled` - configurable via system tray menu
 - **Always on Top**: Active states enable on top immediately; inactive states disable on top immediately (no grace period, prevents focus stealing)
 
-## Window Mode
+## App Mode
 
-Two modes available (`multi` or `single`):
-- **Multi mode** (default): Each project gets own window (max 5)
+Three mutually-exclusive top-level modes (desktop app only), switched via system tray menu or the `/app-mode` API:
+
+- **Character mode**: Exactly one persistent character window + following speech bubble; never disappears. Shows whichever project is currently focused — an active-state (`ACTIVE_STATES`) project always takes focus, otherwise the most recently updated project keeps it (see `selectFocus()`/`pickInitialFocus()` in `multi-window-manager.cjs`). The window can be dragged past the screen edge but is clamped fully back on-screen once the drag settles; the speech bubble is forced beside the character when it's pinned to the top/bottom edge, and above/below when pinned to the left/right edge (`computePlacement()` in `bubble-window-manager.cjs`).
+- **Window mode**: Per-project windows (`multi` or `single` sub-mode). Default.
+- **Input mode**: No windows shown at all; status is still collected into `stateRegistry` in the background so switching to another mode immediately restores it (`onResyncNeeded` callback replays it through the normal ingestion pipeline).
+
+`multi-window-manager.cjs`'s `routeStatusUpdate()` is the single entry point (shared by HTTP `/status` and the WebSocket client) that branches on the current app mode.
+
+### Window Mode sub-modes
+- **Multi mode** (default): Each project gets its own window (max 5, or fewer if the screen is smaller)
 - **Single mode**: One window, reused for each project; supports project lock
 
 ### Multi-Window Mode
-- Windows arranged by state and name: active states (right) → inactive states (left), sorted by name descending (Z first = rightmost) within each group
-- Max 5 windows (or screen limit)
+- Windows tile into a 2D grid: filled row-first from the top-right, wrapping to the next row down once a row's width is full; stops creating new windows once the grid (both across and down) is full
+- Within the fill order, active states come first (rightmost of the top row), then inactive states, sorted by name descending (Z first) within each group
 - Auto-rearranges when state changes or window closes
 - 10px gap between windows
 
@@ -100,8 +109,10 @@ Two modes available (`multi` or `single`):
 | `GET /windows` | Desktop | List all active windows |
 | `POST /close` | Desktop | Close specific project window |
 | `POST /show` | Desktop | Show window |
-| `GET /window-mode` | Desktop | Get current window mode (multi/single) |
-| `POST /window-mode` | Desktop | Set window mode |
+| `GET /window-mode` | Desktop | Get current window mode sub-mode (multi/single) |
+| `POST /window-mode` | Desktop | Set window mode sub-mode |
+| `GET /app-mode` | Desktop | Get current app mode (character/window/input) |
+| `POST /app-mode` | Desktop | Set app mode |
 | `GET /debug` | Desktop | Window/display debug info |
 | `GET /` | Desktop | Dashboard HTML page |
 | `GET /dashboard-data` | Desktop | Dashboard data (windows, modes, lock) |

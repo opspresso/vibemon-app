@@ -53,6 +53,12 @@
     "on-thinking": "On Thinking"
   },
 
+  "APP_MODES": {
+    "character": "Character",
+    "window": "Window",
+    "input": "Input"
+  },
+
   "ALWAYS_ON_TOP_MODES": {
     "active-only": "Active Only",
     "all": "All Windows",

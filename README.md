@@ -148,9 +148,25 @@ curl -X POST http://127.0.0.1:19280/quit
 
 See [API Reference](docs/api.md) for all endpoints.
 
-## Window Mode
+## App Mode
 
 | Mode | Description |
+|------|-------------|
+| `character` | One persistent character + following speech bubble, tracking whichever project is active |
+| `window` | Per-project windows (see Window Mode below) - **Default** |
+| `input` | No windows shown; status is still collected in the background |
+
+Switch via system tray menu or API:
+
+```bash
+curl -X POST http://127.0.0.1:19280/app-mode \
+  -H "Content-Type: application/json" \
+  -d '{"mode":"character"}'
+```
+
+### Window Mode
+
+| Sub-mode | Description |
 |------|-------------|
 | `multi` | One window per project (max 5) - **Default** |
 | `single` | One window with project lock support |
