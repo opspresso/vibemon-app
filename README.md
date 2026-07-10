@@ -49,15 +49,17 @@ VibeMon does not talk to agent runtimes directly. Each supported agent is bridge
 
 ### Desktop App
 
-```bash
-npx vibemon
-```
-
-Or via Homebrew:
+Homebrew (macOS, recommended):
 
 ```bash
 brew tap opspresso/tap
 brew install opspresso/tap/vibemon
+```
+
+Or via npm:
+
+```bash
+npx vibemon
 ```
 
 That's it! The app launches in the system tray and listens on `http://127.0.0.1:19280`.
@@ -88,7 +90,7 @@ See [ESP32 Setup Guide](docs/esp32-setup.md) for detailed instructions.
 - [API Reference](docs/api.md) - Complete HTTP API documentation
 - [ESP32 Setup Guide](docs/esp32-setup.md) - WiFi provisioning, WebSocket token configuration
 
-For full documentation, visit **[vibemon.io/docs](https://vibemon.io/docs)**.
+For full documentation, visit **[docs.vibemon.io](https://docs.vibemon.io)**.
 
 ## States
 
@@ -207,6 +209,12 @@ See [Features](docs/features.md) for lock modes and bridge notes.
 | Device won't enter setup mode | Send `POST /wifi-reset` to clear credentials |
 
 See [Features](docs/features.md) for desktop app details, [ESP32 Setup Guide](docs/esp32-setup.md) for hardware troubleshooting.
+
+## Related Projects
+
+- [vibemon](https://github.com/opspresso/vibemon) - Cloud dashboard & API ([vibemon.io](https://vibemon.io))
+- [vibemon-docs](https://github.com/opspresso/vibemon-docs) - Agent hook installation & setup guide ([docs.vibemon.io](https://docs.vibemon.io))
+- [vibemon-static](https://github.com/opspresso/vibemon-static) - Static assets & embeddable rendering engine ([static.vibemon.io](https://static.vibemon.io))
 
 ## License
 
