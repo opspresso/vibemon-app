@@ -68,6 +68,11 @@ windowManager.onDisplayModeChanged = () => {
   }
 };
 
+// Keep the speech bubble's always-on-top flag matching its character window's
+windowManager.onAlwaysOnTopChanged = (projectId) => {
+  bubbleWindowManager.syncAlwaysOnTop(projectId);
+};
+
 // Handle second instance launch attempt
 app.on('second-instance', () => {
   // Focus the first window if available
@@ -418,6 +423,7 @@ app.on('before-quit', () => {
   windowManager.onStateUpdated = null;
   windowManager.onWindowMoved = null;
   windowManager.onDisplayModeChanged = null;
+  windowManager.onAlwaysOnTopChanged = null;
 
   stateManager.cleanup();
   windowManager.cleanup();

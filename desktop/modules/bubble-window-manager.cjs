@@ -24,6 +24,10 @@ const LINK_DISTANCE = 100;
 const BIAS_DISTANCE = 100;
 const SCREEN_MARGIN = 8;
 
+// Must match multi-window-manager.cjs's ALWAYS_ON_TOP_LEVEL so the bubble
+// stacks at the same level as its character window.
+const ALWAYS_ON_TOP_LEVEL = process.platform === 'darwin' ? 'floating' : 'screen-saver';
+
 // Animate the bubble sliding to a new position instead of teleporting there.
 const MOVE_ANIMATION_STEPS = 10;
 const MOVE_ANIMATION_INTERVAL_MS = 16;
@@ -67,6 +71,7 @@ class BubbleWindowManager {
     this.getCharacterWindow = getCharacterWindow;
     this.bubbleWindows = new Map(); // Map<projectId, BrowserWindow>
     this.lastSizes = new Map(); // Map<projectId, {width, height}>
+    this.lastFields = new Map(); // Map<projectId, Object> — needed so reposition() can re-render the tail
     this.animationTimers = new Map(); // Map<projectId, NodeJS.Timeout>
     this.d3ForceModule = null;
   }
@@ -86,6 +91,9 @@ class BubbleWindowManager {
     let win = this.bubbleWindows.get(projectId);
     if (this.isWindowValid(win)) return win;
 
+    const charWindow = this.getCharacterWindow(projectId);
+    const startsOnTop = this.isWindowValid(charWindow) && charWindow.isAlwaysOnTop();
+
     win = new BrowserWindow({
       width: 10,
       height: 10,
@@ -93,7 +101,7 @@ class BubbleWindowManager {
       y: 0,
       frame: false,
       transparent: true,
-      alwaysOnTop: true,
+      alwaysOnTop: startsOnTop,
       resizable: false,
       skipTaskbar: true,
       hasShadow: false,
@@ -104,6 +112,7 @@ class BubbleWindowManager {
         nodeIntegration: false
       }
     });
+    if (startsOnTop) win.setAlwaysOnTop(true, ALWAYS_ON_TOP_LEVEL);
     win.setIgnoreMouseEvents(true);
     this.bubbleWindows.set(projectId, win);
 
@@ -111,6 +120,7 @@ class BubbleWindowManager {
       this.stopAnimation(projectId);
       this.bubbleWindows.delete(projectId);
       this.lastSizes.delete(projectId);
+      this.lastFields.delete(projectId);
     });
 
     win.loadFile(path.join(__dirname, '..', 'bubble.html'));
@@ -152,6 +162,7 @@ class BubbleWindowManager {
       return;
     }
     this.lastSizes.set(projectId, size);
+    this.lastFields.set(projectId, fields);
 
     const wasVisible = win.isVisible();
     const placement = await this.computePlacement(this.getCharacterWindow(projectId), size);
@@ -175,22 +186,33 @@ class BubbleWindowManager {
     } else {
       win.setBounds({ x: placement.x, y: placement.y, width: size.width, height: size.height });
     }
+    this.syncAlwaysOnTop(projectId);
     if (!win.isVisible()) win.showInactive();
   }
 
   /**
-   * Recompute a project's bubble position without touching its content —
-   * called when the character window moves.
+   * Recompute a project's bubble position and tail direction — called when
+   * the character window moves. Must also re-render the tail (not just
+   * reposition the window): the character can end up on a different side or
+   * even flip above/below as it moves, and without refreshing the tail here
+   * it would keep pointing at wherever the character used to be.
    * @param {string} projectId
    */
   reposition(projectId) {
     const win = this.bubbleWindows.get(projectId);
     const charWindow = this.getCharacterWindow(projectId);
     const size = this.lastSizes.get(projectId);
-    if (!this.isWindowValid(win) || !this.isWindowValid(charWindow) || !size || !win.isVisible()) return;
+    const fields = this.lastFields.get(projectId);
+    if (!this.isWindowValid(win) || !this.isWindowValid(charWindow) || !size || !fields || !win.isVisible()) return;
 
-    this.computePlacement(charWindow, size).then((placement) => {
+    this.computePlacement(charWindow, size).then(async (placement) => {
       if (!placement || !this.isWindowValid(win) || !this.isWindowValid(this.getCharacterWindow(projectId))) return;
+
+      await win.webContents.executeJavaScript(
+        `window.__setBubbleContent(${JSON.stringify(fields)}, ${placement.tailX}, ${JSON.stringify(placement.tailSide)})`
+      );
+      if (!this.isWindowValid(win) || !this.isWindowValid(this.getCharacterWindow(projectId))) return;
+
       this.animateTo(projectId, win, { x: placement.x, y: placement.y, width: size.width, height: size.height });
     });
   }
@@ -317,6 +339,24 @@ class BubbleWindowManager {
   }
 
   /**
+   * Match the bubble window's always-on-top flag to its character window's
+   * current one — the character's flag changes dynamically (Always on Top
+   * mode + active/inactive state via updateAlwaysOnTopByState/
+   * setAlwaysOnTopMode), and without this the bubble stays always-on-top
+   * while the character sinks behind other windows, or vice versa.
+   * @param {string} projectId
+   */
+  syncAlwaysOnTop(projectId) {
+    const win = this.bubbleWindows.get(projectId);
+    const charWindow = this.getCharacterWindow(projectId);
+    if (!this.isWindowValid(win) || !this.isWindowValid(charWindow)) return;
+
+    const shouldBeOnTop = charWindow.isAlwaysOnTop();
+    if (win.isAlwaysOnTop() === shouldBeOnTop) return;
+    win.setAlwaysOnTop(shouldBeOnTop, ALWAYS_ON_TOP_LEVEL);
+  }
+
+  /**
    * @param {string} projectId
    */
   hide(projectId) {
@@ -334,6 +374,7 @@ class BubbleWindowManager {
     if (this.isWindowValid(win)) win.destroy();
     this.bubbleWindows.delete(projectId);
     this.lastSizes.delete(projectId);
+    this.lastFields.delete(projectId);
   }
 
   /**
@@ -348,6 +389,7 @@ class BubbleWindowManager {
     }
     this.bubbleWindows.clear();
     this.lastSizes.clear();
+    this.lastFields.clear();
   }
 }
 

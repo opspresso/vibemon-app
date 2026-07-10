@@ -7,7 +7,7 @@
 #define CONFIG_H
 
 // Version string
-#define VERSION "v1.12.0"
+#define VERSION "v1.12.1"
 
 // Screen size (layout uses 1.47" dimensions; 1.9" board offset handled in LGFX configure())
 #define SCREEN_WIDTH  172

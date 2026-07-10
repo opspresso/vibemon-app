@@ -41,6 +41,7 @@ class MultiWindowManager {
     this.snapTimers = new Map();  // Map<projectId, timerId>
     this.onWindowClosed = null;  // callback: (projectId) => void
     this.onStateUpdated = null;  // callback: (projectId) => void, fires after state/info changes
+    this.onAlwaysOnTopChanged = null;  // callback: (projectId) => void, fires after a window's always-on-top flag changes
     this.onWindowMoved = null;  // callback: (projectId) => void
     this.onDisplayModeChanged = null;  // callback: () => void
 
@@ -861,11 +862,14 @@ class MultiWindowManager {
     this.store.set('alwaysOnTopMode', mode);
 
     // Update all windows based on new mode
-    for (const [, entry] of this.windows) {
+    for (const [projectId, entry] of this.windows) {
       if (this.isWindowValid(entry)) {
         const state = entry.state ? entry.state.state : null;
         const shouldBeOnTop = this.shouldBeAlwaysOnTop(state);
         entry.window.setAlwaysOnTop(shouldBeOnTop, ALWAYS_ON_TOP_LEVEL);
+        if (this.onAlwaysOnTopChanged) {
+          this.onAlwaysOnTopChanged(projectId);
+        }
       }
     }
   }
@@ -899,6 +903,10 @@ class MultiWindowManager {
       // 'all' or 'disabled' mode: apply immediately without grace period
       const shouldBeOnTop = this.shouldBeAlwaysOnTop(state);
       entry.window.setAlwaysOnTop(shouldBeOnTop, ALWAYS_ON_TOP_LEVEL);
+    }
+
+    if (this.onAlwaysOnTopChanged) {
+      this.onAlwaysOnTopChanged(projectId);
     }
   }
 
