@@ -53,6 +53,13 @@ VibeMon does not talk to agent runtimes directly. Each supported agent is bridge
 npx vibemon
 ```
 
+Or via Homebrew:
+
+```bash
+brew tap opspresso/tap
+brew install opspresso/tap/vibemon
+```
+
 That's it! The app launches in the system tray and listens on `http://127.0.0.1:19280`.
 
 ### ESP32 Hardware

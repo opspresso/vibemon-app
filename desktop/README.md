@@ -16,6 +16,13 @@ See at a glance what your AI assistant is doing — thinking, working, or waitin
 npx vibemon
 ```
 
+Or via Homebrew:
+
+```bash
+brew tap opspresso/tap
+brew install opspresso/tap/vibemon
+```
+
 The app launches in the system tray and listens on `http://127.0.0.1:19280`.
 
 ## Supported Tools
