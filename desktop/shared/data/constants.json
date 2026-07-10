@@ -71,13 +71,14 @@
 
   "VALID_STATES": ["start", "idle", "thinking", "planning", "working", "packing", "notification", "done", "sleep", "alert"],
 
-  "CHARACTER_NAMES": ["clawd", "kiro", "claw", "codex"],
+  "CHARACTER_NAMES": ["clawd", "kiro", "claw", "codex", "daangni"],
 
   "CHARACTER_COLORS": {
     "clawd": "#D97757",
     "kiro": "#FFFFFF",
     "claw": "#DD4444",
-    "codex": "#10A37F"
+    "codex": "#10A37F",
+    "daangni": "#F2CAB2"
   },
 
   "STATE_COLORS": {

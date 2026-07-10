@@ -192,8 +192,8 @@ function handleWsStatusUpdate(data) {
     }
   }
 
-  // Send update to renderer
-  windowManager.sendToWindow(projectId, 'state-update', stateData);
+  // Send update to renderer (routeResult.stateData reflects Character Lock, if set)
+  windowManager.sendToWindow(projectId, 'state-update', routeResult.stateData);
 }
 
 /**

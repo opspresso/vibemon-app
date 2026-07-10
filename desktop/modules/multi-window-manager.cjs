@@ -19,6 +19,7 @@ const {
   ALWAYS_ON_TOP_MODES,
   ACTIVE_STATES,
   SPEECH_BUBBLE_FIELDS,
+  CHARACTER_NAMES,
   CHAR_Y_BASE,
   CHAR_SIZE
 } = require('../shared/config.cjs');
@@ -55,7 +56,8 @@ class MultiWindowManager {
         alwaysOnTopMode: 'active-only',  // 'active-only', 'all', or 'disabled'
         projectList: [],  // Persisted project list for lock menu
         speechBubbleFields: { project: true, memory: true, usage5h: true, usageWeek: true },
-        windowPositions: {}  // { [positionKey]: {x, y} } - last dragged position, restored on next creation
+        windowPositions: {},  // { [positionKey]: {x, y} } - last dragged position, restored on next creation
+        characterLock: 'auto'  // 'auto' or a CHARACTER_NAMES entry - forces every window to show one character
       }
     });
 
@@ -65,6 +67,7 @@ class MultiWindowManager {
     this.lockMode = this.store.get('lockMode');
     this.alwaysOnTopMode = this.store.get('alwaysOnTopMode');
     this.speechBubbleFields = this.store.get('speechBubbleFields');
+    this.characterLock = this.store.get('characterLock');
     this.windowPositions = this.store.get('windowPositions');
 
     // Project list (tracks all projects seen) - persisted
@@ -399,6 +402,44 @@ class MultiWindowManager {
     }
     if (this.onDisplayModeChanged) {
       this.onDisplayModeChanged();
+    }
+  }
+
+  // ============================================================================
+  // Character Lock Management
+  // ============================================================================
+
+  /**
+   * Get current character lock
+   * @returns {'auto'|string} 'auto', or a CHARACTER_NAMES entry
+   */
+  getCharacterLock() {
+    return this.characterLock;
+  }
+
+  /**
+   * Force every window to display one character regardless of what incoming
+   * status updates specify ('auto' restores each project's own character on
+   * its next status update — already-open windows aren't retroactively
+   * corrected, since the original character isn't tracked separately).
+   * @param {'auto'|string} character
+   */
+  setCharacterLock(character) {
+    if (character !== 'auto' && !CHARACTER_NAMES.includes(character)) return;
+
+    this.characterLock = character;
+    this.store.set('characterLock', character);
+
+    if (character === 'auto') return;
+
+    // Immediately reflect the lock in every currently open window instead of
+    // waiting for each project's next status update.
+    for (const [projectId, entry] of this.windows) {
+      if (this.isWindowValid(entry) && entry.state && entry.state.character !== character) {
+        const newState = { ...entry.state, character };
+        this.updateState(projectId, newState);
+        this.sendToWindow(projectId, 'state-update', newState);
+      }
     }
   }
 
@@ -937,10 +978,19 @@ class MultiWindowManager {
    *   blocked: boolean,
    *   maxWindowsReached: boolean,
    *   switchedProject: string|null,
-   *   updateResult: {updated: boolean, stateChanged: boolean, infoChanged: boolean}
+   *   updateResult: {updated: boolean, stateChanged: boolean, infoChanged: boolean},
+   *   stateData: Object
    * }}
    */
   routeStatusUpdate(projectId, stateData) {
+    // Character Lock overrides whatever character the incoming status
+    // specifies — reassign the local reference to a new object (not the
+    // caller's) so every downstream use (stateRegistry, window state, the
+    // 'state-update' IPC payload the caller sends afterward) stays in sync.
+    if (this.characterLock !== 'auto') {
+      stateData = { ...stateData, character: this.characterLock };
+    }
+
     this.stateRegistry.set(projectId, stateData);
 
     if (this.appMode === 'input') {
@@ -948,7 +998,8 @@ class MultiWindowManager {
       // created for it.
       return {
         blocked: false, maxWindowsReached: false, switchedProject: null,
-        updateResult: { updated: false, stateChanged: false, infoChanged: false }
+        updateResult: { updated: false, stateChanged: false, infoChanged: false },
+        stateData
       };
     }
 
@@ -960,13 +1011,14 @@ class MultiWindowManager {
         // recorded above, but the single visible window doesn't change.
         return {
           blocked: false, maxWindowsReached: false, switchedProject: null,
-          updateResult: { updated: false, stateChanged: false, infoChanged: false }
+          updateResult: { updated: false, stateChanged: false, infoChanged: false },
+          stateData
         };
       }
 
       const result = this.createWindow(focusedProjectId);
       const updateResult = this.updateState(focusedProjectId, stateData);
-      return { blocked: false, maxWindowsReached: false, switchedProject: result.switchedProject, updateResult };
+      return { blocked: false, maxWindowsReached: false, switchedProject: result.switchedProject, updateResult, stateData };
     }
 
     let switchedProject = null;
@@ -977,14 +1029,16 @@ class MultiWindowManager {
       if (result.blocked) {
         return {
           blocked: true, maxWindowsReached: false, switchedProject: null,
-          updateResult: { updated: false, stateChanged: false, infoChanged: false }
+          updateResult: { updated: false, stateChanged: false, infoChanged: false },
+          stateData
         };
       }
 
       if (!result.window) {
         return {
           blocked: false, maxWindowsReached: true, switchedProject: null,
-          updateResult: { updated: false, stateChanged: false, infoChanged: false }
+          updateResult: { updated: false, stateChanged: false, infoChanged: false },
+          stateData
         };
       }
 
@@ -994,7 +1048,7 @@ class MultiWindowManager {
     this.applyAutoLock(projectId, stateData.state);
     const updateResult = this.updateState(projectId, stateData);
 
-    return { blocked: false, maxWindowsReached: false, switchedProject, updateResult };
+    return { blocked: false, maxWindowsReached: false, switchedProject, updateResult, stateData };
   }
 
   /**

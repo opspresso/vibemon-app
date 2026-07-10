@@ -54,7 +54,8 @@ npm start
 - **Floating**: Cosine/Sine wave offset (X: ±3px, Y: ±5px, ~3.2s cycle)
 - **Working text**: Tool-based fixed text via `getWorkingText(tool)` (Bash→Running, Read→Reading, Edit→Editing, Write→Writing, Grep/WebSearch→Searching, Glob→Scanning, WebFetch→Fetching, Task→Tasking, default→Working)
 - **JSON fields**: `{"state", "tool", "project", "model", "memory", "usage5h", "usageWeek", "character"}` (Desktop adds `"terminalId"` for click-to-focus)
-- **Characters**: `clawd` (orange), `codex` (green), `kiro` (white ghost), `claw` (red)
+- **Characters**: `clawd` (orange), `codex` (green), `kiro` (white ghost), `claw` (red), `daangni` (white/teal, manual only)
+- **Character Lock**: Persisted `characterLock` setting (`'auto'` default, or a `CHARACTER_NAMES` entry) forces every window to show one character regardless of what each project's status reports; applied in `MultiWindowManager.routeStatusUpdate()` so it covers stateRegistry, window state, and the IPC payload uniformly. Switch via tray menu (**Character Lock**) or `POST /character-lock`.
 - **Metric rows**: memory (🧠), 5h usage (⏱️), weekly usage (📅) each render as a single line `[icon] [bar] [NN%]` at the bottom; `usage5h`/`usageWeek` are plan-usage % (0-100) from statusline's `usage.json`
 - **Memory hidden on start**: Memory not displayed during `start` state
 - **Project change resets**: Model/memory cleared when project changes (usage is account-global, not reset)
@@ -113,6 +114,8 @@ Three mutually-exclusive top-level modes (desktop app only), switched via system
 | `POST /window-mode` | Desktop | Set window mode sub-mode |
 | `GET /app-mode` | Desktop | Get current app mode (character/window/input) |
 | `POST /app-mode` | Desktop | Set app mode |
+| `GET /character-lock` | Desktop | Get current character lock (auto/character name) |
+| `POST /character-lock` | Desktop | Set character lock |
 | `GET /debug` | Desktop | Window/display debug info |
 | `GET /` | Desktop | Dashboard HTML page |
 | `GET /dashboard-data` | Desktop | Dashboard data (windows, modes, lock) |

@@ -31,8 +31,18 @@ VibeMon normalizes multiple agent ecosystems into one display model. The renderi
 | `codex` | Green | Terminal robot | Codex |
 | `kiro` | White | Ghost character | Kiro |
 | `claw` | Red | Antenna character | OpenClaw |
+| `daangni` | White/teal | Round face, fluffy top | Manual only (Character Lock) |
 
-All characters use **image-based rendering** (128x128 PNG). Character is **auto-selected by bridge**, not by the core display runtime. You can also manually change it via the system tray menu.
+All characters use **image-based rendering** (128x128 PNG). Character is **auto-selected by bridge**, not by the core display runtime. You can also manually change it via the system tray menu, or force it for every window with [Character Lock](#character-lock).
+
+### Character Lock
+
+Forces every window to always show one character, ignoring whatever character each project's status reports.
+
+- `auto` (default): each project shows its own character
+- Any character name: every window shows that character instead, applied immediately to already-open windows
+- Toggled via the system tray menu (**Character Lock** submenu) or `POST /character-lock`
+- Switching back to `auto` doesn't retroactively fix already-open windows — they pick up each project's real character again on its next status update
 
 ## States
 
@@ -259,9 +269,10 @@ A small, transparent, click-through window that displays selected info fields (p
 ### System Tray Menu
 
 - Switch App Mode (Character / Window / Input)
+- Character Lock (Auto/Clawd/Codex/Kiro/Claw/Daangni)
 - View active windows and their states (Window Mode only)
 - Manually change state (per window)
-- Switch character (Clawd/Codex/Kiro/Claw)
+- Switch character (Clawd/Codex/Kiro/Claw/Daangni)
 - Rearrange windows (Window Mode, multi sub-mode only)
 - Toggle Always on Top (Character/Window Mode)
 - Toggle Window Mode's sub-mode (Multi/Single)

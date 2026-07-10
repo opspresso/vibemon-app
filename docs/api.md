@@ -24,7 +24,7 @@ Default port: Desktop App `19280`, ESP32 WiFi `80`
 | `memory` | - | Integer 0-100 (context-window usage) |
 | `usage5h` | - | Integer 0-100 (5-hour plan-usage window) |
 | `usageWeek` | - | Integer 0-100 (weekly plan-usage window) |
-| `character` | - | `clawd`, `codex`, `kiro`, or `claw` |
+| `character` | - | `clawd`, `codex`, `kiro`, `claw`, or `daangni` |
 | `terminalId` | 100 chars | Desktop only. Terminal session ID with prefix: `iterm2:w0t0p0:UUID` (from `ITERM_SESSION_ID`) or `ghostty:12345` (from `GHOSTTY_PID`) |
 
 > `character` is a visual rendering choice, typically selected by the agent bridge. It is not a general agent identity field.
@@ -49,6 +49,7 @@ Default port: Desktop App `19280`, ESP32 WiFi `80`
 | GET/POST /lock-mode | ✓ | ✓ |
 | GET/POST /window-mode | ✓ | - |
 | GET/POST /app-mode | ✓ | - |
+| GET/POST /character-lock | ✓ | - |
 | GET /stats | ✓ | - |
 | GET /stats/data | ✓ | - |
 | POST /reboot | - | ✓ |
@@ -249,6 +250,34 @@ curl -X POST http://127.0.0.1:19280/app-mode \
 **Response:**
 ```json
 {"success": true, "mode": "character", "windowCount": 1}
+```
+
+### GET /character-lock (Desktop only)
+
+Get current character lock.
+
+```bash
+curl http://127.0.0.1:19280/character-lock
+```
+
+**Response:**
+```json
+{"character": "auto"}
+```
+
+### POST /character-lock (Desktop only)
+
+Force every window to show one character regardless of what each project's status reports (`auto`, or one of `clawd`, `codex`, `kiro`, `claw`, `daangni`). `auto` restores each project's own character on its next status update.
+
+```bash
+curl -X POST http://127.0.0.1:19280/character-lock \
+  -H "Content-Type: application/json" \
+  -d '{"character":"daangni"}'
+```
+
+**Response:**
+```json
+{"success": true, "character": "daangni"}
 ```
 
 > On an invalid `mode`, the response is `{"success": false, "error": "Invalid mode: <mode>", "validModes": ["multi", "single"]}`.

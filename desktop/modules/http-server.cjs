@@ -5,7 +5,7 @@
 const http = require('http');
 const fsPromises = require('fs').promises;
 const path = require('path');
-const { HTTP_PORT, MAX_PAYLOAD_SIZE, MAX_WINDOWS, STATS_CACHE_PATH } = require('../shared/config.cjs');
+const { HTTP_PORT, MAX_PAYLOAD_SIZE, MAX_WINDOWS, STATS_CACHE_PATH, CHARACTER_NAMES } = require('../shared/config.cjs');
 const { setCorsHeaders, sendJson, sendError, parseJsonBody } = require('./http-utils.cjs');
 const { validateStatusPayload } = require('./validators.cjs');
 
@@ -195,6 +195,12 @@ class HttpServer {
       case 'POST /app-mode':
         await this.handlePostAppMode(req, res);
         break;
+      case 'GET /character-lock':
+        this.handleGetCharacterLock(res);
+        break;
+      case 'POST /character-lock':
+        await this.handlePostCharacterLock(req, res);
+        break;
       case 'GET /stats':
         await this.handleGetStatsPage(res);
         break;
@@ -295,8 +301,9 @@ class HttpServer {
       }
     }
 
-    // Send update to renderer (for both state and info changes)
-    this.windowManager.sendToWindow(projectId, 'state-update', stateData);
+    // Send update to renderer (for both state and info changes); routeResult.stateData
+    // reflects Character Lock, if set
+    this.windowManager.sendToWindow(projectId, 'state-update', routeResult.stateData);
 
     sendJson(res, 200, {
       success: true,
@@ -610,6 +617,49 @@ class HttpServer {
       success: true,
       mode: this.windowManager.getAppMode(),
       windowCount: this.windowManager.getWindowCount()
+    });
+  }
+
+  handleGetCharacterLock(res) {
+    sendJson(res, 200, {
+      character: this.windowManager.getCharacterLock()
+    });
+  }
+
+  async handlePostCharacterLock(req, res) {
+    const { data, error, statusCode } = await parseJsonBody(req, MAX_PAYLOAD_SIZE);
+
+    if (error) {
+      sendError(res, statusCode, error);
+      return;
+    }
+
+    const character = data.character;
+
+    if (!character) {
+      sendError(res, 400, 'Character is required');
+      return;
+    }
+
+    if (character !== 'auto' && !CHARACTER_NAMES.includes(character)) {
+      sendJson(res, 200, {
+        success: false,
+        error: `Invalid character: ${character}`,
+        validCharacters: ['auto', ...CHARACTER_NAMES]
+      });
+      return;
+    }
+
+    this.windowManager.setCharacterLock(character);
+
+    // Update tray menu
+    if (this.onStateUpdate) {
+      this.onStateUpdate(true);
+    }
+
+    sendJson(res, 200, {
+      success: true,
+      character: this.windowManager.getCharacterLock()
     });
   }
 

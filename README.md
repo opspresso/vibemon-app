@@ -117,6 +117,19 @@ See [Features](docs/features.md) for animations, working state text, and more.
 | `codex` | Green | Codex |
 | `kiro` | White | Kiro |
 | `claw` | Red | OpenClaw |
+| `daangni` | White/teal | Manual only (Character Lock) |
+
+### Character Lock
+
+Force every window to always show one character, regardless of what each project's status reports. Default is `auto` (each project shows its own character).
+
+```bash
+curl -X POST http://127.0.0.1:19280/character-lock \
+  -H "Content-Type: application/json" \
+  -d '{"character":"daangni"}'
+```
+
+Switch via system tray menu (**Character Lock** submenu) or the API above.
 
 ## HTTP API
 

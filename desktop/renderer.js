@@ -77,7 +77,8 @@ async function init() {
       clawd: `${STATIC_BASE}/characters/clawd.png`,
       kiro: `${STATIC_BASE}/characters/kiro.png`,
       claw: `${STATIC_BASE}/characters/claw.png`,
-      codex: `${STATIC_BASE}/characters/codex.png`
+      codex: `${STATIC_BASE}/characters/codex.png`,
+      daangni: `${STATIC_BASE}/characters/daangni.png`
     }
   });
   await vibeMonEngine.init();

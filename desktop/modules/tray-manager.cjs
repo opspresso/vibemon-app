@@ -91,6 +91,18 @@ function createTrayIcon(state, character = 'clawd') {
     rect(7, 9, 2, 2, COLOR_EYE);    // Left eye
     rect(12, 9, 2, 2, COLOR_EYE);   // Right eye
     rect(9, 12, 4, 1, COLOR_EYE);   // Mouth
+  } else if (charName === 'daangni') {
+    // Draw daangni character (round face with fluffy teal top)
+    const teal = '#2EC4B6';
+    rect(7, 2, 8, 4, teal);          // Fluffy top
+    rect(5, 3, 3, 3, teal);          // Left tuft
+    rect(14, 3, 3, 3, teal);         // Right tuft
+    rect(4, 6, 14, 12, charColor);   // Round face
+    rect(3, 9, 2, 6, charColor);     // Left cheek
+    rect(17, 9, 2, 6, charColor);    // Right cheek
+    rect(7, 11, 2, 2, COLOR_EYE);    // Left eye
+    rect(13, 11, 2, 2, COLOR_EYE);   // Right eye
+    rect(10, 15, 2, 1, COLOR_EYE);   // Nose
   } else {
     // Draw clawd character (default)
     rect(4, 6, 14, 8, charColor);   // Body
@@ -516,6 +528,36 @@ class TrayManager {
     }));
   }
 
+  buildCharacterLockSubmenu() {
+    const currentLock = this.windowManager.getCharacterLock();
+
+    const items = [{
+      label: 'Auto',
+      type: 'radio',
+      checked: currentLock === 'auto',
+      click: () => {
+        this.windowManager.setCharacterLock('auto');
+        this.updateMenu();
+        this.updateIcon();
+      }
+    }];
+
+    for (const c of CHARACTER_NAMES) {
+      items.push({
+        label: c,
+        type: 'radio',
+        checked: currentLock === c,
+        click: () => {
+          this.windowManager.setCharacterLock(c);
+          this.updateMenu();
+          this.updateIcon();
+        }
+      });
+    }
+
+    return items;
+  }
+
   buildAlwaysOnTopSubmenu() {
     const currentMode = this.windowManager.getAlwaysOnTopMode();
 
@@ -682,6 +724,10 @@ class TrayManager {
       {
         label: 'App Mode',
         submenu: this.buildAppModeSubmenu()
+      },
+      {
+        label: 'Character Lock',
+        submenu: this.buildCharacterLockSubmenu()
       },
       { type: 'separator' },
       ...this.buildModeSection(appMode, windowCount),
