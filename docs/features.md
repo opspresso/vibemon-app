@@ -213,6 +213,20 @@ When running Claude Code in multiple terminal tabs, clicking a VibeMon window au
 - macOS only (uses AppleScript)
 - iTerm2 or Ghostty terminal
 
+### Character Only Mode
+
+Shrinks the window to show just the character, hiding the title bar, device frame, status text, and metric rows.
+
+- Toggled via the system tray menu (**Character Only Mode**)
+- When enabled, project/memory/usage info can still be shown via **Speech Bubble** fields instead
+
+### Speech Bubble
+
+A small, transparent, click-through window per project that displays selected info fields (project name, memory, 5h usage, weekly usage) next to the character. Positioned automatically so it never overlaps the character window and stays on-screen, with an animated slide when it needs to move.
+
+- Toggled per field via the system tray menu (**Speech Bubble** submenu: Project / Memory / Usage 5h / Usage Week)
+- Intended to pair with **Character Only Mode**, which hides the same info from the main window
+
 ### System Tray Menu
 
 - View active windows and their states
@@ -221,6 +235,8 @@ When running Claude Code in multiple terminal tabs, clicking a VibeMon window au
 - Rearrange windows (multi-window mode only)
 - Toggle Always on Top
 - Toggle window mode (Multi/Single)
+- Toggle Character Only Mode
+- Speech Bubble field toggles (Project/Memory/Usage 5h/Usage Week)
 - Open at Login toggle
 - Project lock (in single mode)
 - Claude Stats

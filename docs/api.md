@@ -90,7 +90,7 @@ Agent bridges usually set `character` automatically:
 {"success": true, "project": "my-project", "state": "working", "windowCount": 2}
 ```
 
-> `skipped: true` is added when no state change is detected (optimization). If a project is blocked (project locked or max windows), `success` is `false` with an `error` field.
+> `skipped: true` is added when neither `state` nor the info fields (`tool`, `model`, `memory`, `usage5h`, `usageWeek`, `character`) changed (optimization). If a project is blocked (project locked or max windows), `success` is `false` with an `error` field, plus `lockedProject` (blocked by lock) or `windowCount` (max windows reached).
 
 **Response (ESP32 WiFi):**
 ```json
@@ -192,6 +192,8 @@ curl -X POST http://127.0.0.1:19280/show \
 {"success": true, "project": "my-project"}
 ```
 
+> When `project` is omitted, the response's `project` field is the literal string `"first"`, not the actual project ID of the shown window.
+
 ### GET /window-mode (Desktop only)
 
 Get current window mode.
@@ -219,6 +221,8 @@ curl -X POST http://127.0.0.1:19280/window-mode \
 ```json
 {"success": true, "mode": "single", "windowCount": 1, "lockedProject": null}
 ```
+
+> On an invalid `mode`, the response is `{"success": false, "error": "Invalid mode: <mode>", "validModes": ["multi", "single"]}`.
 
 ---
 
@@ -251,7 +255,7 @@ curl -X POST http://192.168.0.185/lock \
 {"success": true, "lockedProject": "my-project"}
 ```
 
-> **Desktop:** Only works in single-window mode. Returns `{"success": false, "error": "Lock only available in single-window mode"}` in multi-window mode.
+> **Desktop:** Only works in single-window mode. Returns `{"success": false, "error": "Lock only available in single-window mode"}` in multi-window mode. If the locked project has no active window, the response includes `"warning": "No active window for this project"`.
 >
 > **ESP32:** Always available. When locking a new project, the display transitions to `idle` state and clears `tool`, `model`, `memory`.
 
@@ -329,6 +333,8 @@ curl -X POST http://192.168.0.185/lock-mode \
 ```
 
 > **ESP32:** Changing lock mode resets the current lock (`lockedProject` becomes null) and persists the new mode to Flash storage.
+>
+> On an invalid `mode`, the response is `{"success": false, "error": "Invalid mode: <mode>", "validModes": [...]}` listing the accepted mode keys.
 
 ---
 
@@ -425,7 +431,7 @@ curl http://127.0.0.1:19280/debug
 {
   "primaryDisplay": {"bounds": {"x": 0, "y": 0, "width": 1920, "height": 1080}, "workArea": {...}},
   "allDisplays": [...],
-  "windows": [{"project": "my-project", "bounds": {...}, "isVisible": true}],
+  "windows": [{"projectId": "my-project", "bounds": {...}, "state": "working"}],
   "windowCount": 1,
   "maxWindows": 5,
   "alwaysOnTopMode": "active-only",
@@ -499,3 +505,5 @@ See [ESP32 Setup Guide](esp32-setup.md#reset-wifi-settings) for details.
 ```json
 {"error": "Error message description"}
 ```
+
+> **Desktop note:** Routes not matching any known endpoint return a plain-text `404 Not Found` body, not JSON.
