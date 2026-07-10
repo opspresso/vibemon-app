@@ -33,11 +33,11 @@
   ],
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/nalbam/vibemon-app.git"
+    "url": "git+https://github.com/opspresso/vibemon-app.git"
   },
-  "homepage": "https://nalbam.github.io/vibemon-app/",
+  "homepage": "https://opspresso.github.io/vibemon-app/",
   "bugs": {
-    "url": "https://github.com/nalbam/vibemon-app/issues"
+    "url": "https://github.com/opspresso/vibemon-app/issues"
   },
   "dependencies": {
     "canvas": "^3.2.1",
@@ -67,7 +67,7 @@
     "shared/"
   ],
   "build": {
-    "appId": "com.nalbam.vibemon",
+    "appId": "com.opspresso.vibemon",
     "productName": "VibeMon",
     "mac": {
       "category": "public.app-category.developer-tools",

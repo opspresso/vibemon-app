@@ -2,13 +2,13 @@
 
 [![npm version](https://img.shields.io/npm/v/vibemon.svg)](https://www.npmjs.com/package/vibemon)
 [![npm downloads](https://img.shields.io/npm/dm/vibemon.svg)](https://www.npmjs.com/package/vibemon)
-[![license](https://img.shields.io/npm/l/vibemon.svg)](https://github.com/nalbam/vibemon-app/blob/main/LICENSE)
+[![license](https://img.shields.io/npm/l/vibemon.svg)](https://github.com/opspresso/vibemon-app/blob/main/LICENSE)
 
 **Real-time status monitor for AI assistants with pixel art character display.**
 
 See at a glance what your AI assistant is doing — thinking, working, or waiting for input. A cute pixel art character visually represents the current state.
 
-![Demo](https://raw.githubusercontent.com/nalbam/vibemon-app/main/images/demo.gif)
+![Demo](https://raw.githubusercontent.com/opspresso/vibemon-app/main/images/demo.gif)
 
 ## Quick Start
 
@@ -48,8 +48,8 @@ For full documentation, visit **[vibemon.io/docs](https://vibemon.io/docs)**.
 
 ## Links
 
-- [Homepage](https://nalbam.github.io/vibemon-app/)
-- [GitHub Repository](https://github.com/nalbam/vibemon-app)
+- [Homepage](https://opspresso.github.io/vibemon-app/)
+- [GitHub Repository](https://github.com/opspresso/vibemon-app)
 
 ## License
 

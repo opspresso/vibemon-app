@@ -2,7 +2,7 @@
 
 [![npm version](https://img.shields.io/npm/v/vibemon.svg)](https://www.npmjs.com/package/vibemon)
 [![npm downloads](https://img.shields.io/npm/dm/vibemon.svg)](https://www.npmjs.com/package/vibemon)
-[![license](https://img.shields.io/npm/l/vibemon.svg)](https://github.com/nalbam/vibemon-app/blob/main/LICENSE)
+[![license](https://img.shields.io/npm/l/vibemon.svg)](https://github.com/opspresso/vibemon-app/blob/main/LICENSE)
 
 **Real-time status monitor for AI assistants with pixel art character display.**
 
