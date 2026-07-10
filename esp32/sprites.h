@@ -81,7 +81,8 @@ enum EyeType {
   EYE_NORMAL,      // Normal square eyes (default)
   EYE_BLINK,       // Closed eyes (horizontal lines)
   EYE_HAPPY,       // Happy eyes (> <)
-  EYE_FOCUSED      // Sunglasses (Matrix style)
+  EYE_FOCUSED,     // Sunglasses (Matrix style)
+  EYE_GLASSES      // Glasses (frame only, eyes stay visible)
 };
 
 // Effect types (visual effects around character)
@@ -208,7 +209,7 @@ const CharacterGeometry CHAR_CODEX = {
   "codex",
   COLOR_CODEX,
   // Eyes (leftX, rightX, y, w, h)
-  22, 38, 22, 4, 4,
+  23, 38, 22, 4, 4,
   // Effect position (effectX, effectY)
   47, 3,
   // Draw functions
@@ -270,7 +271,7 @@ uint16_t getBackgroundColorEnum(AppState state) {
 // Get eye type for state
 EyeType getEyeTypeEnum(AppState state) {
   switch (state) {
-    case STATE_WORKING: return EYE_FOCUSED;
+    case STATE_WORKING: return EYE_GLASSES;
     case STATE_DONE: return EYE_HAPPY;
     case STATE_SLEEP: return EYE_BLINK;
     default: return EYE_NORMAL;
@@ -406,6 +407,35 @@ void drawSunglassesT(T &canvas, int leftEyeX, int rightEyeX, int eyeY, int ew, i
 
 inline void drawSunglasses(TFT_eSPI &tft, int leftEyeX, int rightEyeX, int eyeY, int ew, int eh, bool isKiro = false) {
   drawSunglassesT(tft, leftEyeX, rightEyeX, eyeY, ew, eh, isKiro);
+}
+
+// Draw glasses (frame only - lenses stay clear so the eyes underneath remain visible)
+template<typename T>
+void drawGlassesT(T &canvas, int leftEyeX, int rightEyeX, int eyeY, int ew, int eh, bool isKiro = false) {
+  int lensW, lensH, lensY, leftLensX, rightLensX;
+  getEyeCoverPosition(leftEyeX, rightEyeX, eyeY, ew, eh, isKiro, lensW, lensH, lensY, leftLensX, rightLensX);
+
+  // Frame - top
+  canvas.fillRect(leftLensX - SCALE, lensY - SCALE, lensW + (2 * SCALE), SCALE, COLOR_SUNGLASSES_FRAME);
+  canvas.fillRect(rightLensX - SCALE, lensY - SCALE, lensW + (2 * SCALE), SCALE, COLOR_SUNGLASSES_FRAME);
+
+  // Frame - bottom
+  canvas.fillRect(leftLensX - SCALE, lensY + lensH, lensW + (2 * SCALE), SCALE, COLOR_SUNGLASSES_FRAME);
+  canvas.fillRect(rightLensX - SCALE, lensY + lensH, lensW + (2 * SCALE), SCALE, COLOR_SUNGLASSES_FRAME);
+
+  // Frame - sides
+  canvas.fillRect(leftLensX - SCALE, lensY, SCALE, lensH, COLOR_SUNGLASSES_FRAME);
+  canvas.fillRect(leftLensX + lensW, lensY, SCALE, lensH, COLOR_SUNGLASSES_FRAME);
+  canvas.fillRect(rightLensX - SCALE, lensY, SCALE, lensH, COLOR_SUNGLASSES_FRAME);
+  canvas.fillRect(rightLensX + lensW, lensY, SCALE, lensH, COLOR_SUNGLASSES_FRAME);
+
+  // Bridge (connects two lenses)
+  int bridgeY = lensY + lensH / 2 - (2 * SCALE);
+  canvas.fillRect(leftLensX + lensW, bridgeY, rightLensX - leftLensX - lensW, SCALE, COLOR_SUNGLASSES_FRAME);
+}
+
+inline void drawGlasses(TFT_eSPI &tft, int leftEyeX, int rightEyeX, int eyeY, int ew, int eh, bool isKiro = false) {
+  drawGlassesT(tft, leftEyeX, rightEyeX, eyeY, ew, eh, isKiro);
 }
 
 // =============================================================================
@@ -549,6 +579,9 @@ void drawEyeType(TFT_eSPI &tft, int x, int y, EyeType eyeType, const CharacterGe
     case EYE_FOCUSED:
       drawSunglasses(tft, leftEyeX, rightEyeX, eyeY, ew, eh, isKiro);
       break;
+    case EYE_GLASSES:
+      drawGlasses(tft, leftEyeX, rightEyeX, eyeY, ew, eh, isKiro);
+      break;
     case EYE_BLINK:
       drawSleepEyes(tft, leftEyeX, rightEyeX, eyeY, ew, eh, character->color, isKiro);
       break;
@@ -604,6 +637,9 @@ void drawEyeTypeToSprite(TFT_eSprite &sprite, EyeType eyeType, const CharacterGe
   switch (eyeType) {
     case EYE_FOCUSED:
       drawSunglassesT(sprite, leftEyeX, rightEyeX, eyeY, ew, eh, isKiro);
+      break;
+    case EYE_GLASSES:
+      drawGlassesT(sprite, leftEyeX, rightEyeX, eyeY, ew, eh, isKiro);
       break;
     case EYE_BLINK:
       drawSleepEyesT(sprite, leftEyeX, rightEyeX, eyeY, ew, eh, character->color, isKiro);
