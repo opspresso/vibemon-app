@@ -16,7 +16,9 @@ const {
 const COLOR_EYE = '#000000';
 
 const SPEECH_BUBBLE_FIELD_LABELS = {
+  status: 'Status',
   project: 'Project',
+  model: 'Model',
   memory: 'Memory',
   usage5h: 'Usage 5h',
   usageWeek: 'Usage Week'

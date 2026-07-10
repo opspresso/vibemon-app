@@ -44,7 +44,7 @@ const METRIC_ICONS = {
 };
 
 /**
- * Build the bubble.html content payload: the project field renders as plain
+ * Build the bubble.html content payload: status/project/model render as plain
  * text, memory/usage5h/usageWeek render as an icon + inline bar + percentage
  * (bubble.html's __setBubbleContent draws the bar itself from `value`).
  * @param {Object|null} state
@@ -54,8 +54,17 @@ const METRIC_ICONS = {
 function buildFieldPayload(state, speechBubbleFields) {
   const payload = {};
 
+  if (speechBubbleFields && speechBubbleFields.status && state && state.state) {
+    const status = String(state.state);
+    payload.status = { type: 'text', text: status.charAt(0).toUpperCase() + status.slice(1) };
+  }
+
   if (speechBubbleFields && speechBubbleFields.project && state && state.project) {
     payload.project = { type: 'text', text: String(state.project) };
+  }
+
+  if (speechBubbleFields && speechBubbleFields.model && state && state.model) {
+    payload.model = { type: 'text', text: String(state.model) };
   }
 
   for (const field of ['memory', 'usage5h', 'usageWeek']) {

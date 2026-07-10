@@ -55,7 +55,7 @@ class MultiWindowManager {
         lockMode: 'on-thinking',  // 'first-project' or 'on-thinking'
         alwaysOnTopMode: 'active-only',  // 'active-only', 'all', or 'disabled'
         projectList: [],  // Persisted project list for lock menu
-        speechBubbleFields: { project: true, memory: true, usage5h: true, usageWeek: true },
+        speechBubbleFields: { status: true, project: true, model: true, memory: true, usage5h: true, usageWeek: true },
         windowPositions: {},  // { [positionKey]: {x, y} } - last dragged position, restored on next creation
         characterLock: 'auto'  // 'auto' or a CHARACTER_NAMES entry - forces every window to show one character
       }
@@ -66,7 +66,15 @@ class MultiWindowManager {
     this.lockedProject = this.store.get('lockedProject');
     this.lockMode = this.store.get('lockMode');
     this.alwaysOnTopMode = this.store.get('alwaysOnTopMode');
-    this.speechBubbleFields = this.store.get('speechBubbleFields');
+    // Merge with defaults so fields added in a later version (not yet in an
+    // existing user's persisted store) default to enabled instead of missing.
+    const storedSpeechBubbleFields = this.store.get('speechBubbleFields');
+    this.speechBubbleFields = Object.fromEntries(
+      SPEECH_BUBBLE_FIELDS.map(field => [
+        field,
+        storedSpeechBubbleFields[field] !== undefined ? storedSpeechBubbleFields[field] : true
+      ])
+    );
     this.characterLock = this.store.get('characterLock');
     this.windowPositions = this.store.get('windowPositions');
 

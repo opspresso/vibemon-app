@@ -31,7 +31,7 @@ VibeMon normalizes multiple agent ecosystems into one display model. The renderi
 | `codex` | Green | Terminal robot | Codex |
 | `kiro` | White | Ghost character | Kiro |
 | `claw` | Red | Antenna character | OpenClaw |
-| `daangni` | White/teal | Round face, fluffy top | Manual only (Character Lock) |
+| `daangni` | Peach/teal | Round face, fluffy top | Manual only (Character Lock) |
 
 All characters use **image-based rendering** (128x128 PNG). Character is **auto-selected by bridge**, not by the core display runtime. You can also manually change it via the system tray menu, or force it for every window with [Character Lock](#character-lock).
 
@@ -52,7 +52,7 @@ Forces every window to always show one character, ignoring whatever character ea
 | `idle` | Green | ■ ■ | Ready | Waiting for input |
 | `thinking` | Purple | ▀ ▀ + 💭 | Thinking | User submits prompt |
 | `planning` | Teal | ▀ ▀ + 💭 | Planning | Plan mode active |
-| `working` | Blue | 🕶️ (sunglasses) | (tool-based) | Tool executing |
+| `working` | Blue | 👓 (glasses) | (tool-based) | Tool executing |
 | `packing` | Gray | ▀ ▀ + 💭 | Packing | Context compacting |
 | `notification` | Yellow | ● ● + ? | Input? | User input needed |
 | `done` | Green | > < | Done! | Tool completed |
@@ -98,7 +98,7 @@ The `working` state displays fixed text based on the active tool:
   - Thinking/planning/packing: 3x slower animation for contemplative feel
   - Working: Normal speed animation
 - **Matrix rain**: Working state shows falling green code effect (Desktop only)
-- **Sunglasses**: Working state character wears Matrix-style sunglasses
+- **Glasses**: Working state character wears frame-only glasses (lenses stay clear, eyes remain visible)
 - **Sparkle**: Session start and working states show rotating sparkle effect
 - **Thought bubble**: Thinking, planning, and packing states show animated thought bubble
 - **Zzz**: Sleep state shows blinking Z animation
@@ -129,7 +129,7 @@ Switching modes doesn't lose data: whatever was tracked in the background (Input
 
 ### Character Mode
 
-- Exactly one window exists, always — it's never destroyed the way per-project windows are on a sleep timeout
+- Exactly one window exists at a time; it's shown for whichever project is focused, but is still subject to the same 10-minute sleep-state close timeout as any other window (see [State Timeout](#state-timeout)) — it reappears once a new status update arrives
 - Shows whichever project is currently "focused": a project in an active state (thinking, planning, working, packing, notification, alert) always takes focus; otherwise the most recently updated project keeps it
 - Can be dragged past the screen edge while the drag is in progress; once you let go, it's clamped back fully on-screen
 - Reappears at the same spot you last left it, across restarts
@@ -262,9 +262,9 @@ When running Claude Code in multiple terminal tabs, clicking a VibeMon window au
 
 ### Speech Bubble
 
-A small, transparent, click-through window that displays selected info fields (project name, memory, 5h usage, weekly usage) next to the character. Positioned automatically so it never overlaps the character window and stays on-screen, with an animated slide when it needs to move. Only shown in [Character Mode](#character-mode).
+A small, transparent, click-through window that displays selected info fields (status, project name, model, memory, 5h usage, weekly usage) next to the character. Positioned automatically so it never overlaps the character window and stays on-screen, with an animated slide when it needs to move. Only shown in [Character Mode](#character-mode).
 
-- Toggled per field via the system tray menu (**Speech Bubble** submenu: Project / Memory / Usage 5h / Usage Week), shown only while **App Mode** is set to Character
+- Toggled per field via the system tray menu (**Speech Bubble** submenu: Status / Project / Model / Memory / Usage 5h / Usage Week), shown only while **App Mode** is set to Character
 
 ### System Tray Menu
 
@@ -276,7 +276,7 @@ A small, transparent, click-through window that displays selected info fields (p
 - Rearrange windows (Window Mode, multi sub-mode only)
 - Toggle Always on Top (Character/Window Mode)
 - Toggle Window Mode's sub-mode (Multi/Single)
-- Speech Bubble field toggles (Character Mode only; Project/Memory/Usage 5h/Usage Week)
+- Speech Bubble field toggles (Character Mode only; Status/Project/Model/Memory/Usage 5h/Usage Week)
 - Open at Login toggle
 - Project lock (in single mode)
 - Claude Stats
