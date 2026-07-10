@@ -17,7 +17,9 @@ jobs:
 
     strategy:
       matrix:
-        os: [macos-latest, windows-latest]
+        # windows-latest temporarily disabled: WINDOWS_CERTS pfx is expired,
+        # re-add once a new cert is issued (see nalbam/keys/develop/win/README.md)
+        os: [macos-latest]
       fail-fast: false
 
     defaults:
@@ -124,12 +126,24 @@ jobs:
         with:
           path: artifacts
 
+      - name: Resolve release tag
+        id: release_tag
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "tag=${{ inputs.version }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "tag=${{ github.ref_name }}" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Get tag message
         id: tag_message
+        env:
+          RELEASE_TAG: ${{ steps.release_tag.outputs.tag }}
         run: |
           TAG_REF=$(curl -s \
             -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
-            "https://api.github.com/repos/${{ github.repository }}/git/refs/tags/${{ github.ref_name }}")
+            "https://api.github.com/repos/${{ github.repository }}/git/refs/tags/$RELEASE_TAG")
 
           OBJECT_TYPE=$(echo "$TAG_REF" | jq -r '.object.type')
           OBJECT_SHA=$(echo "$TAG_REF" | jq -r '.object.sha')
@@ -143,13 +157,13 @@ jobs:
           fi
 
           if [ -z "$TAG_MESSAGE" ] || [ "$TAG_MESSAGE" = "null" ]; then
-            PREV_TAG=$(git describe --tags --abbrev=0 "${{ github.ref_name }}^" 2>/dev/null || echo "")
+            PREV_TAG=$(git describe --tags --abbrev=0 "$RELEASE_TAG^" 2>/dev/null || echo "")
             if [ -n "$PREV_TAG" ]; then
               TAG_MESSAGE=$(printf '## Changes since %s\n\n%s\n' \
                 "$PREV_TAG" \
-                "$(git log --pretty='- %s' "$PREV_TAG..${{ github.ref_name }}" --no-merges)")
+                "$(git log --pretty='- %s' "$PREV_TAG..$RELEASE_TAG" --no-merges)")
             else
-              TAG_MESSAGE="Release ${{ github.ref_name }}"
+              TAG_MESSAGE="Release $RELEASE_TAG"
             fi
           fi
 
@@ -158,8 +172,8 @@ jobs:
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ github.ref_name }}
-          name: Release ${{ github.ref_name }}
+          tag_name: ${{ steps.release_tag.outputs.tag }}
+          name: Release ${{ steps.release_tag.outputs.tag }}
           draft: false
           prerelease: false
           body_path: release_notes.md
