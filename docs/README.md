@@ -16,6 +16,11 @@ For ESP32 hardware setup, see [ESP32 Setup Guide](esp32-setup.md).
 - **[Features](features.md)** - States, animations, window modes, project lock
 - **[HTTP API Reference](api.md)** - Complete API documentation for all endpoints
 
+## Conventions
+
+- File names: lowercase-hyphen.md
+- Language: English
+
 ## Links
 
 - [Main README](../README.md) - Project overview

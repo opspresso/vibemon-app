@@ -113,7 +113,7 @@ The Desktop App supports three mutually-exclusive top-level modes:
 
 | Mode | Description |
 |------|-------------|
-| `character` | One persistent character window + following speech bubble; never disappears |
+| `character` | One character window + following speech bubble; subject to the same sleep-state close timeout as other windows |
 | `window` | Per-project windows (multi or single sub-mode) - **Default** |
 | `input` | No windows shown at all; status is still collected in the background |
 

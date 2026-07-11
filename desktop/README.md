@@ -41,9 +41,14 @@ The app launches in the system tray and listens on `http://127.0.0.1:19280`.
 ## Features
 
 - **Frameless Window** - Clean floating design
+- **App Modes** - Character (one persistent window), Window (multi-project), or Input (background only)
 - **Always on Top** - Stays above other windows while active (configurable modes)
 - **System Tray** - Quick control from the menu bar
 - **Multi-window** - One window per project (up to 5)
+- **Character Lock** - Pin every window to one character regardless of project
+- **Project Lock** - Pin a window to a single project
+- **Speech Bubble** - Shows status/project/model/memory/usage fields next to the character (Character Mode)
+- **Usage Bars** - Context memory, 5-hour usage, and weekly usage indicators
 - **Snap to Corner** - Auto-snaps near screen edges
 - **Click to Focus** - Switch to iTerm2/Ghostty tab (macOS)
 - **Open at Login** - Auto-start on macOS login

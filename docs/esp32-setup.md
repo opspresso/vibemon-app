@@ -87,11 +87,11 @@ When the device has no saved WiFi credentials, it automatically enters **Provisi
 ### Web Configuration Interface
 
 **Features:**
-- 📡 WiFi network scanning with signal strength
-- 🔒 Security indicator for protected networks
-- 🎨 Responsive design (works on phones & computers)
-- 🔑 Optional WebSocket token configuration
-- ✅ Form validation and error handling
+- WiFi network scanning with signal strength
+- Security indicator for protected networks
+- Responsive design (works on phones & computers)
+- Optional WebSocket token configuration
+- Form validation and error handling
 
 **Fields:**
 1. **WiFi Network** - Dropdown list of scanned networks
@@ -109,9 +109,9 @@ Credentials are stored in ESP32's **NVS (Non-Volatile Storage)**:
 | `wsToken` | String | WebSocket authentication token |
 
 **Persistence:**
-- ✅ Survives reboots
-- ✅ Survives power cycles
-- ✅ Survives firmware updates (if not doing full erase)
+- Survives reboots
+- Survives power cycles
+- Survives firmware updates (if not doing full erase)
 
 ## Setup Options
 
@@ -245,7 +245,7 @@ The token is used for **authentication** when connecting to VibeMon WebSocket se
 ### No Networks in Scan
 
 **Solutions:**
-1. Click "🔍 Scan Networks" again
+1. Click "Scan Networks" again
 2. Move device closer to WiFi router
 3. Ensure WiFi router is broadcasting SSID
 
@@ -351,15 +351,15 @@ void setupWebSocket() {
 ### Security Considerations
 
 **Security Measures:**
-- ✅ SSID values escaped to prevent JSON injection
-- ✅ Input validation on server side
-- ✅ Provisioning only active during setup (temporary)
+- SSID values escaped to prevent JSON injection
+- Input validation on server side
+- Provisioning only active during setup (temporary)
 
 **Security Limitations:**
-- ⚠️ Default AP password (`vibemon123`) is known - configure quickly!
-- ⚠️ Configuration page uses HTTP (local only, acceptable for captive portal)
-- ⚠️ Credentials stored in NVS without encryption (ESP32 supports NVS encryption but not enabled by default)
-- ⚠️ WiFi password visible during provisioning
+- Default AP password (`vibemon123`) is known - configure quickly!
+- Configuration page uses HTTP (local only, acceptable for captive portal)
+- Credentials stored in NVS without encryption (ESP32 supports NVS encryption but not enabled by default)
+- WiFi password visible during provisioning
 
 **Recommendations:**
 1. Connect to provisioning AP quickly to minimize exposure
@@ -390,7 +390,7 @@ Add to `credentials.h`:
 
 Any unused GPIO pin can be used. Recommended: **GPIO2** (safe for both boards).
 
-> **⚠️ Pin conflicts by board:**
+> **Pin conflicts by board:**
 >
 > | Board | LCD pins in use (do NOT use for ALERT_PIN) |
 > |-------|---------------------------------------------|
