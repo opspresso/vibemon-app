@@ -115,6 +115,31 @@ class VibemonConfigManager {
   }
 
   /**
+   * Add a single HTTP URL, based on a fresh read of the current on-disk
+   * config rather than a caller-supplied array — a caller (e.g. settings.html)
+   * that held onto a stale snapshot can't clobber an entry added elsewhere
+   * (e.g. ensureDesktopUrl()'s periodic check) in the meantime.
+   * @param {string} url
+   * @returns {object} the fresh config after writing (same shape as read())
+   */
+  addHttpUrl(url) {
+    const current = this.read();
+    return this.write({ http_urls: [...current.http_urls, url] });
+  }
+
+  /**
+   * Remove a single HTTP URL, based on a fresh read of the current on-disk
+   * config. See addHttpUrl() for why this reads fresh rather than taking a
+   * full array from the caller.
+   * @param {string} url
+   * @returns {object} the fresh config after writing (same shape as read())
+   */
+  removeHttpUrl(url) {
+    const current = this.read();
+    return this.write({ http_urls: current.http_urls.filter(u => u !== url) });
+  }
+
+  /**
    * Create or repair ~/.vibemon/config.json so its http_urls includes this
    * app, without running the python installer. Existing fields (other
    * http_urls entries, an already-set vibemon_token, etc.) are preserved.

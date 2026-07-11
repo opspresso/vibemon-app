@@ -13,15 +13,47 @@ jest.mock('electron', () => ({
 }));
 
 jest.mock('electron-store', () => {
-  return jest.fn().mockImplementation(function mockStore(opts) {
-    const data = { ...(opts && opts.defaults) };
+  let presetData = null;
+  const MockStore = jest.fn().mockImplementation(function mockStore(opts) {
+    const data = { ...(opts && opts.defaults), ...(presetData || {}) };
+    presetData = null;
     this.get = (key) => data[key];
     this.set = (key, value) => { data[key] = value; };
   });
+  // Lets a test seed keys (e.g. the legacy characterOnlyMode flag) that
+  // exist on disk before the next `new Store(...)` call, without touching
+  // the `defaults` MultiWindowManager itself passes in.
+  MockStore.__presetNextStore = (preset) => { presetData = preset; };
+  return MockStore;
 });
 
 const { MultiWindowManager } = require('../modules/multi-window-manager.cjs');
 const { MAX_PROJECT_LIST, MAX_STATE_REGISTRY_SIZE } = require('../shared/config.cjs');
+const Store = require('electron-store');
+
+describe('default settings', () => {
+  test('a fresh install defaults to character app mode, single window mode, and all always-on-top', () => {
+    const manager = new MultiWindowManager();
+
+    expect(manager.getAppMode()).toBe('character');
+    expect(manager.getWindowMode()).toBe('single');
+    expect(manager.getAlwaysOnTopMode()).toBe('all');
+  });
+
+  test('honors an explicit legacy characterOnlyMode=false as window mode', () => {
+    Store.__presetNextStore({ characterOnlyMode: false });
+    const manager = new MultiWindowManager();
+
+    expect(manager.getAppMode()).toBe('window');
+  });
+
+  test('honors an explicit legacy characterOnlyMode=true as character mode', () => {
+    Store.__presetNextStore({ characterOnlyMode: true });
+    const manager = new MultiWindowManager();
+
+    expect(manager.getAppMode()).toBe('character');
+  });
+});
 
 describe('pruneStateRegistry', () => {
   test('evicts least-recently-updated entries beyond the cap, skipping live windows', () => {
@@ -77,6 +109,7 @@ describe('arrangeWindowsByName', () => {
 
   test('does not reposition the window in Single-Window Mode', () => {
     const manager = new MultiWindowManager();
+    manager.appMode = 'window';
     manager.windowMode = 'single';
     const entry = fakeWindowEntry();
     manager.windows.set('proj-a', entry);
@@ -88,6 +121,7 @@ describe('arrangeWindowsByName', () => {
 
   test('repositions windows in Multi-Window Mode', () => {
     const manager = new MultiWindowManager();
+    manager.appMode = 'window';
     manager.windowMode = 'multi';
     const entry = fakeWindowEntry();
     manager.windows.set('proj-a', entry);

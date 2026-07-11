@@ -124,6 +124,40 @@ describe('VibemonConfigManager', () => {
     });
   });
 
+  describe('addHttpUrl / removeHttpUrl', () => {
+    test('addHttpUrl appends to the current on-disk list, not a stale snapshot', () => {
+      fs.existsSync.mockReturnValue(true);
+      fs.readFileSync.mockReturnValue(JSON.stringify({ http_urls: ['http://a'] }));
+
+      const result = manager.addHttpUrl('http://b');
+
+      expect(result.http_urls).toEqual(['http://a', 'http://b']);
+    });
+
+    test('addHttpUrl normalizes like write() (trims, dedupes)', () => {
+      fs.existsSync.mockReturnValue(true);
+      fs.readFileSync.mockReturnValue(JSON.stringify({ http_urls: ['http://a'] }));
+
+      expect(manager.addHttpUrl(' http://a ').http_urls).toEqual(['http://a']);
+    });
+
+    test('removeHttpUrl removes only the given URL from the current on-disk list', () => {
+      fs.existsSync.mockReturnValue(true);
+      fs.readFileSync.mockReturnValue(JSON.stringify({ http_urls: ['http://a', 'http://b'] }));
+
+      const result = manager.removeHttpUrl('http://a');
+
+      expect(result.http_urls).toEqual(['http://b']);
+    });
+
+    test('removeHttpUrl is a no-op when the URL is not present', () => {
+      fs.existsSync.mockReturnValue(true);
+      fs.readFileSync.mockReturnValue(JSON.stringify({ http_urls: ['http://a'] }));
+
+      expect(manager.removeHttpUrl('http://missing').http_urls).toEqual(['http://a']);
+    });
+  });
+
   describe('ensureDesktopUrl', () => {
     test('does nothing when already configured', () => {
       fs.existsSync.mockReturnValue(true);

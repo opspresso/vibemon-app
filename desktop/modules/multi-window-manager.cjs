@@ -51,10 +51,10 @@ class MultiWindowManager {
     // Persistent settings
     this.store = new Store({
       defaults: {
-        windowMode: 'multi',  // 'multi' or 'single'
+        windowMode: 'single',  // 'multi' or 'single'
         lockedProject: null,
         lockMode: 'on-thinking',  // 'first-project' or 'on-thinking'
-        alwaysOnTopMode: 'active-only',  // 'active-only', 'all', or 'disabled'
+        alwaysOnTopMode: 'all',  // 'active-only', 'all', or 'disabled'
         projectList: [],  // Persisted project list for lock menu
         speechBubbleFields: { status: true, project: true, model: true, memory: true, usage5h: true, usageWeek: true },
         windowPositions: {},  // { [positionKey]: {x, y} } - last dragged position, restored on next creation
@@ -84,13 +84,15 @@ class MultiWindowManager {
 
     // App mode: 'window' (per-project windows), 'character' (single persistent
     // character+bubble), or 'input' (headless, state collection only).
+    // Default for new installs is 'character'.
     // Not in the `defaults` above on purpose — an unset key must be
-    // distinguishable from an explicit 'window', so first run after an
+    // distinguishable from an explicit legacy value, so first run after an
     // upgrade can migrate from the legacy characterOnlyMode checkbox instead
-    // of silently defaulting to 'window'.
+    // of overriding a user's existing choice.
     this.appMode = this.store.get('appMode');
     if (this.appMode === undefined) {
-      this.appMode = this.store.get('characterOnlyMode') === true ? 'character' : 'window';
+      const legacyCharacterOnly = this.store.get('characterOnlyMode');
+      this.appMode = legacyCharacterOnly === false ? 'window' : 'character';
       this.store.set('appMode', this.appMode);
     }
 

@@ -177,6 +177,20 @@ class SettingsWindowManager {
       return this.getVibemonConfigView();
     });
 
+    ipcMain.handle('settings:add-http-url', (_event, url) => {
+      if (typeof url !== 'string') return this.getVibemonConfigView();
+      this.vibemonConfigManager.addHttpUrl(url);
+      this.notifyChanged();
+      return this.getVibemonConfigView();
+    });
+
+    ipcMain.handle('settings:remove-http-url', (_event, url) => {
+      if (typeof url !== 'string') return this.getVibemonConfigView();
+      this.vibemonConfigManager.removeHttpUrl(url);
+      this.notifyChanged();
+      return this.getVibemonConfigView();
+    });
+
     ipcMain.handle('settings:check-for-updates', async () => {
       await this.updateChecker.checkForUpdates();
       return this.updateChecker.getState();

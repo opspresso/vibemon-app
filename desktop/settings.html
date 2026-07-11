@@ -536,9 +536,7 @@
         removeBtn.textContent = '×';
         removeBtn.title = 'Remove';
         removeBtn.addEventListener('click', async () => {
-          renderVibemonConfigSection(await window.settingsAPI.setVibemonConfig({
-            http_urls: urls.filter((u) => u !== url)
-          }));
+          renderVibemonConfigSection(await window.settingsAPI.removeHttpUrl(url));
         });
         chip.appendChild(removeBtn);
 
@@ -556,9 +554,7 @@
       addBtn.addEventListener('click', async () => {
         const value = input.value.trim();
         if (!value) return;
-        renderVibemonConfigSection(await window.settingsAPI.setVibemonConfig({
-          http_urls: [...urls, value]
-        }));
+        renderVibemonConfigSection(await window.settingsAPI.addHttpUrl(value));
       });
       addRow.appendChild(input);
       addRow.appendChild(addBtn);

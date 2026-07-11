@@ -83,7 +83,9 @@ function makeDeps() {
       })),
       getStatus: jest.fn(() => ({ exists: false, hasDesktopUrl: false })),
       write: jest.fn(),
-      ensureDesktopUrl: jest.fn()
+      ensureDesktopUrl: jest.fn(),
+      addHttpUrl: jest.fn(),
+      removeHttpUrl: jest.fn()
     },
     updateChecker: {
       getState: jest.fn(() => ({ status: null, version: null })),
@@ -267,6 +269,38 @@ describe('VibeMon Config', () => {
     await invoke('settings:set-vibemon-config', null);
 
     expect(deps.vibemonConfigManager.write).not.toHaveBeenCalled();
+  });
+
+  test('add-http-url forwards the URL and returns the refreshed config+status', async () => {
+    const { deps } = freshManager();
+
+    await invoke('settings:add-http-url', 'http://x');
+
+    expect(deps.vibemonConfigManager.addHttpUrl).toHaveBeenCalledWith('http://x');
+  });
+
+  test('add-http-url ignores a non-string payload without writing', async () => {
+    const { deps } = freshManager();
+
+    await invoke('settings:add-http-url', 123);
+
+    expect(deps.vibemonConfigManager.addHttpUrl).not.toHaveBeenCalled();
+  });
+
+  test('remove-http-url forwards the URL and returns the refreshed config+status', async () => {
+    const { deps } = freshManager();
+
+    await invoke('settings:remove-http-url', 'http://x');
+
+    expect(deps.vibemonConfigManager.removeHttpUrl).toHaveBeenCalledWith('http://x');
+  });
+
+  test('remove-http-url ignores a non-string payload without writing', async () => {
+    const { deps } = freshManager();
+
+    await invoke('settings:remove-http-url', null);
+
+    expect(deps.vibemonConfigManager.removeHttpUrl).not.toHaveBeenCalled();
   });
 });
 
