@@ -11,6 +11,8 @@ contextBridge.exposeInMainWorld('settingsAPI', {
   setToken: (token) => ipcRenderer.invoke('settings:set-token', token),
   refreshHookStatuses: () => ipcRenderer.invoke('settings:refresh-hook-statuses'),
   installHook: (flag) => ipcRenderer.invoke('settings:install-hook', flag),
+  repairVibemonConfig: () => ipcRenderer.invoke('settings:repair-vibemon-config'),
+  setVibemonConfig: (partial) => ipcRenderer.invoke('settings:set-vibemon-config', partial),
   checkForUpdates: () => ipcRenderer.invoke('settings:check-for-updates'),
   downloadUpdate: () => ipcRenderer.invoke('settings:download-update'),
   installDownloaded: () => ipcRenderer.invoke('settings:install-downloaded'),

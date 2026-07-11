@@ -79,6 +79,7 @@
       min-height: 44px;
     }
     .row:last-child { border-bottom: none; }
+    .row-actions { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
     .row-text label { display: block; font-weight: 500; }
     .row-text .hint { color: var(--muted-foreground); font-size: 11.5px; margin-top: 2px; }
     select, input[type="text"] {
@@ -139,6 +140,30 @@
     .badge.warn { color: var(--destructive); }
     .token-row { display: flex; gap: 6px; align-items: center; }
     .token-row input { width: 200px; }
+    .url-list { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
+    .url-chip {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      background: var(--muted);
+      border-radius: 6px;
+      padding: 4px 4px 4px 8px;
+      font-size: 12px;
+      max-width: 260px;
+    }
+    .url-chip span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .url-chip button {
+      background: none;
+      border: none;
+      color: var(--muted-foreground);
+      cursor: pointer;
+      font-size: 13px;
+      line-height: 1;
+      padding: 2px 4px;
+    }
+    .url-chip button:hover { color: var(--destructive); }
+    .url-add { display: flex; gap: 6px; }
+    .url-add input { width: 200px; }
     .section-head { display: flex; align-items: center; justify-content: space-between; margin: 20px 0 8px; }
     .section-head h2 { margin: 0; }
     .about-block { text-align: center; padding: 28px 0 8px; }
@@ -153,6 +178,7 @@
   <div class="layout">
     <nav class="sidebar">
       <button data-tab="vibemon" class="active">🎛 VibeMon</button>
+      <button data-tab="collector">📡 Collector</button>
       <button data-tab="ai-tools">🤖 AI Tools</button>
       <button data-tab="about">ℹ️ About</button>
     </nav>
@@ -207,6 +233,10 @@
             </div>
             <div id="speech-bubble-fields" style="display:flex; gap:10px; flex-wrap:wrap; justify-content:flex-end;"></div>
           </div>
+        </div>
+
+        <h2>General</h2>
+        <div class="rows">
           <div class="row">
             <div class="row-text">
               <label for="open-at-login">Open at Login</label>
@@ -218,6 +248,15 @@
             </label>
           </div>
         </div>
+      </section>
+
+      <!-- Collector -->
+      <section id="tab-collector" class="tab">
+        <h1>Collector</h1>
+        <p class="hint" style="color:var(--muted-foreground); margin-top:-8px; margin-bottom:16px;">
+          How AI tool session status gets collected and delivered here — locally
+          (HTTP/serial) or remotely via the cloud relay.
+        </p>
 
         <h2>WebSocket</h2>
         <div class="rows">
@@ -231,7 +270,7 @@
           <div class="row">
             <div class="row-text">
               <label for="ws-token">Token</label>
-              <p class="hint">WebSocket authentication token</p>
+              <p class="hint">Account token — also configures the collector's ~/.vibemon/config.json</p>
             </div>
             <div class="token-row">
               <input type="text" id="ws-token" placeholder="Enter your token">
@@ -240,6 +279,57 @@
             </div>
           </div>
         </div>
+
+        <div class="section-head">
+          <h2>Config</h2>
+          <span id="vibemon-config-status"></span>
+        </div>
+        <div class="rows">
+          <div class="row">
+            <div class="row-text">
+              <label>HTTP URLs</label>
+              <p class="hint">Endpoints the collector POSTs status to. This app's own URL is kept automatically.</p>
+            </div>
+            <div id="vibemon-http-urls" class="url-list"></div>
+          </div>
+          <div class="row">
+            <div class="row-text">
+              <label for="vibemon-serial-port">Serial Port</label>
+              <p class="hint">ESP32 device path, e.g. /dev/cu.usbmodem* — leave empty to disable</p>
+            </div>
+            <input type="text" id="vibemon-serial-port" placeholder="(none)">
+          </div>
+          <div class="row">
+            <div class="row-text">
+              <label for="vibemon-url">VibeMon URL</label>
+              <p class="hint">Cloud dashboard base URL used for direct collector → API delivery</p>
+            </div>
+            <input type="text" id="vibemon-url">
+          </div>
+          <div class="row">
+            <div class="row-text">
+              <label for="vibemon-debug">Debug Logging</label>
+              <p class="hint">Verbose collector script logging to stderr</p>
+            </div>
+            <label class="switch">
+              <input type="checkbox" id="vibemon-debug">
+              <span class="track"></span>
+            </label>
+          </div>
+          <div class="row">
+            <div class="row-text">
+              <label for="vibemon-auto-launch">Auto-launch Desktop App</label>
+              <p class="hint">Collector starts this app automatically if it isn't already running</p>
+            </div>
+            <label class="switch">
+              <input type="checkbox" id="vibemon-auto-launch">
+              <span class="track"></span>
+            </label>
+          </div>
+        </div>
+        <p class="hint" style="color:var(--muted-foreground); margin-top:8px;">
+          ~/.vibemon/config.json tells the Claude/Codex/Kiro collector where to send status.
+        </p>
       </section>
 
       <!-- AI Tools -->
@@ -367,30 +457,128 @@
           badge.className = 'badge';
           badge.textContent = 'Not detected';
           row.appendChild(badge);
-        } else if (tool.hasHook) {
-          const badge = document.createElement('span');
-          badge.className = 'badge ok';
-          badge.textContent = 'Installed ✓';
-          row.appendChild(badge);
         } else {
+          const actions = document.createElement('div');
+          actions.className = 'row-actions';
+
+          if (tool.hasHook) {
+            const badge = document.createElement('span');
+            badge.className = 'badge ok';
+            badge.textContent = 'Installed ✓';
+            actions.appendChild(badge);
+          }
+
           const btn = document.createElement('button');
-          btn.className = 'action';
-          btn.textContent = 'Install';
+          btn.className = 'action' + (tool.hasHook ? ' secondary' : '');
+          btn.textContent = tool.hasHook ? 'Reinstall' : 'Install';
           btn.addEventListener('click', async () => {
+            const installingText = tool.hasHook ? 'Reinstalling…' : 'Installing…';
             btn.disabled = true;
-            btn.textContent = 'Installing…';
+            btn.textContent = installingText;
             try {
               renderHooks(await window.settingsAPI.installHook(tool.flag));
             } catch (err) {
               console.error('Hook install failed:', err);
               btn.disabled = false;
-              btn.textContent = 'Install';
+              btn.textContent = tool.hasHook ? 'Reinstall' : 'Install';
             }
           });
-          row.appendChild(btn);
+          actions.appendChild(btn);
+
+          row.appendChild(actions);
         }
         list.appendChild(row);
       }
+    }
+
+    function renderVibemonConfigStatus(status) {
+      const box = $('vibemon-config-status');
+      box.innerHTML = '';
+
+      if (status.exists && status.hasDesktopUrl) {
+        const badge = document.createElement('span');
+        badge.className = 'badge ok';
+        badge.textContent = 'Configured ✓';
+        box.appendChild(badge);
+        return;
+      }
+
+      const btn = document.createElement('button');
+      btn.className = 'action secondary';
+      btn.textContent = 'Repair';
+      btn.addEventListener('click', async () => {
+        btn.disabled = true;
+        btn.textContent = 'Repairing…';
+        try {
+          renderVibemonConfigSection(await window.settingsAPI.repairVibemonConfig());
+        } catch (err) {
+          console.error('VibeMon config repair failed:', err);
+          btn.disabled = false;
+          btn.textContent = 'Repair';
+        }
+      });
+      box.appendChild(btn);
+    }
+
+    function renderHttpUrls(urls) {
+      const box = $('vibemon-http-urls');
+      box.innerHTML = '';
+
+      for (const url of urls) {
+        const chip = document.createElement('div');
+        chip.className = 'url-chip';
+
+        const span = document.createElement('span');
+        span.textContent = url;
+        chip.appendChild(span);
+
+        const removeBtn = document.createElement('button');
+        removeBtn.textContent = '×';
+        removeBtn.title = 'Remove';
+        removeBtn.addEventListener('click', async () => {
+          renderVibemonConfigSection(await window.settingsAPI.setVibemonConfig({
+            http_urls: urls.filter((u) => u !== url)
+          }));
+        });
+        chip.appendChild(removeBtn);
+
+        box.appendChild(chip);
+      }
+
+      const addRow = document.createElement('div');
+      addRow.className = 'url-add';
+      const input = document.createElement('input');
+      input.type = 'text';
+      input.placeholder = 'http://host:port';
+      const addBtn = document.createElement('button');
+      addBtn.className = 'action secondary';
+      addBtn.textContent = 'Add';
+      addBtn.addEventListener('click', async () => {
+        const value = input.value.trim();
+        if (!value) return;
+        renderVibemonConfigSection(await window.settingsAPI.setVibemonConfig({
+          http_urls: [...urls, value]
+        }));
+      });
+      addRow.appendChild(input);
+      addRow.appendChild(addBtn);
+      box.appendChild(addRow);
+    }
+
+    function renderVibemonConfigSection(config) {
+      renderVibemonConfigStatus(config.status);
+      renderHttpUrls(config.http_urls);
+
+      if (document.activeElement !== $('vibemon-serial-port')) {
+        $('vibemon-serial-port').value = config.serial_port || '';
+      }
+      if (document.activeElement !== $('vibemon-url')) {
+        $('vibemon-url').value = config.vibemon_url;
+      }
+      $('vibemon-debug').checked = !!config.debug;
+      $('vibemon-auto-launch').checked = !!config.auto_launch;
+
+      return config;
     }
 
     // Version strings come from GitHub release metadata — never inject them
@@ -450,6 +638,7 @@
       snapshot = await window.settingsAPI.getAll();
       renderVibemon(snapshot);
       renderHooks(snapshot.hooks);
+      renderVibemonConfigSection(snapshot.vibemonConfig);
       $('app-version').textContent = snapshot.version;
       renderUpdate(snapshot.update, snapshot.isPackaged);
     }
@@ -483,6 +672,18 @@
     });
     $('hooks-refresh').addEventListener('click', async () => {
       renderHooks(await window.settingsAPI.refreshHookStatuses());
+    });
+    $('vibemon-serial-port').addEventListener('blur', async (e) => {
+      renderVibemonConfigSection(await window.settingsAPI.setVibemonConfig({ serial_port: e.target.value }));
+    });
+    $('vibemon-url').addEventListener('blur', async (e) => {
+      renderVibemonConfigSection(await window.settingsAPI.setVibemonConfig({ vibemon_url: e.target.value }));
+    });
+    $('vibemon-debug').addEventListener('change', async (e) => {
+      renderVibemonConfigSection(await window.settingsAPI.setVibemonConfig({ debug: e.target.checked }));
+    });
+    $('vibemon-auto-launch').addEventListener('change', async (e) => {
+      renderVibemonConfigSection(await window.settingsAPI.setVibemonConfig({ auto_launch: e.target.checked }));
     });
     $('check-updates').addEventListener('click', async () => {
       $('check-updates').disabled = true;
