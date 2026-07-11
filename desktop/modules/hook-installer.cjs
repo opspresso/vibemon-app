@@ -18,7 +18,13 @@ const { dialog, shell } = require('electron');
 const Store = require('electron-store');
 const { DOCS_BASE_URL } = require('../shared/config.cjs');
 
-const SETUP_GUIDE_URL = `${DOCS_BASE_URL}/setup.md`;
+// Tolerate an accidental trailing slash on the (env-overridable) base URL.
+const DOCS_BASE = DOCS_BASE_URL.replace(/\/+$/, '');
+const SETUP_GUIDE_URL = `${DOCS_BASE}/setup.md`;
+
+// install.py is a few KB; this just bounds worst-case memory if the
+// response is ever unexpectedly large.
+const MAX_SCRIPT_SIZE = 1024 * 1024;
 
 function homePath(...segments) {
   return path.join(os.homedir(), ...segments);
@@ -66,17 +72,19 @@ function commandExists(command) {
 function describeFailure(result) {
   switch (result.reason) {
     case 'python-not-found':
-      return 'Python3가 설치되어 있지 않습니다';
+      return 'Python3 is not installed';
     case 'download-failed':
-      return `설치 스크립트 다운로드 실패 (HTTP ${result.statusCode})`;
+      return `Failed to download install script (HTTP ${result.statusCode})`;
+    case 'download-too-large':
+      return 'Install script response exceeded the size limit';
     case 'network-error':
-      return `네트워크 오류: ${result.error}`;
+      return `Network error: ${result.error}`;
     case 'spawn-error':
-      return `실행 오류: ${result.error}`;
+      return `Execution error: ${result.error}`;
     case 'exit-code':
-      return `설치 스크립트 종료 코드 ${result.code}`;
+      return `Install script exited with code ${result.code}`;
     default:
-      return '알 수 없는 오류';
+      return 'Unknown error';
   }
 }
 
@@ -90,6 +98,12 @@ class HookInstaller {
     // In-memory only (cleared on restart): avoids re-prompting every check
     // cycle for an error that won't resolve itself (e.g. missing python3).
     this.sessionSuppressed = new Set();
+    // Detecting tools spawns `which`/`where` per tool, which blocks the
+    // main process for tens of ms. Computed once eagerly here (a one-time
+    // startup cost) so cheap, frequent reads (e.g. the tray menu, which
+    // rebuilds on every status update) never trigger it. Refreshed again
+    // by getMissingTools() and after installTools() completes.
+    this.cachedStatuses = this.refreshStatuses();
   }
 
   isPresent(tool) {
@@ -113,22 +127,35 @@ class HookInstaller {
   }
 
   /**
+   * Recompute and cache each tool's status. Blocking (spawns `which`/`where`
+   * per tool) — safe to call occasionally (startup, periodic check, after an
+   * install), not on every render.
    * @returns {Array} status of every known tool: {..., present, hasHook}
    */
-  detectTools() {
-    return TOOLS.map(tool => ({
+  refreshStatuses() {
+    this.cachedStatuses = TOOLS.map(tool => ({
       ...tool,
       present: this.isPresent(tool),
       hasHook: this.hasHook(tool)
     }));
+    return this.cachedStatuses;
+  }
+
+  /**
+   * Non-blocking read of the last refreshStatuses() result, for UI
+   * rendering (e.g. the tray menu) that can tolerate slightly stale data.
+   * @returns {Array}
+   */
+  getCachedStatuses() {
+    return [...this.cachedStatuses];
   }
 
   /**
    * @returns {Array} tools that are installed, missing a VibeMon hook, and
-   *   not dismissed/suppressed
+   *   not dismissed/suppressed. Always recomputes fresh.
    */
   getMissingTools() {
-    return this.detectTools().filter(tool =>
+    return this.refreshStatuses().filter(tool =>
       tool.present &&
       !tool.hasHook &&
       !this.isDismissed(tool) &&
@@ -137,55 +164,71 @@ class HookInstaller {
   }
 
   /**
-   * Download install.py and run it via `python3 -` with the given flags.
-   * @param {string[]} flags - e.g. ['--claude']
-   * @param {string|null} token - VibeMon account token
-   * @returns {Promise<{ok: boolean, reason?: string, [key: string]: any}>}
+   * Download install.py over HTTPS.
+   * @returns {Promise<string>} script source
    */
-  runInstaller(flags, token) {
-    return new Promise((resolve) => {
-      if (!commandExists(PYTHON_COMMAND)) {
-        resolve({ ok: false, reason: 'python-not-found' });
-        return;
-      }
-
-      https.get(`${DOCS_BASE_URL}/install.py`, { timeout: 30000 }, (res) => {
+  downloadScript() {
+    return new Promise((resolve, reject) => {
+      const req = https.get(`${DOCS_BASE}/install.py`, { timeout: 30000 }, (res) => {
         if (res.statusCode !== 200) {
           res.resume();
-          resolve({ ok: false, reason: 'download-failed', statusCode: res.statusCode });
+          reject({ reason: 'download-failed', statusCode: res.statusCode });
           return;
         }
 
         let script = '';
         res.setEncoding('utf8');
-        res.on('data', (chunk) => { script += chunk; });
-        res.on('end', () => {
-          const args = ['-', ...flags, '--yes'];
-          if (token) {
-            args.push('--token', token);
+        res.on('data', (chunk) => {
+          script += chunk;
+          if (script.length > MAX_SCRIPT_SIZE) {
+            res.destroy();
+            reject({ reason: 'download-too-large' });
           }
-
-          const child = spawn(PYTHON_COMMAND, args, { stdio: ['pipe', 'pipe', 'pipe'] });
-          let stderr = '';
-          child.stderr.on('data', (chunk) => { stderr += chunk; });
-          child.on('error', (err) => resolve({ ok: false, reason: 'spawn-error', error: err.message }));
-          child.on('close', (code) => resolve({
-            ok: code === 0,
-            reason: code === 0 ? null : 'exit-code',
-            code,
-            stderr
-          }));
-
-          child.stdin.write(script);
-          child.stdin.end();
         });
-      }).on('error', (err) => resolve({ ok: false, reason: 'network-error', error: err.message }));
+        res.on('end', () => resolve(script));
+      });
+      req.on('error', (err) => reject({ reason: 'network-error', error: err.message }));
     });
   }
 
   /**
-   * Install hooks for the given tools one at a time; a failure on one tool
-   * does not stop the rest. Shows a result summary dialog when done.
+   * Run already-downloaded install.py source via `python3 -` with the given
+   * flags, piping the script over stdin (no shell, no temp file).
+   * @param {string} script
+   * @param {string[]} flags - e.g. ['--claude']
+   * @param {string|null} token - VibeMon account token
+   * @returns {Promise<{ok: boolean, reason?: string, [key: string]: any}>}
+   */
+  runScript(script, flags, token) {
+    return new Promise((resolve) => {
+      const args = ['-', ...flags, '--yes'];
+      if (token) {
+        args.push('--token', token);
+      }
+
+      const child = spawn(PYTHON_COMMAND, args, { stdio: ['pipe', 'pipe', 'pipe'] });
+      let stderr = '';
+      child.stderr.on('data', (chunk) => { stderr += chunk; });
+      child.on('error', (err) => resolve({ ok: false, reason: 'spawn-error', error: err.message }));
+      child.on('close', (code) => resolve({
+        ok: code === 0,
+        reason: code === 0 ? null : 'exit-code',
+        code,
+        stderr
+      }));
+
+      child.stdin.write(script);
+      child.stdin.end();
+    });
+  }
+
+  /**
+   * Install hooks for the given tools. install.py is downloaded once and
+   * reused for every tool in this batch (rather than once per tool); each
+   * tool still gets its own `python3` run so per-tool success/failure stays
+   * distinguishable in the result summary. A missing python3 or a failed
+   * download fails the whole batch (nothing to run); an individual script
+   * run failing does not stop the remaining tools.
    * @param {Array} tools
    * @param {string|null} token
    */
@@ -197,17 +240,34 @@ class HookInstaller {
 
     const results = [];
     try {
-      for (const tool of tools) {
-        const result = await this.runInstaller([tool.flag], token);
-        results.push({ tool, result });
-        if (!result.ok && (result.reason === 'python-not-found' || result.reason === 'network-error')) {
+      if (!commandExists(PYTHON_COMMAND)) {
+        for (const tool of tools) {
+          results.push({ tool, result: { ok: false, reason: 'python-not-found' } });
           this.sessionSuppressed.add(tool.flag);
+        }
+      } else {
+        let script = null;
+        try {
+          script = await this.downloadScript();
+        } catch (err) {
+          for (const tool of tools) {
+            results.push({ tool, result: { ok: false, ...err } });
+            this.sessionSuppressed.add(tool.flag);
+          }
+        }
+
+        if (script !== null) {
+          for (const tool of tools) {
+            const result = await this.runScript(script, [tool.flag], token);
+            results.push({ tool, result });
+          }
         }
       }
     } finally {
       this.isRunning = false;
     }
 
+    this.refreshStatuses();
     this.showResultSummary(results);
     return results;
   }
@@ -232,8 +292,8 @@ class HookInstaller {
     const { response } = await dialog.showMessageBox({
       type: 'info',
       title: 'VibeMon',
-      message: 'VibeMon 훅이 설치되지 않은 AI 툴을 발견했습니다.',
-      detail: `${toolNames}\n\n지금 훅을 설치하면 실시간 상태가 VibeMon에 표시됩니다.`,
+      message: 'VibeMon found AI tools without hooks installed.',
+      detail: `${toolNames}\n\nInstall hooks now to show real-time status in VibeMon.`,
       buttons: ['Install', 'Skip', "Don't Ask Again"],
       defaultId: 0,
       cancelId: 1
@@ -257,7 +317,7 @@ class HookInstaller {
    * @param {string|null} token
    */
   installByFlag(flag, token) {
-    const tool = this.detectTools().find(t => t.flag === flag);
+    const tool = TOOLS.find(t => t.flag === flag);
     if (!tool) {
       return Promise.resolve([]);
     }
@@ -272,9 +332,9 @@ class HookInstaller {
       dialog.showMessageBox({
         type: 'info',
         title: 'VibeMon',
-        message: 'VibeMon 훅 설치 완료',
+        message: 'VibeMon hooks installed',
         detail: succeeded.join(', ')
-      });
+      }).catch(() => {});
       return;
     }
 
@@ -282,18 +342,18 @@ class HookInstaller {
     dialog.showMessageBox({
       type: 'warning',
       title: 'VibeMon',
-      message: succeeded.length > 0 ? '일부 훅 설치 실패' : 'VibeMon 훅 설치 실패',
+      message: succeeded.length > 0 ? 'Some hooks failed to install' : 'VibeMon hook installation failed',
       detail: [
-        succeeded.length > 0 ? `성공: ${succeeded.join(', ')}` : null,
+        succeeded.length > 0 ? `Succeeded: ${succeeded.join(', ')}` : null,
         failedLines,
-        `${SETUP_GUIDE_URL} 에서 수동 설치 방법을 확인할 수 있습니다.`
+        `See ${SETUP_GUIDE_URL} for manual setup instructions.`
       ].filter(Boolean).join('\n\n'),
-      buttons: ['OK', '설치 가이드 열기']
+      buttons: ['OK', 'Open Setup Guide']
     }).then(({ response }) => {
       if (response === 1) {
         shell.openExternal(SETUP_GUIDE_URL);
       }
-    });
+    }).catch(() => {});
   }
 }
 

@@ -655,7 +655,7 @@ class TrayManager {
       return [{ label: 'Unavailable', enabled: false }];
     }
 
-    return this.hookInstaller.detectTools().map(tool => {
+    return this.hookInstaller.getCachedStatuses().map(tool => {
       if (!tool.present) {
         return { label: `${tool.name}: Not detected`, enabled: false };
       }
@@ -666,7 +666,7 @@ class TrayManager {
         label: `${tool.name}: Install...`,
         click: () => {
           const token = this.wsClient ? this.wsClient.getToken() : null;
-          this.hookInstaller.installByFlag(tool.flag, token);
+          this.hookInstaller.installByFlag(tool.flag, token).then(() => this.updateMenu());
         }
       };
     });
