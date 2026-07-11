@@ -767,8 +767,10 @@ class MultiWindowManager {
     // Character Mode's window is meant to be freely positioned like a
     // desktop pet — don't auto-rearrange it back into the grid on every
     // state change. handleWindowMove()'s off-screen clamp still applies
-    // regardless, since that's a separate code path.
-    if (this.isCharacterMode()) return;
+    // regardless, since that's a separate code path. Single-Window Mode is
+    // the same: its one reused window has a remembered position and isn't
+    // part of a multi-window grid, so it must stay put too.
+    if (this.isCharacterMode() || !this.isMultiMode()) return;
 
     // Collect all windows with projectId and state
     const windowsList = [];

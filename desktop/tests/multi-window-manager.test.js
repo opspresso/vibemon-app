@@ -66,3 +66,34 @@ describe('addProjectToList', () => {
     expect(manager.getSavedWindowPosition('proj-0')).toBeNull();
   });
 });
+
+describe('arrangeWindowsByName', () => {
+  function fakeWindowEntry() {
+    return {
+      window: { isDestroyed: () => false, setPosition: jest.fn() },
+      state: { state: 'idle' }
+    };
+  }
+
+  test('does not reposition the window in Single-Window Mode', () => {
+    const manager = new MultiWindowManager();
+    manager.windowMode = 'single';
+    const entry = fakeWindowEntry();
+    manager.windows.set('proj-a', entry);
+
+    manager.arrangeWindowsByName();
+
+    expect(entry.window.setPosition).not.toHaveBeenCalled();
+  });
+
+  test('repositions windows in Multi-Window Mode', () => {
+    const manager = new MultiWindowManager();
+    manager.windowMode = 'multi';
+    const entry = fakeWindowEntry();
+    manager.windows.set('proj-a', entry);
+
+    manager.arrangeWindowsByName();
+
+    expect(entry.window.setPosition).toHaveBeenCalled();
+  });
+});
