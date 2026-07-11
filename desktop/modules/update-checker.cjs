@@ -28,7 +28,12 @@ class UpdateChecker {
     autoUpdater.on('update-downloaded', (info) => this.setState('downloaded', info.version));
     autoUpdater.on('error', (err) => {
       console.error('[UpdateChecker]', err);
-      this.setState(null);
+      // downloadAndInstall()'s own catch already reverts state to 'available'
+      // on failure; resetting to null here too would flicker the tray between
+      // the two states for one failure.
+      if (!this.downloadInProgress) {
+        this.setState(null);
+      }
     });
   }
 
@@ -81,7 +86,9 @@ class UpdateChecker {
       return;
     }
     this.downloadInProgress = true;
-    this.setState('downloading', version);
+    if (this.state.status !== 'downloaded') {
+      this.setState('downloading', version);
+    }
     try {
       await autoUpdater.downloadUpdate();
       autoUpdater.quitAndInstall(false, true);
