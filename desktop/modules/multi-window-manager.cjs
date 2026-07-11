@@ -1345,15 +1345,6 @@ class MultiWindowManager {
   }
 
   /**
-   * Get always on top setting (legacy compatibility)
-   * @returns {boolean}
-   * @deprecated Use getAlwaysOnTopMode() instead
-   */
-  getIsAlwaysOnTop() {
-    return this.alwaysOnTopMode !== 'disabled';
-  }
-
-  /**
    * Get first window (for backward compatibility)
    * Returns the first (oldest) window from the Map iteration order
    * Note: Map preserves insertion order, so this returns the earliest created window
