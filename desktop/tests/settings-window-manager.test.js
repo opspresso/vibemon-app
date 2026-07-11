@@ -5,17 +5,41 @@
 
 const mockIpcHandlers = new Map();
 
-jest.mock('electron', () => ({
-  BrowserWindow: jest.fn(),
-  ipcMain: {
-    handle: jest.fn((channel, handler) => {
-      mockIpcHandlers.set(channel, handler);
-    })
-  },
-  shell: { openExternal: jest.fn() }
-}));
+jest.mock('electron', () => {
+  const { EventEmitter } = require('events');
 
-const { shell } = require('electron');
+  class MockBrowserWindow extends EventEmitter {
+    constructor(opts) {
+      super();
+      this.opts = opts;
+      this.webContents = { send: jest.fn() };
+      this._destroyed = false;
+      this.loadFile = jest.fn();
+      this.show = jest.fn();
+      this.focus = jest.fn();
+      MockBrowserWindow.instances.push(this);
+    }
+    isDestroyed() { return this._destroyed; }
+    close() {
+      if (this._destroyed) return;
+      this._destroyed = true;
+      this.emit('closed');
+    }
+  }
+  MockBrowserWindow.instances = [];
+
+  return {
+    BrowserWindow: MockBrowserWindow,
+    ipcMain: {
+      handle: jest.fn((channel, handler) => {
+        mockIpcHandlers.set(channel, handler);
+      })
+    },
+    shell: { openExternal: jest.fn() }
+  };
+});
+
+const { BrowserWindow, shell } = require('electron');
 const { SettingsWindowManager } = require('../modules/settings-window-manager.cjs');
 const { APP_MODES, CHARACTER_NAMES } = require('../shared/config.cjs');
 
@@ -59,6 +83,7 @@ function makeDeps() {
 
 function freshManager() {
   mockIpcHandlers.clear();
+  BrowserWindow.instances.length = 0;
   const deps = makeDeps();
   const manager = new SettingsWindowManager(deps);
   manager.onSettingsChanged = jest.fn();
@@ -125,6 +150,13 @@ describe('setting mutations', () => {
     expect(await invoke('settings:set-character-lock', 'codex')).toBe(true);
     expect(await invoke('settings:set-character-lock', 'pikachu')).toBe(false);
     expect(deps.windowManager.setCharacterLock).toHaveBeenCalledTimes(2);
+  });
+
+  test('set-always-on-top-mode accepts only known modes', async () => {
+    const { deps } = freshManager();
+    expect(await invoke('settings:set-always-on-top-mode', 'all')).toBe(true);
+    expect(deps.windowManager.setAlwaysOnTopMode).toHaveBeenCalledWith('all');
+    expect(await invoke('settings:set-always-on-top-mode', 'bogus')).toBe(false);
   });
 
   test('set-speech-bubble-field validates the field name and coerces enabled', async () => {
@@ -210,5 +242,82 @@ describe('settings:open-external', () => {
     shell.openExternal.mockClear();
     expect(await invoke('settings:open-external', 'https://evil.example')).toBe(false);
     expect(shell.openExternal).not.toHaveBeenCalled();
+  });
+});
+
+describe('open', () => {
+  test('creates a window, loads settings.html, and shows it once ready-to-show fires', () => {
+    const { manager } = freshManager();
+    manager.open();
+
+    expect(BrowserWindow.instances).toHaveLength(1);
+    const win = BrowserWindow.instances[0];
+    expect(win.loadFile).toHaveBeenCalledWith(expect.stringContaining('settings.html'));
+    expect(win.show).not.toHaveBeenCalled();
+
+    win.emit('ready-to-show');
+    expect(win.show).toHaveBeenCalledTimes(1);
+  });
+
+  test('reuses an existing window instead of creating a new one', () => {
+    const { manager } = freshManager();
+    manager.open();
+    const win = BrowserWindow.instances[0];
+
+    manager.open();
+
+    expect(BrowserWindow.instances).toHaveLength(1);
+    expect(win.show).toHaveBeenCalledTimes(1);
+    expect(win.focus).toHaveBeenCalledTimes(1);
+  });
+
+  test('creates a new window after the previous one closed', () => {
+    const { manager } = freshManager();
+    manager.open();
+    const first = BrowserWindow.instances[0];
+    first.close();
+    expect(manager.window).toBeNull();
+
+    manager.open();
+
+    expect(BrowserWindow.instances).toHaveLength(2);
+    expect(manager.window).toBe(BrowserWindow.instances[1]);
+  });
+});
+
+describe('cleanup', () => {
+  test('closes an open window and clears the reference', () => {
+    const { manager } = freshManager();
+    manager.open();
+    const win = BrowserWindow.instances[0];
+
+    manager.cleanup();
+
+    expect(win.isDestroyed()).toBe(true);
+    expect(manager.window).toBeNull();
+  });
+
+  test('is a no-op when no window is open', () => {
+    const { manager } = freshManager();
+    expect(() => manager.cleanup()).not.toThrow();
+    expect(manager.window).toBeNull();
+  });
+});
+
+describe('notifyUpdateStateChanged', () => {
+  test('pushes the latest update state to an open window', () => {
+    const { manager, deps } = freshManager();
+    deps.updateChecker.getState.mockReturnValue({ status: 'downloaded', version: '2.0.0' });
+    manager.open();
+    const win = BrowserWindow.instances[0];
+
+    manager.notifyUpdateStateChanged();
+
+    expect(win.webContents.send).toHaveBeenCalledWith('settings:update-state', { status: 'downloaded', version: '2.0.0' });
+  });
+
+  test('does nothing when no window is open', () => {
+    const { manager } = freshManager();
+    expect(() => manager.notifyUpdateStateChanged()).not.toThrow();
   });
 });
