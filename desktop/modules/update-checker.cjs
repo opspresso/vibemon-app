@@ -53,10 +53,13 @@ class UpdateChecker {
 
   /**
    * Ask GitHub Releases whether a newer version is published. No-op outside
-   * a packaged app (unpackaged builds have no update metadata bundled).
+   * a packaged app (unpackaged builds have no update metadata bundled), or
+   * while a download is already in progress — checkForUpdates() can flip
+   * state via the checking/available/not-available/error events, which
+   * would otherwise clobber the downloading/downloaded state mid-download.
    */
   async checkForUpdates() {
-    if (!app.isPackaged) {
+    if (!app.isPackaged || this.downloadInProgress) {
       return null;
     }
     try {
@@ -70,8 +73,7 @@ class UpdateChecker {
 
   /**
    * One-click upgrade: download the update and immediately quit + install.
-   * Safe to call again while an update is already downloaded (electron-updater
-   * reuses the cached file). Concurrent calls are ignored.
+   * Concurrent calls are ignored.
    * @param {string} version - target version, for tray label purposes
    */
   async downloadAndInstall(version) {
@@ -89,6 +91,16 @@ class UpdateChecker {
     } finally {
       this.downloadInProgress = false;
     }
+  }
+
+  /**
+   * Install an update that has already finished downloading (the tray's
+   * "Restart to install vX" action). electron-updater's downloadUpdate()
+   * does not cache/reuse a prior completed download — calling it again
+   * would re-fetch the whole package — so this skips straight to install.
+   */
+  installDownloaded() {
+    autoUpdater.quitAndInstall(false, true);
   }
 }
 

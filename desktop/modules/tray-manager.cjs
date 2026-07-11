@@ -122,7 +122,7 @@ function createTrayIcon(state, character = 'clawd', hasUpdate = false) {
     // Small badge in the top-right corner signaling an update is available.
     ctx.fillStyle = '#FF6633';
     ctx.beginPath();
-    ctx.arc(size - 4, 4, 4, 0, Math.PI * 2);
+    ctx.arc(size - 5, 5, 3, 0, Math.PI * 2);
     ctx.fill();
   }
 
@@ -717,7 +717,7 @@ class TrayManager {
     if (status === 'downloaded') {
       return [{
         label: `Restart to install v${version}`,
-        click: () => this.updateChecker.downloadAndInstall(version)
+        click: () => this.updateChecker.installDownloaded()
       }];
     }
     return [{ label: `Version: ${this.app.getVersion()}`, enabled: false }];

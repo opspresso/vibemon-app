@@ -127,6 +127,21 @@ describe('UpdateChecker', () => {
       expect(result).toBeNull();
       expect(checker.getState()).toEqual({ status: null, version: null });
     });
+
+    test('skips and returns null while a download is in progress', async () => {
+      const checker = freshChecker();
+      let resolveDownload;
+      autoUpdater.downloadUpdate.mockReturnValueOnce(new Promise((resolve) => { resolveDownload = resolve; }));
+      const download = checker.downloadAndInstall('2.0.0');
+
+      const result = await checker.checkForUpdates();
+
+      expect(result).toBeNull();
+      expect(autoUpdater.checkForUpdates).not.toHaveBeenCalled();
+
+      resolveDownload();
+      await download;
+    });
   });
 
   describe('downloadAndInstall', () => {
@@ -161,6 +176,17 @@ describe('UpdateChecker', () => {
 
       expect(checker.getState()).toEqual({ status: 'available', version: '2.0.0' });
       expect(autoUpdater.quitAndInstall).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('installDownloaded', () => {
+    test('quits and installs without re-downloading', () => {
+      const checker = freshChecker();
+
+      checker.installDownloaded();
+
+      expect(autoUpdater.quitAndInstall).toHaveBeenCalledWith(false, true);
+      expect(autoUpdater.downloadUpdate).not.toHaveBeenCalled();
     });
   });
 });
