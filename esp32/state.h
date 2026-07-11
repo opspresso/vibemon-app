@@ -105,7 +105,7 @@ const char* defaultWSToken = "";
 
 // Exponential backoff for reconnection (server-friendly)
 const unsigned long WS_RECONNECT_INITIAL = 5000;   // 5 seconds
-const unsigned long WS_RECONNECT_MAX = 15000;       // 15 seconds (reduced from 60s)
+const unsigned long WS_RECONNECT_MAX = 15000;       // 15 seconds
 const unsigned long WS_RECONNECT_BACKOFF = 300000;  // 5 minutes (after max failures)
 const float WS_RECONNECT_MULTIPLIER = 1.5;
 unsigned long wsReconnectDelay = WS_RECONNECT_INITIAL;
