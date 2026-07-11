@@ -13,6 +13,7 @@ const {
   WINDOW_GAP,
   MAX_WINDOWS,
   MAX_PROJECT_LIST,
+  MAX_STATE_REGISTRY_SIZE,
   SNAP_THRESHOLD,
   SNAP_DEBOUNCE,
   LOCK_MODES,
@@ -265,9 +266,11 @@ class MultiWindowManager {
     // Add to end (most recently used)
     this.projectList.push(project);
 
-    // Enforce max limit (remove oldest entries)
+    // Enforce max limit (remove oldest entries), dropping their saved
+    // window position too so windowPositions doesn't grow unbounded.
     while (this.projectList.length > MAX_PROJECT_LIST) {
-      this.projectList.shift();
+      const evicted = this.projectList.shift();
+      this.deleteWindowPosition(evicted);
     }
 
     this.store.set('projectList', this.projectList);
@@ -485,6 +488,19 @@ class MultiWindowManager {
    */
   saveWindowPosition(positionKey, position) {
     this.windowPositions = { ...this.windowPositions, [positionKey]: position };
+    this.store.set('windowPositions', this.windowPositions);
+  }
+
+  /**
+   * Remove a persisted window position (e.g. once its project ages out of
+   * projectList via LRU eviction).
+   * @param {string} positionKey
+   */
+  deleteWindowPosition(positionKey) {
+    if (!positionKey || !(positionKey in this.windowPositions)) return;
+    const updated = { ...this.windowPositions };
+    delete updated[positionKey];
+    this.windowPositions = updated;
     this.store.set('windowPositions', this.windowPositions);
   }
 
@@ -751,8 +767,10 @@ class MultiWindowManager {
     // Character Mode's window is meant to be freely positioned like a
     // desktop pet — don't auto-rearrange it back into the grid on every
     // state change. handleWindowMove()'s off-screen clamp still applies
-    // regardless, since that's a separate code path.
-    if (this.isCharacterMode()) return;
+    // regardless, since that's a separate code path. Single-Window Mode is
+    // the same: its one reused window has a remembered position and isn't
+    // part of a multi-window grid, so it must stay put too.
+    if (this.isCharacterMode() || !this.isMultiMode()) return;
 
     // Collect all windows with projectId and state
     const windowsList = [];
@@ -923,6 +941,26 @@ class MultiWindowManager {
   }
 
   /**
+   * Cap stateRegistry's size, since every incoming status keeps it growing
+   * (unlike projectList, it has no MAX_PROJECT_LIST-style limit). Evicts the
+   * least-recently-updated entries first, skipping any project that still
+   * has a live window — those must stay reachable via getState().
+   */
+  pruneStateRegistry() {
+    while (this.stateRegistry.size > MAX_STATE_REGISTRY_SIZE) {
+      let evicted = false;
+      for (const projectId of this.stateRegistry.keys()) {
+        if (!this.windows.has(projectId)) {
+          this.stateRegistry.delete(projectId);
+          evicted = true;
+          break;
+        }
+      }
+      if (!evicted) break; // every remaining entry still has a live window
+    }
+  }
+
+  /**
    * Get the latest known state for a project, even if no window currently
    * exists for it (e.g. Input Mode, or after a mode switch closed windows).
    * @param {string} projectId
@@ -999,7 +1037,12 @@ class MultiWindowManager {
       stateData = { ...stateData, character: this.characterLock };
     }
 
+    // Delete-then-set moves projectId to the end of the Map's insertion
+    // order, so pruneStateRegistry() evicts the least-recently-updated
+    // project first rather than whichever happened to be added earliest.
+    this.stateRegistry.delete(projectId);
     this.stateRegistry.set(projectId, stateData);
+    this.pruneStateRegistry();
 
     if (this.appMode === 'input') {
       // Input Mode collects state in the background only — no window is ever

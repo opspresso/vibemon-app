@@ -163,6 +163,10 @@ function validateTerminalId(terminalId) {
  * @returns {{valid: boolean, error: string|null}}
  */
 function validateStatusPayload(data) {
+  if (!data || typeof data !== 'object' || Array.isArray(data)) {
+    return { valid: false, error: 'Payload must be a JSON object' };
+  }
+
   const stateResult = validateState(data.state);
   if (!stateResult.valid) return stateResult;
 

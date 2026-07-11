@@ -10,16 +10,37 @@
 // Status JSON Builder
 // =============================================================================
 
+// Escape a string for safe embedding in a JSON string value: quotes and
+// backslashes are escaped, control characters are stripped. Mirrors the
+// SSID escaping in wifi_manager.h's /scan handler.
+void jsonEscapeStr(const char* src, char* dest, size_t destSize) {
+  size_t di = 0;
+  for (size_t si = 0; src[si] != '\0'; si++) {
+    unsigned char c = (unsigned char)src[si];
+    if (c < 0x20) continue;
+    size_t needed = (c == '"' || c == '\\') ? 2 : 1;
+    if (di + needed >= destSize) break;
+    if (needed == 2) dest[di++] = '\\';
+    dest[di++] = (char)c;
+  }
+  dest[di] = '\0';
+}
+
 // Build status JSON into buffer (shared by Serial command handler and HTTP handler)
 void buildStatusJson(char* buf, size_t size) {
+  char escProject[64];
+  char escLocked[64];
+  jsonEscapeStr(currentProject, escProject, sizeof(escProject));
+  jsonEscapeStr(lockedProject, escLocked, sizeof(escLocked));
+
   if (strlen(lockedProject) > 0) {
     snprintf(buf, size,
       "{\"state\":\"%s\",\"project\":\"%s\",\"lockedProject\":\"%s\",\"lockMode\":\"%s\",\"projectCount\":%d}",
-      getStateString(currentState), currentProject, lockedProject, getLockModeString(), projectCount);
+      getStateString(currentState), escProject, escLocked, getLockModeString(), projectCount);
   } else {
     snprintf(buf, size,
       "{\"state\":\"%s\",\"project\":\"%s\",\"lockedProject\":null,\"lockMode\":\"%s\",\"projectCount\":%d}",
-      getStateString(currentState), currentProject, getLockModeString(), projectCount);
+      getStateString(currentState), escProject, getLockModeString(), projectCount);
   }
 }
 

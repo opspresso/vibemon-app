@@ -147,12 +147,18 @@
         }
 
         if (data.type === 'metric') {
-          var pct = Math.max(0, Math.min(100, data.value));
-          row.querySelector('.bubble-icon').textContent = data.icon;
+          var icon = row.querySelector('.bubble-icon');
           var fill = row.querySelector('.bubble-bar-fill');
+          var value = row.querySelector('.bubble-value');
+          if (!icon || !fill || !value) {
+            row.style.display = 'none';
+            continue;
+          }
+          var pct = Math.max(0, Math.min(100, data.value));
+          icon.textContent = data.icon;
           fill.style.width = pct + '%';
           fill.style.background = barColor(pct);
-          row.querySelector('.bubble-value').textContent = pct + '%';
+          value.textContent = pct + '%';
           row.style.display = 'flex';
         } else {
           row.textContent = data.text;

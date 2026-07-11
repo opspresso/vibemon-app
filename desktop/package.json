@@ -58,6 +58,7 @@
     "bin/",
     "main.js",
     "preload.js",
+    "token-preload.js",
     "index.html",
     "stats.html",
     "bubble.html",

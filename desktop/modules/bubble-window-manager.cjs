@@ -37,6 +37,11 @@ const ALWAYS_ON_TOP_LEVEL = process.platform === 'darwin' ? 'floating' : 'screen
 const MOVE_ANIMATION_STEPS = 10;
 const MOVE_ANIMATION_INTERVAL_MS = 16;
 
+// Backstop for a bubble window that never fires 'did-finish-load' or
+// 'did-fail-load' (e.g. loadFile hangs) — destroy it so ensureBubbleWindow()
+// doesn't wait forever.
+const LOAD_TIMEOUT_MS = 5000;
+
 const METRIC_ICONS = {
   memory: '🧠',
   usage5h: '⏱️',
@@ -87,6 +92,7 @@ class BubbleWindowManager {
     this.lastSizes = new Map(); // Map<projectId, {width, height}>
     this.lastFields = new Map(); // Map<projectId, Object> — needed so reposition() can re-render the tail
     this.animationTimers = new Map(); // Map<projectId, NodeJS.Timeout>
+    this.loadingWindows = new Map(); // Map<projectId, Promise<boolean>> — in-flight bubble.html load
     this.d3ForceModule = null;
   }
 
@@ -102,6 +108,13 @@ class BubbleWindowManager {
   }
 
   async ensureBubbleWindow(projectId) {
+    const loading = this.loadingWindows.get(projectId);
+    if (loading) {
+      const ready = await loading;
+      const win = this.bubbleWindows.get(projectId);
+      return ready && this.isWindowValid(win) ? win : null;
+    }
+
     let win = this.bubbleWindows.get(projectId);
     if (this.isWindowValid(win)) return win;
 
@@ -133,14 +146,40 @@ class BubbleWindowManager {
     win.on('closed', () => {
       this.stopAnimation(projectId);
       this.bubbleWindows.delete(projectId);
+      this.loadingWindows.delete(projectId);
       this.lastSizes.delete(projectId);
       this.lastFields.delete(projectId);
     });
 
-    win.loadFile(path.join(__dirname, '..', 'bubble.html'));
-    await new Promise((resolve) => win.webContents.once('did-finish-load', resolve));
+    // A load that never settles (finish, fail, or the window closing) would
+    // otherwise leave every ensureBubbleWindow() caller awaiting forever.
+    const timeoutTimer = setTimeout(() => {
+      if (this.isWindowValid(win)) win.destroy();
+    }, LOAD_TIMEOUT_MS);
 
-    return win;
+    const loadPromise = new Promise((resolve) => {
+      win.webContents.once('did-finish-load', () => {
+        clearTimeout(timeoutTimer);
+        resolve(true);
+      });
+      win.once('closed', () => {
+        clearTimeout(timeoutTimer);
+        resolve(false);
+      });
+    });
+    // A failed load leaves the window alive but blank; destroy it so it
+    // doesn't linger as a "valid" window that never rendered bubble.html.
+    win.webContents.once('did-fail-load', () => {
+      if (this.isWindowValid(win)) win.destroy();
+    });
+
+    this.loadingWindows.set(projectId, loadPromise);
+    win.loadFile(path.join(__dirname, '..', 'bubble.html'));
+
+    const ready = await loadPromise;
+    this.loadingWindows.delete(projectId);
+
+    return ready ? win : null;
   }
 
   /**

@@ -369,7 +369,7 @@ app.whenReady().then(() => {
   }
 
   // Create tray (windows are created on demand via HTTP /status endpoint)
-  trayManager = new TrayManager(windowManager, app);
+  trayManager = new TrayManager(windowManager, app, stateManager);
   trayManager.createTray();
 
   // Start HTTP server
