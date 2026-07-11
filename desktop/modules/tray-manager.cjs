@@ -222,8 +222,9 @@ class TrayManager {
       skipTaskbar: true,
       title: 'Set WebSocket Token',
       webPreferences: {
-        nodeIntegration: true,
-        contextIsolation: false
+        contextIsolation: true,
+        nodeIntegration: false,
+        preload: path.join(__dirname, '..', 'token-preload.js')
       }
     });
 
@@ -299,26 +300,25 @@ class TrayManager {
     <button class="save" onclick="save()">Save</button>
   </div>
   <script>
-    const { ipcRenderer } = require('electron');
     const input = document.getElementById('token');
 
-    ipcRenderer.send('get-current-token');
-    ipcRenderer.on('current-token', (event, token) => {
+    window.tokenAPI.requestCurrentToken();
+    window.tokenAPI.onCurrentToken((token) => {
       input.value = token;
       input.select();
     });
 
     function save() {
-      ipcRenderer.send('set-token', input.value.trim());
+      window.tokenAPI.setToken(input.value.trim());
     }
 
     function cancel() {
-      ipcRenderer.send('cancel-token');
+      window.tokenAPI.cancel();
     }
 
     function clearToken() {
       input.value = '';
-      ipcRenderer.send('set-token', '');
+      window.tokenAPI.setToken('');
     }
 
     input.addEventListener('keydown', (e) => {
