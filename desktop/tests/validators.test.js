@@ -295,4 +295,17 @@ describe('validateStatusPayload', () => {
     expect(result.valid).toBe(false);
     expect(result.error).toContain('Tool');
   });
+
+  test('rejects null payload', () => {
+    const result = validateStatusPayload(null);
+    expect(result.valid).toBe(false);
+    expect(result.error).toContain('object');
+  });
+
+  test('rejects non-object payload', () => {
+    ['string', 123, true, []].forEach(value => {
+      const result = validateStatusPayload(value);
+      expect(result.valid).toBe(false);
+    });
+  });
 });
