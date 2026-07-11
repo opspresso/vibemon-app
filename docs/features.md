@@ -277,13 +277,14 @@ A small, transparent, click-through window that displays selected info fields (s
 - Toggle Always on Top (Character/Window Mode)
 - Toggle Window Mode's sub-mode (Multi/Single)
 - Speech Bubble field toggles (Character Mode only; Status/Project/Model/Memory/Usage 5h/Usage Week)
+- AI Tool Hooks (per-tool install status for Claude Code/Codex CLI/Kiro IDE/OpenClaw, with one-click install)
 - Open at Login toggle
 - Project lock (in single mode)
 - Claude Stats
 - WebSocket status (Connected/Disconnected)
 - Set Token (WebSocket token configuration)
 - HTTP Server port display
-- Version display
+- Version display, or a one-click "Update to vX" / "Restart to install vX" item when an update is available
 - Docs (opens vibemon.io/docs in browser)
 - Quit
 
