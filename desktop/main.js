@@ -25,6 +25,7 @@ const { HttpServer } = require('./modules/http-server.cjs');
 const { WsClient } = require('./modules/ws-client.cjs');
 const { HookInstaller } = require('./modules/hook-installer.cjs');
 const { UpdateChecker } = require('./modules/update-checker.cjs');
+const { SettingsWindowManager } = require('./modules/settings-window-manager.cjs');
 const { validateStatusPayload } = require('./modules/validators.cjs');
 const { MAX_WINDOWS, HOOK_CHECK_INTERVAL_MS, UPDATE_CHECK_INTERVAL_MS } = require('./shared/config.cjs');
 
@@ -51,6 +52,7 @@ const bubbleWindowManager = new BubbleWindowManager((projectId) => windowManager
 const hookInstaller = new HookInstaller();
 const updateChecker = new UpdateChecker();
 let trayManager = null;
+let settingsWindowManager = null;
 let httpServer = null;
 let wsClient = null;
 let hookCheckTimer = null;
@@ -372,6 +374,16 @@ app.whenReady().then(() => {
   trayManager = new TrayManager(windowManager, app, stateManager);
   trayManager.createTray();
 
+  // Settings window (opened from the tray menu)
+  settingsWindowManager = new SettingsWindowManager({ windowManager, app, hookInstaller, updateChecker });
+  settingsWindowManager.onSettingsChanged = () => {
+    if (trayManager) {
+      trayManager.updateMenu();
+      trayManager.updateIcon();
+    }
+  };
+  trayManager.setSettingsWindowManager(settingsWindowManager);
+
   // Start HTTP server
   httpServer = new HttpServer(stateManager, windowManager, app);
   httpServer.onStateUpdate = (menuOnly) => {
@@ -413,10 +425,14 @@ app.whenReady().then(() => {
   trayManager.setWsClient(wsClient);
   trayManager.setHookInstaller(hookInstaller);
   trayManager.setUpdateChecker(updateChecker);
+  settingsWindowManager.setWsClient(wsClient);
   updateChecker.onStateChanged = () => {
     if (trayManager) {
       trayManager.updateIcon();
       trayManager.updateMenu();
+    }
+    if (settingsWindowManager) {
+      settingsWindowManager.notifyUpdateStateChanged();
     }
   };
 
@@ -476,6 +492,9 @@ app.on('before-quit', () => {
   bubbleWindowManager.cleanup();
   if (trayManager) {
     trayManager.cleanup();
+  }
+  if (settingsWindowManager) {
+    settingsWindowManager.cleanup();
   }
   if (httpServer) {
     httpServer.stop();

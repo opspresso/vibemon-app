@@ -3,12 +3,21 @@ const STATIC_BASE = 'https://static.vibemon.io';
 
 // A static top-level import would throw and abort this entire module (no
 // window.onload registration, blank window with no error shown) if the CDN
-// is unreachable. Load it dynamically instead so a failure can be handled.
+// is unreachable. A top-level await on a dynamic import is just as bad: it
+// suspends module evaluation past the window 'load' event whenever the CDN
+// fetch is slower than the local page load, so the `window.onload = init`
+// assignment below lands too late and init() never runs. Load the engine
+// inside init() instead — module evaluation stays synchronous, the onload
+// registration is guaranteed to happen before 'load' fires, and a fetch
+// failure can still be handled.
 let createVibeMonEngine = null;
-try {
-  ({ createVibeMonEngine } = await import(`${STATIC_BASE}/js/vibemon-engine-standalone.js`));
-} catch (error) {
-  console.error('Failed to load the VibeMon rendering engine:', error);
+
+async function loadEngine() {
+  try {
+    ({ createVibeMonEngine } = await import(`${STATIC_BASE}/js/vibemon-engine-standalone.js`));
+  } catch (error) {
+    console.error('Failed to load the VibeMon rendering engine:', error);
+  }
 }
 
 // VibeMon engine instance
@@ -68,6 +77,8 @@ function applyDisplayMode(data) {
 // Initialize
 async function init() {
   const container = document.getElementById('vibemon-display');
+
+  await loadEngine();
 
   if (!createVibeMonEngine) {
     if (container) {

@@ -266,8 +266,19 @@ A small, transparent, click-through window that displays selected info fields (s
 
 - Toggled per field via the system tray menu (**Speech Bubble** submenu: Status / Project / Model / Memory / Usage 5h / Usage Week), shown only while **App Mode** is set to Character
 
+### Settings Window
+
+A dedicated settings window (tray menu → **Settings...**) with three sections in a sidebar:
+
+- **VibeMon** — App Mode, Window Mode sub-mode (Multi/Single), Character Lock, Always on Top mode, Speech Bubble field toggles, Open at Login, and the WebSocket connection status + token
+- **AI Tools** — per-tool hook install status for Claude Code / Codex CLI / Kiro IDE / OpenClaw, with one-click install and a Refresh action
+- **About** — app version, Check for Updates with one-click download/install, and Docs / GitHub Releases links
+
+Changes apply immediately through the same code paths as the tray menu, and the window re-syncs when refocused so tray-made changes are reflected.
+
 ### System Tray Menu
 
+- Settings... (opens the Settings window)
 - Switch App Mode (Character / Window / Input)
 - Character Lock (Auto/Clawd/Codex/Kiro/Claw/Daangni)
 - View active windows and their states (Window Mode only)
