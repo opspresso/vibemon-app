@@ -55,6 +55,7 @@ The app launches in the system tray and listens on `http://127.0.0.1:19280`.
 - **HTTP API** - Easy integration with hooks
 - **AI Tool Hooks** - Detects Claude Code/Codex CLI/Kiro IDE/OpenClaw and offers one-click hook install from the tray
 - **Auto-update** - Background update checks with a one-click install from the tray
+- **Settings Window** - VibeMon options, AI tool hooks, and About/update in one place (tray → Settings...)
 
 ## Documentation
 

@@ -29,6 +29,54 @@ function makeWindowManager(state) {
   };
 }
 
+describe('TrayManager settings menu item', () => {
+  function makeFullWindowManager(state) {
+    return {
+      ...makeWindowManager(state),
+      getAppMode: () => 'window',
+      getRegisteredStates: () => ({}),
+      getCharacterLock: () => 'auto',
+      getAlwaysOnTopMode: () => 'active-only',
+      getSpeechBubbleFields: () => ({}),
+      isMultiMode: () => true,
+      setAppMode: jest.fn(),
+      arrangeWindowsByName: jest.fn(),
+      showAllWindows: jest.fn(),
+      closeAllWindows: jest.fn()
+    };
+  }
+
+  function makeApp() {
+    return {
+      getVersion: () => '0.0.0',
+      getLoginItemSettings: () => ({ openAtLogin: false }),
+      setLoginItemSettings: jest.fn()
+    };
+  }
+
+  test('shows Settings... that opens the settings window when a manager is set', () => {
+    const windowManager = makeFullWindowManager({ state: 'idle', character: 'clawd' });
+    const tray = new TrayManager(windowManager, makeApp(), { setupStateTimeout: jest.fn() });
+    const settingsWindowManager = { open: jest.fn() };
+    tray.setSettingsWindowManager(settingsWindowManager);
+
+    const template = tray.buildMenuTemplate();
+    const settingsItem = template.find(i => i.label === 'Settings...');
+
+    expect(settingsItem).toBeDefined();
+    settingsItem.click();
+    expect(settingsWindowManager.open).toHaveBeenCalled();
+  });
+
+  test('omits Settings... when no settings window manager is set', () => {
+    const windowManager = makeFullWindowManager({ state: 'idle', character: 'clawd' });
+    const tray = new TrayManager(windowManager, makeApp(), { setupStateTimeout: jest.fn() });
+
+    const template = tray.buildMenuTemplate();
+    expect(template.find(i => i.label === 'Settings...')).toBeUndefined();
+  });
+});
+
 describe('TrayManager state submenu', () => {
   test('manually changing a project state refreshes its state timeout', () => {
     const state = { state: 'working', character: 'clawd' };

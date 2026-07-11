@@ -227,7 +227,7 @@ class BubbleWindowManager {
     // Second pass: point the tail at the character now that we know the
     // bubble's final position relative to it.
     await win.webContents.executeJavaScript(
-      `window.__setBubbleContent(${JSON.stringify(fields)}, ${placement.tailX}, ${JSON.stringify(placement.tailSide)})`
+      `window.__setBubbleContent(${JSON.stringify(fields)}, ${placement.tailOffset}, ${JSON.stringify(placement.tailSide)})`
     );
     if (!this.isWindowValid(win) || !this.isWindowValid(this.getCharacterWindow(projectId))) {
       this.destroy(projectId);
@@ -262,7 +262,7 @@ class BubbleWindowManager {
       if (!placement || !this.isWindowValid(win) || !this.isWindowValid(this.getCharacterWindow(projectId))) return;
 
       await win.webContents.executeJavaScript(
-        `window.__setBubbleContent(${JSON.stringify(fields)}, ${placement.tailX}, ${JSON.stringify(placement.tailSide)})`
+        `window.__setBubbleContent(${JSON.stringify(fields)}, ${placement.tailOffset}, ${JSON.stringify(placement.tailSide)})`
       );
       if (!this.isWindowValid(win) || !this.isWindowValid(this.getCharacterWindow(projectId))) return;
 
@@ -321,10 +321,11 @@ class BubbleWindowManager {
 
   /**
    * Run the collision/link simulation and return the clamped on-screen
-   * placement for the bubble window, plus the tail's horizontal offset.
+   * placement for the bubble window, plus which edge the tail sits on and
+   * its offset along that edge.
    * @param {Electron.BrowserWindow} charWindow
    * @param {{width: number, height: number}} size
-   * @returns {Promise<{x: number, y: number, tailX: number}|null>}
+   * @returns {Promise<{x: number, y: number, tailOffset: number, tailSide: string}|null>}
    */
   async computePlacement(charWindow, size) {
     const { forceSimulation, forceCollide, forceLink, forceX, forceY } = await this.getD3Force();
@@ -391,6 +392,28 @@ class BubbleWindowManager {
     for (let i = 0; i < 120; i++) simulation.tick();
 
     const bubbleNode = nodes[1];
+
+    // forceCollide treats the bubble as a circle of max(width, height) / 2,
+    // which overshoots the real half-extent of a wide, short bubble along
+    // the vertical axis — placed above/below the character it ends up with
+    // a much larger visual gap than beside it. Pull it back toward the
+    // character along the center-to-center direction until the bubble
+    // *rectangle* (not the circle) sits at the intended padding.
+    const dx = bubbleNode.x - charCenterX;
+    const dy = bubbleNode.y - charCenterY;
+    const dist = Math.hypot(dx, dy);
+    if (dist > 0) {
+      const ux = dx / dist;
+      const uy = dy / dist;
+      // Half-extent of the bubble rectangle along the placement direction
+      const halfExtent = Math.abs(ux) * size.width / 2 + Math.abs(uy) * size.height / 2;
+      const desired = CHARACTER_RADIUS + BUBBLE_COLLIDE_PADDING + halfExtent;
+      if (dist > desired) {
+        bubbleNode.x = charCenterX + ux * desired;
+        bubbleNode.y = charCenterY + uy * desired;
+      }
+    }
+
     const minX = workArea.x + SCREEN_MARGIN + size.width / 2;
     const maxX = workArea.x + workArea.width - SCREEN_MARGIN - size.width / 2;
     const minY = workArea.y + SCREEN_MARGIN + size.height / 2;
@@ -400,13 +423,27 @@ class BubbleWindowManager {
 
     const x = Math.round(clampedX - size.width / 2);
     const y = Math.round(clampedY - size.height / 2);
-    const tailX = Math.max(12, Math.min(size.width - 12, Math.round(charCenterX - x)));
-    // Which edge of the bubble the tail sits on: the bubble usually ends up
-    // above the character, but can land below it when there's no room above
-    // (see biasYOffset), so the tail must flip to keep pointing at it.
-    const tailSide = clampedY < charCenterY ? 'bottom' : 'top';
 
-    return { x, y, tailX, tailSide };
+    // Which edge of the bubble the tail sits on: pick the axis along which
+    // the character actually lies outside the bubble's extent — above/below
+    // placements get a top/bottom tail, beside placements (character pinned
+    // to the screen's top/bottom edge) get a left/right tail pointing
+    // sideways at it. tailOffset positions the tail along that edge,
+    // relative to #bubble (inset 6px from the window edge by bubble.html's
+    // body padding that reserves the tail's overflow space).
+    const sepX = Math.abs(clampedX - charCenterX) - size.width / 2;
+    const sepY = Math.abs(clampedY - charCenterY) - size.height / 2;
+    let tailSide;
+    let tailOffset;
+    if (sepX > sepY) {
+      tailSide = clampedX < charCenterX ? 'right' : 'left';
+      tailOffset = Math.max(12, Math.min(size.height - 24, Math.round(charCenterY - (y + 6))));
+    } else {
+      tailSide = clampedY < charCenterY ? 'bottom' : 'top';
+      tailOffset = Math.max(12, Math.min(size.width - 24, Math.round(charCenterX - (x + 6))));
+    }
+
+    return { x, y, tailOffset, tailSide };
   }
 
   /**

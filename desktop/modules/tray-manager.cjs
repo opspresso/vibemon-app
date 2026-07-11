@@ -145,6 +145,7 @@ class TrayManager {
     this.wsClient = wsClient;
     this.hookInstaller = null;
     this.updateChecker = null;
+    this.settingsWindowManager = null;
     this.statsWindow = null;
     this.tokenWindow = null;
 
@@ -174,6 +175,14 @@ class TrayManager {
    */
   setUpdateChecker(updateChecker) {
     this.updateChecker = updateChecker;
+  }
+
+  /**
+   * Set SettingsWindowManager reference (can be set after construction)
+   * @param {SettingsWindowManager} settingsWindowManager
+   */
+  setSettingsWindowManager(settingsWindowManager) {
+    this.settingsWindowManager = settingsWindowManager;
   }
 
   /**
@@ -813,6 +822,10 @@ class TrayManager {
         enabled: false
       },
       { type: 'separator' },
+      ...(this.settingsWindowManager ? [{
+        label: 'Settings...',
+        click: () => this.settingsWindowManager.open()
+      }, { type: 'separator' }] : []),
       {
         label: 'App Mode',
         submenu: this.buildAppModeSubmenu()
