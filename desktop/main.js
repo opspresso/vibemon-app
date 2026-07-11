@@ -23,8 +23,13 @@ const { BubbleWindowManager } = require('./modules/bubble-window-manager.cjs');
 const { TrayManager } = require('./modules/tray-manager.cjs');
 const { HttpServer } = require('./modules/http-server.cjs');
 const { WsClient } = require('./modules/ws-client.cjs');
+const { HookInstaller } = require('./modules/hook-installer.cjs');
 const { validateStatusPayload } = require('./modules/validators.cjs');
-const { MAX_WINDOWS } = require('./shared/config.cjs');
+const { MAX_WINDOWS, HOOK_CHECK_INTERVAL_MS } = require('./shared/config.cjs');
+
+// Initial hook-installer check runs shortly after startup so the tray/HTTP
+// server/WebSocket client are fully initialized before any dialog appears.
+const HOOK_CHECK_INITIAL_DELAY_MS = 5000;
 
 // Single instance lock - prevent duplicate instances
 const gotTheLock = app.requestSingleInstanceLock();
@@ -39,9 +44,11 @@ if (!gotTheLock) {
 const stateManager = new StateManager();
 const windowManager = new MultiWindowManager();
 const bubbleWindowManager = new BubbleWindowManager((projectId) => windowManager.getWindow(projectId));
+const hookInstaller = new HookInstaller();
 let trayManager = null;
 let httpServer = null;
 let wsClient = null;
+let hookCheckTimer = null;
 
 function getBubbleOptions(projectId) {
   return {
@@ -398,8 +405,17 @@ app.whenReady().then(() => {
 
   // Set wsClient reference in trayManager for status display
   trayManager.setWsClient(wsClient);
+  trayManager.setHookInstaller(hookInstaller);
 
   wsClient.connect();
+
+  // Detect AI tools missing VibeMon hooks: once shortly after startup, then
+  // periodically so tools installed later are picked up too.
+  setTimeout(() => hookInstaller.checkAndPrompt(wsClient.getToken()), HOOK_CHECK_INITIAL_DELAY_MS);
+  hookCheckTimer = setInterval(
+    () => hookInstaller.checkAndPrompt(wsClient.getToken()),
+    HOOK_CHECK_INTERVAL_MS
+  );
 
   app.on('activate', () => {
     const first = windowManager.getFirstWindow();
@@ -418,6 +434,11 @@ app.on('window-all-closed', () => {
 });
 
 app.on('before-quit', () => {
+  if (hookCheckTimer) {
+    clearInterval(hookCheckTimer);
+    hookCheckTimer = null;
+  }
+
   // Null callbacks first to prevent any fired timers from triggering updates
   stateManager.onStateTimeout = null;
   stateManager.onWindowCloseTimeout = null;

@@ -19,6 +19,11 @@ const WS_URL = process.env.VIBEMON_WS_URL || 'wss://ws.vibemon.io';
 const WS_TOKEN = process.env.VIBEMON_WS_TOKEN || null;
 
 // =============================================================================
+// Hook Installer Configuration (from environment variables)
+// =============================================================================
+const DOCS_BASE_URL = process.env.VIBEMON_DOCS_URL || 'https://docs.vibemon.io';
+
+// =============================================================================
 // Paths
 // =============================================================================
 const STATS_CACHE_PATH = path.join(os.homedir(), '.claude', 'stats-cache.json');
@@ -60,5 +65,8 @@ module.exports = {
 
   // WebSocket
   WS_URL,
-  WS_TOKEN
+  WS_TOKEN,
+
+  // Hook Installer
+  DOCS_BASE_URL
 };
