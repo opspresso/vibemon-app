@@ -34,6 +34,10 @@ describe('Constants', () => {
       expect(constants.MAX_PROJECT_LIST).toBeGreaterThan(constants.MAX_WINDOWS);
     });
 
+    test('MAX_STATE_REGISTRY_SIZE is defined and larger than MAX_PROJECT_LIST', () => {
+      expect(constants.MAX_STATE_REGISTRY_SIZE).toBeGreaterThan(constants.MAX_PROJECT_LIST);
+    });
+
     test('SNAP_THRESHOLD is positive', () => {
       expect(constants.SNAP_THRESHOLD).toBeGreaterThan(0);
     });
