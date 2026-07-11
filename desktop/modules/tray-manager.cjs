@@ -134,6 +134,7 @@ class TrayManager {
     this.windowManager = windowManager;
     this.app = app;
     this.wsClient = wsClient;
+    this.hookInstaller = null;
     this.statsWindow = null;
     this.tokenWindow = null;
 
@@ -147,6 +148,14 @@ class TrayManager {
    */
   setWsClient(wsClient) {
     this.wsClient = wsClient;
+  }
+
+  /**
+   * Set HookInstaller reference (can be set after construction)
+   * @param {HookInstaller} hookInstaller
+   */
+  setHookInstaller(hookInstaller) {
+    this.hookInstaller = hookInstaller;
   }
 
   /**
@@ -636,6 +645,34 @@ class TrayManager {
   }
 
   /**
+   * Per-tool install status/action for the "AI Tool Hooks" submenu.
+   * Not detected/already-installed tools are shown disabled; a tool that's
+   * present but missing its VibeMon hook gets a manual "Install..." action
+   * (bypasses the dismissed/suppressed filters used by the periodic check).
+   */
+  buildHookInstallerSubmenu() {
+    if (!this.hookInstaller) {
+      return [{ label: 'Unavailable', enabled: false }];
+    }
+
+    return this.hookInstaller.detectTools().map(tool => {
+      if (!tool.present) {
+        return { label: `${tool.name}: Not detected`, enabled: false };
+      }
+      if (tool.hasHook) {
+        return { label: `${tool.name}: Installed ✓`, enabled: false };
+      }
+      return {
+        label: `${tool.name}: Install...`,
+        click: () => {
+          const token = this.wsClient ? this.wsClient.getToken() : null;
+          this.hookInstaller.installByFlag(tool.flag, token);
+        }
+      };
+    });
+  }
+
+  /**
    * Menu items specific to the current app mode — Window Mode's per-project
    * window management, Character Mode's speech bubble settings, or nothing
    * extra for Input Mode (which has no windows or bubble to configure).
@@ -733,6 +770,11 @@ class TrayManager {
       },
       { type: 'separator' },
       ...this.buildModeSection(appMode, windowCount),
+      { type: 'separator' },
+      {
+        label: 'AI Tool Hooks',
+        submenu: this.buildHookInstallerSubmenu()
+      },
       {
         label: 'Open at Login',
         type: 'checkbox',
