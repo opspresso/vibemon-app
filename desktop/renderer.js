@@ -1,7 +1,15 @@
-import { createVibeMonEngine } from 'https://static.vibemon.io/js/vibemon-engine-standalone.js';
-
 // Static server base URL
 const STATIC_BASE = 'https://static.vibemon.io';
+
+// A static top-level import would throw and abort this entire module (no
+// window.onload registration, blank window with no error shown) if the CDN
+// is unreachable. Load it dynamically instead so a failure can be handled.
+let createVibeMonEngine = null;
+try {
+  ({ createVibeMonEngine } = await import(`${STATIC_BASE}/js/vibemon-engine-standalone.js`));
+} catch (error) {
+  console.error('Failed to load the VibeMon rendering engine:', error);
+}
 
 // VibeMon engine instance
 let vibeMonEngine = null;
@@ -60,6 +68,13 @@ function applyDisplayMode(data) {
 // Initialize
 async function init() {
   const container = document.getElementById('vibemon-display');
+
+  if (!createVibeMonEngine) {
+    if (container) {
+      container.textContent = 'Failed to load VibeMon — check your internet connection.';
+    }
+    return;
+  }
 
   patchCharacterCanvasBackground();
 
