@@ -30,8 +30,8 @@ const trayIconCache = new Map();
 /**
  * Create tray icon with state-based background color using canvas
  */
-function createTrayIcon(state, character = 'clawd') {
-  const cacheKey = `${state}-${character}`;
+function createTrayIcon(state, character = 'clawd', hasUpdate = false) {
+  const cacheKey = `${state}-${character}-${hasUpdate}`;
 
   // Return cached icon if available
   if (trayIconCache.has(cacheKey)) {
@@ -118,6 +118,14 @@ function createTrayIcon(state, character = 'clawd') {
     rect(14, 9, 2, 2, COLOR_EYE);   // Right eye
   }
 
+  if (hasUpdate) {
+    // Small badge in the top-right corner signaling an update is available.
+    ctx.fillStyle = '#FF6633';
+    ctx.beginPath();
+    ctx.arc(size - 4, 4, 4, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
   // Convert canvas to PNG buffer and create nativeImage
   const pngBuffer = canvas.toBuffer('image/png');
   const icon = nativeImage.createFromBuffer(pngBuffer);
@@ -135,6 +143,7 @@ class TrayManager {
     this.app = app;
     this.wsClient = wsClient;
     this.hookInstaller = null;
+    this.updateChecker = null;
     this.statsWindow = null;
     this.tokenWindow = null;
 
@@ -156,6 +165,14 @@ class TrayManager {
    */
   setHookInstaller(hookInstaller) {
     this.hookInstaller = hookInstaller;
+  }
+
+  /**
+   * Set UpdateChecker reference (can be set after construction)
+   * @param {UpdateChecker} updateChecker
+   */
+  setUpdateChecker(updateChecker) {
+    this.updateChecker = updateChecker;
   }
 
   /**
@@ -369,9 +386,17 @@ class TrayManager {
     return state || { state: 'idle', character: DEFAULT_CHARACTER, project: firstProjectId };
   }
 
+  /**
+   * Whether an update is available/downloading/downloaded, for the tray icon badge.
+   * @returns {boolean}
+   */
+  hasUpdateAvailable() {
+    return Boolean(this.updateChecker && this.updateChecker.getState().status !== null);
+  }
+
   createTray() {
     const state = this.getFirstWindowState();
-    const icon = createTrayIcon(state.state, state.character);
+    const icon = createTrayIcon(state.state, state.character, this.hasUpdateAvailable());
     this.tray = new Tray(icon);
     this.tray.setToolTip('Vibe Monitor');
     this.updateMenu();
@@ -387,7 +412,7 @@ class TrayManager {
   updateIcon() {
     if (!this.tray) return;
     const state = this.getFirstWindowState();
-    const icon = createTrayIcon(state.state, state.character);
+    const icon = createTrayIcon(state.state, state.character, this.hasUpdateAvailable());
     this.tray.setImage(icon);
   }
 
@@ -673,6 +698,32 @@ class TrayManager {
   }
 
   /**
+   * Version/update row shown near the bottom of the tray menu. Reflects the
+   * current UpdateChecker state — a plain version label normally, or a
+   * clickable one-click upgrade action while an update is available.
+   */
+  buildUpdateMenuItems() {
+    const { status, version } = this.updateChecker ? this.updateChecker.getState() : {};
+
+    if (status === 'available') {
+      return [{
+        label: `⬆ Update to v${version}`,
+        click: () => this.updateChecker.downloadAndInstall(version)
+      }];
+    }
+    if (status === 'downloading') {
+      return [{ label: `Downloading v${version}…`, enabled: false }];
+    }
+    if (status === 'downloaded') {
+      return [{
+        label: `Restart to install v${version}`,
+        click: () => this.updateChecker.downloadAndInstall(version)
+      }];
+    }
+    return [{ label: `Version: ${this.app.getVersion()}`, enabled: false }];
+  }
+
+  /**
    * Menu items specific to the current app mode — Window Mode's per-project
    * window management, Character Mode's speech bubble settings, or nothing
    * extra for Input Mode (which has no windows or bubble to configure).
@@ -797,10 +848,7 @@ class TrayManager {
         label: `HTTP Server: localhost:${HTTP_PORT}`,
         enabled: false
       },
-      {
-        label: `Version: ${this.app.getVersion()}`,
-        enabled: false
-      },
+      ...this.buildUpdateMenuItems(),
       {
         label: 'Docs',
         click: () => shell.openExternal('https://vibemon.io/docs')
