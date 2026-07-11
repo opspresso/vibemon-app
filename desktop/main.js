@@ -24,12 +24,16 @@ const { TrayManager } = require('./modules/tray-manager.cjs');
 const { HttpServer } = require('./modules/http-server.cjs');
 const { WsClient } = require('./modules/ws-client.cjs');
 const { HookInstaller } = require('./modules/hook-installer.cjs');
+const { UpdateChecker } = require('./modules/update-checker.cjs');
 const { validateStatusPayload } = require('./modules/validators.cjs');
-const { MAX_WINDOWS, HOOK_CHECK_INTERVAL_MS } = require('./shared/config.cjs');
+const { MAX_WINDOWS, HOOK_CHECK_INTERVAL_MS, UPDATE_CHECK_INTERVAL_MS } = require('./shared/config.cjs');
 
 // Initial hook-installer check runs shortly after startup so the tray/HTTP
 // server/WebSocket client are fully initialized before any dialog appears.
 const HOOK_CHECK_INITIAL_DELAY_MS = 5000;
+// Staggered slightly after the hook-installer check so both don't fire in
+// the same tick.
+const UPDATE_CHECK_INITIAL_DELAY_MS = 10000;
 
 // Single instance lock - prevent duplicate instances
 const gotTheLock = app.requestSingleInstanceLock();
@@ -45,10 +49,12 @@ const stateManager = new StateManager();
 const windowManager = new MultiWindowManager();
 const bubbleWindowManager = new BubbleWindowManager((projectId) => windowManager.getWindow(projectId));
 const hookInstaller = new HookInstaller();
+const updateChecker = new UpdateChecker();
 let trayManager = null;
 let httpServer = null;
 let wsClient = null;
 let hookCheckTimer = null;
+let updateCheckTimer = null;
 
 function getBubbleOptions(projectId) {
   return {
@@ -406,6 +412,13 @@ app.whenReady().then(() => {
   // Set wsClient reference in trayManager for status display
   trayManager.setWsClient(wsClient);
   trayManager.setHookInstaller(hookInstaller);
+  trayManager.setUpdateChecker(updateChecker);
+  updateChecker.onStateChanged = () => {
+    if (trayManager) {
+      trayManager.updateIcon();
+      trayManager.updateMenu();
+    }
+  };
 
   wsClient.connect();
 
@@ -416,6 +429,12 @@ app.whenReady().then(() => {
     () => hookInstaller.checkAndPrompt(wsClient.getToken()),
     HOOK_CHECK_INTERVAL_MS
   );
+
+  // Detect new VibeMon releases: once shortly after startup, then
+  // periodically. Installing only happens when the user clicks the tray's
+  // "Update to vX" item.
+  setTimeout(() => updateChecker.checkForUpdates(), UPDATE_CHECK_INITIAL_DELAY_MS);
+  updateCheckTimer = setInterval(() => updateChecker.checkForUpdates(), UPDATE_CHECK_INTERVAL_MS);
 
   app.on('activate', () => {
     const first = windowManager.getFirstWindow();
@@ -437,6 +456,10 @@ app.on('before-quit', () => {
   if (hookCheckTimer) {
     clearInterval(hookCheckTimer);
     hookCheckTimer = null;
+  }
+  if (updateCheckTimer) {
+    clearInterval(updateCheckTimer);
+    updateCheckTimer = null;
   }
 
   // Null callbacks first to prevent any fired timers from triggering updates

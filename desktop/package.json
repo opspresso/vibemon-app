@@ -8,12 +8,12 @@
   },
   "scripts": {
     "start": "electron .",
-    "build": "electron-builder",
-    "build:mac": "electron-builder --mac",
-    "build:dmg": "electron-builder --mac dmg",
-    "build:win": "electron-builder --win",
-    "build:linux": "electron-builder --linux",
-    "build:all": "electron-builder --mac --win --linux",
+    "build": "electron-builder --publish never",
+    "build:mac": "electron-builder --mac --publish never",
+    "build:dmg": "electron-builder --mac dmg --publish never",
+    "build:win": "electron-builder --win --publish never",
+    "build:linux": "electron-builder --linux --publish never",
+    "build:all": "electron-builder --mac --win --linux --publish never",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "test": "jest",
@@ -45,6 +45,7 @@
     "dotenv": "^17.2.3",
     "electron": "^35.7.5",
     "electron-store": "^8.2.0",
+    "electron-updater": "^6.8.9",
     "ws": "^8.19.0"
   },
   "devDependencies": {
@@ -114,6 +115,13 @@
         "deb"
       ],
       "category": "Development"
-    }
+    },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "opspresso",
+        "repo": "vibemon-app"
+      }
+    ]
   }
 }
