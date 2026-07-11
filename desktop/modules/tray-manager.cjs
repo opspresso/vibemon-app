@@ -137,10 +137,11 @@ function createTrayIcon(state, character = 'clawd', hasUpdate = false) {
 }
 
 class TrayManager {
-  constructor(windowManager, app, wsClient = null) {
+  constructor(windowManager, app, stateManager, wsClient = null) {
     this.tray = null;
     this.windowManager = windowManager;
     this.app = app;
+    this.stateManager = stateManager;
     this.wsClient = wsClient;
     this.hookInstaller = null;
     this.updateChecker = null;
@@ -447,6 +448,7 @@ class TrayManager {
                 this.windowManager.updateState(projectId, newState);
                 this.windowManager.sendToWindow(projectId, 'state-update', newState);
                 this.windowManager.updateAlwaysOnTopByState(projectId, s);
+                this.stateManager.setupStateTimeout(projectId, s);
                 this.updateMenu();
                 this.updateIcon();
               }
