@@ -147,10 +147,10 @@ void loop() {
         }
       }
       serialBufferPos = 0;
-    } else if (serialBufferPos < (int)sizeof(serialBuffer) - 1) {
-      serialBuffer[serialBufferPos++] = c;
-    } else {
+    } else if (serialBufferPos >= (int)sizeof(serialBuffer) - 1) {
       serialOverflow = true;
+    } else {
+      serialBuffer[serialBufferPos++] = c;
     }
   }
 
