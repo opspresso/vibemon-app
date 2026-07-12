@@ -72,6 +72,21 @@ function makeDeps() {
       ]),
       installByFlag: jest.fn(() => Promise.resolve([]))
     },
+    vibemonConfigManager: {
+      read: jest.fn(() => ({
+        debug: false,
+        auto_launch: true,
+        http_urls: [],
+        serial_port: null,
+        vibemon_url: 'https://vibemon.io',
+        vibemon_token: ''
+      })),
+      getStatus: jest.fn(() => ({ exists: false, hasDesktopUrl: false })),
+      write: jest.fn(),
+      ensureDesktopUrl: jest.fn(),
+      addHttpUrl: jest.fn(),
+      removeHttpUrl: jest.fn()
+    },
     updateChecker: {
       getState: jest.fn(() => ({ status: null, version: null })),
       checkForUpdates: jest.fn(() => Promise.resolve(null)),
@@ -120,6 +135,19 @@ describe('settings:get-all', () => {
       { name: 'Claude Code', flag: '--claude', present: true, hasHook: false }
     ]);
   });
+
+  test('includes the full vibemon config plus its status', async () => {
+    const { deps } = freshManager();
+    deps.vibemonConfigManager.getStatus.mockReturnValue({ exists: true, hasDesktopUrl: true });
+
+    const snap = await invoke('settings:get-all');
+
+    expect(snap.vibemonConfig).toEqual(expect.objectContaining({
+      debug: false,
+      vibemon_url: 'https://vibemon.io',
+      status: { exists: true, hasDesktopUrl: true }
+    }));
+  });
 });
 
 describe('setting mutations', () => {
@@ -166,14 +194,15 @@ describe('setting mutations', () => {
     expect(await invoke('settings:set-speech-bubble-field', 'nope', true)).toBe(false);
   });
 
-  test('set-token trims and forwards to wsClient; rejects without one', async () => {
-    const { manager } = freshManager();
+  test('set-token trims and forwards to wsClient and the vibemon config; rejects without one', async () => {
+    const { manager, deps } = freshManager();
     expect(await invoke('settings:set-token', ' tok ')).toBe(false);
 
     const wsClient = { setToken: jest.fn(), getStatus: () => 'connected', getToken: () => '' };
     manager.setWsClient(wsClient);
     expect(await invoke('settings:set-token', ' tok ')).toBe(true);
     expect(wsClient.setToken).toHaveBeenCalledWith('tok');
+    expect(deps.vibemonConfigManager.write).toHaveBeenCalledWith({ vibemon_token: 'tok' });
     expect(await invoke('settings:set-token', 123)).toBe(false);
   });
 
@@ -202,6 +231,76 @@ describe('AI tool hooks', () => {
     expect(result).toEqual([
       { name: 'Claude Code', flag: '--claude', present: true, hasHook: true }
     ]);
+  });
+});
+
+describe('VibeMon Config', () => {
+  test('repair-vibemon-config passes the wsClient token and returns the refreshed config+status', async () => {
+    const { manager, deps } = freshManager();
+    manager.setWsClient({ getToken: () => 'tok', getStatus: () => 'connected' });
+    deps.vibemonConfigManager.getStatus.mockReturnValue({ exists: true, hasDesktopUrl: true });
+
+    const result = await invoke('settings:repair-vibemon-config');
+
+    expect(deps.vibemonConfigManager.ensureDesktopUrl).toHaveBeenCalledWith('tok');
+    expect(result.status).toEqual({ exists: true, hasDesktopUrl: true });
+  });
+
+  test('repair-vibemon-config works without a wsClient configured', async () => {
+    const { deps } = freshManager();
+
+    await invoke('settings:repair-vibemon-config');
+
+    expect(deps.vibemonConfigManager.ensureDesktopUrl).toHaveBeenCalledWith(null);
+  });
+
+  test('set-vibemon-config writes the partial update and returns the refreshed config+status', async () => {
+    const { deps } = freshManager();
+
+    const result = await invoke('settings:set-vibemon-config', { debug: true });
+
+    expect(deps.vibemonConfigManager.write).toHaveBeenCalledWith({ debug: true });
+    expect(result).toEqual(expect.objectContaining({ debug: false })); // mocked read() is static
+  });
+
+  test('set-vibemon-config ignores a non-object payload without writing', async () => {
+    const { deps } = freshManager();
+
+    await invoke('settings:set-vibemon-config', null);
+
+    expect(deps.vibemonConfigManager.write).not.toHaveBeenCalled();
+  });
+
+  test('add-http-url forwards the URL and returns the refreshed config+status', async () => {
+    const { deps } = freshManager();
+
+    await invoke('settings:add-http-url', 'http://x');
+
+    expect(deps.vibemonConfigManager.addHttpUrl).toHaveBeenCalledWith('http://x');
+  });
+
+  test('add-http-url ignores a non-string payload without writing', async () => {
+    const { deps } = freshManager();
+
+    await invoke('settings:add-http-url', 123);
+
+    expect(deps.vibemonConfigManager.addHttpUrl).not.toHaveBeenCalled();
+  });
+
+  test('remove-http-url forwards the URL and returns the refreshed config+status', async () => {
+    const { deps } = freshManager();
+
+    await invoke('settings:remove-http-url', 'http://x');
+
+    expect(deps.vibemonConfigManager.removeHttpUrl).toHaveBeenCalledWith('http://x');
+  });
+
+  test('remove-http-url ignores a non-string payload without writing', async () => {
+    const { deps } = freshManager();
+
+    await invoke('settings:remove-http-url', null);
+
+    expect(deps.vibemonConfigManager.removeHttpUrl).not.toHaveBeenCalled();
   });
 });
 

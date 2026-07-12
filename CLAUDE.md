@@ -72,22 +72,22 @@ npm start
 - **Alert light (ESP32)**: Optional GPIO output for physical alert light; define `ALERT_PIN` in `credentials.h` to enable; HIGH during `alert` state, LOW otherwise; use GPIO2 (safe for both boards) — GPIO4 conflicts with 1.9" board MOSI
 - **Board selection**: Set `#define BOARD_TYPE BOARD_1_9` or `BOARD_1_47` in `credentials.h`; configures SPI pins, panel offset, and backlight at compile time; 1.9" backlight is GPIO15 direct (active-low: LOW=on, HIGH=off); 1.47" backlight is GPIO22 PWM
 - **State-based always on top**: Active states (thinking, planning, working, packing, notification, alert) keep window on top; inactive states (start, idle, done, sleep) disable always on top to reduce screen obstruction
-- **Always on Top Modes**: `active-only` (default), `all`, `disabled` - configurable via system tray menu
+- **Always on Top Modes**: `all` (default), `active-only`, `disabled` - configurable via system tray menu
 - **Always on Top**: Active states enable on top immediately; inactive states disable on top immediately (no grace period, prevents focus stealing)
 
 ## App Mode
 
 Three mutually-exclusive top-level modes (desktop app only), switched via system tray menu or the `/app-mode` API:
 
-- **Character mode**: Exactly one character window + following speech bubble, subject to the same 10-minute sleep-state close timeout as any other window (see "Window close timer" above) — reappears on the next status update. Shows whichever project is currently focused — an active-state (`ACTIVE_STATES`) project always takes focus, otherwise the most recently updated project keeps it (see `selectFocus()`/`pickInitialFocus()` in `multi-window-manager.cjs`). The window can be dragged past the screen edge but is clamped fully back on-screen once the drag settles; the speech bubble is forced beside the character when it's pinned to the top/bottom edge, and above/below when pinned to the left/right edge (`computePlacement()` in `bubble-window-manager.cjs`).
-- **Window mode**: Per-project windows (`multi` or `single` sub-mode). Default.
+- **Character mode**: Default. Exactly one character window + following speech bubble, subject to the same 10-minute sleep-state close timeout as any other window (see "Window close timer" above) — reappears on the next status update. Shows whichever project is currently focused — an active-state (`ACTIVE_STATES`) project always takes focus, otherwise the most recently updated project keeps it (see `selectFocus()`/`pickInitialFocus()` in `multi-window-manager.cjs`). The window can be dragged past the screen edge but is clamped fully back on-screen once the drag settles; the speech bubble is forced beside the character when it's pinned to the top/bottom edge, and above/below when pinned to the left/right edge (`computePlacement()` in `bubble-window-manager.cjs`).
+- **Window mode**: Per-project windows (`multi` or `single` sub-mode).
 - **Input mode**: No windows shown at all; status is still collected into `stateRegistry` in the background so switching to another mode immediately restores it (`onResyncNeeded` callback replays it through the normal ingestion pipeline).
 
 `multi-window-manager.cjs`'s `routeStatusUpdate()` is the single entry point (shared by HTTP `/status` and the WebSocket client) that branches on the current app mode.
 
 ### Window Mode sub-modes
-- **Multi mode** (default): Each project gets its own window (max 5, or fewer if the screen is smaller)
-- **Single mode**: One window, reused for each project; supports project lock
+- **Multi mode**: Each project gets its own window (max 5, or fewer if the screen is smaller)
+- **Single mode** (default): One window, reused for each project; supports project lock
 
 ### Multi-Window Mode
 - Windows tile into a 2D grid: filled row-first from the top-right, wrapping to the next row down once a row's width is full; stops creating new windows once the grid (both across and down) is full

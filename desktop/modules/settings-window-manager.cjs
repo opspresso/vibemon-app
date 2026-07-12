@@ -23,10 +23,11 @@ const EXTERNAL_LINKS = {
 };
 
 class SettingsWindowManager {
-  constructor({ windowManager, app, hookInstaller, updateChecker }) {
+  constructor({ windowManager, app, hookInstaller, vibemonConfigManager, updateChecker }) {
     this.windowManager = windowManager;
     this.app = app;
     this.hookInstaller = hookInstaller;
+    this.vibemonConfigManager = vibemonConfigManager;
     this.updateChecker = updateChecker;
     this.wsClient = null;
     // Set by main.js to refresh the tray icon/menu after a settings change.
@@ -60,6 +61,15 @@ class SettingsWindowManager {
   }
 
   /**
+   * ~/.vibemon/config.json fields plus its exists/hasDesktopUrl status, as
+   * settings.html's "VibeMon Config" section renders it.
+   * @returns {object}
+   */
+  getVibemonConfigView() {
+    return { ...this.vibemonConfigManager.read(), status: this.vibemonConfigManager.getStatus() };
+  }
+
+  /**
    * Snapshot of everything settings.html renders.
    */
   getSnapshot() {
@@ -77,6 +87,7 @@ class SettingsWindowManager {
         token: this.wsClient ? (this.wsClient.getToken() || '') : ''
       },
       hooks: this.toHookView(this.hookInstaller.getCachedStatuses()),
+      vibemonConfig: this.getVibemonConfigView(),
       update: this.updateChecker.getState(),
       options: {
         appModes: APP_MODES,
@@ -134,7 +145,9 @@ class SettingsWindowManager {
 
     ipcMain.handle('settings:set-token', (_event, token) => {
       if (typeof token !== 'string' || !this.wsClient) return false;
-      this.wsClient.setToken(token.trim());
+      const trimmed = token.trim();
+      this.wsClient.setToken(trimmed);
+      this.vibemonConfigManager.write({ vibemon_token: trimmed });
       this.notifyChanged();
       return true;
     });
@@ -148,6 +161,34 @@ class SettingsWindowManager {
       await this.hookInstaller.installByFlag(flag, token);
       this.notifyChanged();
       return this.toHookView(this.hookInstaller.getCachedStatuses());
+    });
+
+    ipcMain.handle('settings:repair-vibemon-config', () => {
+      const token = this.wsClient ? this.wsClient.getToken() : null;
+      this.vibemonConfigManager.ensureDesktopUrl(token);
+      this.notifyChanged();
+      return this.getVibemonConfigView();
+    });
+
+    ipcMain.handle('settings:set-vibemon-config', (_event, partial) => {
+      if (!partial || typeof partial !== 'object') return this.getVibemonConfigView();
+      this.vibemonConfigManager.write(partial);
+      this.notifyChanged();
+      return this.getVibemonConfigView();
+    });
+
+    ipcMain.handle('settings:add-http-url', (_event, url) => {
+      if (typeof url !== 'string') return this.getVibemonConfigView();
+      this.vibemonConfigManager.addHttpUrl(url);
+      this.notifyChanged();
+      return this.getVibemonConfigView();
+    });
+
+    ipcMain.handle('settings:remove-http-url', (_event, url) => {
+      if (typeof url !== 'string') return this.getVibemonConfigView();
+      this.vibemonConfigManager.removeHttpUrl(url);
+      this.notifyChanged();
+      return this.getVibemonConfigView();
     });
 
     ipcMain.handle('settings:check-for-updates', async () => {

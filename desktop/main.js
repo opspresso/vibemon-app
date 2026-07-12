@@ -24,6 +24,7 @@ const { TrayManager } = require('./modules/tray-manager.cjs');
 const { HttpServer } = require('./modules/http-server.cjs');
 const { WsClient } = require('./modules/ws-client.cjs');
 const { HookInstaller } = require('./modules/hook-installer.cjs');
+const { VibemonConfigManager } = require('./modules/vibemon-config-manager.cjs');
 const { UpdateChecker } = require('./modules/update-checker.cjs');
 const { SettingsWindowManager } = require('./modules/settings-window-manager.cjs');
 const { validateStatusPayload } = require('./modules/validators.cjs');
@@ -50,6 +51,7 @@ const stateManager = new StateManager();
 const windowManager = new MultiWindowManager();
 const bubbleWindowManager = new BubbleWindowManager((projectId) => windowManager.getWindow(projectId));
 const hookInstaller = new HookInstaller();
+const vibemonConfigManager = new VibemonConfigManager();
 const updateChecker = new UpdateChecker();
 let trayManager = null;
 let settingsWindowManager = null;
@@ -375,7 +377,7 @@ app.whenReady().then(() => {
   trayManager.createTray();
 
   // Settings window (opened from the tray menu)
-  settingsWindowManager = new SettingsWindowManager({ windowManager, app, hookInstaller, updateChecker });
+  settingsWindowManager = new SettingsWindowManager({ windowManager, app, hookInstaller, vibemonConfigManager, updateChecker });
   settingsWindowManager.onSettingsChanged = () => {
     if (trayManager) {
       trayManager.updateMenu();
@@ -439,10 +441,18 @@ app.whenReady().then(() => {
   wsClient.connect();
 
   // Detect AI tools missing VibeMon hooks: once shortly after startup, then
-  // periodically so tools installed later are picked up too.
-  setTimeout(() => hookInstaller.checkAndPrompt(wsClient.getToken()), HOOK_CHECK_INITIAL_DELAY_MS);
+  // periodically so tools installed later are picked up too. Also keeps
+  // ~/.vibemon/config.json pointed at this app, since a hook file can be
+  // present while that shared config is missing or stale.
+  setTimeout(() => {
+    hookInstaller.checkAndPrompt(wsClient.getToken());
+    vibemonConfigManager.ensureDesktopUrl(wsClient.getToken());
+  }, HOOK_CHECK_INITIAL_DELAY_MS);
   hookCheckTimer = setInterval(
-    () => hookInstaller.checkAndPrompt(wsClient.getToken()),
+    () => {
+      hookInstaller.checkAndPrompt(wsClient.getToken());
+      vibemonConfigManager.ensureDesktopUrl(wsClient.getToken());
+    },
     HOOK_CHECK_INTERVAL_MS
   );
 
