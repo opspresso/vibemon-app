@@ -28,7 +28,7 @@ jest.mock('electron-store', () => {
 });
 
 const { MultiWindowManager } = require('../modules/multi-window-manager.cjs');
-const { MAX_PROJECT_LIST, MAX_STATE_REGISTRY_SIZE } = require('../shared/config.cjs');
+const { MAX_PROJECT_LIST, MAX_STATE_REGISTRY_SIZE, FOCUS_HYSTERESIS_MS } = require('../shared/config.cjs');
 const Store = require('electron-store');
 
 describe('default settings', () => {
@@ -96,6 +96,70 @@ describe('addProjectToList', () => {
 
     expect(manager.getProjectList()).not.toContain('proj-0');
     expect(manager.getSavedWindowPosition('proj-0')).toBeNull();
+  });
+});
+
+describe('selectFocus', () => {
+  let now;
+
+  beforeEach(() => {
+    now = 1_000_000;
+    jest.spyOn(Date, 'now').mockImplementation(() => now);
+  });
+
+  afterEach(() => {
+    Date.now.mockRestore();
+  });
+
+  test('an active project takes focus immediately when nothing is focused yet', () => {
+    const manager = new MultiWindowManager();
+    manager.stateRegistry.set('a', { state: 'working' });
+
+    expect(manager.selectFocus('a', 'working')).toBe('a');
+  });
+
+  test('a different active project cannot steal focus within the hysteresis window', () => {
+    const manager = new MultiWindowManager();
+    manager.stateRegistry.set('a', { state: 'working' });
+    manager.selectFocus('a', 'working');
+
+    now += FOCUS_HYSTERESIS_MS - 1;
+    manager.stateRegistry.set('b', { state: 'thinking' });
+
+    expect(manager.selectFocus('b', 'thinking')).toBe('a');
+  });
+
+  test('a different active project takes focus once the hysteresis window elapses', () => {
+    const manager = new MultiWindowManager();
+    manager.stateRegistry.set('a', { state: 'working' });
+    manager.selectFocus('a', 'working');
+
+    now += FOCUS_HYSTERESIS_MS;
+    manager.stateRegistry.set('b', { state: 'thinking' });
+
+    expect(manager.selectFocus('b', 'thinking')).toBe('b');
+  });
+
+  test('an alert bypasses the hysteresis window and takes focus immediately', () => {
+    const manager = new MultiWindowManager();
+    manager.stateRegistry.set('a', { state: 'working' });
+    manager.selectFocus('a', 'working');
+
+    now += 1;
+    manager.stateRegistry.set('b', { state: 'alert' });
+
+    expect(manager.selectFocus('b', 'alert')).toBe('b');
+  });
+
+  test('a non-active project does not steal focus from a still-active one', () => {
+    const manager = new MultiWindowManager();
+    manager.stateRegistry.set('a', { state: 'working' });
+    manager.selectFocus('a', 'working');
+
+    now += FOCUS_HYSTERESIS_MS;
+    manager.stateRegistry.set('b', { state: 'idle' });
+
+    expect(manager.selectFocus('b', 'idle')).toBe('a');
   });
 });
 

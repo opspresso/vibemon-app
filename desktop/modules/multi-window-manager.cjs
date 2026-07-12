@@ -22,8 +22,13 @@ const {
   SPEECH_BUBBLE_FIELDS,
   CHARACTER_NAMES,
   CHAR_Y_BASE,
-  CHAR_SIZE
+  CHAR_SIZE,
+  FOCUS_HYSTERESIS_MS
 } = require('../shared/config.cjs');
+
+// States that steal Character Mode focus immediately even mid-hysteresis —
+// they signal something needs the user's attention right away.
+const PRIORITY_FOCUS_STATES = ['alert', 'notification'];
 
 // Platform-specific always-on-top level
 // macOS: 'floating' (required for tray menu visibility)
@@ -103,6 +108,8 @@ class MultiWindowManager {
 
     // Character Mode's single persistent window always targets this project.
     this.focusedProjectId = null;
+    // When focusedProjectId last changed — see selectFocus()'s hysteresis check.
+    this.focusSwitchedAt = 0;
   }
 
   // ============================================================================
@@ -988,21 +995,42 @@ class MultiWindowManager {
 
   /**
    * Decide which project Character Mode's single window should show, given
-   * an incoming status update. An active-state project always takes focus;
-   * otherwise the most recently updated project keeps focus unless the
-   * currently focused project is itself still active.
+   * an incoming status update. An active-state project takes focus, but if
+   * another project is already focused and still active, focus only moves
+   * away from it once FOCUS_HYSTERESIS_MS has passed since the last switch
+   * — otherwise concurrent AI tools ping-pong the window every time either
+   * one posts an update. Priority states (alert/notification) bypass the
+   * hysteresis since they need the user's attention immediately.
+   * Non-active states keep focus unless the currently focused project is
+   * itself no longer active.
    * @param {string} projectId
    * @param {string} state
    * @returns {string} the projectId that should now be focused
    */
   selectFocus(projectId, state) {
     if (ACTIVE_STATES.includes(state)) {
+      if (projectId === this.focusedProjectId) {
+        return this.focusedProjectId;
+      }
+
+      if (this.focusedProjectId) {
+        const focusedState = this.stateRegistry.get(this.focusedProjectId);
+        const focusedIsActive = focusedState && ACTIVE_STATES.includes(focusedState.state);
+        const withinHysteresis = Date.now() - this.focusSwitchedAt < FOCUS_HYSTERESIS_MS;
+
+        if (focusedIsActive && withinHysteresis && !PRIORITY_FOCUS_STATES.includes(state)) {
+          return this.focusedProjectId;
+        }
+      }
+
       this.focusedProjectId = projectId;
+      this.focusSwitchedAt = Date.now();
       return this.focusedProjectId;
     }
 
     if (!this.focusedProjectId) {
       this.focusedProjectId = projectId;
+      this.focusSwitchedAt = Date.now();
       return this.focusedProjectId;
     }
 
@@ -1010,6 +1038,7 @@ class MultiWindowManager {
     const focusedIsActive = focusedState && ACTIVE_STATES.includes(focusedState.state);
     if (!focusedIsActive) {
       this.focusedProjectId = projectId;
+      this.focusSwitchedAt = Date.now();
     }
 
     return this.focusedProjectId;
