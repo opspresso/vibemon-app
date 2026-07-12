@@ -24,7 +24,9 @@
     flex-direction: column;
     gap: 5px;
     padding: 8px 12px;
-    min-width: 175px;
+    /* Matches the desktop character window's WINDOW_WIDTH (constants.json)
+       so the bubble reads as the same width as the character below it. */
+    min-width: 172px;
     background: rgba(60, 60, 60, 0.9);
     color: #fff;
     border-radius: 10px;
@@ -54,7 +56,10 @@
   }
 
   .bubble-bar-track {
-    flex: 0 0 90px;
+    /* Grow to fill whatever row width the bubble ends up at, instead of a
+       fixed px length that leaves dead space when the bubble is wider. */
+    flex: 1 1 0;
+    min-width: 0;
     height: 3px;
     background: rgba(0, 0, 0, 0.35);
     border-radius: 2px;
@@ -74,11 +79,6 @@
     width: 30px;
     text-align: right;
     font-variant-numeric: tabular-nums;
-  }
-
-  .bubble-row[data-field="usage5h"] .bubble-bar-track,
-  .bubble-row[data-field="usageWeek"] .bubble-bar-track {
-    flex-basis: 60px;
   }
 
   .bubble-row[data-field="usage5h"] .bubble-value,
