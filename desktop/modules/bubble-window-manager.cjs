@@ -10,6 +10,7 @@
 
 const { BrowserWindow, screen } = require('electron');
 const path = require('path');
+const { STATE_COLORS } = require('../shared/config.cjs');
 
 // The character sprite's center offset and collision radius within the
 // character window, matching the rendering engine's layout constants
@@ -48,13 +49,27 @@ const METRIC_ICONS = {
   usageWeek: '📅'
 };
 
+const TEXT_ICONS = {
+  project: '📁',
+  model: '🤖'
+};
+
+// usage5h/usageWeek quotas reset on a rolling window; the collector can
+// optionally send how many minutes remain until that reset in these fields,
+// shown next to the usual usage percentage (e.g. "18% · 24m"). Absent for
+// collectors that don't send it yet, or for memory (not a resetting quota).
+const RESET_MINUTES_FIELDS = {
+  usage5h: 'usage5hResetsIn',
+  usageWeek: 'usageWeekResetsIn'
+};
+
 /**
  * Build the bubble.html content payload: status/project/model render as plain
  * text, memory/usage5h/usageWeek render as an icon + inline bar + percentage
  * (bubble.html's __setBubbleContent draws the bar itself from `value`).
  * @param {Object|null} state
  * @param {Object|null} speechBubbleFields
- * @returns {Object.<string, {type: 'text', text: string}|{type: 'metric', icon: string, value: number}>}
+ * @returns {Object.<string, {type: 'text', text: string}|{type: 'metric', icon: string, value: number, resetIn: number|undefined}>}
  */
 function buildFieldPayload(state, speechBubbleFields) {
   const payload = {};
@@ -65,21 +80,40 @@ function buildFieldPayload(state, speechBubbleFields) {
   }
 
   if (speechBubbleFields && speechBubbleFields.project && state && state.project) {
-    payload.project = { type: 'text', text: String(state.project) };
+    payload.project = { type: 'text', text: `${TEXT_ICONS.project} ${state.project}` };
   }
 
   if (speechBubbleFields && speechBubbleFields.model && state && state.model) {
-    payload.model = { type: 'text', text: String(state.model) };
+    payload.model = { type: 'text', text: `${TEXT_ICONS.model} ${state.model}` };
   }
 
   for (const field of ['memory', 'usage5h', 'usageWeek']) {
     const value = state && state[field];
     if (speechBubbleFields && speechBubbleFields[field] && value !== undefined && value !== null && value !== '') {
-      payload[field] = { type: 'metric', icon: METRIC_ICONS[field], value: Number(value) };
+      const metric = { type: 'metric', icon: METRIC_ICONS[field], value: Number(value) };
+
+      const resetField = RESET_MINUTES_FIELDS[field];
+      const resetValue = resetField && state[resetField];
+      if (resetValue !== undefined && resetValue !== null && resetValue !== '') {
+        metric.resetIn = Number(resetValue);
+      }
+
+      payload[field] = metric;
     }
   }
 
   return payload;
+}
+
+/**
+ * Same state -> background color mapping used for the tray icon and the
+ * character window's own canvas backdrop, so the bubble's background tracks
+ * the current state the same way the window mode's does.
+ * @param {Object|null} state
+ * @returns {string} hex color
+ */
+function resolveBgColor(state) {
+  return (state && STATE_COLORS[state.state]) || STATE_COLORS.idle;
 }
 
 class BubbleWindowManager {
@@ -91,6 +125,7 @@ class BubbleWindowManager {
     this.bubbleWindows = new Map(); // Map<projectId, BrowserWindow>
     this.lastSizes = new Map(); // Map<projectId, {width, height}>
     this.lastFields = new Map(); // Map<projectId, Object> — needed so reposition() can re-render the tail
+    this.lastBgColors = new Map(); // Map<projectId, string> — same, for the state-colored background
     this.animationTimers = new Map(); // Map<projectId, NodeJS.Timeout>
     this.loadingWindows = new Map(); // Map<projectId, Promise<boolean>> — in-flight bubble.html load
     this.d3ForceModule = null;
@@ -149,6 +184,7 @@ class BubbleWindowManager {
       this.loadingWindows.delete(projectId);
       this.lastSizes.delete(projectId);
       this.lastFields.delete(projectId);
+      this.lastBgColors.delete(projectId);
     });
 
     // A load that never settles (finish, fail, or the window closing) would
@@ -199,6 +235,8 @@ class BubbleWindowManager {
       return;
     }
 
+    const bgColor = resolveBgColor(state);
+
     const win = await this.ensureBubbleWindow(projectId);
     if (!this.isWindowValid(win) || !this.isWindowValid(this.getCharacterWindow(projectId))) {
       this.destroy(projectId);
@@ -208,7 +246,7 @@ class BubbleWindowManager {
     // First pass: render content with a neutral tail position, just to
     // measure the bubble's natural size (varies with which fields/text show).
     const size = await win.webContents.executeJavaScript(
-      `window.__setBubbleContent(${JSON.stringify(fields)}, 0, 'bottom')`
+      `window.__setBubbleContent(${JSON.stringify(fields)}, 0, 'bottom', ${JSON.stringify(bgColor)})`
     );
     if (!this.isWindowValid(win) || !this.isWindowValid(this.getCharacterWindow(projectId))) {
       this.destroy(projectId);
@@ -216,6 +254,7 @@ class BubbleWindowManager {
     }
     this.lastSizes.set(projectId, size);
     this.lastFields.set(projectId, fields);
+    this.lastBgColors.set(projectId, bgColor);
 
     const wasVisible = win.isVisible();
     const placement = await this.computePlacement(this.getCharacterWindow(projectId), size);
@@ -227,7 +266,7 @@ class BubbleWindowManager {
     // Second pass: point the tail at the character now that we know the
     // bubble's final position relative to it.
     await win.webContents.executeJavaScript(
-      `window.__setBubbleContent(${JSON.stringify(fields)}, ${placement.tailOffset}, ${JSON.stringify(placement.tailSide)})`
+      `window.__setBubbleContent(${JSON.stringify(fields)}, ${placement.tailOffset}, ${JSON.stringify(placement.tailSide)}, ${JSON.stringify(bgColor)})`
     );
     if (!this.isWindowValid(win) || !this.isWindowValid(this.getCharacterWindow(projectId))) {
       this.destroy(projectId);
@@ -256,13 +295,14 @@ class BubbleWindowManager {
     const charWindow = this.getCharacterWindow(projectId);
     const size = this.lastSizes.get(projectId);
     const fields = this.lastFields.get(projectId);
+    const bgColor = this.lastBgColors.get(projectId);
     if (!this.isWindowValid(win) || !this.isWindowValid(charWindow) || !size || !fields || !win.isVisible()) return;
 
     this.computePlacement(charWindow, size).then(async (placement) => {
       if (!placement || !this.isWindowValid(win) || !this.isWindowValid(this.getCharacterWindow(projectId))) return;
 
       await win.webContents.executeJavaScript(
-        `window.__setBubbleContent(${JSON.stringify(fields)}, ${placement.tailOffset}, ${JSON.stringify(placement.tailSide)})`
+        `window.__setBubbleContent(${JSON.stringify(fields)}, ${placement.tailOffset}, ${JSON.stringify(placement.tailSide)}, ${JSON.stringify(bgColor)})`
       );
       if (!this.isWindowValid(win) || !this.isWindowValid(this.getCharacterWindow(projectId))) return;
 
@@ -483,6 +523,7 @@ class BubbleWindowManager {
     this.bubbleWindows.delete(projectId);
     this.lastSizes.delete(projectId);
     this.lastFields.delete(projectId);
+    this.lastBgColors.delete(projectId);
   }
 
   /**
@@ -498,6 +539,7 @@ class BubbleWindowManager {
     this.bubbleWindows.clear();
     this.lastSizes.clear();
     this.lastFields.clear();
+    this.lastBgColors.clear();
   }
 }
 
