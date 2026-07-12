@@ -113,8 +113,8 @@ The Desktop App supports three mutually-exclusive top-level modes:
 
 | Mode | Description |
 |------|-------------|
-| `character` | One character window + following speech bubble; subject to the same sleep-state close timeout as other windows |
-| `window` | Per-project windows (multi or single sub-mode) - **Default** |
+| `character` | One character window + following speech bubble; subject to the same sleep-state close timeout as other windows - **Default** |
+| `window` | Per-project windows (multi or single sub-mode) |
 | `input` | No windows shown at all; status is still collected in the background |
 
 Switch via the system tray menu (**App Mode** submenu) or API:
@@ -144,10 +144,10 @@ Per-project windows, with two sub-modes:
 
 | Sub-mode | Description |
 |------|-------------|
-| `multi` | One window per project (max 5) - **Default** |
-| `single` | One window with project lock support |
+| `multi` | One window per project (max 5) |
+| `single` | One window with project lock support - **Default** |
 
-#### Multi-Window Mode (Default)
+#### Multi-Window Mode
 
 - Each project gets its own window
 - Windows tile into a 2D grid, filled from the top-right:
@@ -156,7 +156,7 @@ Per-project windows, with two sub-modes:
 - 10px gap between windows
 - The grid re-flows whenever a state changes or a window closes
 
-#### Single-Window Mode
+#### Single-Window Mode (Default)
 
 - Only one window at a time
 - Project lock feature available

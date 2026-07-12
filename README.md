@@ -167,8 +167,8 @@ See [API Reference](docs/api.md) for all endpoints.
 
 | Mode | Description |
 |------|-------------|
-| `character` | One persistent character + following speech bubble, tracking whichever project is active |
-| `window` | Per-project windows (see Window Mode below) - **Default** |
+| `character` | One persistent character + following speech bubble, tracking whichever project is active - **Default** |
+| `window` | Per-project windows (see Window Mode below) |
 | `input` | No windows shown; status is still collected in the background |
 
 Switch via system tray menu or API:
@@ -183,8 +183,8 @@ curl -X POST http://127.0.0.1:19280/app-mode \
 
 | Sub-mode | Description |
 |------|-------------|
-| `multi` | One window per project (max 5) - **Default** |
-| `single` | One window with project lock support |
+| `multi` | One window per project (max 5) |
+| `single` | One window with project lock support - **Default** |
 
 Switch via system tray menu or API:
 
