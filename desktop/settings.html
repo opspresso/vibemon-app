@@ -372,6 +372,10 @@
     const $ = (id) => document.getElementById(id);
     let snapshot = null;
 
+    // How long the "Failed" label stays on a hook install button before
+    // reverting to Install/Reinstall.
+    const FAILED_LABEL_MS = 1500;
+
     // --- Sidebar tabs ---
     document.querySelectorAll('.sidebar button').forEach((btn) => {
       btn.addEventListener('click', () => {
@@ -472,15 +476,18 @@
           btn.className = 'action' + (tool.hasHook ? ' secondary' : '');
           btn.textContent = tool.hasHook ? 'Reinstall' : 'Install';
           btn.addEventListener('click', async () => {
-            const installingText = tool.hasHook ? 'Reinstalling…' : 'Installing…';
+            const idleText = tool.hasHook ? 'Reinstall' : 'Install';
             btn.disabled = true;
-            btn.textContent = installingText;
+            btn.textContent = tool.hasHook ? 'Reinstalling…' : 'Installing…';
             try {
               renderHooks(await window.settingsAPI.installHook(tool.flag));
             } catch (err) {
               console.error('Hook install failed:', err);
-              btn.disabled = false;
-              btn.textContent = tool.hasHook ? 'Reinstall' : 'Install';
+              btn.textContent = 'Failed';
+              setTimeout(() => {
+                btn.disabled = false;
+                btn.textContent = idleText;
+              }, FAILED_LABEL_MS);
             }
           });
           actions.appendChild(btn);
@@ -667,7 +674,15 @@
       loadAll();
     });
     $('hooks-refresh').addEventListener('click', async () => {
-      renderHooks(await window.settingsAPI.refreshHookStatuses());
+      const btn = $('hooks-refresh');
+      btn.disabled = true;
+      btn.textContent = 'Refreshing…';
+      try {
+        renderHooks(await window.settingsAPI.refreshHookStatuses());
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Refresh';
+      }
     });
     $('vibemon-serial-port').addEventListener('blur', async (e) => {
       renderVibemonConfigSection(await window.settingsAPI.setVibemonConfig({ serial_port: e.target.value }));

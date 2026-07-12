@@ -231,8 +231,12 @@ class HookInstaller {
    * run failing does not stop the remaining tools.
    * @param {Array} tools
    * @param {string|null} token
+   * @param {{showSummary?: boolean}} [options] - showSummary: whether to show
+   *   the native result dialog when finished (default true). The Settings
+   *   window's Install/Reinstall button passes false since it already shows
+   *   the result inline (badge/button state) and doesn't need a popup too.
    */
-  async installTools(tools, token) {
+  async installTools(tools, token, { showSummary = true } = {}) {
     if (this.isRunning) {
       return [];
     }
@@ -268,7 +272,7 @@ class HookInstaller {
     }
 
     this.refreshStatuses();
-    this.showResultSummary(results);
+    if (showSummary) this.showResultSummary(results);
     return results;
   }
 
@@ -311,17 +315,19 @@ class HookInstaller {
   }
 
   /**
-   * Manually install hooks for a single tool (e.g. from the tray menu),
-   * bypassing the dismissed/suppressed filters used by checkAndPrompt.
+   * Manually install hooks for a single tool (e.g. from the Settings window
+   * or tray menu), bypassing the dismissed/suppressed filters used by
+   * checkAndPrompt.
    * @param {string} flag - e.g. '--claude'
    * @param {string|null} token
+   * @param {{showSummary?: boolean}} [options] - forwarded to installTools()
    */
-  installByFlag(flag, token) {
+  installByFlag(flag, token, options) {
     const tool = TOOLS.find(t => t.flag === flag);
     if (!tool) {
       return Promise.resolve([]);
     }
-    return this.installTools([tool], token);
+    return this.installTools([tool], token, options);
   }
 
   showResultSummary(results) {

@@ -70,7 +70,9 @@ function makeDeps() {
       refreshStatuses: jest.fn(() => [
         { name: 'Claude Code', flag: '--claude', present: true, hasHook: true, hookFile: '/secret/path' }
       ]),
-      installByFlag: jest.fn(() => Promise.resolve([]))
+      installByFlag: jest.fn(() => Promise.resolve([
+        { tool: { flag: '--claude' }, result: { ok: true } }
+      ]))
     },
     vibemonConfigManager: {
       read: jest.fn(() => ({
@@ -220,8 +222,17 @@ describe('AI tool hooks', () => {
 
     const result = await invoke('settings:install-hook', '--claude');
 
-    expect(deps.hookInstaller.installByFlag).toHaveBeenCalledWith('--claude', 'tok');
+    expect(deps.hookInstaller.installByFlag).toHaveBeenCalledWith('--claude', 'tok', { showSummary: false });
     expect(result[0]).not.toHaveProperty('hookFile');
+  });
+
+  test('install-hook rejects when the install fails, so the renderer can show a failed state', async () => {
+    const { deps } = freshManager();
+    deps.hookInstaller.installByFlag.mockResolvedValueOnce([
+      { tool: { flag: '--claude' }, result: { ok: false, reason: 'exit-code' } }
+    ]);
+
+    await expect(invoke('settings:install-hook', '--claude')).rejects.toThrow();
   });
 
   test('refresh-hook-statuses recomputes and strips paths', async () => {

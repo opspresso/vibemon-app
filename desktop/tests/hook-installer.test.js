@@ -357,6 +357,24 @@ describe('HookInstaller', () => {
       expect(results[0].tool.flag).toBe(TOOLS[2].flag);
       expect(spawn.mock.calls[0][1]).toContain(TOOLS[2].flag);
     });
+
+    test('shows the result dialog by default', async () => {
+      spawnSync.mockReturnValue({ status: 0 });
+      mockSuccessfulInstall();
+
+      await hookInstaller.installByFlag(TOOLS[2].flag, null);
+
+      expect(dialog.showMessageBox).toHaveBeenCalled();
+    });
+
+    test('skips the result dialog when showSummary is false', async () => {
+      spawnSync.mockReturnValue({ status: 0 });
+      mockSuccessfulInstall();
+
+      await hookInstaller.installByFlag(TOOLS[2].flag, null, { showSummary: false });
+
+      expect(dialog.showMessageBox).not.toHaveBeenCalled();
+    });
   });
 
   describe('checkAndPrompt', () => {

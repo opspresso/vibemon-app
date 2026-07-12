@@ -158,8 +158,13 @@ class SettingsWindowManager {
 
     ipcMain.handle('settings:install-hook', async (_event, flag) => {
       const token = this.wsClient ? this.wsClient.getToken() : null;
-      await this.hookInstaller.installByFlag(flag, token);
+      // No result dialog — the Settings window already shows the outcome
+      // inline via the row's badge/button state.
+      const results = await this.hookInstaller.installByFlag(flag, token, { showSummary: false });
       this.notifyChanged();
+      if (results.length === 0 || results.some(r => !r.result.ok)) {
+        throw new Error('Hook install failed');
+      }
       return this.toHookView(this.hookInstaller.getCachedStatuses());
     });
 
