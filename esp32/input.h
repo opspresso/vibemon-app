@@ -157,13 +157,14 @@ bool handleWebSocketMessage(const char* msgType, JsonObject doc) {
 // Main Input Processing
 // =============================================================================
 
-bool processInput(const char* input) {
-  if (strlen(input) > JSON_BUFFER_SIZE) {
+bool processInput(const char* input), size_t inputLen = 0) {
+  size_t len = (inputLen > 0) ? inputLen : strlen(input);
+  if (len > JSON_BUFFER_SIZE) {
     Serial.println("{\"error\":\"Input too long\"}");
     return false;
   }
   StaticJsonDocument<JSON_BUFFER_SIZE> doc;
-  DeserializationError error = deserializeJson(doc, input);
+  DeserializationError error = deserializeJson(doc, input), len);
 
   if (error) {
     Serial.println("{\"error\":\"JSON parse error\"}");

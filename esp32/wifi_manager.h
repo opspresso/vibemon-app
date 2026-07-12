@@ -551,7 +551,7 @@ void webSocketEvent(WStype_t type, uint8_t* payload, size_t length) {
 
     case WStype_TEXT:
       // Process received message (same as Serial/HTTP input)
-      processInput((char*)payload);
+      processInput((char*)payload, length);
       break;
 
     case WStype_ERROR:
