@@ -24,17 +24,22 @@
     flex-direction: column;
     gap: 5px;
     padding: 8px 12px;
-    min-width: 170px;
-    background: rgba(90, 90, 90, 0.8);
+    min-width: 175px;
+    background: rgba(60, 60, 60, 0.9);
+    color: #fff;
     border-radius: 10px;
     white-space: nowrap;
   }
 
   .bubble-row {
     display: none;
-    color: #fff;
+    color: inherit;
     font-size: 11px;
     font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+  }
+
+  .bubble-row[data-field="status"] {
+    font-size: 14px;
   }
 
   .bubble-metric {
@@ -71,6 +76,17 @@
     font-variant-numeric: tabular-nums;
   }
 
+  .bubble-row[data-field="usage5h"] .bubble-bar-track,
+  .bubble-row[data-field="usageWeek"] .bubble-bar-track {
+    flex-basis: 60px;
+  }
+
+  .bubble-row[data-field="usage5h"] .bubble-value,
+  .bubble-row[data-field="usageWeek"] .bubble-value {
+    width: auto;
+    min-width: 30px;
+  }
+
   .bubble-tail {
     position: absolute;
     width: 0;
@@ -84,17 +100,19 @@
     border-right: 6px solid transparent;
   }
 
-  /* Bubble above the character (usual case): tail on the bottom edge, pointing down. */
+  /* Bubble above the character (usual case): tail on the bottom edge, pointing down.
+     Border color is set inline by __setBubbleContent to match the current
+     state-colored background (see .bubble-tail.tail-* selection below). */
   .bubble-tail.tail-bottom {
     bottom: -6px;
-    border-top: 6px solid rgba(90, 90, 90, 0.8);
+    border-top: 6px solid;
   }
 
   /* Bubble below the character (no room above, e.g. near the top of the screen):
      tail on the top edge, pointing up. */
   .bubble-tail.tail-top {
     top: -6px;
-    border-bottom: 6px solid rgba(90, 90, 90, 0.8);
+    border-bottom: 6px solid;
   }
 
   /* Bubble beside the character (it's pinned to the screen's top/bottom
@@ -108,12 +126,12 @@
 
   .bubble-tail.tail-left {
     left: -6px;
-    border-right: 6px solid rgba(90, 90, 90, 0.8);
+    border-right: 6px solid;
   }
 
   .bubble-tail.tail-right {
     right: -6px;
-    border-left: 6px solid rgba(90, 90, 90, 0.8);
+    border-left: 6px solid;
   }
 </style>
 </head>
@@ -150,18 +168,60 @@
       return '#FF4444';
     }
 
+    // Minutes until a usage quota resets, formatted compactly: "24m", "2h5m", "3d4h".
+    function formatMinutes(mins) {
+      mins = Math.max(0, Math.round(mins));
+      if (mins < 60) return mins + 'm';
+      var hours = Math.floor(mins / 60);
+      var remMins = mins % 60;
+      if (hours < 24) return remMins > 0 ? hours + 'h' + remMins + 'm' : hours + 'h';
+      var days = Math.floor(hours / 24);
+      var remHours = hours % 24;
+      return remHours > 0 ? days + 'd' + remHours + 'h' : days + 'd';
+    }
+
+    function hexToRgb(hex) {
+      var h = String(hex || '').replace('#', '');
+      if (h.length === 3) h = h[0] + h[0] + h[1] + h[1] + h[2] + h[2];
+      var num = parseInt(h, 16);
+      return { r: (num >> 16) & 255, g: (num >> 8) & 255, b: num & 255 };
+    }
+
+    function bgRgba(hex, alpha) {
+      var c = hexToRgb(hex);
+      return 'rgba(' + c.r + ',' + c.g + ',' + c.b + ',' + alpha + ')';
+    }
+
+    // Same behavior as the window mode's own state-colored background: pick
+    // black or white text depending on how light the background reads.
+    function pickTextColor(hex) {
+      var c = hexToRgb(hex);
+      var luminance = c.r * 0.299 + c.g * 0.587 + c.b * 0.114;
+      return luminance > 140 ? '#1a1a1a' : '#ffffff';
+    }
+
     // Called from the main process via webContents.executeJavaScript().
     // `fields` is a plain object keyed by field name: { type: 'text', text }
-    // for the status/project/model rows, or { type: 'metric', icon, value } (0-100) for the
-    // memory/usage rows, rendered as an icon + inline bar + percentage —
-    // only enabled/truthy fields are present. tailSide is the bubble edge
+    // for the status/project/model rows, or { type: 'metric', icon, value, resetIn } (value is
+    // 0-100) for the memory/usage rows, rendered as an icon + inline bar + percentage —
+    // only enabled/truthy fields are present. `resetIn`, when present (usage5h/usageWeek
+    // only, if the collector sends it), is minutes until that quota resets and is
+    // appended next to the percentage. tailSide is the bubble edge
     // the tail sits on ('bottom'/'top' when the bubble is above/below the
     // character, 'left'/'right' when it's beside it); tailOffset is the
     // tail's offset in px along that edge (left offset for top/bottom, top
     // offset for left/right) — both computed by the main process from the
-    // bubble's final position relative to the character.
-    window.__setBubbleContent = function (fields, tailOffset, tailSide) {
+    // bubble's final position relative to the character. bgColor is the
+    // current state's hex color (same mapping as the window mode's own
+    // background), used for both the bubble's background and its text color.
+    window.__setBubbleContent = function (fields, tailOffset, tailSide, bgColor) {
       var bubble = document.getElementById('bubble');
+
+      if (bgColor) {
+        bubble.style.background = bgRgba(bgColor, 0.9);
+        bubble.style.color = pickTextColor(bgColor);
+      }
+
       var rows = bubble.querySelectorAll('.bubble-row');
       for (var i = 0; i < rows.length; i++) {
         var row = rows[i];
@@ -183,7 +243,9 @@
           icon.textContent = data.icon;
           fill.style.width = pct + '%';
           fill.style.background = barColor(pct);
-          value.textContent = pct + '%';
+          value.textContent = typeof data.resetIn === 'number'
+            ? pct + '% · ' + formatMinutes(data.resetIn)
+            : pct + '%';
           row.style.display = 'flex';
         } else {
           row.textContent = data.text;
@@ -206,6 +268,13 @@
           tail.style.left = tailOffset + 'px';
           tail.style.top = '';
         }
+      }
+      if (bgColor) {
+        var tailColor = bgRgba(bgColor, 0.9);
+        tail.style.borderTopColor = tailSide === 'bottom' ? tailColor : '';
+        tail.style.borderBottomColor = tailSide === 'top' ? tailColor : '';
+        tail.style.borderRightColor = tailSide === 'left' ? tailColor : '';
+        tail.style.borderLeftColor = tailSide === 'right' ? tailColor : '';
       }
 
       // body is a block element, so its width always reports the current

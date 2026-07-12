@@ -100,6 +100,25 @@ function validateUsage(value, label) {
 }
 
 /**
+ * Validate minutes remaining until a usage quota resets (non-negative integer)
+ * @param {number} value
+ * @param {string} label - Field name for error messages
+ * @returns {{valid: boolean, error: string|null}}
+ */
+function validateResetMinutes(value, label) {
+  if (value === undefined || value === null || value === '') {
+    return { valid: true, error: null };
+  }
+  if (typeof value !== 'number') {
+    return { valid: false, error: `${label} must be a number` };
+  }
+  if (!Number.isInteger(value) || value < 0) {
+    return { valid: false, error: `${label} must be a non-negative integer` };
+  }
+  return { valid: true, error: null };
+}
+
+/**
  * Validate tool name
  * @param {string} tool
  * @returns {{valid: boolean, error: string|null}}
@@ -185,6 +204,12 @@ function validateStatusPayload(data) {
   const usageWeekResult = validateUsage(data.usageWeek, 'usageWeek');
   if (!usageWeekResult.valid) return usageWeekResult;
 
+  const usage5hResetsInResult = validateResetMinutes(data.usage5hResetsIn, 'usage5hResetsIn');
+  if (!usage5hResetsInResult.valid) return usage5hResetsInResult;
+
+  const usageWeekResetsInResult = validateResetMinutes(data.usageWeekResetsIn, 'usageWeekResetsIn');
+  if (!usageWeekResetsInResult.valid) return usageWeekResetsInResult;
+
   const toolResult = validateTool(data.tool);
   if (!toolResult.valid) return toolResult;
 
@@ -203,6 +228,7 @@ module.exports = {
   validateProject,
   validateMemory,
   validateUsage,
+  validateResetMinutes,
   validateTool,
   validateModel,
   validateTerminalId,

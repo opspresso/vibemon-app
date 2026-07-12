@@ -926,6 +926,8 @@ class MultiWindowManager {
       oldState.memory !== newState.memory ||
       oldState.usage5h !== newState.usage5h ||
       oldState.usageWeek !== newState.usageWeek ||
+      oldState.usage5hResetsIn !== newState.usage5hResetsIn ||
+      oldState.usageWeekResetsIn !== newState.usageWeekResetsIn ||
       oldState.character !== newState.character
     );
 
