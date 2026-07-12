@@ -4,10 +4,13 @@
 
 const { VALID_STATES, CHARACTER_NAMES } = require('../shared/config.cjs');
 
-// Validation limits
-const PROJECT_MAX_LENGTH = 100;
-const TOOL_MAX_LENGTH = 50;
-const MODEL_MAX_LENGTH = 50;
+// Validation limits. project/tool/model match the cloud API's
+// STATUS_FIELD_LIMITS (vibemon src/lib/validation.ts): anything the cloud
+// accepts is re-broadcast over WebSocket into this app, and a stricter limit
+// here would silently drop the whole update.
+const PROJECT_MAX_LENGTH = 128;
+const TOOL_MAX_LENGTH = 64;
+const MODEL_MAX_LENGTH = 64;
 const TERMINAL_ID_MAX_LENGTH = 100;
 // Memory is now a number (0-100), not a string
 // iTerm2: iterm2:w0t0p0:UUID format, Ghostty: ghostty:PID format

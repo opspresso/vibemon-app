@@ -78,8 +78,13 @@ describe('validateProject', () => {
     expect(result.error).toContain('must be a string');
   });
 
+  test('accepts project name at the cloud API limit (128)', () => {
+    const result = validateProject('a'.repeat(128));
+    expect(result.valid).toBe(true);
+  });
+
   test('rejects too long project name', () => {
-    const longName = 'a'.repeat(101);
+    const longName = 'a'.repeat(129);
     const result = validateProject(longName);
     expect(result.valid).toBe(false);
     expect(result.error).toContain('exceeds');
@@ -187,8 +192,13 @@ describe('validateTool', () => {
     expect(result.error).toContain('must be a string');
   });
 
+  test('accepts tool name at the cloud API limit (64)', () => {
+    const result = validateTool('a'.repeat(64));
+    expect(result.valid).toBe(true);
+  });
+
   test('rejects too long tool name', () => {
-    const result = validateTool('a'.repeat(51));
+    const result = validateTool('a'.repeat(65));
     expect(result.valid).toBe(false);
     expect(result.error).toContain('exceeds');
   });
@@ -210,8 +220,13 @@ describe('validateModel', () => {
     expect(result.valid).toBe(false);
   });
 
+  test('accepts model name at the cloud API limit (64)', () => {
+    const result = validateModel('a'.repeat(64));
+    expect(result.valid).toBe(true);
+  });
+
   test('rejects too long model name', () => {
-    const result = validateModel('a'.repeat(51));
+    const result = validateModel('a'.repeat(65));
     expect(result.valid).toBe(false);
   });
 });
