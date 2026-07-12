@@ -268,10 +268,11 @@ A small, transparent, click-through window that displays selected info fields (s
 
 ### Settings Window
 
-A dedicated settings window (tray menu → **Settings...**) with three sections in a sidebar:
+A dedicated settings window (tray menu → **Settings...**) with four tabs in a sidebar:
 
-- **VibeMon** — App Mode, Window Mode sub-mode (Multi/Single), Character Lock, Always on Top mode, Speech Bubble field toggles, Open at Login, and the WebSocket connection status + token
-- **AI Tools** — per-tool hook install status for Claude Code / Codex CLI / Kiro IDE / OpenClaw, with one-click install and a Refresh action
+- **VibeMon** — App Mode, Window Mode sub-mode (Multi/Single), Character Lock, Always on Top mode, Speech Bubble field toggles, Open at Login
+- **Collector** — how AI tool session status gets delivered here, locally or via the cloud relay: WebSocket connection status + account token (also writes the collector's `vibemon_token` into `~/.vibemon/config.json`), plus Config (HTTP URLs, Serial Port, VibeMon URL, Debug Logging, Auto-launch Desktop App) read and written directly by the app — no python installer needed
+- **AI Tools** — per-tool hook install status for Claude Code / Codex CLI / Kiro IDE / OpenClaw, with one-click Install (Reinstall for already-installed tools) and a Refresh action
 - **About** — app version, Check for Updates with one-click download/install, and Docs / GitHub Releases links
 
 Changes apply immediately through the same code paths as the tray menu, and the window re-syncs when refocused so tray-made changes are reflected.
