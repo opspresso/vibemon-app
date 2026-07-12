@@ -19,6 +19,7 @@ describe('VibemonConfigManager', () => {
     fs.writeFileSync.mockReset();
     fs.mkdirSync.mockReset();
     fs.copyFileSync.mockReset();
+    fs.chmodSync.mockReset();
     manager = new VibemonConfigManager();
   });
 
@@ -122,6 +123,19 @@ describe('VibemonConfigManager', () => {
         expect.stringContaining('"debug": true')
       );
     });
+
+    test('restricts the config directory and file to owner-only permissions', () => {
+      manager.write({ debug: true });
+
+      expect(fs.chmodSync).toHaveBeenCalledWith(expect.stringContaining('.vibemon'), 0o700);
+      expect(fs.chmodSync).toHaveBeenCalledWith(expect.stringContaining('config.json'), 0o600);
+    });
+
+    test('does not throw when chmodSync is unsupported (e.g. non-Unix platforms)', () => {
+      fs.chmodSync.mockImplementation(() => { throw new Error('not supported'); });
+
+      expect(() => manager.write({ debug: true })).not.toThrow();
+    });
   });
 
   describe('addHttpUrl / removeHttpUrl', () => {
@@ -203,6 +217,7 @@ describe('VibemonConfigManager', () => {
         expect.stringContaining('.vibemon'),
         expect.stringContaining('.bak')
       );
+      expect(fs.chmodSync).toHaveBeenCalledWith(expect.stringContaining('.bak'), 0o600);
       const written = JSON.parse(fs.writeFileSync.mock.calls[0][1]);
       expect(written.http_urls).toEqual(['http://127.0.0.1:19280']);
     });

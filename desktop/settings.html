@@ -569,7 +569,7 @@
         $('vibemon-serial-port').value = config.serial_port || '';
       }
       if (document.activeElement !== $('vibemon-url')) {
-        $('vibemon-url').value = config.vibemon_url;
+        $('vibemon-url').value = config.vibemon_url || '';
       }
       $('vibemon-debug').checked = !!config.debug;
       $('vibemon-auto-launch').checked = !!config.auto_launch;

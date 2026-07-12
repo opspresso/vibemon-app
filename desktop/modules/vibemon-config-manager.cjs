@@ -157,6 +157,7 @@ class VibemonConfigManager {
     if (raw === undefined) {
       try {
         fs.copyFileSync(VIBEMON_CONFIG_PATH, `${VIBEMON_CONFIG_PATH}.bak`);
+        fs.chmodSync(`${VIBEMON_CONFIG_PATH}.bak`, 0o600);
       } catch {
         // Best-effort backup; proceed to overwrite either way.
       }
@@ -179,6 +180,12 @@ class VibemonConfigManager {
   persist(config) {
     fs.mkdirSync(VIBEMON_HOME, { recursive: true });
     fs.writeFileSync(VIBEMON_CONFIG_PATH, JSON.stringify(config, null, 2) + '\n');
+    try {
+      fs.chmodSync(VIBEMON_HOME, 0o700);
+      fs.chmodSync(VIBEMON_CONFIG_PATH, 0o600);
+    } catch {
+      // Best-effort; non-Unix platforms may not support chmod.
+    }
   }
 }
 
