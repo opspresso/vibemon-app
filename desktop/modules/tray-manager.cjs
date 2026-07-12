@@ -2,10 +2,9 @@
  * System tray management for Vibe Monitor
  */
 
-const { Tray, Menu, nativeImage, BrowserWindow, ipcMain, shell } = require('electron');
+const { Tray, Menu, nativeImage, BrowserWindow, shell } = require('electron');
 const { createCanvas } = require('canvas');
 const fs = require('fs');
-const path = require('path');
 const {
   STATE_COLORS, CHARACTER_CONFIG, DEFAULT_CHARACTER,
   HTTP_PORT, LOCK_MODES, ALWAYS_ON_TOP_MODES, APP_MODES,
@@ -147,10 +146,6 @@ class TrayManager {
     this.updateChecker = null;
     this.settingsWindowManager = null;
     this.statsWindow = null;
-    this.tokenWindow = null;
-
-    // Set up IPC handler for token setting
-    this.setupTokenIpc();
   }
 
   /**
@@ -183,166 +178,6 @@ class TrayManager {
    */
   setSettingsWindowManager(settingsWindowManager) {
     this.settingsWindowManager = settingsWindowManager;
-  }
-
-  /**
-   * Set up IPC handlers for token window
-   */
-  setupTokenIpc() {
-    ipcMain.on('set-token', (event, token) => {
-      if (this.wsClient) {
-        this.wsClient.setToken(token);
-        this.updateMenu();
-      }
-      if (this.tokenWindow && !this.tokenWindow.isDestroyed()) {
-        this.tokenWindow.close();
-      }
-    });
-
-    ipcMain.on('cancel-token', () => {
-      if (this.tokenWindow && !this.tokenWindow.isDestroyed()) {
-        this.tokenWindow.close();
-      }
-    });
-
-    ipcMain.on('get-current-token', (event) => {
-      const token = this.wsClient ? this.wsClient.getToken() : null;
-      event.reply('current-token', token || '');
-    });
-  }
-
-  /**
-   * Open token input window
-   */
-  openTokenWindow() {
-    if (this.tokenWindow && !this.tokenWindow.isDestroyed()) {
-      this.tokenWindow.focus();
-      return;
-    }
-
-    this.tokenWindow = new BrowserWindow({
-      width: 400,
-      height: 180,
-      frame: true,
-      resizable: false,
-      minimizable: false,
-      maximizable: false,
-      alwaysOnTop: true,
-      skipTaskbar: true,
-      title: 'Set WebSocket Token',
-      webPreferences: {
-        contextIsolation: true,
-        nodeIntegration: false,
-        preload: path.join(__dirname, '..', 'token-preload.js')
-      }
-    });
-
-    const html = `
-<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="UTF-8">
-  <style>
-    body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-      margin: 0;
-      padding: 20px;
-      background: #1e1e1e;
-      color: #fff;
-    }
-    label {
-      display: block;
-      margin-bottom: 8px;
-      font-size: 14px;
-    }
-    input {
-      width: 100%;
-      padding: 10px;
-      border: 1px solid #444;
-      border-radius: 4px;
-      background: #2d2d2d;
-      color: #fff;
-      font-size: 14px;
-      box-sizing: border-box;
-      margin-bottom: 16px;
-    }
-    input:focus {
-      outline: none;
-      border-color: #007acc;
-    }
-    .buttons {
-      display: flex;
-      justify-content: flex-end;
-      gap: 10px;
-    }
-    button {
-      padding: 8px 16px;
-      border: none;
-      border-radius: 4px;
-      cursor: pointer;
-      font-size: 14px;
-    }
-    .cancel {
-      background: #444;
-      color: #fff;
-    }
-    .save {
-      background: #007acc;
-      color: #fff;
-    }
-    .clear {
-      background: #6c3d3d;
-      color: #fff;
-      margin-right: auto;
-    }
-    button:hover {
-      opacity: 0.9;
-    }
-  </style>
-</head>
-<body>
-  <label for="token">WebSocket Token:</label>
-  <input type="text" id="token" placeholder="Enter your token">
-  <div class="buttons">
-    <button class="clear" onclick="clearToken()">Clear</button>
-    <button class="cancel" onclick="cancel()">Cancel</button>
-    <button class="save" onclick="save()">Save</button>
-  </div>
-  <script>
-    const input = document.getElementById('token');
-
-    window.tokenAPI.requestCurrentToken();
-    window.tokenAPI.onCurrentToken((token) => {
-      input.value = token;
-      input.select();
-    });
-
-    function save() {
-      window.tokenAPI.setToken(input.value.trim());
-    }
-
-    function cancel() {
-      window.tokenAPI.cancel();
-    }
-
-    function clearToken() {
-      input.value = '';
-      window.tokenAPI.setToken('');
-    }
-
-    input.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') save();
-      if (e.key === 'Escape') cancel();
-    });
-  </script>
-</body>
-</html>`;
-
-    this.tokenWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`);
-
-    this.tokenWindow.on('closed', () => {
-      this.tokenWindow = null;
-    });
   }
 
   openStatsWindow() {
@@ -640,8 +475,6 @@ class TrayManager {
     }
 
     const status = this.wsClient.getStatus();
-    const token = this.wsClient.getToken();
-    const hasToken = Boolean(token);
     let statusLabel;
     let statusIcon;
 
@@ -668,14 +501,6 @@ class TrayManager {
       {
         label: `${statusIcon} ${statusLabel}`,
         enabled: false
-      },
-      {
-        label: hasToken ? 'Token: Set ✓' : 'Token: Not set',
-        enabled: false
-      },
-      {
-        label: 'Set Token...',
-        click: () => this.openTokenWindow()
       }
     ];
   }
@@ -732,6 +557,34 @@ class TrayManager {
       }];
     }
     return [{ label: `Version: ${this.app.getVersion()}`, enabled: false }];
+  }
+
+  /**
+   * "About" submenu — version/update status plus doc/release links, mirroring
+   * the Settings window's About tab without needing to open it.
+   */
+  buildAboutSubmenu() {
+    return [
+      ...this.buildUpdateMenuItems(),
+      {
+        label: 'Check for Updates',
+        enabled: Boolean(this.updateChecker),
+        click: () => {
+          if (this.updateChecker) {
+            this.updateChecker.checkForUpdates().then(() => this.updateMenu());
+          }
+        }
+      },
+      { type: 'separator' },
+      {
+        label: 'Docs',
+        click: () => shell.openExternal('https://vibemon.io/docs')
+      },
+      {
+        label: 'GitHub Releases',
+        click: () => shell.openExternal('https://github.com/opspresso/vibemon-app/releases')
+      }
+    ];
   }
 
   /**
@@ -826,6 +679,7 @@ class TrayManager {
         label: 'Settings...',
         click: () => this.settingsWindowManager.open()
       }, { type: 'separator' }] : []),
+      // VibeMon — mirrors the Settings window's VibeMon tab
       {
         label: 'App Mode',
         submenu: this.buildAppModeSubmenu()
@@ -834,13 +688,7 @@ class TrayManager {
         label: 'Character Lock',
         submenu: this.buildCharacterLockSubmenu()
       },
-      { type: 'separator' },
       ...this.buildModeSection(appMode, windowCount),
-      { type: 'separator' },
-      {
-        label: 'AI Tool Hooks',
-        submenu: this.buildHookInstallerSubmenu()
-      },
       {
         label: 'Open at Login',
         type: 'checkbox',
@@ -852,21 +700,30 @@ class TrayManager {
         }
       },
       { type: 'separator' },
+      // Collector — mirrors the Settings window's Collector tab
+      ...this.buildWebSocketStatusMenu(),
+      {
+        label: `HTTP Server: localhost:${HTTP_PORT}`,
+        enabled: false
+      },
+      { type: 'separator' },
+      // AI Tools — mirrors the Settings window's AI Tools tab
+      {
+        label: 'AI Tool Hooks',
+        submenu: this.buildHookInstallerSubmenu()
+      },
+      { type: 'separator' },
+      // Extras with no Settings tab equivalent
       {
         label: 'Claude Stats',
         enabled: fs.existsSync(STATS_CACHE_PATH),
         click: () => this.openStatsWindow()
       },
       { type: 'separator' },
-      ...this.buildWebSocketStatusMenu(),
+      // About — mirrors the Settings window's About tab
       {
-        label: `HTTP Server: localhost:${HTTP_PORT}`,
-        enabled: false
-      },
-      ...this.buildUpdateMenuItems(),
-      {
-        label: 'Docs',
-        click: () => shell.openExternal('https://vibemon.io/docs')
+        label: 'About',
+        submenu: this.buildAboutSubmenu()
       },
       { type: 'separator' },
       {
@@ -904,10 +761,6 @@ class TrayManager {
     if (this.statsWindow && !this.statsWindow.isDestroyed()) {
       this.statsWindow.close();
       this.statsWindow = null;
-    }
-    if (this.tokenWindow && !this.tokenWindow.isDestroyed()) {
-      this.tokenWindow.close();
-      this.tokenWindow = null;
     }
     if (this.tray) {
       this.tray.destroy();

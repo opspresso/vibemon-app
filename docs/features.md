@@ -279,25 +279,14 @@ Changes apply immediately through the same code paths as the tray menu, and the 
 
 ### System Tray Menu
 
+Grouped to mirror the Settings window's tab order (VibeMon / Collector / AI Tools / About), plus a couple of extras with no Settings equivalent:
+
 - Settings... (opens the Settings window)
-- Switch App Mode (Character / Window / Input)
-- Character Lock (Auto/Clawd/Codex/Kiro/Claw/Daangni)
-- View active windows and their states (Window Mode only)
-- Manually change state (per window)
-- Switch character (Clawd/Codex/Kiro/Claw/Daangni)
-- Rearrange windows (Window Mode, multi sub-mode only)
-- Toggle Always on Top (Character/Window Mode)
-- Toggle Window Mode's sub-mode (Multi/Single)
-- Speech Bubble field toggles (Character Mode only; Status/Project/Model/Memory/Usage 5h/Usage Week)
-- AI Tool Hooks (per-tool install status for Claude Code/Codex CLI/Kiro IDE/OpenClaw, with one-click install)
-- Open at Login toggle
-- Project lock (in single mode)
+- **VibeMon** — App Mode (Character/Window/Input), Character Lock (Auto/Clawd/Codex/Kiro/Claw/Daangni), Window Mode section (view/switch per-project windows and states, Rearrange, Always on Top, Multi-Window Mode toggle, Project Lock in single mode) or Character Mode section (Always on Top, Speech Bubble field toggles), Open at Login toggle
+- **Collector** — WebSocket status (Connected/Disconnected), HTTP Server port display
+- **AI Tools** — AI Tool Hooks (per-tool install status for Claude Code/Codex CLI/Kiro IDE/OpenClaw, with one-click install)
 - Claude Stats
-- WebSocket status (Connected/Disconnected)
-- Set Token (WebSocket token configuration)
-- HTTP Server port display
-- Version display, or a one-click "Update to vX" / "Restart to install vX" item when an update is available
-- Docs (opens vibemon.io/docs in browser)
+- **About** — Version display or a one-click "Update to vX" / "Restart to install vX" item, Check for Updates, Docs, GitHub Releases
 - Quit
 
 ## Build
