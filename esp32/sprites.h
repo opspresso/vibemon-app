@@ -62,9 +62,10 @@ enum AppState {
 #define COLOR_SUNGLASSES_LENS  0x0080  // #001100
 #define COLOR_SUNGLASSES_SHINE 0x0180  // #003300
 
-// RGB565 color constants for memory bar gradient (matches Desktop/statusline.py)
+// RGB565 color constants for memory bar (matches statusline.py: C_GREEN/C_YELLOW/C_ORANGE/C_RED)
 #define COLOR_MEM_GREEN  0x0540  // #00AA00
 #define COLOR_MEM_YELLOW 0xFE60  // #FFCC00
+#define COLOR_MEM_ORANGE 0xFC40  // #FF8800
 #define COLOR_MEM_RED    0xFA28  // #FF4444
 
 // =============================================================================
@@ -723,59 +724,15 @@ void drawLoadingDots(TFT_eSPI &tft, int centerX, int y, int frame, bool slow = f
   }
 }
 
-// Interpolate between two RGB565 colors
-uint16_t lerpColor565(uint16_t color1, uint16_t color2, int ratio, int maxRatio) {
-  int r1 = (color1 >> 11) & 0x1F;
-  int g1 = (color1 >> 5) & 0x3F;
-  int b1 = color1 & 0x1F;
-
-  int r2 = (color2 >> 11) & 0x1F;
-  int g2 = (color2 >> 5) & 0x3F;
-  int b2 = color2 & 0x1F;
-
-  int r = r1 + ((r2 - r1) * ratio) / maxRatio;
-  int g = g1 + ((g2 - g1) * ratio) / maxRatio;
-  int b = b1 + ((b2 - b1) * ratio) / maxRatio;
-
-  r = min(31, max(0, r));
-  g = min(63, max(0, g));
-  b = min(31, max(0, b));
-
-  return (r << 11) | (g << 5) | b;
+// Bar fill color by percentage (matches statusline.py: >90 red, >70 orange, >50 yellow, else green)
+uint16_t getBarColor(int percent) {
+  if (percent > 90) return COLOR_MEM_RED;
+  if (percent > 70) return COLOR_MEM_ORANGE;
+  if (percent > 50) return COLOR_MEM_YELLOW;
+  return COLOR_MEM_GREEN;
 }
 
-// Get gradient color for a specific position in the memory bar
-// Thresholds: 0-74% Green, 75-89% Yellow, 90%+ Red (matches statusline.py)
-uint16_t getGradientColor(int pos, int width, int percent) {
-  uint16_t baseStart, baseEnd;
-  int baseRatio;
-
-  if (percent < 75) {
-    // Green to Yellow range (0-74%)
-    baseStart = COLOR_MEM_GREEN;
-    baseEnd = COLOR_MEM_YELLOW;
-    baseRatio = (percent * 100) / 75;
-  } else if (percent < 90) {
-    // Yellow to Orange range (75-89%)
-    baseStart = COLOR_MEM_YELLOW;
-    baseEnd = COLOR_MEM_RED;
-    baseRatio = ((percent - 75) * 100) / 15;
-  } else {
-    // Orange to Red range (90-100%)
-    baseStart = COLOR_MEM_YELLOW;
-    baseEnd = COLOR_MEM_RED;
-    baseRatio = 50 + ((percent - 90) * 50) / 10;
-  }
-
-  // Apply position-based gradient within the bar
-  int posRatio = (pos * 30) / width;  // 0-30% variation across bar
-  int totalRatio = min(100, max(0, baseRatio + posRatio));
-
-  return lerpColor565(baseStart, baseEnd, totalRatio, 100);
-}
-
-// Draw memory bar with gradient
-// Optimized: Uses segment-based rendering (8px segments) instead of per-pixel
+// Draw memory bar with a single threshold color
 void drawMemoryBar(TFT_eSPI &tft, int x, int y, int width, int height, int percent, uint16_t bgColor) {
   int clampedPercent = min(100, max(0, percent));
   int fillWidth = (width * clampedPercent) / 100;
@@ -791,17 +748,11 @@ void drawMemoryBar(TFT_eSPI &tft, int x, int y, int width, int height, int perce
   // Background - inside border
   tft.fillRect(x + 1, y + 1, width - 2, height - 2, containerBg);
 
-  // Fill bar with gradient using segments (8px each for ~8x speedup)
+  // Fill bar with the threshold color
   if (fillWidth > 2) {
     int barHeight = height - 2;
-    int innerWidth = fillWidth - 2;
-    int segmentSize = 8;
-
-    for (int i = 0; i < innerWidth; i += segmentSize) {
-      int segWidth = min(segmentSize, innerWidth - i);
-      uint16_t color = getGradientColor(i, innerWidth, clampedPercent);
-      tft.fillRect(x + 1 + i, y + 1, segWidth, barHeight, color);
-    }
+    uint16_t color = getBarColor(clampedPercent);
+    tft.fillRect(x + 1, y + 1, fillWidth - 2, barHeight, color);
   }
 }
 

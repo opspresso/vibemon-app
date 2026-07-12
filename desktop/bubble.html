@@ -159,13 +159,13 @@
   </div>
 
   <script>
-    // Same green/yellow/red thresholds as the engine's own metric bars
-    // (getMemoryGradient in vibemon-engine-standalone.js), simplified to a
-    // flat color per band instead of a two-stop gradient.
+    // Same green/yellow/orange/red thresholds as statusline.py's C_GREEN/C_YELLOW/C_ORANGE/C_RED
+    // and the engine's own metric bars (getBarColor in vibemon-engine-standalone.js).
     function barColor(percent) {
-      if (percent < 75) return '#00AA00';
-      if (percent < 90) return '#FFCC00';
-      return '#FF4444';
+      if (percent > 90) return '#FF4444';
+      if (percent > 70) return '#FF8800';
+      if (percent > 50) return '#FFCC00';
+      return '#00AA00';
     }
 
     // Minutes until a usage quota resets, formatted compactly: "24m", "2h5m", "3d4h".

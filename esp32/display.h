@@ -128,7 +128,7 @@ void drawInfoRow(int y, void (*iconFn)(TFT_eSPI&, int, int, uint16_t, int, uint1
 }
 
 // Helper: Draw a single-line metric row: [icon] [inline bar] [NN%]
-// Used for memory and plan-usage (5h / weekly); reuses drawMemoryBar gradient.
+// Used for memory and plan-usage (5h / weekly); reuses drawMemoryBar.
 void drawMetricRow(int y, void (*iconFn)(TFT_eSPI&, int, int, uint16_t, int, uint16_t), int percent, uint16_t textColor, uint16_t bgColor) {
   iconFn(tft, METRIC_ICON_X, y + 2, textColor, 1, bgColor);
   drawMemoryBar(tft, METRIC_BAR_X, y + 2, METRIC_BAR_W, METRIC_BAR_H, percent, bgColor);
