@@ -1,9 +1,10 @@
 /**
  * Manages ~/.vibemon/config.json — the shared config read by the
- * Claude/Codex/Kiro `vibemon.py` hook scripts (not OpenClaw, which keeps its
- * own settings in ~/.openclaw/openclaw.json). Without an http_urls entry
- * pointing at this app, those hooks run but have nowhere to send status,
- * even if their hook file is installed.
+ * Claude/Codex/Kiro `vibemon.py` hook scripts and, as a fallback for
+ * transmission settings, by the OpenClaw vibemon-bridge plugin (whose
+ * plugin config in ~/.openclaw/openclaw.json overrides it). Without an
+ * http_urls entry pointing at this app, those hooks run but have nowhere
+ * to send status, even if their hook file is installed.
  */
 
 const fs = require('fs');
