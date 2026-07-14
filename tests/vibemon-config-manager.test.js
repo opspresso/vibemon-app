@@ -119,8 +119,13 @@ describe('VibemonConfigManager', () => {
 
       expect(fs.mkdirSync).toHaveBeenCalledWith(expect.stringContaining('.vibemon'), { recursive: true });
       expect(fs.writeFileSync).toHaveBeenCalledWith(
-        expect.stringContaining('.vibemon'),
-        expect.stringContaining('"debug": true')
+        expect.stringMatching(/config\.json\.\d+\.tmp$/),
+        expect.stringContaining('"debug": true'),
+        { mode: 0o600 }
+      );
+      expect(fs.renameSync).toHaveBeenCalledWith(
+        expect.stringMatching(/config\.json\.\d+\.tmp$/),
+        expect.stringMatching(/config\.json$/)
       );
     });
 

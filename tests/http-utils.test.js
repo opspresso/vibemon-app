@@ -5,6 +5,8 @@
 const { EventEmitter } = require('events');
 const {
   setCorsHeaders,
+  isAllowedOrigin,
+  hasJsonContentType,
   sendJson,
   sendError,
   parseJsonBody
@@ -102,6 +104,22 @@ describe('setCorsHeaders', () => {
     setCorsHeaders(res, null);
 
     expect(res.setHeader).toHaveBeenCalledWith('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  });
+});
+
+describe('request boundary validation', () => {
+  test('allows missing and localhost origins only', () => {
+    expect(isAllowedOrigin(null)).toBe(true);
+    expect(isAllowedOrigin({ headers: {} })).toBe(true);
+    expect(isAllowedOrigin({ headers: { origin: 'http://localhost:3000' } })).toBe(true);
+    expect(isAllowedOrigin({ headers: { origin: 'https://evil.example' } })).toBe(false);
+  });
+
+  test('accepts JSON content types with optional charset', () => {
+    expect(hasJsonContentType(null)).toBe(false);
+    expect(hasJsonContentType({ headers: { 'content-type': 'application/json' } })).toBe(true);
+    expect(hasJsonContentType({ headers: { 'content-type': 'application/json; charset=utf-8' } })).toBe(true);
+    expect(hasJsonContentType({ headers: { 'content-type': 'text/plain' } })).toBe(false);
   });
 });
 

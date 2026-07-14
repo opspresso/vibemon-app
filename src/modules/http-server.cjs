@@ -1,18 +1,16 @@
 /**
- * HTTP server for Vibe Monitor (Multi-Window)
+ * HTTP server for VibeMon
  */
 
 const http = require('http');
 const fsPromises = require('fs').promises;
 const path = require('path');
-const { HTTP_PORT, MAX_PAYLOAD_SIZE, MAX_WINDOWS, CHARACTER_NAMES } = require('../shared/config.cjs');
-const { setCorsHeaders, sendJson, sendError, parseJsonBody } = require('./http-utils.cjs');
+const { HTTP_PORT, MAX_PAYLOAD_SIZE, RATE_LIMIT, RATE_WINDOW_MS, CHARACTER_NAMES } = require('../shared/config.cjs');
+const { setCorsHeaders, isAllowedOrigin, hasJsonContentType, sendJson, sendError, parseJsonBody } = require('./http-utils.cjs');
 const { validateStatusPayload } = require('./validators.cjs');
 
-// Rate limiting configuration
-const RATE_LIMIT = 100;       // Max requests per window
-const RATE_WINDOW_MS = 60000; // 1 minute window
-const RATE_CLEANUP_THRESHOLD = 100;  // Cleanup when map exceeds this size
+// Rate limiting: cleanup when the per-IP map exceeds this size
+const RATE_CLEANUP_THRESHOLD = 100;
 
 class HttpServer {
   constructor(stateManager, windowManager, app) {
@@ -21,7 +19,7 @@ class HttpServer {
     this.windowManager = windowManager;
     this.app = app;
     this.onStateUpdate = null;  // Callback for menu/icon updates
-    this.onProjectSwitched = null;  // Callback: (oldProjectId) => void, single-mode window reuse
+    this.onProjectSwitched = null;  // Callback: (oldProjectId) => void, window retargeted to another project
     this.onError = null;        // Callback for server errors
 
     // Rate limiting state
@@ -90,7 +88,7 @@ class HttpServer {
     });
 
     this.server.listen(HTTP_PORT, '127.0.0.1', () => {
-      console.log(`Vibe Monitor HTTP server running on http://127.0.0.1:${HTTP_PORT}`);
+      console.log(`VibeMon HTTP server running on http://127.0.0.1:${HTTP_PORT}`);
     });
 
     return this.server;
@@ -123,6 +121,10 @@ class HttpServer {
   }
 
   async handleRequest(req, res) {
+    if (!isAllowedOrigin(req)) {
+      sendError(res, 403, 'Origin not allowed');
+      return;
+    }
     setCorsHeaders(res, req);
 
     if (req.method === 'OPTIONS') {
@@ -153,9 +155,6 @@ class HttpServer {
       case 'GET /status':
         this.handleGetStatus(res);
         break;
-      case 'GET /windows':
-        this.handleGetWindows(res);
-        break;
       case 'POST /close':
         await this.handlePostClose(req, res);
         break;
@@ -171,30 +170,6 @@ class HttpServer {
       case 'POST /quit':
         this.handlePostQuit(res);
         break;
-      case 'POST /lock':
-        await this.handlePostLock(req, res);
-        break;
-      case 'POST /unlock':
-        this.handlePostUnlock(res);
-        break;
-      case 'GET /lock-mode':
-        this.handleGetLockMode(res);
-        break;
-      case 'POST /lock-mode':
-        await this.handlePostLockMode(req, res);
-        break;
-      case 'GET /window-mode':
-        this.handleGetWindowMode(res);
-        break;
-      case 'POST /window-mode':
-        await this.handlePostWindowMode(req, res);
-        break;
-      case 'GET /app-mode':
-        this.handleGetAppMode(res);
-        break;
-      case 'POST /app-mode':
-        await this.handlePostAppMode(req, res);
-        break;
       case 'GET /character-lock':
         this.handleGetCharacterLock(res);
         break;
@@ -208,6 +183,10 @@ class HttpServer {
   }
 
   async handlePostStatus(req, res) {
+    if (!hasJsonContentType(req)) {
+      sendError(res, 415, 'Content-Type must be application/json');
+      return;
+    }
     const { data, error, statusCode } = await parseJsonBody(req, MAX_PAYLOAD_SIZE);
 
     if (error) {
@@ -235,30 +214,8 @@ class HttpServer {
 
     const routeResult = this.windowManager.routeStatusUpdate(projectId, stateData);
 
-    // Blocked by lock in single mode
-    if (routeResult.blocked) {
-      sendJson(res, 200, {
-        success: false,
-        error: 'Project locked',
-        lockedProject: this.windowManager.getLockedProject()
-      });
-      return;
-    }
-
-    // No window created (max limit in multi mode)
-    if (routeResult.maxWindowsReached) {
-      sendJson(res, 200, {
-        success: false,
-        error: `Maximum windows limit (${MAX_WINDOWS}) reached`,
-        windowCount: this.windowManager.getWindowCount()
-      });
-      return;
-    }
-
-    // Project was switched in single mode
+    // The window was retargeted from another project
     if (routeResult.switchedProject) {
-      // Clean up old project's timers
-      this.stateManager.cleanupProject(routeResult.switchedProject);
       if (this.onProjectSwitched) {
         this.onProjectSwitched(routeResult.switchedProject);
       }
@@ -266,28 +223,25 @@ class HttpServer {
 
     const updateResult = routeResult.updateResult;
 
+    // Every accepted update is activity, including unchanged/background updates.
+    this.stateManager.setupStateTimeout(projectId, stateData.state);
+
     // No change - skip unnecessary updates
     if (!updateResult.updated) {
       sendJson(res, 200, {
         success: true,
         project: projectId,
         state: stateData.state,
-        windowCount: this.windowManager.getWindowCount(),
+        focusedProject: this.windowManager.getFocusedProjectId(),
         skipped: true
       });
       return;
     }
 
-    // State changed - full update (alwaysOnTop, rearrange, timeout, tray)
+    // State changed - full update (alwaysOnTop, timeout, tray)
     if (updateResult.stateChanged) {
       // Update always on top based on state (active states stay on top)
-      this.windowManager.updateAlwaysOnTopByState(projectId, stateData.state);
-
-      // Rearrange windows by state and name (active states on right)
-      this.windowManager.rearrangeWindows();
-
-      // Set up state timeout for this project
-      this.stateManager.setupStateTimeout(projectId, stateData.state);
+      this.windowManager.updateAlwaysOnTopByState(stateData.state);
 
       // Update tray
       if (this.onStateUpdate) {
@@ -303,37 +257,24 @@ class HttpServer {
       success: true,
       project: projectId,
       state: stateData.state,
-      windowCount: this.windowManager.getWindowCount()
+      focusedProject: this.windowManager.getFocusedProjectId()
     });
   }
 
   handleGetStatus(res) {
-    // Return all windows' states
-    const states = this.windowManager.getStates();
+    // Return every tracked project's latest state, plus which one the
+    // character window currently follows
     sendJson(res, 200, {
-      windowCount: this.windowManager.getWindowCount(),
-      projects: states
-    });
-  }
-
-  handleGetWindows(res) {
-    // List all active windows
-    const windows = this.windowManager.getWindows();
-    const windowList = Object.entries(windows).map(([projectId, windowInfo]) => ({
-      project: projectId,
-      state: windowInfo.state ? windowInfo.state.state : 'unknown',
-      bounds: windowInfo.window && !windowInfo.window.isDestroyed()
-        ? windowInfo.window.getBounds()
-        : null
-    }));
-
-    sendJson(res, 200, {
-      windowCount: windowList.length,
-      windows: windowList
+      focusedProject: this.windowManager.getFocusedProjectId(),
+      projects: this.windowManager.getRegisteredStates()
     });
   }
 
   async handlePostClose(req, res) {
+    if (!hasJsonContentType(req)) {
+      sendError(res, 415, 'Content-Type must be application/json');
+      return;
+    }
     const { data, error, statusCode } = await parseJsonBody(req, MAX_PAYLOAD_SIZE);
 
     if (error) {
@@ -365,8 +306,7 @@ class HttpServer {
 
     sendJson(res, 200, {
       success: true,
-      project: projectId,
-      windowCount: this.windowManager.getWindowCount()
+      project: projectId
     });
   }
 
@@ -375,6 +315,10 @@ class HttpServer {
   }
 
   async handlePostShow(req, res) {
+    if (req.headers['content-length'] && !hasJsonContentType(req)) {
+      sendError(res, 415, 'Content-Type must be application/json');
+      return;
+    }
     const { data, error, statusCode } = await parseJsonBody(req, MAX_PAYLOAD_SIZE);
 
     if (error) {
@@ -384,14 +328,14 @@ class HttpServer {
 
     const projectId = data.project;
 
-    // Show specific project window or first window
+    // Show the window for a specific project, or whichever it follows
     const shown = projectId
       ? this.windowManager.showWindow(projectId)
-      : this.windowManager.showFirstWindow();
+      : this.windowManager.showActiveWindow();
 
     sendJson(res, 200, {
       success: shown,
-      project: projectId || 'first'
+      project: projectId || this.windowManager.getFocusedProjectId()
     });
   }
 
@@ -406,214 +350,6 @@ class HttpServer {
     setTimeout(() => this.app.quit(), 100);
   }
 
-  async handlePostLock(req, res) {
-    const { data, error, statusCode } = await parseJsonBody(req, MAX_PAYLOAD_SIZE);
-
-    if (error) {
-      sendError(res, statusCode, error);
-      return;
-    }
-
-    const projectId = data.project;
-
-    if (!projectId) {
-      sendError(res, 400, 'Project is required');
-      return;
-    }
-
-    // Lock only works in single mode
-    if (this.windowManager.isMultiMode()) {
-      sendJson(res, 200, {
-        success: false,
-        error: 'Lock only available in single-window mode'
-      });
-      return;
-    }
-
-    // Check if project has an active window
-    const hasWindow = this.windowManager.hasWindow(projectId);
-    const locked = this.windowManager.lockProject(projectId);
-
-    // Update tray menu
-    if (this.onStateUpdate) {
-      this.onStateUpdate(true);
-    }
-
-    const response = {
-      success: locked,
-      lockedProject: this.windowManager.getLockedProject()
-    };
-
-    // Add warning if locking a project without active window
-    if (locked && !hasWindow) {
-      response.warning = 'No active window for this project';
-    }
-
-    sendJson(res, 200, response);
-  }
-
-  handlePostUnlock(res) {
-    // Unlock only works in single mode
-    if (this.windowManager.isMultiMode()) {
-      sendJson(res, 200, {
-        success: false,
-        error: 'Unlock only available in single-window mode'
-      });
-      return;
-    }
-
-    this.windowManager.unlockProject();
-
-    // Update tray menu
-    if (this.onStateUpdate) {
-      this.onStateUpdate(true);
-    }
-
-    sendJson(res, 200, {
-      success: true,
-      lockedProject: null
-    });
-  }
-
-  handleGetLockMode(res) {
-    sendJson(res, 200, {
-      mode: this.windowManager.getLockMode(),
-      modes: this.windowManager.getLockModes(),
-      lockedProject: this.windowManager.getLockedProject(),
-      windowMode: this.windowManager.getWindowMode()
-    });
-  }
-
-  async handlePostLockMode(req, res) {
-    const { data, error, statusCode } = await parseJsonBody(req, MAX_PAYLOAD_SIZE);
-
-    if (error) {
-      sendError(res, statusCode, error);
-      return;
-    }
-
-    const mode = data.mode;
-
-    if (!mode) {
-      sendError(res, 400, 'Mode is required');
-      return;
-    }
-
-    const success = this.windowManager.setLockMode(mode);
-
-    if (!success) {
-      sendJson(res, 200, {
-        success: false,
-        error: `Invalid mode: ${mode}`,
-        validModes: Object.keys(this.windowManager.getLockModes())
-      });
-      return;
-    }
-
-    // Update tray menu
-    if (this.onStateUpdate) {
-      this.onStateUpdate(true);
-    }
-
-    sendJson(res, 200, {
-      success: true,
-      mode: this.windowManager.getLockMode(),
-      lockedProject: this.windowManager.getLockedProject()
-    });
-  }
-
-  handleGetWindowMode(res) {
-    sendJson(res, 200, {
-      mode: this.windowManager.getWindowMode(),
-      windowCount: this.windowManager.getWindowCount(),
-      lockedProject: this.windowManager.getLockedProject()
-    });
-  }
-
-  async handlePostWindowMode(req, res) {
-    const { data, error, statusCode } = await parseJsonBody(req, MAX_PAYLOAD_SIZE);
-
-    if (error) {
-      sendError(res, statusCode, error);
-      return;
-    }
-
-    const mode = data.mode;
-
-    if (!mode) {
-      sendError(res, 400, 'Mode is required');
-      return;
-    }
-
-    if (mode !== 'multi' && mode !== 'single') {
-      sendJson(res, 200, {
-        success: false,
-        error: `Invalid mode: ${mode}`,
-        validModes: ['multi', 'single']
-      });
-      return;
-    }
-
-    this.windowManager.setWindowMode(mode);
-
-    // Update tray menu
-    if (this.onStateUpdate) {
-      this.onStateUpdate(true);
-    }
-
-    sendJson(res, 200, {
-      success: true,
-      mode: this.windowManager.getWindowMode(),
-      windowCount: this.windowManager.getWindowCount(),
-      lockedProject: this.windowManager.getLockedProject()
-    });
-  }
-
-  handleGetAppMode(res) {
-    sendJson(res, 200, {
-      mode: this.windowManager.getAppMode(),
-      windowCount: this.windowManager.getWindowCount()
-    });
-  }
-
-  async handlePostAppMode(req, res) {
-    const { data, error, statusCode } = await parseJsonBody(req, MAX_PAYLOAD_SIZE);
-
-    if (error) {
-      sendError(res, statusCode, error);
-      return;
-    }
-
-    const mode = data.mode;
-
-    if (!mode) {
-      sendError(res, 400, 'Mode is required');
-      return;
-    }
-
-    if (mode !== 'character' && mode !== 'window' && mode !== 'input') {
-      sendJson(res, 200, {
-        success: false,
-        error: `Invalid mode: ${mode}`,
-        validModes: ['character', 'window', 'input']
-      });
-      return;
-    }
-
-    this.windowManager.setAppMode(mode);
-
-    // Update tray menu
-    if (this.onStateUpdate) {
-      this.onStateUpdate(true);
-    }
-
-    sendJson(res, 200, {
-      success: true,
-      mode: this.windowManager.getAppMode(),
-      windowCount: this.windowManager.getWindowCount()
-    });
-  }
-
   handleGetCharacterLock(res) {
     sendJson(res, 200, {
       character: this.windowManager.getCharacterLock()
@@ -621,6 +357,10 @@ class HttpServer {
   }
 
   async handlePostCharacterLock(req, res) {
+    if (!hasJsonContentType(req)) {
+      sendError(res, 415, 'Content-Type must be application/json');
+      return;
+    }
     const { data, error, statusCode } = await parseJsonBody(req, MAX_PAYLOAD_SIZE);
 
     if (error) {
@@ -658,19 +398,18 @@ class HttpServer {
   }
 
   handleGetDashboardData(res) {
-    const windows = this.windowManager.getWindows();
-    const windowList = Object.entries(windows).map(([projectId, info]) => ({
+    const focusedProject = this.windowManager.getFocusedProjectId();
+    const projects = Object.entries(this.windowManager.getRegisteredStates()).map(([projectId, state]) => ({
       project: projectId,
-      state: info.state ? info.state.state : 'unknown'
+      state: state ? state.state : 'unknown',
+      focused: projectId === focusedProject
     }));
 
     sendJson(res, 200, {
       health: 'ok',
-      windowCount: windowList.length,
-      windowMode: this.windowManager.getWindowMode(),
-      lockMode: this.windowManager.getLockMode(),
-      lockedProject: this.windowManager.getLockedProject(),
-      windows: windowList
+      focusedProject,
+      characterLock: this.windowManager.getCharacterLock(),
+      projects
     });
   }
 

@@ -180,23 +180,23 @@
         <div class="sub">http://127.0.0.1:19280</div>
       </div>
       <div class="card">
-        <h2>Active Windows</h2>
-        <div class="value" id="window-count">—</div>
-        <div class="sub" id="window-mode-sub">mode: —</div>
+        <h2>Focused Project</h2>
+        <div class="value" id="focused-value">—</div>
+        <div class="sub">the project the character follows</div>
       </div>
       <div class="card">
-        <h2>Lock</h2>
-        <div class="value" id="lock-value">—</div>
-        <div class="sub" id="lock-mode-sub">mode: —</div>
+        <h2>Character Lock</h2>
+        <div class="value" id="character-lock-value">—</div>
+        <div class="sub">auto follows each project's character</div>
       </div>
     </div>
 
     <div class="refresh-hint">auto-refresh every 3s</div>
 
     <div class="section">
-      <h2>Connected Projects</h2>
+      <h2>Tracked Projects</h2>
       <div class="projects-list" id="projects-list">
-        <div class="empty">No active projects. Send POST /status to create a window.</div>
+        <div class="empty">No tracked projects. Send POST /status to show the character.</div>
       </div>
     </div>
 
@@ -219,19 +219,14 @@
     <div class="section">
       <h2>HTTP API</h2>
       <div class="api-list">
-        <div class="api-row"><span class="api-method method-POST">POST</span><span class="api-path">/status</span><span class="api-desc">Create/update project window</span></div>
-        <div class="api-row"><span class="api-method method-GET">GET</span><span class="api-path">/status</span><span class="api-desc">All window states</span></div>
-        <div class="api-row"><span class="api-method method-GET">GET</span><span class="api-path">/windows</span><span class="api-desc">List active windows</span></div>
-        <div class="api-row"><span class="api-method method-POST">POST</span><span class="api-path">/close</span><span class="api-desc">Close project window</span></div>
-        <div class="api-row"><span class="api-method method-POST">POST</span><span class="api-path">/show</span><span class="api-desc">Show window</span></div>
+        <div class="api-row"><span class="api-method method-POST">POST</span><span class="api-path">/status</span><span class="api-desc">Update a project's status</span></div>
+        <div class="api-row"><span class="api-method method-GET">GET</span><span class="api-path">/status</span><span class="api-desc">All tracked project states</span></div>
+        <div class="api-row"><span class="api-method method-POST">POST</span><span class="api-path">/close</span><span class="api-desc">Close the character window</span></div>
+        <div class="api-row"><span class="api-method method-POST">POST</span><span class="api-path">/show</span><span class="api-desc">Show the character window</span></div>
         <div class="api-row"><span class="api-method method-GET">GET</span><span class="api-path">/health</span><span class="api-desc">Health check</span></div>
         <div class="api-row"><span class="api-method method-GET">GET</span><span class="api-path">/debug</span><span class="api-desc">Debug info</span></div>
-        <div class="api-row"><span class="api-method method-POST">POST</span><span class="api-path">/lock</span><span class="api-desc">Lock to project</span></div>
-        <div class="api-row"><span class="api-method method-POST">POST</span><span class="api-path">/unlock</span><span class="api-desc">Unlock project</span></div>
-        <div class="api-row"><span class="api-method method-GET">GET</span><span class="api-path">/lock-mode</span><span class="api-desc">Get lock mode</span></div>
-        <div class="api-row"><span class="api-method method-POST">POST</span><span class="api-path">/lock-mode</span><span class="api-desc">Set lock mode</span></div>
-        <div class="api-row"><span class="api-method method-GET">GET</span><span class="api-path">/window-mode</span><span class="api-desc">Get window mode</span></div>
-        <div class="api-row"><span class="api-method method-POST">POST</span><span class="api-path">/window-mode</span><span class="api-desc">Set window mode (multi/single)</span></div>
+        <div class="api-row"><span class="api-method method-GET">GET</span><span class="api-path">/character-lock</span><span class="api-desc">Get character lock</span></div>
+        <div class="api-row"><span class="api-method method-POST">POST</span><span class="api-path">/character-lock</span><span class="api-desc">Set character lock</span></div>
         <div class="api-row"><span class="api-method method-POST">POST</span><span class="api-path">/quit</span><span class="api-desc">Quit application</span></div>
       </div>
     </div>
@@ -268,20 +263,19 @@
         return;
       }
 
-      document.getElementById('window-count').textContent = data.windowCount;
-      document.getElementById('window-mode-sub').textContent = 'mode: ' + data.windowMode;
-      document.getElementById('lock-value').textContent = data.lockedProject || 'unlocked';
-      document.getElementById('lock-mode-sub').textContent = 'mode: ' + data.lockMode;
+      document.getElementById('focused-value').textContent = data.focusedProject || '—';
+      document.getElementById('character-lock-value').textContent = data.characterLock || 'auto';
 
       const list = document.getElementById('projects-list');
-      if (!data.windows || data.windows.length === 0) {
-        list.innerHTML = '<div class="empty">No active projects. Send POST /status to create a window.</div>';
+      if (!data.projects || data.projects.length === 0) {
+        list.innerHTML = '<div class="empty">No tracked projects. Send POST /status to show the character.</div>';
       } else {
-        list.innerHTML = data.windows.map((w) => {
-          const state = w.state || 'unknown';
+        list.innerHTML = data.projects.map((p) => {
+          const state = p.state || 'unknown';
           const stateClass = 'state-' + state;
+          const focusedMark = p.focused ? ' ★' : '';
           return `<div class="project-row">
-            <span class="name">${escapeHtml(w.project)}</span>
+            <span class="name">${escapeHtml(p.project)}${focusedMark}</span>
             <span class="state-badge ${stateClass}"><span class="dot"></span>${escapeHtml(state)}</span>
           </div>`;
         }).join('');

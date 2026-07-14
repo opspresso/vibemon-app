@@ -12,50 +12,36 @@ jest.mock('electron', () => ({
 }));
 
 jest.mock('canvas', () => ({
-  createCanvas: jest.fn()
+  createCanvas: jest.fn(),
+  loadImage: jest.fn(() => Promise.resolve(null))
 }));
 
 const { TrayManager } = require('../src/modules/tray-manager.cjs');
 
 function makeWindowManager(state) {
   return {
-    getProjectIds: () => ['proj-a'],
+    getProjectIds: () => (state ? ['proj-a'] : []),
     getState: () => state,
-    showWindow: jest.fn(),
-    closeWindow: jest.fn(),
-    updateState: jest.fn(),
-    sendToWindow: jest.fn(),
-    updateAlwaysOnTopByState: jest.fn()
+    getCharacterLock: () => 'auto',
+    setCharacterLock: jest.fn(),
+    getAlwaysOnTopMode: () => 'active-only',
+    setAlwaysOnTopMode: jest.fn(),
+    getSpeechBubbleFields: () => ({ status: true, project: false }),
+    setSpeechBubbleField: jest.fn()
+  };
+}
+
+function makeApp() {
+  return {
+    getVersion: () => '0.0.0',
+    getLoginItemSettings: () => ({ openAtLogin: false }),
+    setLoginItemSettings: jest.fn()
   };
 }
 
 describe('TrayManager settings menu item', () => {
-  function makeFullWindowManager(state) {
-    return {
-      ...makeWindowManager(state),
-      getAppMode: () => 'window',
-      getRegisteredStates: () => ({}),
-      getCharacterLock: () => 'auto',
-      getAlwaysOnTopMode: () => 'active-only',
-      getSpeechBubbleFields: () => ({}),
-      isMultiMode: () => true,
-      setAppMode: jest.fn(),
-      arrangeWindowsByName: jest.fn(),
-      showAllWindows: jest.fn(),
-      closeAllWindows: jest.fn()
-    };
-  }
-
-  function makeApp() {
-    return {
-      getVersion: () => '0.0.0',
-      getLoginItemSettings: () => ({ openAtLogin: false }),
-      setLoginItemSettings: jest.fn()
-    };
-  }
-
   test('shows Settings... that opens the settings window when a manager is set', () => {
-    const windowManager = makeFullWindowManager({ state: 'idle', character: 'clawd' });
+    const windowManager = makeWindowManager({ state: 'idle', character: 'clawd', project: 'proj-a' });
     const tray = new TrayManager(windowManager, makeApp(), { setupStateTimeout: jest.fn() });
     const settingsWindowManager = { open: jest.fn() };
     tray.setSettingsWindowManager(settingsWindowManager);
@@ -69,7 +55,7 @@ describe('TrayManager settings menu item', () => {
   });
 
   test('omits Settings... when no settings window manager is set', () => {
-    const windowManager = makeFullWindowManager({ state: 'idle', character: 'clawd' });
+    const windowManager = makeWindowManager({ state: 'idle', character: 'clawd', project: 'proj-a' });
     const tray = new TrayManager(windowManager, makeApp(), { setupStateTimeout: jest.fn() });
 
     const template = tray.buildMenuTemplate();
@@ -77,38 +63,61 @@ describe('TrayManager settings menu item', () => {
   });
 });
 
-describe('TrayManager state submenu', () => {
-  test('manually changing a project state refreshes its state timeout', () => {
-    const state = { state: 'working', character: 'clawd' };
-    const windowManager = makeWindowManager(state);
-    const stateManager = { setupStateTimeout: jest.fn() };
-    const tray = new TrayManager(windowManager, {}, stateManager);
+describe('TrayManager status label', () => {
+  test('shows the followed project and its state', () => {
+    const windowManager = makeWindowManager({ state: 'working', character: 'clawd', project: 'proj-a' });
+    const tray = new TrayManager(windowManager, makeApp(), { setupStateTimeout: jest.fn() });
 
-    const items = tray.buildWindowsSubmenu();
-    const stateSubmenu = items[0].submenu.find(i => i.label === 'State').submenu;
-    const idleItem = stateSubmenu.find(i => i.label === 'idle');
-
-    idleItem.click();
-
-    expect(stateManager.setupStateTimeout).toHaveBeenCalledWith('proj-a', 'idle');
-    expect(windowManager.updateState).toHaveBeenCalledWith(
-      'proj-a',
-      expect.objectContaining({ state: 'idle' })
-    );
+    const template = tray.buildMenuTemplate();
+    expect(template[0].label).toBe('proj-a: working');
   });
 
-  test('changing character does not touch the state timeout', () => {
-    const state = { state: 'working', character: 'clawd' };
-    const windowManager = makeWindowManager(state);
-    const stateManager = { setupStateTimeout: jest.fn() };
-    const tray = new TrayManager(windowManager, {}, stateManager);
+  test('shows a waiting label when no window exists yet', () => {
+    const windowManager = makeWindowManager(null);
+    const tray = new TrayManager(windowManager, makeApp(), { setupStateTimeout: jest.fn() });
 
-    const items = tray.buildWindowsSubmenu();
-    const characterSubmenu = items[0].submenu.find(i => i.label === 'Character').submenu;
-    const kiroItem = characterSubmenu.find(i => i.label === 'kiro');
+    const template = tray.buildMenuTemplate();
+    expect(template[0].label).toBe('Waiting for status');
+  });
+});
 
+describe('TrayManager character lock submenu', () => {
+  test('clicking a character forwards it to the window manager', () => {
+    const windowManager = makeWindowManager({ state: 'idle', character: 'clawd', project: 'proj-a' });
+    const tray = new TrayManager(windowManager, makeApp(), { setupStateTimeout: jest.fn() });
+
+    const items = tray.buildCharacterLockSubmenu();
+    const kiroItem = items.find(i => i.label === 'Kiro');
     kiroItem.click();
 
-    expect(stateManager.setupStateTimeout).not.toHaveBeenCalled();
+    expect(windowManager.setCharacterLock).toHaveBeenCalledWith('kiro');
+  });
+});
+
+describe('TrayManager always on top submenu', () => {
+  test('lists Always / While Active / Never with the current mode checked', () => {
+    const windowManager = makeWindowManager({ state: 'idle', character: 'clawd', project: 'proj-a' });
+    const tray = new TrayManager(windowManager, makeApp(), { setupStateTimeout: jest.fn() });
+
+    const items = tray.buildAlwaysOnTopSubmenu();
+
+    expect(items.map(i => i.label)).toEqual(['Always', 'While Active', 'Never']);
+    expect(items.find(i => i.label === 'While Active').checked).toBe(true);
+
+    items.find(i => i.label === 'Never').click();
+    expect(windowManager.setAlwaysOnTopMode).toHaveBeenCalledWith('disabled');
+  });
+});
+
+describe('TrayManager speech bubble submenu', () => {
+  test('clicking a field toggles its current value', () => {
+    const windowManager = makeWindowManager({ state: 'idle', character: 'clawd', project: 'proj-a' });
+    const tray = new TrayManager(windowManager, makeApp(), { setupStateTimeout: jest.fn() });
+
+    const items = tray.buildSpeechBubbleSubmenu();
+    const projectItem = items.find(i => i.label === 'Project');
+    projectItem.click();
+
+    expect(windowManager.setSpeechBubbleField).toHaveBeenCalledWith('project', true);
   });
 });

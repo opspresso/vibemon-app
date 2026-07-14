@@ -75,6 +75,15 @@ MockWebSocketConstructor.CLOSED = 3;
 
 jest.mock('ws', () => MockWebSocketConstructor);
 
+jest.mock('electron-store', () => jest.fn().mockImplementation(() => {
+  const data = new Map();
+  return {
+    get: (key) => data.get(key),
+    set: (key, value) => data.set(key, value),
+    delete: (key) => data.delete(key)
+  };
+}));
+
 // Mock config module
 jest.mock('../src/shared/config.cjs', () => ({
   WS_URL: null,
@@ -122,7 +131,6 @@ describe('WsClient', () => {
     });
 
     test('returns true when WS_URL is set', () => {
-      configModule.WS_URL = 'wss://example.com/ws';
       const client = createClient();
       client.url = 'wss://example.com/ws';
       expect(client.isConfigured()).toBe(true);
@@ -400,6 +408,28 @@ describe('WsClient', () => {
       expect(client.shouldReconnect).toBe(false);
       expect(client.reconnectTimer).toBeNull();
       jest.useRealTimers();
+    });
+  });
+
+  describe('reconnect', () => {
+    test('ignores a delayed close event from the replaced socket', () => {
+      const client = createClient();
+      client.url = 'wss://example.com/ws';
+      client.connect();
+      const oldSocket = mockWsInstance;
+      oldSocket.simulateOpen();
+      oldSocket.close = jest.fn(() => {
+        oldSocket.readyState = MockWebSocket.CLOSED;
+      });
+
+      client.setToken('new-token');
+      const newSocket = mockWsInstance;
+      newSocket.simulateOpen();
+      oldSocket.emit('close', 1000, 'Delayed close');
+
+      expect(client.ws).toBe(newSocket);
+      expect(client.isConnected).toBe(true);
+      expect(client.reconnectTimer).toBeNull();
     });
   });
 

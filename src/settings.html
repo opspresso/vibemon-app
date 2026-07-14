@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>VibeMon Settings</title>
   <style>
@@ -188,24 +189,6 @@
       <section id="tab-vibemon" class="tab active">
         <h1>VibeMon</h1>
 
-        <h2>Mode</h2>
-        <div class="rows">
-          <div class="row">
-            <div class="row-text">
-              <label for="app-mode">App Mode</label>
-              <p class="hint">Character: one pet window · Window: per-project windows · Input: collect only</p>
-            </div>
-            <select id="app-mode"></select>
-          </div>
-          <div class="row">
-            <div class="row-text">
-              <label for="window-mode">Window Mode</label>
-              <p class="hint">Multi: one window per project · Single: one reused window</p>
-            </div>
-            <select id="window-mode"></select>
-          </div>
-        </div>
-
         <h2>Character</h2>
         <div class="rows">
           <div class="row">
@@ -222,14 +205,14 @@
           <div class="row">
             <div class="row-text">
               <label for="always-on-top">Always on Top</label>
-              <p class="hint">Active Only keeps busy states on top and lets idle windows drop back</p>
+              <p class="hint">While Active keeps the character on top only in busy states (thinking, working, ...)</p>
             </div>
             <select id="always-on-top"></select>
           </div>
           <div class="row">
             <div class="row-text">
               <label>Speech Bubble Fields</label>
-              <p class="hint">Info shown next to the character in Character Mode</p>
+              <p class="hint">Info shown in the speech bubble next to the character</p>
             </div>
             <div id="speech-bubble-fields" style="display:flex; gap:10px; flex-wrap:wrap; justify-content:flex-end;"></div>
           </div>
@@ -273,7 +256,7 @@
               <p class="hint">Account token — also configures the collector's ~/.vibemon/config.json</p>
             </div>
             <div class="token-row">
-              <input type="text" id="ws-token" placeholder="Enter your token">
+              <input type="password" id="ws-token" placeholder="Enter a new token">
               <button class="action" id="token-save">Save</button>
               <button class="action danger" id="token-clear">Clear</button>
             </div>
@@ -401,11 +384,9 @@
     }
 
     function renderVibemon(s) {
-      fillSelect($('app-mode'), Object.entries(s.options.appModes), s.appMode);
-      fillSelect($('window-mode'), s.options.windowModes.map((m) => [m, m === 'multi' ? 'Multi' : 'Single']), s.windowMode);
       fillSelect(
         $('character-lock'),
-        [['auto', 'Auto'], ...s.options.characterNames.map((c) => [c, c])],
+        [['auto', 'Auto'], ...s.options.characters.map((c) => [c.name, c.displayName])],
         s.characterLock
       );
       fillSelect($('always-on-top'), Object.entries(s.options.alwaysOnTopModes), s.alwaysOnTopMode);
@@ -439,10 +420,7 @@
       wsBadge.textContent = text;
       wsBadge.className = 'badge' + (cls ? ' ' + cls : '');
 
-      // Don't clobber the token input while the user is editing it
-      if (document.activeElement !== $('ws-token')) {
-        $('ws-token').value = s.ws.token;
-      }
+      $('ws-token').placeholder = s.ws.tokenConfigured ? 'Token configured' : 'Enter a new token';
     }
 
     function renderHooks(hooks) {
@@ -650,14 +628,6 @@
     }
 
     // --- Control wiring ---
-    $('app-mode').addEventListener('change', async (e) => {
-      await window.settingsAPI.setAppMode(e.target.value);
-      loadAll();
-    });
-    $('window-mode').addEventListener('change', async (e) => {
-      await window.settingsAPI.setWindowMode(e.target.value);
-      loadAll();
-    });
     $('character-lock').addEventListener('change', async (e) => {
       await window.settingsAPI.setCharacterLock(e.target.value);
     });

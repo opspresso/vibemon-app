@@ -7,9 +7,14 @@
  */
 
 const {
-  IDLE_TIMEOUT, SLEEP_TIMEOUT, WINDOW_CLOSE_TIMEOUT,
+  IDLE_TIMEOUT_MS, SLEEP_TIMEOUT_MS, WINDOW_CLOSE_TIMEOUT_MS,
   CHARACTER_CONFIG, DEFAULT_CHARACTER
 } = require('../shared/config.cjs');
+
+const STATUS_FIELDS = [
+  'state', 'project', 'tool', 'model', 'memory', 'usage5h', 'usageWeek',
+  'usage5hResetsIn', 'usageWeekResetsIn', 'character', 'terminalId'
+];
 
 class StateManager {
   constructor() {
@@ -60,7 +65,7 @@ class StateManager {
       const timer = setTimeout(() => {
         this.windowCloseTimers.delete(projectId);
         this.onWindowCloseTimeout(projectId);
-      }, WINDOW_CLOSE_TIMEOUT);
+      }, WINDOW_CLOSE_TIMEOUT_MS);
       this.windowCloseTimers.set(projectId, timer);
     }
   }
@@ -81,7 +86,7 @@ class StateManager {
         if (this.onStateTimeout) {
           this.onStateTimeout(projectId, 'idle');
         }
-      }, IDLE_TIMEOUT);
+      }, IDLE_TIMEOUT_MS);
       this.stateTimeoutTimers.set(projectId, timer);
     } else if (currentState === 'planning' || currentState === 'thinking' ||
                currentState === 'working' || currentState === 'packing' ||
@@ -92,7 +97,7 @@ class StateManager {
         if (this.onStateTimeout) {
           this.onStateTimeout(projectId, 'idle');
         }
-      }, SLEEP_TIMEOUT);
+      }, SLEEP_TIMEOUT_MS);
       this.stateTimeoutTimers.set(projectId, timer);
     } else if (currentState === 'idle') {
       // idle -> sleep after 5 minutes
@@ -101,7 +106,7 @@ class StateManager {
         if (this.onStateTimeout) {
           this.onStateTimeout(projectId, 'sleep');
         }
-      }, SLEEP_TIMEOUT);
+      }, SLEEP_TIMEOUT_MS);
       this.stateTimeoutTimers.set(projectId, timer);
     } else if (currentState === 'sleep') {
       // sleep -> close window after 10 minutes
@@ -122,7 +127,9 @@ class StateManager {
     }
 
     // Create a new normalized data object (immutability)
-    const normalized = { ...data };
+    const normalized = Object.fromEntries(
+      STATUS_FIELDS.filter(field => data[field] !== undefined).map(field => [field, data[field]])
+    );
 
     // Validate and normalize character field
     if (normalized.character !== undefined) {

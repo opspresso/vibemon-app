@@ -124,7 +124,10 @@ class WsClient {
   }
 
   /**
-   * Build connection URL with token as query parameter (like ESP32)
+   * Build connection URL with token as query parameter. The deployed server
+   * authorizes at the HTTP upgrade, before any protocol message can be sent,
+   * so the token must be in the URL; the auth message sent on 'open' covers
+   * servers that authenticate via the protocol instead.
    * @returns {string}
    */
   buildConnectionUrl() {
@@ -132,7 +135,6 @@ class WsClient {
       return this.url;
     }
 
-    // Add token as query parameter (same as ESP32: /?token=xxx)
     const separator = this.url.includes('?') ? '&' : '?';
     return `${this.url}${separator}token=${encodeURIComponent(this.token)}`;
   }
@@ -157,9 +159,11 @@ class WsClient {
     console.log(`WebSocket connecting to ${this.url}...`);
 
     try {
-      this.ws = new WebSocket(connectionUrl);
+      const socket = new WebSocket(connectionUrl);
+      this.ws = socket;
 
-      this.ws.on('open', () => {
+      socket.on('open', () => {
+        if (this.ws !== socket) return;
         console.log('WebSocket connected');
         this.isConnecting = false;
         this.isConnected = true;
@@ -169,20 +173,24 @@ class WsClient {
         this.notifyConnectionChange();
       });
 
-      this.ws.on('pong', () => {
+      socket.on('pong', () => {
+        if (this.ws !== socket) return;
         this.pongReceived = true;
       });
 
-      this.ws.on('message', (data) => {
+      socket.on('message', (data) => {
+        if (this.ws !== socket) return;
         this.handleMessage(data);
       });
 
-      this.ws.on('close', (code, reason) => {
+      socket.on('close', (code, reason) => {
         console.log(`WebSocket closed: ${code} ${reason}`);
+        if (this.ws !== socket) return;
         this.handleDisconnect();
       });
 
-      this.ws.on('error', (error) => {
+      socket.on('error', (error) => {
+        if (this.ws !== socket) return;
         console.error('WebSocket error:', error.message);
         // Error will be followed by close event
       });

@@ -180,13 +180,15 @@ class VibemonConfigManager {
 
   persist(config) {
     fs.mkdirSync(VIBEMON_HOME, { recursive: true });
-    fs.writeFileSync(VIBEMON_CONFIG_PATH, JSON.stringify(config, null, 2) + '\n');
+    const tempPath = `${VIBEMON_CONFIG_PATH}.${process.pid}.tmp`;
+    fs.writeFileSync(tempPath, JSON.stringify(config, null, 2) + '\n', { mode: 0o600 });
     try {
       fs.chmodSync(VIBEMON_HOME, 0o700);
-      fs.chmodSync(VIBEMON_CONFIG_PATH, 0o600);
+      fs.chmodSync(tempPath, 0o600);
     } catch {
       // Best-effort; non-Unix platforms may not support chmod.
     }
+    fs.renameSync(tempPath, VIBEMON_CONFIG_PATH);
   }
 }
 
