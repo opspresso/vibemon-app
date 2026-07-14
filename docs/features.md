@@ -49,7 +49,10 @@ Forces the character window to always show one character, ignoring whatever char
 ## States
 
 The state drives the character's eyes/effects on the sprite, the speech
-bubble's background color, and the tray icon's background color.
+bubble's background color, and the tray icon's background color. States
+are defined in a single registry (`src/shared/data/states.json`): bubble
+color/text, focus and loading behavior, and eye/effect type all live in
+one entry per state.
 
 | State | Color | Eyes | Bubble text | Trigger |
 |-------|-------|------|-------------|---------|

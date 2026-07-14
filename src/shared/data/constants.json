@@ -1,18 +1,23 @@
 {
   "HTTP_PORT": 19280,
   "MAX_PAYLOAD_SIZE": 10240,
+  "RATE_LIMIT": 100,
+  "RATE_WINDOW_MS": 60000,
+  "REQUEST_TIMEOUT_MS": 30000,
 
   "WINDOW_WIDTH": 172,
   "SNAP_THRESHOLD": 30,
-  "SNAP_DEBOUNCE": 150,
-  "POSITION_RESTORE_DELAY": 1000,
+  "SNAP_DEBOUNCE_MS": 150,
+  "POSITION_RESTORE_DELAY_MS": 1000,
   "MAX_STATE_REGISTRY_SIZE": 50,
 
-  "IDLE_TIMEOUT": 60000,
-  "SLEEP_TIMEOUT": 300000,
-  "WINDOW_CLOSE_TIMEOUT": 600000,
+  "IDLE_TIMEOUT_MS": 60000,
+  "SLEEP_TIMEOUT_MS": 300000,
+  "WINDOW_CLOSE_TIMEOUT_MS": 600000,
   "FOCUS_HYSTERESIS_MS": 4000,
+  "HOOK_CHECK_INITIAL_DELAY_MS": 5000,
   "HOOK_CHECK_INTERVAL_MS": 1800000,
+  "UPDATE_CHECK_INITIAL_DELAY_MS": 10000,
   "UPDATE_CHECK_INTERVAL_MS": 14400000,
 
   "TRAY_ICON_SIZE": 22,
@@ -26,37 +31,7 @@
     "disabled": "Never"
   },
 
-  "ACTIVE_STATES": ["thinking", "planning", "working", "notification", "packing", "alert"],
-
   "SPEECH_BUBBLE_FIELDS": ["status", "project", "model", "memory", "usage5h", "usageWeek"],
-
-  "VALID_STATES": ["start", "idle", "thinking", "planning", "working", "packing", "notification", "done", "sleep", "alert"],
-
-  "STATE_COLORS": {
-    "start": "#00CCCC",
-    "idle": "#00AA00",
-    "thinking": "#9933FF",
-    "planning": "#008888",
-    "working": "#0066CC",
-    "packing": "#AAAAAA",
-    "notification": "#FFCC00",
-    "sleep": "#111144",
-    "done": "#00AA00",
-    "alert": "#DD0000"
-  },
-
-  "STATE_TEXTS": {
-    "start": "Hello!",
-    "idle": "Ready",
-    "thinking": "Thinking",
-    "planning": "Planning",
-    "working": "Working",
-    "packing": "Packing",
-    "notification": "Input?",
-    "sleep": "Zzz...",
-    "done": "Done!",
-    "alert": "Alert"
-  },
 
   "TOOL_TEXTS": {
     "bash": "Running",
@@ -69,7 +44,5 @@
     "webfetch": "Fetching",
     "websearch": "Searching",
     "default": "Working"
-  },
-
-  "LOADING_STATES": ["thinking", "planning", "working", "packing"]
+  }
 }

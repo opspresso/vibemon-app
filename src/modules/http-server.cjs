@@ -5,14 +5,12 @@
 const http = require('http');
 const fsPromises = require('fs').promises;
 const path = require('path');
-const { HTTP_PORT, MAX_PAYLOAD_SIZE, CHARACTER_NAMES } = require('../shared/config.cjs');
+const { HTTP_PORT, MAX_PAYLOAD_SIZE, RATE_LIMIT, RATE_WINDOW_MS, CHARACTER_NAMES } = require('../shared/config.cjs');
 const { setCorsHeaders, isAllowedOrigin, hasJsonContentType, sendJson, sendError, parseJsonBody } = require('./http-utils.cjs');
 const { validateStatusPayload } = require('./validators.cjs');
 
-// Rate limiting configuration
-const RATE_LIMIT = 100;       // Max requests per window
-const RATE_WINDOW_MS = 60000; // 1 minute window
-const RATE_CLEANUP_THRESHOLD = 100;  // Cleanup when map exceeds this size
+// Rate limiting: cleanup when the per-IP map exceeds this size
+const RATE_CLEANUP_THRESHOLD = 100;
 
 class HttpServer {
   constructor(stateManager, windowManager, app) {

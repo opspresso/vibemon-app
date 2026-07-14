@@ -29,14 +29,10 @@ const { VibemonConfigManager } = require('./modules/vibemon-config-manager.cjs')
 const { UpdateChecker } = require('./modules/update-checker.cjs');
 const { SettingsWindowManager } = require('./modules/settings-window-manager.cjs');
 const { validateStatusPayload } = require('./modules/validators.cjs');
-const { HOOK_CHECK_INTERVAL_MS, UPDATE_CHECK_INTERVAL_MS } = require('./shared/config.cjs');
-
-// Initial hook-installer check runs shortly after startup so the tray/HTTP
-// server/WebSocket client are fully initialized before any dialog appears.
-const HOOK_CHECK_INITIAL_DELAY_MS = 5000;
-// Staggered slightly after the hook-installer check so both don't fire in
-// the same tick.
-const UPDATE_CHECK_INITIAL_DELAY_MS = 10000;
+const {
+  HOOK_CHECK_INITIAL_DELAY_MS, HOOK_CHECK_INTERVAL_MS,
+  UPDATE_CHECK_INITIAL_DELAY_MS, UPDATE_CHECK_INTERVAL_MS
+} = require('./shared/config.cjs');
 
 // Single instance lock - prevent duplicate instances
 const gotTheLock = app.requestSingleInstanceLock();
@@ -213,6 +209,12 @@ ipcMain.handle('get-version', () => {
 // src/shared/data/characters.json)
 ipcMain.handle('get-character-registry', () => {
   return require('./shared/data/characters.json');
+});
+
+// State registry for the renderer's engine setup (single source:
+// src/shared/data/states.json)
+ipcMain.handle('get-state-registry', () => {
+  return require('./shared/data/states.json');
 });
 
 ipcMain.on('show-context-menu', (event) => {

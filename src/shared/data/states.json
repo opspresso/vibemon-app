@@ -1,0 +1,14 @@
+{
+  "states": {
+    "start": { "color": "#00CCCC", "text": "Hello!", "active": false, "loading": false, "eyeType": "normal", "effect": "sparkle" },
+    "idle": { "color": "#00AA00", "text": "Ready", "active": false, "loading": false, "eyeType": "normal", "effect": "none" },
+    "thinking": { "color": "#9933FF", "text": "Thinking", "active": true, "loading": true, "eyeType": "normal", "effect": "thinking" },
+    "planning": { "color": "#008888", "text": "Planning", "active": true, "loading": true, "eyeType": "normal", "effect": "thinking" },
+    "working": { "color": "#0066CC", "text": "Working", "active": true, "loading": true, "eyeType": "glasses", "effect": "sparkle" },
+    "packing": { "color": "#AAAAAA", "text": "Packing", "active": true, "loading": true, "eyeType": "normal", "effect": "thinking" },
+    "notification": { "color": "#FFCC00", "text": "Input?", "active": true, "loading": false, "eyeType": "normal", "effect": "question" },
+    "done": { "color": "#00AA00", "text": "Done!", "active": false, "loading": false, "eyeType": "happy", "effect": "none" },
+    "sleep": { "color": "#111144", "text": "Zzz...", "active": false, "loading": false, "eyeType": "blink", "effect": "zzz" },
+    "alert": { "color": "#DD0000", "text": "Alert", "active": true, "loading": false, "eyeType": "normal", "effect": "exclamation" }
+  }
+}

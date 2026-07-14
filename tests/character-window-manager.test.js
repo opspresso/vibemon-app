@@ -284,7 +284,7 @@ describe('shouldBeAlwaysOnTop', () => {
 });
 
 describe('position tracking across lock/sleep/display changes', () => {
-  const { SNAP_DEBOUNCE, POSITION_RESTORE_DELAY } = require('../src/shared/config.cjs');
+  const { SNAP_DEBOUNCE_MS, POSITION_RESTORE_DELAY_MS } = require('../src/shared/config.cjs');
   const { screen } = require('electron');
 
   function makeWindow(position = [0, 0]) {
@@ -312,7 +312,7 @@ describe('position tracking across lock/sleep/display changes', () => {
 
     manager.handleWindowMove();
     manager.suspendPositionTracking();
-    jest.advanceTimersByTime(SNAP_DEBOUNCE + POSITION_RESTORE_DELAY);
+    jest.advanceTimersByTime(SNAP_DEBOUNCE_MS + POSITION_RESTORE_DELAY_MS);
 
     expect(manager.windowPosition).toEqual({ x: 2000, y: 100 });
     expect(manager.entry.window.setPosition).not.toHaveBeenCalled();
@@ -325,7 +325,7 @@ describe('position tracking across lock/sleep/display changes', () => {
 
     manager.suspendPositionTracking();
     manager.handleWindowMove();
-    jest.advanceTimersByTime(SNAP_DEBOUNCE * 2);
+    jest.advanceTimersByTime(SNAP_DEBOUNCE_MS * 2);
 
     expect(manager.windowPosition).toEqual({ x: 2000, y: 100 });
   });
@@ -338,7 +338,7 @@ describe('position tracking across lock/sleep/display changes', () => {
 
     manager.suspendPositionTracking();
     manager.restoreWindowPosition();
-    jest.advanceTimersByTime(POSITION_RESTORE_DELAY);
+    jest.advanceTimersByTime(POSITION_RESTORE_DELAY_MS);
 
     expect(window.setPosition).toHaveBeenCalledWith(100, 200);
     expect(manager.positionTrackingSuspended).toBe(false);
@@ -353,7 +353,7 @@ describe('position tracking across lock/sleep/display changes', () => {
 
     manager.suspendPositionTracking();
     manager.restoreWindowPosition();
-    jest.advanceTimersByTime(POSITION_RESTORE_DELAY);
+    jest.advanceTimersByTime(POSITION_RESTORE_DELAY_MS);
 
     expect(window.setPosition).not.toHaveBeenCalled();
     expect(manager.positionTrackingSuspended).toBe(false);
@@ -368,7 +368,7 @@ describe('position tracking across lock/sleep/display changes', () => {
 
     manager.suspendPositionTracking();
     manager.restoreWindowPosition();
-    jest.advanceTimersByTime(POSITION_RESTORE_DELAY);
+    jest.advanceTimersByTime(POSITION_RESTORE_DELAY_MS);
     expect(window.setPosition).not.toHaveBeenCalled();
 
     // The second display re-enumerates: its work area now contains the
@@ -376,7 +376,7 @@ describe('position tracking across lock/sleep/display changes', () => {
     screen.getDisplayMatching.mockImplementation(() => ({ workArea: { x: 1920, y: 0, width: 1920, height: 1080 } }));
     manager.suspendPositionTracking();
     manager.restoreWindowPosition();
-    jest.advanceTimersByTime(POSITION_RESTORE_DELAY);
+    jest.advanceTimersByTime(POSITION_RESTORE_DELAY_MS);
 
     expect(window.setPosition).toHaveBeenCalledWith(2500, 100);
   });

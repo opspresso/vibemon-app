@@ -10,16 +10,21 @@ let cleanupStateListener = null;
 async function init() {
   const container = document.getElementById('vibemon-display');
 
-  // Character registry (single source: src/shared/data/characters.json),
-  // fetched via preload.js — image URLs are derived from each entry.
-  const { characters, default: defaultCharacter } = await window.electronAPI.getCharacterRegistry();
+  // Character/state registries (single sources: src/shared/data/
+  // characters.json and states.json), fetched via preload.js — image URLs
+  // are derived from each character entry.
+  const [{ characters, default: defaultCharacter }, { states }] = await Promise.all([
+    window.electronAPI.getCharacterRegistry(),
+    window.electronAPI.getStateRegistry()
+  ]);
 
   vibeMonEngine = createVibeMonEngine(container, {
     characters,
     defaultCharacter,
     characterImageUrls: Object.fromEntries(
       Object.entries(characters).map(([name, config]) => [name, `assets/characters/${config.image}`])
-    )
+    ),
+    states
   });
   await vibeMonEngine.init();
 

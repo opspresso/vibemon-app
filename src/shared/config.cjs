@@ -7,6 +7,7 @@
 
 const constants = require('./constants.cjs');
 const characters = require('./characters.cjs');
+const states = require('./states.cjs');
 
 // =============================================================================
 // WebSocket Configuration (from environment variables)
@@ -27,6 +28,11 @@ module.exports = {
   // Character registry (data/characters.json):
   // DEFAULT_CHARACTER, CHARACTER_CONFIG, CHARACTER_NAMES, CHARACTER_COLORS
   ...characters,
+
+  // State registry (data/states.json):
+  // STATE_CONFIG, VALID_STATES, ACTIVE_STATES, LOADING_STATES,
+  // STATE_COLORS, STATE_TEXTS
+  ...states,
 
   // WebSocket
   WS_URL,

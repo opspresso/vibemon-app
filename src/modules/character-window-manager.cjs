@@ -15,8 +15,8 @@ const {
   WINDOW_WIDTH,
   MAX_STATE_REGISTRY_SIZE,
   SNAP_THRESHOLD,
-  SNAP_DEBOUNCE,
-  POSITION_RESTORE_DELAY,
+  SNAP_DEBOUNCE_MS,
+  POSITION_RESTORE_DELAY_MS,
   ALWAYS_ON_TOP_MODES,
   ACTIVE_STATES,
   SPEECH_BUBBLE_FIELDS,
@@ -250,7 +250,7 @@ class CharacterWindowManager {
       }
 
       this.saveWindowPosition({ x: newX, y: newY });
-    }, SNAP_DEBOUNCE);
+    }, SNAP_DEBOUNCE_MS);
   }
 
   /**
@@ -297,7 +297,7 @@ class CharacterWindowManager {
       if (x !== target.x || y !== target.y) {
         this.entry.window.setPosition(target.x, target.y);
       }
-    }, POSITION_RESTORE_DELAY);
+    }, POSITION_RESTORE_DELAY_MS);
   }
 
   // ============================================================================

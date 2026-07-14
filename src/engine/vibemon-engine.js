@@ -7,15 +7,17 @@
  * transparent — state color and status/metric text live in the speech
  * bubble window, not here.
  *
- * Character definitions (colors, eye/effect coordinates, image files) come
- * from the shared registry (src/shared/data/characters.json) and are passed
- * in via options — the engine itself is character-agnostic.
+ * Character definitions (colors, eye/effect coordinates, image files) and
+ * state definitions (eyeType/effect per state) come from the shared
+ * registries (src/shared/data/characters.json and states.json) and are
+ * passed in via options — the engine itself is data-agnostic.
  *
  * Usage:
  *   const engine = createVibeMonEngine(container, {
  *     characters,          // registry entries: { [name]: { color, eyes, effect, ... } }
  *     defaultCharacter,    // registry default: fallback for unknown names
- *     characterImageUrls   // { [name]: url }
+ *     characterImageUrls,  // { [name]: url }
+ *     states               // registry entries: { [name]: { eyeType, effect, ... } }
  *   });
  *   await engine.init();
  *   engine.setState({ state: 'working', character: 'vibemon' });
@@ -40,25 +42,6 @@ const CONSTANTS = {
   FLOAT_CYCLE_FRAMES: 32,
   BLINK_START_FRAME: 30,
   BLINK_END_FRAME: 31
-};
-
-// =============================================================================
-// STATE AND CHARACTER DATA
-// =============================================================================
-
-// eyeType/effect per state; the state's color/text render in the speech
-// bubble (bubble-window-manager.cjs), not on this canvas.
-const STATES = {
-  start: { eyeType: 'normal', effect: 'sparkle' },
-  idle: { eyeType: 'normal', effect: 'none' },
-  thinking: { eyeType: 'normal', effect: 'thinking' },
-  planning: { eyeType: 'normal', effect: 'thinking' },
-  working: { eyeType: 'glasses', effect: 'sparkle' },
-  packing: { eyeType: 'normal', effect: 'thinking' },
-  notification: { eyeType: 'normal', effect: 'question' },
-  sleep: { eyeType: 'blink', effect: 'zzz' },
-  done: { eyeType: 'happy', effect: 'none' },
-  alert: { eyeType: 'normal', effect: 'exclamation' }
 };
 
 // =============================================================================
@@ -326,6 +309,7 @@ export class VibeMonEngine {
     this.characters = options.characters || {};
     this.defaultCharacter = options.defaultCharacter || Object.keys(this.characters)[0] || null;
     this.characterImageUrls = options.characterImageUrls || {};
+    this.states = options.states || {};
 
     this.canvas = null;
     this.ctx = null;
@@ -383,7 +367,7 @@ export class VibeMonEngine {
 
   render() {
     if (!this.characterRenderer) return;
-    const state = STATES[this.currentState] || STATES.idle;
+    const state = this.states[this.currentState] || this.states.idle || { eyeType: 'normal', effect: 'none' };
     const char = this.characters[this.currentCharacter] || this.characters[this.defaultCharacter];
     this.characterRenderer.drawCharacter(state.eyeType, state.effect, this.currentCharacter, char, this.animFrame);
   }
@@ -446,4 +430,4 @@ export function createVibeMonEngine(container, options = {}) {
   return new VibeMonEngine(container, options);
 }
 
-export { STATES as states, CONSTANTS };
+export { CONSTANTS };

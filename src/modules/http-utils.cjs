@@ -2,6 +2,8 @@
  * HTTP utility functions for the Vibe Monitor HTTP server
  */
 
+const { REQUEST_TIMEOUT_MS } = require('../shared/config.cjs');
+
 /**
  * Set CORS headers on response
  * Only allow localhost origins for security (prevents malicious web pages from accessing the API)
@@ -51,17 +53,14 @@ function sendError(res, statusCode, message) {
   sendJson(res, statusCode, { error: message });
 }
 
-// Request timeout in milliseconds (prevents Slowloris attacks)
-const REQUEST_TIMEOUT = 30000;
-
 /**
  * Parse JSON body from request with size limit and timeout
  * @param {http.IncomingMessage} req
  * @param {number} maxSize - Maximum payload size in bytes
- * @param {number} timeout - Request timeout in milliseconds
+ * @param {number} timeout - Request timeout in milliseconds (prevents Slowloris attacks)
  * @returns {Promise<{data: object|null, error: string|null, statusCode: number|null}>}
  */
-function parseJsonBody(req, maxSize, timeout = REQUEST_TIMEOUT) {
+function parseJsonBody(req, maxSize, timeout = REQUEST_TIMEOUT_MS) {
   return new Promise((resolve) => {
     const chunks = [];
     let bodySize = 0;

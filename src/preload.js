@@ -1,10 +1,11 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('electronAPI', {
-  // Character registry (single source: src/shared/data/characters.json),
-  // fetched from the main process — the sandboxed preload can't require
-  // arbitrary files itself.
+  // Character/state registries (single sources: src/shared/data/
+  // characters.json and states.json), fetched from the main process — the
+  // sandboxed preload can't require arbitrary files itself.
   getCharacterRegistry: () => ipcRenderer.invoke('get-character-registry'),
+  getStateRegistry: () => ipcRenderer.invoke('get-state-registry'),
   showContextMenu: () => ipcRenderer.send('show-context-menu'),
   focusTerminal: () => ipcRenderer.invoke('focus-terminal'),
   onStateUpdate: (callback) => {
