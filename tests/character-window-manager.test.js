@@ -282,3 +282,102 @@ describe('shouldBeAlwaysOnTop', () => {
     expect(manager.shouldBeAlwaysOnTop('working')).toBe(false);
   });
 });
+
+describe('position tracking across lock/sleep/display changes', () => {
+  const { SNAP_DEBOUNCE, POSITION_RESTORE_DELAY } = require('../src/shared/config.cjs');
+  const { screen } = require('electron');
+
+  function makeWindow(position = [0, 0]) {
+    return {
+      getBounds: jest.fn(() => ({ x: position[0], y: position[1], width: 172, height: 160 })),
+      getPosition: jest.fn(() => position),
+      setPosition: jest.fn(),
+      isDestroyed: () => false
+    };
+  }
+
+  beforeEach(() => {
+    jest.useFakeTimers();
+    screen.getDisplayMatching.mockImplementation(() => ({ workArea: { x: 0, y: 0, width: 1920, height: 1080 } }));
+  });
+
+  afterEach(() => {
+    jest.useRealTimers();
+  });
+
+  test('suspendPositionTracking cancels a pending snap so an OS move is not persisted', () => {
+    const manager = new CharacterWindowManager();
+    manager.entry = { window: makeWindow([500, 300]), state: null, projectId: 'a' };
+    manager.saveWindowPosition({ x: 2000, y: 100 });
+
+    manager.handleWindowMove();
+    manager.suspendPositionTracking();
+    jest.advanceTimersByTime(SNAP_DEBOUNCE + POSITION_RESTORE_DELAY);
+
+    expect(manager.windowPosition).toEqual({ x: 2000, y: 100 });
+    expect(manager.entry.window.setPosition).not.toHaveBeenCalled();
+  });
+
+  test('moves that arrive while tracking is suspended are ignored', () => {
+    const manager = new CharacterWindowManager();
+    manager.entry = { window: makeWindow([500, 300]), state: null, projectId: 'a' };
+    manager.saveWindowPosition({ x: 2000, y: 100 });
+
+    manager.suspendPositionTracking();
+    manager.handleWindowMove();
+    jest.advanceTimersByTime(SNAP_DEBOUNCE * 2);
+
+    expect(manager.windowPosition).toEqual({ x: 2000, y: 100 });
+  });
+
+  test('restoreWindowPosition puts the window back at the saved position and resumes tracking', () => {
+    const manager = new CharacterWindowManager();
+    const window = makeWindow([1748, 0]);
+    manager.entry = { window, state: null, projectId: 'a' };
+    manager.saveWindowPosition({ x: 100, y: 200 });
+
+    manager.suspendPositionTracking();
+    manager.restoreWindowPosition();
+    jest.advanceTimersByTime(POSITION_RESTORE_DELAY);
+
+    expect(window.setPosition).toHaveBeenCalledWith(100, 200);
+    expect(manager.positionTrackingSuspended).toBe(false);
+  });
+
+  test('does not move the window while the saved position\'s display is unavailable', () => {
+    const manager = new CharacterWindowManager();
+    const window = makeWindow([1748, 0]);
+    manager.entry = { window, state: null, projectId: 'a' };
+    // Saved on a display that is no longer attached: clamping lands elsewhere.
+    manager.saveWindowPosition({ x: 2500, y: 100 });
+
+    manager.suspendPositionTracking();
+    manager.restoreWindowPosition();
+    jest.advanceTimersByTime(POSITION_RESTORE_DELAY);
+
+    expect(window.setPosition).not.toHaveBeenCalled();
+    expect(manager.positionTrackingSuspended).toBe(false);
+    expect(manager.windowPosition).toEqual({ x: 2500, y: 100 });
+  });
+
+  test('a later display-added retry restores once the display is back', () => {
+    const manager = new CharacterWindowManager();
+    const window = makeWindow([1748, 0]);
+    manager.entry = { window, state: null, projectId: 'a' };
+    manager.saveWindowPosition({ x: 2500, y: 100 });
+
+    manager.suspendPositionTracking();
+    manager.restoreWindowPosition();
+    jest.advanceTimersByTime(POSITION_RESTORE_DELAY);
+    expect(window.setPosition).not.toHaveBeenCalled();
+
+    // The second display re-enumerates: its work area now contains the
+    // saved position, so the retry moves the window back.
+    screen.getDisplayMatching.mockImplementation(() => ({ workArea: { x: 1920, y: 0, width: 1920, height: 1080 } }));
+    manager.suspendPositionTracking();
+    manager.restoreWindowPosition();
+    jest.advanceTimersByTime(POSITION_RESTORE_DELAY);
+
+    expect(window.setPosition).toHaveBeenCalledWith(2500, 100);
+  });
+});

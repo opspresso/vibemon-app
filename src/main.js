@@ -14,7 +14,7 @@ const path = require('path');
 require('dotenv').config({ path: path.join(__dirname, '..', '.env.local') });
 require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
 
-const { app, ipcMain, dialog } = require('electron');
+const { app, ipcMain, dialog, powerMonitor, screen } = require('electron');
 const { exec } = require('child_process');
 
 // Modules
@@ -417,6 +417,23 @@ app.whenReady().then(() => {
   // "Update to vX" item.
   setTimeout(() => updateChecker.checkForUpdates(), UPDATE_CHECK_INITIAL_DELAY_MS);
   updateCheckTimer = setInterval(() => updateChecker.checkForUpdates(), UPDATE_CHECK_INTERVAL_MS);
+
+  // Screen lock, system sleep, and display attach/detach make macOS move
+  // windows itself (e.g. onto the primary display while another display
+  // sleeps). Those moves must not be persisted as the user's position, and
+  // the window is put back at its saved position once displays are back.
+  powerMonitor.on('lock-screen', () => windowManager.suspendPositionTracking());
+  powerMonitor.on('suspend', () => windowManager.suspendPositionTracking());
+  powerMonitor.on('unlock-screen', () => windowManager.restoreWindowPosition());
+  powerMonitor.on('resume', () => windowManager.restoreWindowPosition());
+  screen.on('display-added', () => {
+    windowManager.suspendPositionTracking();
+    windowManager.restoreWindowPosition();
+  });
+  screen.on('display-removed', () => {
+    windowManager.suspendPositionTracking();
+    windowManager.restoreWindowPosition();
+  });
 
   app.on('activate', () => {
     windowManager.showActiveWindow();

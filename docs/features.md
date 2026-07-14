@@ -125,6 +125,7 @@ The app shows exactly one character window plus its following speech bubble:
 - **System Tray**: Quick access from menubar/taskbar
 - **Draggable**: Move the character anywhere on screen
 - **Snap to corner**: Can be dragged past the screen edge mid-drag; once you let go, it's clamped back on-screen, snapping flush to a corner within a 30px threshold
+- **Position survives lock/sleep**: When macOS moves the window itself — screen lock, system sleep, or a display detaching — that move is not saved, and the window returns to its remembered position once its display is back
 - **Remembered position**: The window spawns at the position it was last dragged to
 - **Click to focus terminal**: Click the character to switch to iTerm2/Ghostty tab (macOS only)
 

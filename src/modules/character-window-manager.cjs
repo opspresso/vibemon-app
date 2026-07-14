@@ -16,6 +16,7 @@ const {
   MAX_STATE_REGISTRY_SIZE,
   SNAP_THRESHOLD,
   SNAP_DEBOUNCE,
+  POSITION_RESTORE_DELAY,
   ALWAYS_ON_TOP_MODES,
   ACTIVE_STATES,
   SPEECH_BUBBLE_FIELDS,
@@ -46,6 +47,12 @@ class CharacterWindowManager {
     // another project instead of being destroyed and recreated.
     this.entry = null;
     this.snapTimer = null;
+
+    // While true, 'move' events are OS-initiated (screen lock, system
+    // sleep, display reconfiguration) rather than user drags — the snap
+    // handler must not clamp or persist them.
+    this.positionTrackingSuspended = false;
+    this.restoreTimer = null;
 
     this.onWindowClosed = null;  // callback: (projectId) => void
     this.onStateUpdated = null;  // callback: (projectId) => void, fires after state/info changes
@@ -205,7 +212,7 @@ class CharacterWindowManager {
    * edge when within SNAP_THRESHOLD of it, and remember where it settled.
    */
   handleWindowMove() {
-    if (!this.entry) return;
+    if (!this.entry || this.positionTrackingSuspended) return;
     const entry = this.entry;
 
     if (this.snapTimer) {
@@ -244,6 +251,53 @@ class CharacterWindowManager {
 
       this.saveWindowPosition({ x: newX, y: newY });
     }, SNAP_DEBOUNCE);
+  }
+
+  /**
+   * Stop treating 'move' events as user drags. Called on screen lock,
+   * system suspend, and display attach/detach, where macOS moves windows
+   * itself (e.g. onto the primary display when another display sleeps) —
+   * persisting such a move would overwrite the user's chosen position.
+   */
+  suspendPositionTracking() {
+    this.positionTrackingSuspended = true;
+    if (this.snapTimer) {
+      clearTimeout(this.snapTimer);
+      this.snapTimer = null;
+    }
+    if (this.restoreTimer) {
+      clearTimeout(this.restoreTimer);
+      this.restoreTimer = null;
+    }
+  }
+
+  /**
+   * Put the window back at its saved position and resume drag tracking.
+   * Called (debounced) on resume/unlock and after display changes; the
+   * delay lets macOS finish re-enumerating displays first. The window is
+   * only moved once the saved position's display is available again —
+   * until then it stays where the OS put it, and a later display-added
+   * event retries.
+   */
+  restoreWindowPosition() {
+    if (this.restoreTimer) {
+      clearTimeout(this.restoreTimer);
+    }
+    this.restoreTimer = setTimeout(() => {
+      this.restoreTimer = null;
+      this.positionTrackingSuspended = false;
+
+      if (!this.isWindowValid(this.entry) || !this.windowPosition) return;
+
+      const target = this.clampPositionToScreen(this.windowPosition);
+      const displayAvailable = target.x === this.windowPosition.x && target.y === this.windowPosition.y;
+      if (!displayAvailable) return;
+
+      const [x, y] = this.entry.window.getPosition();
+      if (x !== target.x || y !== target.y) {
+        this.entry.window.setPosition(target.x, target.y);
+      }
+    }, POSITION_RESTORE_DELAY);
   }
 
   // ============================================================================
@@ -514,6 +568,10 @@ class CharacterWindowManager {
     if (this.snapTimer) {
       clearTimeout(this.snapTimer);
       this.snapTimer = null;
+    }
+    if (this.restoreTimer) {
+      clearTimeout(this.restoreTimer);
+      this.restoreTimer = null;
     }
   }
 
