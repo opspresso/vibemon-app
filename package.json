@@ -1,6 +1,6 @@
 {
   "name": "vibemon",
-  "version": "1.12.1",
+  "version": "1.20.0",
   "description": "AI assistant status monitor",
   "main": "src/main.js",
   "bin": {
