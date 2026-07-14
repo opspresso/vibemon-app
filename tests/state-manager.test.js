@@ -66,7 +66,7 @@ describe('StateManager', () => {
       const data = { state: 'idle', character: 'invalid-character' };
       const result = stateManager.validateStateData(data);
       expect(result.valid).toBe(true);
-      expect(result.data.character).toBe('clawd'); // DEFAULT_CHARACTER
+      expect(result.data.character).toBe('vibemon'); // DEFAULT_CHARACTER
     });
 
     test('does not add character field if not present', () => {

@@ -187,7 +187,7 @@ describe('setting mutations', () => {
   test('set-character-lock accepts auto and known characters only', async () => {
     const { deps } = freshManager();
     expect(await invoke('settings:set-character-lock', 'auto')).toBe(true);
-    expect(await invoke('settings:set-character-lock', 'codex')).toBe(true);
+    expect(await invoke('settings:set-character-lock', 'kiro')).toBe(true);
     expect(await invoke('settings:set-character-lock', 'pikachu')).toBe(false);
     expect(deps.windowManager.setCharacterLock).toHaveBeenCalledTimes(2);
   });

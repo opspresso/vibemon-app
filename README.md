@@ -98,8 +98,8 @@ See [Features](docs/features.md) for animations, working state text, and more.
 
 | Character | Color | Auto-selected for |
 |-----------|-------|-------------------|
+| `vibemon` | Purple | Default; any bridge without its own character (e.g. Codex) |
 | `clawd` | Orange | Claude Code |
-| `codex` | Green | Codex |
 | `kiro` | White | Kiro |
 | `claw` | Red | OpenClaw |
 | `daangni` | Peach/teal | Manual only (Character Lock) |

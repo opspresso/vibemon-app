@@ -44,7 +44,7 @@ describe('validateCharacter', () => {
   });
 
   test('accepts valid characters', () => {
-    const validCharacters = ['clawd', 'codex', 'kiro', 'claw'];
+    const validCharacters = ['vibemon', 'clawd', 'kiro', 'claw'];
     validCharacters.forEach(character => {
       const result = validateCharacter(character);
       expect(result.valid).toBe(true);
@@ -52,10 +52,22 @@ describe('validateCharacter', () => {
     });
   });
 
-  test('rejects invalid character', () => {
-    const result = validateCharacter('invalid');
+  test('accepts unknown character names (normalized to default downstream)', () => {
+    const result = validateCharacter('codex');
+    expect(result.valid).toBe(true);
+    expect(result.error).toBeNull();
+  });
+
+  test('rejects a non-string character', () => {
+    const result = validateCharacter(42);
     expect(result.valid).toBe(false);
-    expect(result.error).toContain('Invalid character');
+    expect(result.error).toContain('must be a string');
+  });
+
+  test('rejects an over-long character name', () => {
+    const result = validateCharacter('x'.repeat(65));
+    expect(result.valid).toBe(false);
+    expect(result.error).toContain('exceeds');
   });
 });
 
@@ -257,12 +269,20 @@ describe('validateStatusPayload', () => {
     expect(result.error).toContain('Invalid state');
   });
 
-  test('rejects invalid character in payload', () => {
+  test('accepts unknown character in payload (normalized downstream)', () => {
     const result = validateStatusPayload({
       character: 'invalid'
     });
+    expect(result.valid).toBe(true);
+    expect(result.error).toBeNull();
+  });
+
+  test('rejects non-string character in payload', () => {
+    const result = validateStatusPayload({
+      character: 42
+    });
     expect(result.valid).toBe(false);
-    expect(result.error).toContain('Invalid character');
+    expect(result.error).toContain('must be a string');
   });
 
   test('rejects invalid memory in payload', () => {

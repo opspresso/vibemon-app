@@ -2,7 +2,7 @@
  * Input validation functions for the Vibe Monitor
  */
 
-const { VALID_STATES, CHARACTER_NAMES } = require('../shared/config.cjs');
+const { VALID_STATES } = require('../shared/config.cjs');
 
 // Validation limits. project/tool/model match the cloud API's
 // STATUS_FIELD_LIMITS (vibemon src/lib/validation.ts): anything the cloud
@@ -11,6 +11,7 @@ const { VALID_STATES, CHARACTER_NAMES } = require('../shared/config.cjs');
 const PROJECT_MAX_LENGTH = 128;
 const TOOL_MAX_LENGTH = 64;
 const MODEL_MAX_LENGTH = 64;
+const CHARACTER_MAX_LENGTH = 64;
 const TERMINAL_ID_MAX_LENGTH = 100;
 // Memory is now a number (0-100), not a string
 // iTerm2: iterm2:w0t0p0:UUID format, Ghostty: ghostty:PID format
@@ -33,7 +34,10 @@ function validateState(state) {
 }
 
 /**
- * Validate character value
+ * Validate character value. Names outside CHARACTER_NAMES are accepted here
+ * and normalized to DEFAULT_CHARACTER downstream (state-manager), so bridges
+ * still sending a retired character (e.g. codex) degrade gracefully instead
+ * of having their whole status update rejected.
  * @param {string} character
  * @returns {{valid: boolean, error: string|null}}
  */
@@ -41,8 +45,11 @@ function validateCharacter(character) {
   if (character === undefined) {
     return { valid: true, error: null };
   }
-  if (!CHARACTER_NAMES.includes(character)) {
-    return { valid: false, error: `Invalid character: ${character}. Valid characters: ${CHARACTER_NAMES.join(', ')}` };
+  if (typeof character !== 'string') {
+    return { valid: false, error: 'Character must be a string' };
+  }
+  if (character.length > CHARACTER_MAX_LENGTH) {
+    return { valid: false, error: `Character name exceeds ${CHARACTER_MAX_LENGTH} characters` };
   }
   return { valid: true, error: null };
 }

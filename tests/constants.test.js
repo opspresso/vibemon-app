@@ -75,7 +75,7 @@ describe('Constants', () => {
 
   describe('Character Settings', () => {
     test('DEFAULT_CHARACTER is valid', () => {
-      expect(constants.DEFAULT_CHARACTER).toBe('clawd');
+      expect(constants.DEFAULT_CHARACTER).toBe('vibemon');
     });
 
     test('CHAR_SIZE and SCALE are positive', () => {

@@ -27,8 +27,8 @@ VibeMon normalizes multiple agent ecosystems into one display model. The renderi
 
 | Character | Color | Description | Auto-selected for |
 |-----------|-------|-------------|-------------------|
-| `clawd` | Orange | Default character | Claude Code |
-| `codex` | Green | Terminal robot | Codex |
+| `vibemon` | Purple | Robot with antenna, default character | Any bridge without its own character (e.g. Codex) |
+| `clawd` | Orange | Four-legged friend | Claude Code |
 | `kiro` | White | Ghost character | Kiro |
 | `claw` | Red | Antenna character | OpenClaw |
 | `daangni` | Peach/teal | Round face, fluffy top | Manual only (Character Lock) |
@@ -280,7 +280,7 @@ Changes apply immediately through the same code paths as the tray menu, and the 
 Grouped to mirror the Settings window's tab order (VibeMon / Collector / AI Tools / About):
 
 - Settings... (opens the Settings window)
-- **VibeMon** — App Mode (Character/Window/Input), Character Lock (Auto/Clawd/Codex/Kiro/Claw/Daangni), Window Mode section (view/switch per-project windows and states, Rearrange, Always on Top, Multi-Window Mode toggle, Project Lock in single mode) or Character Mode section (Always on Top, Speech Bubble field toggles), Open at Login toggle
+- **VibeMon** — App Mode (Character/Window/Input), Character Lock (Auto/VibeMon/Clawd/Kiro/Claw/Daangni), Window Mode section (view/switch per-project windows and states, Rearrange, Always on Top, Multi-Window Mode toggle, Project Lock in single mode) or Character Mode section (Always on Top, Speech Bubble field toggles), Open at Login toggle
 - **Collector** — WebSocket status (Connected/Disconnected), HTTP Server port display
 - **AI Tools** — AI Tool Hooks (per-tool install status for Claude Code/Codex CLI/Kiro IDE/OpenClaw, with one-click install)
 - **About** — opens the Settings window's About tab, followed by a version display or a one-click "Update to vX" / "Restart to install vX" item

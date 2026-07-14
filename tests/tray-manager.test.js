@@ -105,9 +105,9 @@ describe('TrayManager state submenu', () => {
 
     const items = tray.buildWindowsSubmenu();
     const characterSubmenu = items[0].submenu.find(i => i.label === 'Character').submenu;
-    const codexItem = characterSubmenu.find(i => i.label === 'codex');
+    const kiroItem = characterSubmenu.find(i => i.label === 'kiro');
 
-    codexItem.click();
+    kiroItem.click();
 
     expect(stateManager.setupStateTimeout).not.toHaveBeenCalled();
   });

@@ -20,7 +20,7 @@
 
   "TRAY_ICON_SIZE": 22,
 
-  "DEFAULT_CHARACTER": "clawd",
+  "DEFAULT_CHARACTER": "vibemon",
   "CHAR_SIZE": 128,
   "SCALE": 2,
 
@@ -75,13 +75,13 @@
 
   "VALID_STATES": ["start", "idle", "thinking", "planning", "working", "packing", "notification", "done", "sleep", "alert"],
 
-  "CHARACTER_NAMES": ["clawd", "kiro", "claw", "codex", "daangni"],
+  "CHARACTER_NAMES": ["vibemon", "clawd", "kiro", "claw", "daangni"],
 
   "CHARACTER_COLORS": {
+    "vibemon": "#FFFFFF",
     "clawd": "#D97757",
     "kiro": "#FFFFFF",
     "claw": "#DD4444",
-    "codex": "#10A37F",
     "daangni": "#F2CAB2"
   },
 

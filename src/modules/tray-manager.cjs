@@ -79,18 +79,21 @@ function createTrayIcon(state, character = 'clawd', hasUpdate = false) {
     rect(13, 16, 3, 3, charColor);  // Right leg
     rect(7, 10, 2, 2, '#40E0D0');   // Left eye (cyan)
     rect(13, 10, 2, 2, '#40E0D0');  // Right eye (cyan)
-  } else if (charName === 'codex') {
-    // Draw codex character (green terminal robot)
-    rect(8, 2, 6, 2, charColor);    // Top cap
-    rect(6, 4, 10, 2, charColor);   // Head taper
-    rect(5, 6, 12, 9, charColor);   // Main body
-    rect(3, 9, 2, 5, charColor);    // Left arm
-    rect(17, 9, 2, 5, charColor);   // Right arm
-    rect(7, 15, 3, 4, charColor);   // Left leg
-    rect(12, 15, 3, 4, charColor);  // Right leg
-    rect(7, 9, 2, 2, COLOR_EYE);    // Left eye
-    rect(12, 9, 2, 2, COLOR_EYE);   // Right eye
-    rect(9, 12, 4, 1, COLOR_EYE);   // Mouth
+  } else if (charName === 'vibemon') {
+    // Draw vibemon character (purple robot with antenna, white face plate)
+    const purple = '#9968E5';
+    rect(10, 1, 2, 2, purple);      // Antenna tip
+    rect(10, 3, 2, 1, purple);      // Antenna stem
+    rect(5, 4, 12, 10, purple);     // Head
+    rect(3, 7, 2, 4, purple);       // Left ear
+    rect(17, 7, 2, 4, purple);      // Right ear
+    rect(7, 6, 8, 6, charColor);    // Face plate (white)
+    rect(8, 8, 2, 3, COLOR_EYE);    // Left eye
+    rect(12, 8, 2, 3, COLOR_EYE);   // Right eye
+    rect(6, 14, 10, 5, purple);     // Body
+    rect(8, 15, 6, 3, charColor);   // Belly panel
+    rect(9, 16, 1, 1, purple);      // Left belly dot
+    rect(12, 16, 1, 1, purple);     // Right belly dot
   } else if (charName === 'daangni') {
     // Draw daangni character (round face with fluffy teal top)
     const teal = '#2EC4B6';

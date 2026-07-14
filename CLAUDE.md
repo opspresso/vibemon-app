@@ -39,7 +39,7 @@ npm start
 - **Floating**: Cosine/Sine wave offset (X: ±3px, Y: ±5px, ~3.2s cycle)
 - **Working text**: Tool-based fixed text via `getWorkingText(tool)` (Bash→Running, Read→Reading, Edit→Editing, Write→Writing, Grep/WebSearch→Searching, Glob→Scanning, WebFetch→Fetching, Task→Tasking, default→Working)
 - **JSON fields**: `{"state", "tool", "project", "model", "memory", "usage5h", "usageWeek", "usage5hResetsIn", "usageWeekResetsIn", "character"}` (Desktop adds `"terminalId"` for click-to-focus; `*ResetsIn` = minutes until the usage window resets, shown in the speech bubble)
-- **Characters**: `clawd` (orange), `codex` (green), `kiro` (white ghost), `claw` (red), `daangni` (peach/teal, manual only)
+- **Characters**: `vibemon` (purple robot, default), `clawd` (orange), `kiro` (white ghost), `claw` (red), `daangni` (peach/teal, manual only); unknown names from bridges fall back to the default
 - **Character Lock**: Persisted `characterLock` setting (`'auto'` default, or a `CHARACTER_NAMES` entry) forces every window to show one character regardless of what each project's status reports; applied in `MultiWindowManager.routeStatusUpdate()` so it covers stateRegistry, window state, and the IPC payload uniformly. Switch via tray menu (**Character Lock**) or `POST /character-lock`.
 - **Metric rows**: memory (🧠), 5h usage (⏱️), weekly usage (📅) each render as a single line `[icon] [bar] [NN%]` at the bottom; `usage5h`/`usageWeek` are plan-usage % (0-100) from statusline's `usage.json`
 - **Memory hidden on start**: Memory not displayed during `start` state
