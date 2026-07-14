@@ -7,7 +7,7 @@
  * refresh the tray after a change made from this window.
  */
 
-const { BrowserWindow, ipcMain, shell } = require('electron');
+const { BrowserWindow, ipcMain, screen, shell } = require('electron');
 const path = require('path');
 const {
   APP_MODES, ALWAYS_ON_TOP_MODES, CHARACTER_NAMES, SPEECH_BUBBLE_FIELDS
@@ -233,8 +233,28 @@ class SettingsWindowManager {
     }
   }
 
+  /**
+   * Center the window on the display the cursor is on, clamped to its work
+   * area — the tray lives wherever the cursor is, so without this the window
+   * always opens on the primary display.
+   * @param {BrowserWindow} window
+   */
+  positionOnCursorDisplay(window) {
+    const display = screen.getDisplayNearestPoint(screen.getCursorScreenPoint());
+    const { workArea } = display;
+
+    const bounds = window.getBounds();
+    const width = Math.min(bounds.width, workArea.width);
+    const height = Math.min(bounds.height, workArea.height);
+    const x = workArea.x + Math.round((workArea.width - width) / 2);
+    const y = workArea.y + Math.round((workArea.height - height) / 2);
+
+    window.setBounds({ x, y, width, height });
+  }
+
   open() {
     if (this.window && !this.window.isDestroyed()) {
+      this.positionOnCursorDisplay(this.window);
       this.window.show();
       this.window.focus();
       return;
@@ -258,6 +278,7 @@ class SettingsWindowManager {
 
     this.window.once('ready-to-show', () => {
       if (this.window && !this.window.isDestroyed()) {
+        this.positionOnCursorDisplay(this.window);
         this.window.show();
       }
     });

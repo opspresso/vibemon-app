@@ -17,6 +17,10 @@ jest.mock('electron', () => {
       this.loadFile = jest.fn();
       this.show = jest.fn();
       this.focus = jest.fn();
+      this.getBounds = jest.fn(() => ({
+        x: 0, y: 0, width: opts.width, height: opts.height
+      }));
+      this.setBounds = jest.fn();
       MockBrowserWindow.instances.push(this);
     }
     isDestroyed() { return this._destroyed; }
@@ -35,11 +39,17 @@ jest.mock('electron', () => {
         mockIpcHandlers.set(channel, handler);
       })
     },
+    screen: {
+      getCursorScreenPoint: jest.fn(() => ({ x: 0, y: 0 })),
+      getDisplayNearestPoint: jest.fn(() => ({
+        workArea: { x: 0, y: 0, width: 1440, height: 900 }
+      }))
+    },
     shell: { openExternal: jest.fn() }
   };
 });
 
-const { BrowserWindow, shell } = require('electron');
+const { BrowserWindow, screen, shell } = require('electron');
 const { SettingsWindowManager } = require('../src/modules/settings-window-manager.cjs');
 const { APP_MODES, CHARACTER_NAMES } = require('../src/shared/config.cjs');
 
@@ -379,6 +389,41 @@ describe('open', () => {
     expect(BrowserWindow.instances).toHaveLength(1);
     expect(win.show).toHaveBeenCalledTimes(1);
     expect(win.focus).toHaveBeenCalledTimes(1);
+  });
+
+  test('centers the window on the display the cursor is on', () => {
+    // Secondary display to the right of a 1440-wide primary
+    screen.getCursorScreenPoint.mockReturnValueOnce({ x: 2000, y: 300 });
+    screen.getDisplayNearestPoint.mockReturnValueOnce({
+      workArea: { x: 1440, y: 0, width: 1920, height: 1080 }
+    });
+
+    const { manager } = freshManager();
+    manager.open();
+    const win = BrowserWindow.instances[0];
+    win.emit('ready-to-show');
+
+    expect(screen.getDisplayNearestPoint).toHaveBeenCalledWith({ x: 2000, y: 300 });
+    expect(win.setBounds).toHaveBeenCalledWith({
+      x: 1440 + Math.round((1920 - 680) / 2),
+      y: Math.round((1080 - 620) / 2),
+      width: 680,
+      height: 620
+    });
+  });
+
+  test('repositions an existing window to the cursor display before showing it', () => {
+    const { manager } = freshManager();
+    manager.open();
+    const win = BrowserWindow.instances[0];
+    win.emit('ready-to-show');
+    win.setBounds.mockClear();
+    win.show.mockClear();
+
+    manager.open();
+
+    expect(win.setBounds).toHaveBeenCalledTimes(1);
+    expect(win.show).toHaveBeenCalledTimes(1);
   });
 
   test('creates a new window after the previous one closed', () => {
