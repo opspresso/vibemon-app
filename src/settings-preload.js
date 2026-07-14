@@ -23,5 +23,10 @@ contextBridge.exposeInMainWorld('settingsAPI', {
     const handler = (_event, state) => callback(state);
     ipcRenderer.on('settings:update-state', handler);
     return () => ipcRenderer.removeListener('settings:update-state', handler);
+  },
+  onSelectTab: (callback) => {
+    const handler = (_event, tab) => callback(tab);
+    ipcRenderer.on('settings:select-tab', handler);
+    return () => ipcRenderer.removeListener('settings:select-tab', handler);
   }
 });

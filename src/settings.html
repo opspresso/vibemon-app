@@ -377,13 +377,16 @@
     const FAILED_LABEL_MS = 1500;
 
     // --- Sidebar tabs ---
+    function selectTab(name) {
+      const btn = document.querySelector(`.sidebar button[data-tab="${name}"]`);
+      if (!btn) return;
+      document.querySelectorAll('.sidebar button').forEach((b) => b.classList.remove('active'));
+      document.querySelectorAll('.tab').forEach((t) => t.classList.remove('active'));
+      btn.classList.add('active');
+      $('tab-' + name).classList.add('active');
+    }
     document.querySelectorAll('.sidebar button').forEach((btn) => {
-      btn.addEventListener('click', () => {
-        document.querySelectorAll('.sidebar button').forEach((b) => b.classList.remove('active'));
-        document.querySelectorAll('.tab').forEach((t) => t.classList.remove('active'));
-        btn.classList.add('active');
-        $('tab-' + btn.dataset.tab).classList.add('active');
-      });
+      btn.addEventListener('click', () => selectTab(btn.dataset.tab));
     });
 
     function fillSelect(select, entries, current) {
@@ -708,6 +711,9 @@
     window.settingsAPI.onUpdateState((state) => {
       if (snapshot) renderUpdate(state, snapshot.isPackaged);
     });
+
+    // Tab selection pushed from the main process (e.g. tray → About)
+    window.settingsAPI.onSelectTab(selectTab);
 
     // Re-sync when the window regains focus, so changes made from the tray
     // menu while this window was open are reflected.

@@ -2,7 +2,7 @@
  * System tray management for Vibe Monitor
  */
 
-const { Tray, Menu, nativeImage, BrowserWindow, shell } = require('electron');
+const { Tray, Menu, nativeImage, BrowserWindow } = require('electron');
 const { createCanvas } = require('canvas');
 const fs = require('fs');
 const {
@@ -560,34 +560,6 @@ class TrayManager {
   }
 
   /**
-   * "About" submenu — version/update status plus doc/release links, mirroring
-   * the Settings window's About tab without needing to open it.
-   */
-  buildAboutSubmenu() {
-    return [
-      ...this.buildUpdateMenuItems(),
-      {
-        label: 'Check for Updates',
-        enabled: Boolean(this.updateChecker),
-        click: () => {
-          if (this.updateChecker) {
-            this.updateChecker.checkForUpdates().then(() => this.updateMenu());
-          }
-        }
-      },
-      { type: 'separator' },
-      {
-        label: 'Docs',
-        click: () => shell.openExternal('https://vibemon.io/docs')
-      },
-      {
-        label: 'GitHub Releases',
-        click: () => shell.openExternal('https://github.com/opspresso/vibemon-app/releases')
-      }
-    ];
-  }
-
-  /**
    * Menu items specific to the current app mode — Window Mode's per-project
    * window management, Character Mode's speech bubble settings, or nothing
    * extra for Input Mode (which has no windows or bubble to configure).
@@ -720,11 +692,12 @@ class TrayManager {
         click: () => this.openStatsWindow()
       },
       { type: 'separator' },
-      // About — mirrors the Settings window's About tab
-      {
+      // About — opens the Settings window's About tab
+      ...(this.settingsWindowManager ? [{
         label: 'About',
-        submenu: this.buildAboutSubmenu()
-      },
+        click: () => this.settingsWindowManager.open('about')
+      }] : []),
+      ...this.buildUpdateMenuItems(),
       { type: 'separator' },
       {
         label: 'Quit',

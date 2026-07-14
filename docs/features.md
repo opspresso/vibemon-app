@@ -283,7 +283,7 @@ Grouped to mirror the Settings window's tab order (VibeMon / Collector / AI Tool
 - **Collector** — WebSocket status (Connected/Disconnected), HTTP Server port display
 - **AI Tools** — AI Tool Hooks (per-tool install status for Claude Code/Codex CLI/Kiro IDE/OpenClaw, with one-click install)
 - Claude Stats
-- **About** — Version display or a one-click "Update to vX" / "Restart to install vX" item, Check for Updates, Docs, GitHub Releases
+- **About** — opens the Settings window's About tab, followed by a version display or a one-click "Update to vX" / "Restart to install vX" item
 - Quit
 
 ## Build

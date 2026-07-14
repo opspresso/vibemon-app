@@ -252,11 +252,18 @@ class SettingsWindowManager {
     window.setBounds({ x, y, width, height });
   }
 
-  open() {
+  /**
+   * @param {string} [tab] - Sidebar tab to select once the window is shown
+   *                         (e.g. 'about'); omitted keeps the current tab.
+   */
+  open(tab) {
     if (this.window && !this.window.isDestroyed()) {
       this.positionOnCursorDisplay(this.window);
       this.window.show();
       this.window.focus();
+      if (tab) {
+        this.window.webContents.send('settings:select-tab', tab);
+      }
       return;
     }
 
@@ -275,6 +282,14 @@ class SettingsWindowManager {
     });
 
     this.window.loadFile(path.join(__dirname, '..', 'settings.html'));
+
+    if (tab) {
+      this.window.webContents.once('did-finish-load', () => {
+        if (this.window && !this.window.isDestroyed()) {
+          this.window.webContents.send('settings:select-tab', tab);
+        }
+      });
+    }
 
     this.window.once('ready-to-show', () => {
       if (this.window && !this.window.isDestroyed()) {

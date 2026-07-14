@@ -12,7 +12,7 @@ jest.mock('electron', () => {
     constructor(opts) {
       super();
       this.opts = opts;
-      this.webContents = { send: jest.fn() };
+      this.webContents = { send: jest.fn(), once: jest.fn() };
       this._destroyed = false;
       this.loadFile = jest.fn();
       this.show = jest.fn();
@@ -424,6 +424,30 @@ describe('open', () => {
 
     expect(win.setBounds).toHaveBeenCalledTimes(1);
     expect(win.show).toHaveBeenCalledTimes(1);
+  });
+
+  test('selects the requested tab after a new window finishes loading', () => {
+    const { manager } = freshManager();
+    manager.open('about');
+    const win = BrowserWindow.instances[0];
+
+    expect(win.webContents.once).toHaveBeenCalledWith('did-finish-load', expect.any(Function));
+    expect(win.webContents.send).not.toHaveBeenCalled();
+
+    const onLoad = win.webContents.once.mock.calls[0][1];
+    onLoad();
+    expect(win.webContents.send).toHaveBeenCalledWith('settings:select-tab', 'about');
+  });
+
+  test('sends tab selection immediately when reusing an existing window', () => {
+    const { manager } = freshManager();
+    manager.open();
+    const win = BrowserWindow.instances[0];
+    expect(win.webContents.once).not.toHaveBeenCalled();
+
+    manager.open('about');
+
+    expect(win.webContents.send).toHaveBeenCalledWith('settings:select-tab', 'about');
   });
 
   test('creates a new window after the previous one closed', () => {
