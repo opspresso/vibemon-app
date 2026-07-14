@@ -390,7 +390,12 @@ export class VibeMonEngine {
     if (!this.characterRenderer) return;
     const state = this.states[this.currentState] || this.states.idle || { eyeType: 'normal', effect: 'none' };
     const char = this.characters[this.currentCharacter] || this.characters[this.defaultCharacter];
-    this.characterRenderer.drawCharacter(state.eyeType, state.effect, this.currentCharacter, char, this.animFrame);
+    // Idle blink: needsAnimationRedraw triggers a redraw at BLINK_START_FRAME
+    // (closed eyes for one 100ms frame) and at BLINK_END_FRAME (open again).
+    const eyeType = this.currentState === 'idle' && this.blinkFrame === CONSTANTS.BLINK_START_FRAME
+      ? 'blink'
+      : state.eyeType;
+    this.characterRenderer.drawCharacter(eyeType, state.effect, this.currentCharacter, char, this.animFrame);
   }
 
   _updateFloatingPosition() {
