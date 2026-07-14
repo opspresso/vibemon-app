@@ -40,6 +40,20 @@ describe('default settings', () => {
     expect(manager.windowPosition).toBeNull();
   });
 
+  test('a stored character lock naming an unknown character falls back to auto', () => {
+    Store.__presetNextStore({ characterLock: 'removed-character' });
+    const manager = new CharacterWindowManager();
+
+    expect(manager.getCharacterLock()).toBe('auto');
+  });
+
+  test('a stored character lock naming a registry character is kept', () => {
+    Store.__presetNextStore({ characterLock: 'clawd' });
+    const manager = new CharacterWindowManager();
+
+    expect(manager.getCharacterLock()).toBe('clawd');
+  });
+
   test('migrates the legacy per-key window position map', () => {
     Store.__presetNextStore({ windowPositions: { __character__: { x: 11, y: 22 } } });
     const manager = new CharacterWindowManager();

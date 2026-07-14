@@ -80,7 +80,17 @@ class CharacterWindowManager {
         storedSpeechBubbleFields[field] !== undefined ? storedSpeechBubbleFields[field] : true
       ])
     );
-    this.characterLock = this.store.get('characterLock');
+    // A stored lock may name a character that no longer exists in the
+    // registry (removed in an update, or a corrupted store) — falling back
+    // to 'auto' keeps status updates from being overridden with an
+    // unknown character.
+    const storedCharacterLock = this.store.get('characterLock');
+    this.characterLock = storedCharacterLock === 'auto' || CHARACTER_NAMES.includes(storedCharacterLock)
+      ? storedCharacterLock
+      : 'auto';
+    if (this.characterLock !== storedCharacterLock) {
+      this.store.set('characterLock', this.characterLock);
+    }
 
     // Migrate the window position saved by earlier versions, which kept it
     // in a per-key map under the '__character__' key.
