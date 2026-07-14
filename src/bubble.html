@@ -42,6 +42,26 @@
 
   .bubble-row[data-field="status"] {
     font-size: 14px;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .bubble-dots {
+    display: none;
+    align-items: center;
+    gap: 3px;
+  }
+
+  .bubble-dot {
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: currentColor;
+    transition: opacity 0.1s;
+  }
+
+  .bubble-dot.dim {
+    opacity: 0.25;
   }
 
   .bubble-metric {
@@ -137,7 +157,12 @@
 </head>
 <body>
   <div id="bubble">
-    <div class="bubble-row" data-field="status"></div>
+    <div class="bubble-row" data-field="status">
+      <span class="bubble-status-text"></span>
+      <span class="bubble-dots" id="bubble-dots">
+        <span class="bubble-dot"></span><span class="bubble-dot"></span><span class="bubble-dot"></span><span class="bubble-dot"></span>
+      </span>
+    </div>
     <div class="bubble-row" data-field="project"></div>
     <div class="bubble-row" data-field="model"></div>
     <div class="bubble-row bubble-metric" data-field="memory">
@@ -200,9 +225,41 @@
       return luminance > 140 ? '#1a1a1a' : '#ffffff';
     }
 
+    // Loading dots beside the status text — same cadence as the window mode's
+    // dots (FRAME_INTERVAL=100ms, LOADING_DOT_COUNT=4 in constants.json), with
+    // thinking-style states running 3x slower (THINKING_ANIMATION_SLOWDOWN).
+    var DOT_FRAME_MS = 100;
+    var DOT_SLOWDOWN = 3;
+    var dotFrame = 0;
+    var dotTimer = null;
+    var dotSlow = false;
+
+    function updateDots() {
+      var dots = document.querySelectorAll('.bubble-dot');
+      var frame = dotSlow ? Math.floor(dotFrame / DOT_SLOWDOWN) : dotFrame;
+      var active = frame % dots.length;
+      for (var i = 0; i < dots.length; i++) {
+        dots[i].classList.toggle('dim', i !== active);
+      }
+    }
+
+    function setDots(show, slow) {
+      dotSlow = Boolean(slow);
+      document.getElementById('bubble-dots').style.display = show ? 'inline-flex' : 'none';
+      if (show && !dotTimer) {
+        dotTimer = setInterval(function () { dotFrame++; updateDots(); }, DOT_FRAME_MS);
+        updateDots();
+      } else if (!show && dotTimer) {
+        clearInterval(dotTimer);
+        dotTimer = null;
+      }
+    }
+
     // Called from the main process via webContents.executeJavaScript().
     // `fields` is a plain object keyed by field name: { type: 'text', text }
-    // for the status/project/model rows, or { type: 'metric', icon, value, resetIn } (value is
+    // for the status/project/model rows (status may also carry showLoading/slow
+    // to animate loading dots beside the text, like the window mode's), or
+    // { type: 'metric', icon, value, resetIn } (value is
     // 0-100) for the memory/usage rows, rendered as an icon + inline bar + percentage —
     // only enabled/truthy fields are present. `resetIn`, when present (usage5h/usageWeek
     // only, if the collector sends it), is minutes until that quota resets and is
@@ -227,6 +284,7 @@
         var row = rows[i];
         var data = fields[row.dataset.field];
         if (!data) {
+          if (row.dataset.field === 'status') setDots(false, false);
           row.style.display = 'none';
           continue;
         }
@@ -246,6 +304,10 @@
           value.textContent = typeof data.resetIn === 'number'
             ? pct + '% · ' + formatMinutes(data.resetIn)
             : pct + '%';
+          row.style.display = 'flex';
+        } else if (row.dataset.field === 'status') {
+          row.querySelector('.bubble-status-text').textContent = data.text;
+          setDots(Boolean(data.showLoading), Boolean(data.slow));
           row.style.display = 'flex';
         } else {
           row.textContent = data.text;

@@ -50,12 +50,47 @@ jest.mock('electron', () => {
 });
 
 const { BrowserWindow } = require('electron');
-const { BubbleWindowManager } = require('../src/modules/bubble-window-manager.cjs');
+const { BubbleWindowManager, buildFieldPayload } = require('../src/modules/bubble-window-manager.cjs');
 
 function freshManager(getCharacterWindow = () => null) {
   BrowserWindow.instances.length = 0;
   return new BubbleWindowManager(getCharacterWindow);
 }
+
+describe('buildFieldPayload status text', () => {
+  const fields = { status: true };
+
+  test('maps states to the same text as the window mode status line', () => {
+    expect(buildFieldPayload({ state: 'start' }, fields).status.text).toBe('Hello!');
+    expect(buildFieldPayload({ state: 'idle' }, fields).status.text).toBe('Ready');
+    expect(buildFieldPayload({ state: 'notification' }, fields).status.text).toBe('Input?');
+    expect(buildFieldPayload({ state: 'sleep' }, fields).status.text).toBe('Zzz...');
+    expect(buildFieldPayload({ state: 'done' }, fields).status.text).toBe('Done!');
+  });
+
+  test('working state uses the tool-based text', () => {
+    expect(buildFieldPayload({ state: 'working', tool: 'Read' }, fields).status.text).toBe('Reading');
+    expect(buildFieldPayload({ state: 'working', tool: 'Bash' }, fields).status.text).toBe('Running');
+    expect(buildFieldPayload({ state: 'working' }, fields).status.text).toBe('Working');
+    expect(buildFieldPayload({ state: 'working', tool: 'UnknownTool' }, fields).status.text).toBe('Working');
+  });
+
+  test('falls back to a capitalized state name for unknown states', () => {
+    expect(buildFieldPayload({ state: 'custom' }, fields).status.text).toBe('Custom');
+  });
+
+  test('loading states carry dot flags: working fast, thinking-style slow', () => {
+    expect(buildFieldPayload({ state: 'working' }, fields).status).toMatchObject({ showLoading: true, slow: false });
+    expect(buildFieldPayload({ state: 'thinking' }, fields).status).toMatchObject({ showLoading: true, slow: true });
+    expect(buildFieldPayload({ state: 'planning' }, fields).status).toMatchObject({ showLoading: true, slow: true });
+    expect(buildFieldPayload({ state: 'packing' }, fields).status).toMatchObject({ showLoading: true, slow: true });
+  });
+
+  test('non-loading states carry no dot flags', () => {
+    expect(buildFieldPayload({ state: 'idle' }, fields).status.showLoading).toBeUndefined();
+    expect(buildFieldPayload({ state: 'done' }, fields).status.showLoading).toBeUndefined();
+  });
+});
 
 describe('ensureBubbleWindow', () => {
   test('concurrent calls for the same project share one window instead of racing', async () => {

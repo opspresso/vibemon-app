@@ -96,5 +96,33 @@
     "sleep": "#111144",
     "done": "#00AA00",
     "alert": "#DD0000"
-  }
+  },
+
+  "STATE_TEXTS": {
+    "start": "Hello!",
+    "idle": "Ready",
+    "thinking": "Thinking",
+    "planning": "Planning",
+    "working": "Working",
+    "packing": "Packing",
+    "notification": "Input?",
+    "sleep": "Zzz...",
+    "done": "Done!",
+    "alert": "Alert"
+  },
+
+  "TOOL_TEXTS": {
+    "bash": "Running",
+    "read": "Reading",
+    "edit": "Editing",
+    "write": "Writing",
+    "grep": "Searching",
+    "glob": "Scanning",
+    "task": "Tasking",
+    "webfetch": "Fetching",
+    "websearch": "Searching",
+    "default": "Working"
+  },
+
+  "LOADING_STATES": ["thinking", "planning", "working", "packing"]
 }

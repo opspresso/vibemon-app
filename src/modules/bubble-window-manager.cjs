@@ -10,7 +10,7 @@
 
 const { BrowserWindow, screen } = require('electron');
 const path = require('path');
-const { STATE_COLORS } = require('../shared/config.cjs');
+const { STATE_COLORS, STATE_TEXTS, TOOL_TEXTS, LOADING_STATES } = require('../shared/config.cjs');
 
 // The character sprite's center offset and collision radius within the
 // character window, matching the rendering engine's layout constants
@@ -75,8 +75,19 @@ function buildFieldPayload(state, speechBubbleFields) {
   const payload = {};
 
   if (speechBubbleFields && speechBubbleFields.status && state && state.state) {
-    const status = String(state.state);
-    payload.status = { type: 'text', text: status.charAt(0).toUpperCase() + status.slice(1) };
+    const stateKey = String(state.state);
+    // Same state/tool -> text mapping as the window mode's status line
+    // (STATES[...].text and getWorkingText(tool) in vibemon-engine-standalone.js).
+    const text = stateKey === 'working'
+      ? TOOL_TEXTS[String(state.tool || '').toLowerCase()] || TOOL_TEXTS.default
+      : STATE_TEXTS[stateKey] || stateKey.charAt(0).toUpperCase() + stateKey.slice(1);
+    payload.status = { type: 'text', text };
+    if (LOADING_STATES.includes(stateKey)) {
+      // Loading dots beside the text, like the window mode's; thinking-style
+      // states animate slower than working (THINKING_ANIMATION_SLOWDOWN).
+      payload.status.showLoading = true;
+      payload.status.slow = stateKey !== 'working';
+    }
   }
 
   if (speechBubbleFields && speechBubbleFields.project && state && state.project) {
@@ -543,4 +554,4 @@ class BubbleWindowManager {
   }
 }
 
-module.exports = { BubbleWindowManager };
+module.exports = { BubbleWindowManager, buildFieldPayload };

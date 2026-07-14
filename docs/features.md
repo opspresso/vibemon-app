@@ -262,6 +262,7 @@ When running Claude Code in multiple terminal tabs, clicking a VibeMon window au
 A small, transparent, click-through window that displays selected info fields (status, project name, model, memory, 5h usage, weekly usage) next to the character. Positioned automatically so it never overlaps the character window and stays on-screen, with an animated slide when it needs to move. Only shown in [Character Mode](#character-mode).
 
 - Toggled per field via the system tray menu (**Speech Bubble** submenu: Status / Project / Model / Memory / Usage 5h / Usage Week), shown only while **App Mode** is set to Character
+- The status field shows the same text as the window mode's status line (e.g. "Ready", "Thinking", and tool-based text like "Reading" while working), with animated loading dots beside it during thinking/planning/working/packing — slower for thinking-style states, matching the window mode
 
 ### Settings Window
 
