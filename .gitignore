@@ -60,11 +60,8 @@ node_modules/
 package-lock.json
 
 # Electron
-desktop/coverage/
-desktop/dist/
-desktop/out/
+coverage/
+dist/
+out/
 *.dmg
 *.app
-
-# WiFi credentials (ESP32)
-esp32/credentials.h

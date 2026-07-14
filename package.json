@@ -1,0 +1,125 @@
+{
+  "name": "vibemon",
+  "version": "1.12.1",
+  "description": "AI assistant status monitor",
+  "main": "src/main.js",
+  "bin": {
+    "vibemon": "bin/cli.js"
+  },
+  "scripts": {
+    "start": "electron .",
+    "build": "electron-builder --publish never",
+    "build:mac": "electron-builder --mac --publish never",
+    "build:dmg": "electron-builder --mac dmg --publish never",
+    "build:win": "electron-builder --win --publish never",
+    "build:linux": "electron-builder --linux --publish never",
+    "build:all": "electron-builder --mac --win --linux --publish never",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage"
+  },
+  "author": "nalbam",
+  "license": "MIT",
+  "keywords": [
+    "vibemon",
+    "claude-code",
+    "kiro",
+    "ai-assistant",
+    "status-monitor",
+    "electron",
+    "pixel-art"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/opspresso/vibemon-app.git"
+  },
+  "homepage": "https://opspresso.github.io/vibemon-app/",
+  "bugs": {
+    "url": "https://github.com/opspresso/vibemon-app/issues"
+  },
+  "dependencies": {
+    "canvas": "^3.2.1",
+    "d3-force": "^3.0.0",
+    "dotenv": "^17.2.3",
+    "electron": "^35.7.5",
+    "electron-store": "^8.2.0",
+    "electron-updater": "^6.8.9",
+    "ws": "^8.19.0"
+  },
+  "devDependencies": {
+    "electron-builder": "^26.8.1",
+    "eslint": "^9.0.0",
+    "jest": "^29.7.0"
+  },
+  "files": [
+    "README.md",
+    "bin/",
+    "src/",
+    "assets/"
+  ],
+  "build": {
+    "appId": "com.opspresso.vibemon",
+    "productName": "VibeMon",
+    "files": [
+      "**/*",
+      "!docs/**",
+      "!images/**",
+      "!CLAUDE.md"
+    ],
+    "mac": {
+      "category": "public.app-category.developer-tools",
+      "icon": "assets/icon.icns",
+      "target": [
+        "dmg",
+        "zip"
+      ],
+      "entitlements": "entitlements.mac.plist",
+      "entitlementsInherit": "entitlements.mac.plist",
+      "hardenedRuntime": true,
+      "gatekeeperAssess": false
+    },
+    "win": {
+      "icon": "assets/icon.ico",
+      "artifactName": "${productName}-${version}-${arch}.${ext}",
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        },
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true
+    },
+    "linux": {
+      "icon": "assets/icon.png",
+      "target": [
+        "AppImage",
+        "deb"
+      ],
+      "category": "Development"
+    },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "opspresso",
+        "repo": "vibemon-app"
+      }
+    ]
+  }
+}

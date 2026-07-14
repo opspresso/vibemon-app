@@ -57,7 +57,7 @@ Forces every window to always show one character, ignoring whatever character ea
 | `notification` | Yellow | ● ● + ? | Input? | User input needed |
 | `done` | Green | > < | Done! | Tool completed |
 | `sleep` | Navy | ─ ─ + Z | Zzz... | 5min inactivity |
-| `alert` | Red | ■ ■ + ! | Alert | Critical error/failure (ESP32: triggers alert light if configured) |
+| `alert` | Red | ■ ■ + ! | Alert | Critical error/failure |
 
 ### Working State Text
 
@@ -209,9 +209,6 @@ python3 ~/.claude/hooks/vibemon.py --status
 # Get/Set lock mode
 python3 ~/.claude/hooks/vibemon.py --lock-mode
 python3 ~/.claude/hooks/vibemon.py --lock-mode on-thinking
-
-# Reboot ESP32 device
-python3 ~/.claude/hooks/vibemon.py --reboot
 ```
 
 For Codex or Kiro, use the equivalent bridge path:
@@ -292,8 +289,6 @@ Grouped to mirror the Settings window's tab order (VibeMon / Collector / AI Tool
 ## Build
 
 ```bash
-cd desktop
-
 npm run build:mac     # macOS (DMG, ZIP)
 npm run build:win     # Windows (NSIS, Portable)
 npm run build:linux   # Linux (AppImage, DEB)

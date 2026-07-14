@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>VibeMon Icon Generator</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: #1a1a2e;
+      color: white;
+      padding: 40px;
+      text-align: center;
+    }
+    .container {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 40px;
+      margin-top: 30px;
+    }
+    .icon-box {
+      background: #2d2d2d;
+      padding: 20px;
+      border-radius: 12px;
+    }
+    .icon-box h3 {
+      margin: 0 0 15px 0;
+      font-size: 14px;
+      color: #888;
+    }
+    canvas {
+      display: block;
+      margin: 0 auto 15px;
+      border-radius: 8px;
+    }
+    button {
+      background: #D97757;
+      color: white;
+      border: none;
+      padding: 10px 20px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 14px;
+      margin: 5px;
+    }
+    button:hover {
+      background: #c86a2f;
+    }
+    .info {
+      max-width: 600px;
+      margin: 30px auto;
+      text-align: left;
+      background: #2d2d2d;
+      padding: 20px;
+      border-radius: 12px;
+    }
+    .info h2 {
+      margin-top: 0;
+      color: #D97757;
+    }
+    .info code {
+      background: #1a1a1a;
+      padding: 2px 6px;
+      border-radius: 4px;
+    }
+    .info pre {
+      background: #1a1a1a;
+      padding: 10px;
+      border-radius: 6px;
+      overflow-x: auto;
+    }
+  </style>
+</head>
+<body>
+  <h1>VibeMon Icon Generator</h1>
+  <p>Notification character icons for desktop app</p>
+
+  <div class="container">
+    <div class="icon-box">
+      <h3>512x512 (Linux)</h3>
+      <canvas id="icon512" width="512" height="512"></canvas>
+      <button onclick="download('icon512', 'icon.png')">Download PNG</button>
+    </div>
+    <div class="icon-box">
+      <h3>256x256 (Windows)</h3>
+      <canvas id="icon256" width="256" height="256"></canvas>
+      <button onclick="download('icon256', 'icon-256.png')">Download PNG</button>
+    </div>
+    <div class="icon-box">
+      <h3>128x128</h3>
+      <canvas id="icon128" width="128" height="128"></canvas>
+      <button onclick="download('icon128', 'icon-128.png')">Download PNG</button>
+    </div>
+    <div class="icon-box">
+      <h3>64x64</h3>
+      <canvas id="icon64" width="64" height="64"></canvas>
+      <button onclick="download('icon64', 'icon-64.png')">Download PNG</button>
+    </div>
+    <div class="icon-box">
+      <h3>32x32</h3>
+      <canvas id="icon32" width="32" height="32"></canvas>
+      <button onclick="download('icon32', 'icon-32.png')">Download PNG</button>
+    </div>
+    <div class="icon-box">
+      <h3>16x16</h3>
+      <canvas id="icon16" width="16" height="16"></canvas>
+      <button onclick="download('icon16', 'icon-16.png')">Download PNG</button>
+    </div>
+  </div>
+
+  <div class="info">
+    <h2>How to Create Icon Files</h2>
+    <p><strong>1. Download the PNG files</strong></p>
+    <p><strong>2. For Windows (.ico):</strong></p>
+    <pre>brew install imagemagick
+convert icon-256.png icon-128.png icon-64.png icon-32.png icon-16.png icon.ico</pre>
+
+    <p><strong>3. For macOS (.icns):</strong></p>
+    <pre>mkdir icon.iconset
+cp icon.png icon.iconset/icon_512x512.png
+sips -z 256 256 icon.png --out icon.iconset/icon_256x256.png
+sips -z 128 128 icon.png --out icon.iconset/icon_128x128.png
+sips -z 64 64 icon.png --out icon.iconset/icon_64x64.png
+sips -z 32 32 icon.png --out icon.iconset/icon_32x32.png
+sips -z 16 16 icon.png --out icon.iconset/icon_16x16.png
+iconutil -c icns icon.iconset</pre>
+
+    <p><strong>4. Place files in <code>assets/</code>:</strong></p>
+    <ul>
+      <li><code>icon.png</code> - 512x512 for Linux</li>
+      <li><code>icon.ico</code> - for Windows</li>
+      <li><code>icon.icns</code> - for macOS</li>
+    </ul>
+  </div>
+
+  <script>
+    const COLOR_CLAUDE = '#D97757';
+    const COLOR_EYE = '#000000';
+
+    // Base design is 64x64, scale up for larger sizes
+    function drawIcon(canvasId, size) {
+      const canvas = document.getElementById(canvasId);
+      const ctx = canvas.getContext('2d');
+      const scale = size / 64;
+
+      function rect(x, y, w, h, color) {
+        ctx.fillStyle = color;
+        ctx.fillRect(x * scale, y * scale, w * scale, h * scale);
+      }
+
+      // Clear with transparent background
+      ctx.clearRect(0, 0, size, size);
+
+      // Round rectangle background (optional - for rounded icon look)
+      const radius = size * 0.15;
+      ctx.fillStyle = '#FFCC00';
+      ctx.beginPath();
+      ctx.roundRect(0, 0, size, size, radius);
+      ctx.fill();
+
+      // Character body - centered in 64x64 space
+      // Original positions adjusted for centering
+      const offsetX = 0;
+      const offsetY = 4;
+
+      // Main body (52x36 at position 6,8)
+      rect(6 + offsetX, 8 + offsetY, 52, 36, COLOR_CLAUDE);
+
+      // Arms (6x10)
+      rect(0 + offsetX, 22 + offsetY, 6, 10, COLOR_CLAUDE);    // Left
+      rect(58 + offsetX, 22 + offsetY, 6, 10, COLOR_CLAUDE);   // Right
+
+      // Legs (4 legs)
+      rect(10 + offsetX, 44 + offsetY, 6, 12, COLOR_CLAUDE);   // Left outer
+      rect(18 + offsetX, 44 + offsetY, 6, 12, COLOR_CLAUDE);   // Left inner
+      rect(40 + offsetX, 44 + offsetY, 6, 12, COLOR_CLAUDE);   // Right inner
+      rect(48 + offsetX, 44 + offsetY, 6, 12, COLOR_CLAUDE);   // Right outer
+
+      // Alert eyes (round)
+      const leftX = 14 + offsetX;
+      const rightX = 44 + offsetX;
+      const eyeY = 22 + offsetY;
+
+      // Left eye (circle approximation)
+      rect(leftX + 1, eyeY, 4, 6, COLOR_EYE);
+      rect(leftX, eyeY + 1, 6, 4, COLOR_EYE);
+
+      // Right eye (circle approximation)
+      rect(rightX + 1, eyeY, 4, 6, COLOR_EYE);
+      rect(rightX, eyeY + 1, 6, 4, COLOR_EYE);
+
+      // Question mark above head
+      const qx = 50 + offsetX;
+      const qy = 2 + offsetY;
+      rect(qx + 1, qy, 4, 2, COLOR_EYE);        // Top curve
+      rect(qx + 4, qy + 2, 2, 2, COLOR_EYE);    // Right side
+      rect(qx + 2, qy + 4, 2, 2, COLOR_EYE);    // Middle
+      rect(qx + 2, qy + 6, 2, 2, COLOR_EYE);    // Lower middle
+      rect(qx + 2, qy + 10, 2, 2, COLOR_EYE);   // Dot
+    }
+
+    function download(canvasId, filename) {
+      const canvas = document.getElementById(canvasId);
+      const link = document.createElement('a');
+      link.download = filename;
+      link.href = canvas.toDataURL('image/png');
+      link.click();
+    }
+
+    // Draw all icons
+    window.onload = function() {
+      drawIcon('icon512', 512);
+      drawIcon('icon256', 256);
+      drawIcon('icon128', 128);
+      drawIcon('icon64', 64);
+      drawIcon('icon32', 32);
+      drawIcon('icon16', 16);
+    };
+  </script>
+</body>
+</html>

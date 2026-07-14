@@ -1,8 +1,10 @@
 # HTTP API Reference
 
-Default port: Desktop App `19280`, ESP32 WiFi `80`
+Default port: `19280`
 
-## Security & Limits (Desktop only)
+> For the ESP32 device API, see [vibemon-esp32](https://github.com/opspresso/vibemon-esp32).
+
+## Security & Limits
 
 | Limit | Value | Description |
 |-------|-------|-------------|
@@ -10,8 +12,6 @@ Default port: Desktop App `19280`, ESP32 WiFi `80`
 | Rate limit | 100 req/min | Per IP address |
 | Request timeout | 30 sec | Prevents Slowloris attacks |
 | CORS | localhost only | Only allows localhost origins |
-
-> **Note:** ESP32 HTTP server does not enforce these limits. ESP32 security relies on local network isolation and SSID sanitization.
 
 ### Input Validation
 
@@ -25,35 +25,33 @@ Default port: Desktop App `19280`, ESP32 WiFi `80`
 | `usage5h` | - | Integer 0-100 (5-hour plan-usage window) |
 | `usageWeek` | - | Integer 0-100 (weekly plan-usage window) |
 | `character` | - | `clawd`, `codex`, `kiro`, `claw`, or `daangni` |
-| `terminalId` | 100 chars | Desktop only. Terminal session ID with prefix: `iterm2:w0t0p0:UUID` (from `ITERM_SESSION_ID`) or `ghostty:12345` (from `GHOSTTY_PID`) |
+| `terminalId` | 100 chars | Terminal session ID with prefix: `iterm2:w0t0p0:UUID` (from `ITERM_SESSION_ID`) or `ghostty:12345` (from `GHOSTTY_PID`) |
 
 > `character` is a visual rendering choice, typically selected by the agent bridge. It is not a general agent identity field.
 
 ---
 
-## Platform Support
+## Endpoints
 
-| Endpoint | Desktop | ESP32 WiFi |
-|----------|---------|------------|
-| GET / | ✓ | - |
-| GET /dashboard-data | ✓ | - |
-| POST/GET /status | ✓ | ✓ |
-| GET /windows | ✓ | - |
-| POST /close | ✓ | - |
-| POST /show | ✓ | - |
-| GET /health | ✓ | ✓ |
-| GET /debug | ✓ | - |
-| POST /quit | ✓ | - |
-| POST /lock | ✓ | ✓ |
-| POST /unlock | ✓ | ✓ |
-| GET/POST /lock-mode | ✓ | ✓ |
-| GET/POST /window-mode | ✓ | - |
-| GET/POST /app-mode | ✓ | - |
-| GET/POST /character-lock | ✓ | - |
-| GET /stats | ✓ | - |
-| GET /stats/data | ✓ | - |
-| POST /reboot | - | ✓ |
-| POST /wifi-reset | - | ✓ |
+| Endpoint | Description |
+|----------|-------------|
+| GET / | Dashboard HTML page |
+| GET /dashboard-data | Dashboard data (windows, modes, lock) |
+| POST/GET /status | Update / get status |
+| GET /windows | List all active windows |
+| POST /close | Close specific project window |
+| POST /show | Show window |
+| GET /health | Health check |
+| GET /debug | Window/display debug info |
+| POST /quit | Quit application |
+| POST /lock | Lock to project |
+| POST /unlock | Unlock project |
+| GET/POST /lock-mode | Get / set lock mode |
+| GET/POST /window-mode | Get / set window mode sub-mode |
+| GET/POST /app-mode | Get / set app mode |
+| GET/POST /character-lock | Get / set character lock |
+| GET /stats | Stats dashboard page |
+| GET /stats/data | Stats data from cache |
 
 ## Status
 
@@ -78,11 +76,10 @@ curl -X POST http://127.0.0.1:19280/status \
 | `memory` | number | Context-window usage (0-100) |
 | `usage5h` | number | 5-hour plan-usage window (0-100) |
 | `usageWeek` | number | Weekly plan-usage window (0-100) |
-| `character` | string | `clawd`, `codex`, `kiro`, `claw`, or `daangni` (Desktop only — ESP32 silently ignores `daangni`) |
-| `terminalId` | string | Desktop only. Terminal ID for click-to-focus (e.g., `iterm2:w0t0p0:UUID` or `ghostty:12345`) |
+| `character` | string | `clawd`, `codex`, `kiro`, `claw`, or `daangni` |
+| `terminalId` | string | Terminal ID for click-to-focus (e.g., `iterm2:w0t0p0:UUID` or `ghostty:12345`) |
 
-> **Desktop:** An unrecognized `state` value is rejected with a `400` error.
-> **ESP32:** An unrecognized `state` value is silently treated as `idle` — no error is returned.
+> An unrecognized `state` value is rejected with a `400` error.
 
 Agent bridges usually set `character` automatically:
 - `clawd` for Claude Code
@@ -90,19 +87,12 @@ Agent bridges usually set `character` automatically:
 - `kiro` for Kiro
 - `claw` for OpenClaw
 
-**Response (Desktop):**
+**Response:**
 ```json
 {"success": true, "project": "my-project", "state": "working", "windowCount": 2}
 ```
 
 > `skipped: true` is added when neither `state` nor the info fields (`tool`, `model`, `memory`, `usage5h`, `usageWeek`, `character`) changed (optimization). If a project is blocked (project locked or max windows), `success` is `false` with an `error` field, plus `lockedProject` (blocked by lock) or `windowCount` (max windows reached).
-
-**Response (ESP32 WiFi):**
-```json
-{"success": true}
-```
-
-> If blocked by project lock: `{"success": false, "blocked": true}`
 
 ### GET /status
 
@@ -112,7 +102,7 @@ Get current status.
 curl http://127.0.0.1:19280/status
 ```
 
-**Response (Desktop):**
+**Response:**
 ```json
 {
   "windowCount": 2,
@@ -120,17 +110,6 @@ curl http://127.0.0.1:19280/status
     "my-project": {"state": "working", "tool": "Bash", "model": "opus", "memory": 45, "usage5h": 36, "usageWeek": 37},
     "other-project": {"state": "idle"}
   }
-}
-```
-
-**Response (ESP32 WiFi):**
-```json
-{
-  "state": "working",
-  "project": "my-project",
-  "lockedProject": "my-project",
-  "lockMode": "on-thinking",
-  "projectCount": 1
 }
 ```
 
@@ -172,7 +151,7 @@ curl -X POST http://127.0.0.1:19280/close \
 {"success": true, "project": "my-project", "windowCount": 1}
 ```
 
-### POST /show (Desktop only)
+### POST /show
 
 Show window and position to top-right corner.
 
@@ -199,7 +178,7 @@ curl -X POST http://127.0.0.1:19280/show \
 
 > When `project` is omitted, the response's `project` field is the literal string `"first"`, not the actual project ID of the shown window.
 
-### GET /window-mode (Desktop only)
+### GET /window-mode
 
 Get current window mode.
 
@@ -212,7 +191,7 @@ curl http://127.0.0.1:19280/window-mode
 {"mode": "multi", "windowCount": 2, "lockedProject": null}
 ```
 
-### POST /window-mode (Desktop only)
+### POST /window-mode
 
 Set window mode (`multi` or `single`).
 
@@ -229,7 +208,7 @@ curl -X POST http://127.0.0.1:19280/window-mode \
 
 > On an invalid `mode`, the response is `{"success": false, "error": "Invalid mode: <mode>", "validModes": ["multi", "single"]}`.
 
-### GET /app-mode (Desktop only)
+### GET /app-mode
 
 Get current app mode.
 
@@ -242,7 +221,7 @@ curl http://127.0.0.1:19280/app-mode
 {"mode": "window", "windowCount": 2}
 ```
 
-### POST /app-mode (Desktop only)
+### POST /app-mode
 
 Set app mode (`character`, `window`, or `input`).
 
@@ -259,7 +238,7 @@ curl -X POST http://127.0.0.1:19280/app-mode \
 
 > On an invalid `mode`, the response is `{"success": false, "error": "Invalid mode: <mode>", "validModes": ["character", "window", "input"]}`.
 
-### GET /character-lock (Desktop only)
+### GET /character-lock
 
 Get current character lock.
 
@@ -272,7 +251,7 @@ curl http://127.0.0.1:19280/character-lock
 {"character": "auto"}
 ```
 
-### POST /character-lock (Desktop only)
+### POST /character-lock
 
 Force every window to show one character regardless of what each project's status reports (`auto`, or one of `clawd`, `codex`, `kiro`, `claw`, `daangni`). `auto` restores each project's own character on its next status update.
 
@@ -298,13 +277,7 @@ curl -X POST http://127.0.0.1:19280/character-lock \
 Lock to a specific project.
 
 ```bash
-# Desktop
 curl -X POST http://127.0.0.1:19280/lock \
-  -H "Content-Type: application/json" \
-  -d '{"project":"my-project"}'
-
-# ESP32
-curl -X POST http://192.168.0.185/lock \
   -H "Content-Type: application/json" \
   -d '{"project":"my-project"}'
 ```
@@ -313,27 +286,21 @@ curl -X POST http://192.168.0.185/lock \
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `project` | string | Project name to lock. Defaults to current project if omitted (ESP32 only). |
+| `project` | string | Project name to lock |
 
 **Response:**
 ```json
 {"success": true, "lockedProject": "my-project"}
 ```
 
-> **Desktop:** Only works in single-window mode. Returns `{"success": false, "error": "Lock only available in single-window mode"}` in multi-window mode. If the locked project has no active window, the response includes `"warning": "No active window for this project"`.
->
-> **ESP32:** Always available. When locking a new project, the display transitions to `idle` state and clears `tool`, `model`, `memory`.
+> Only works in single-window mode. Returns `{"success": false, "error": "Lock only available in single-window mode"}` in multi-window mode. If the locked project has no active window, the response includes `"warning": "No active window for this project"`.
 
 ### POST /unlock
 
 Unlock project.
 
 ```bash
-# Desktop
 curl -X POST http://127.0.0.1:19280/unlock
-
-# ESP32
-curl -X POST http://192.168.0.185/unlock
 ```
 
 **Response:**
@@ -341,21 +308,17 @@ curl -X POST http://192.168.0.185/unlock
 {"success": true, "lockedProject": null}
 ```
 
-> **Desktop:** Only works in single-window mode. Returns `{"success": false, "error": "Unlock only available in single-window mode"}` in multi-window mode.
+> Only works in single-window mode. Returns `{"success": false, "error": "Unlock only available in single-window mode"}` in multi-window mode.
 
 ### GET /lock-mode
 
 Get current lock mode.
 
 ```bash
-# Desktop
 curl http://127.0.0.1:19280/lock-mode
-
-# ESP32
-curl http://192.168.0.185/lock-mode
 ```
 
-**Response (Desktop):**
+**Response:**
 ```json
 {
   "mode": "on-thinking",
@@ -365,29 +328,12 @@ curl http://192.168.0.185/lock-mode
 }
 ```
 
-**Response (ESP32 WiFi):**
-```json
-{
-  "mode": "on-thinking",
-  "modes": {"first-project": "First Project", "on-thinking": "On Thinking"},
-  "lockedProject": null
-}
-```
-
-> `windowMode` is Desktop-only (ESP32 has no window mode concept).
-
 ### POST /lock-mode
 
 Set lock mode (`first-project` or `on-thinking`).
 
 ```bash
-# Desktop
 curl -X POST http://127.0.0.1:19280/lock-mode \
-  -H "Content-Type: application/json" \
-  -d '{"mode":"first-project"}'
-
-# ESP32
-curl -X POST http://192.168.0.185/lock-mode \
   -H "Content-Type: application/json" \
   -d '{"mode":"first-project"}'
 ```
@@ -397,15 +343,11 @@ curl -X POST http://192.168.0.185/lock-mode \
 {"success": true, "mode": "first-project", "lockedProject": null}
 ```
 
-> **ESP32:** Changing lock mode resets the current lock (`lockedProject` becomes null) and persists the new mode to Flash storage.
->
-> **Desktop:** On an invalid `mode`, the response is `{"success": false, "error": "Invalid mode: <mode>", "validModes": [...]}` listing the accepted mode keys.
->
-> **ESP32:** On an invalid `mode`, the response is HTTP 400 with `{"error": "Invalid mode. Valid modes: first-project, on-thinking"}` (no `success` field).
+> On an invalid `mode`, the response is `{"success": false, "error": "Invalid mode: <mode>", "validModes": [...]}` listing the accepted mode keys.
 
 ---
 
-## Dashboard (Desktop only)
+## Dashboard
 
 ### GET /
 
@@ -440,7 +382,7 @@ curl http://127.0.0.1:19280/dashboard-data
 
 ---
 
-## Statistics (Desktop only)
+## Statistics
 
 ### GET /stats
 
@@ -487,7 +429,7 @@ curl http://127.0.0.1:19280/health
 {"status": "ok"}
 ```
 
-### GET /debug (Desktop only)
+### GET /debug
 
 Get display and window debug information.
 
@@ -508,7 +450,7 @@ curl http://127.0.0.1:19280/debug
 }
 ```
 
-### POST /quit (Desktop only)
+### POST /quit
 
 Quit the application.
 
@@ -516,58 +458,19 @@ Quit the application.
 curl -X POST http://127.0.0.1:19280/quit
 ```
 
-### POST /reboot (ESP32 only)
-
-Reboot the ESP32 device.
-
-```bash
-curl -X POST http://192.168.0.185/reboot \
-  -H "Content-Type: application/json" \
-  -d '{"confirm":true}'
-```
-
-**Response:**
-```json
-{"success": true, "rebooting": true}
-```
-
-### POST /wifi-reset (ESP32 only)
-
-Clear saved WiFi credentials and return to provisioning mode.
-
-```bash
-curl -X POST http://192.168.0.185/wifi-reset \
-  -H "Content-Type: application/json" \
-  -d '{"confirm":true}'
-```
-
-**Response:**
-```json
-{"success": true, "message": "WiFi credentials cleared. Rebooting..."}
-```
-
-**Behavior:**
-- Clears `wifiSSID`, `wifiPassword` from NVS (WebSocket token is preserved)
-- Device reboots automatically
-- Enters provisioning mode (creates `VibeMon-Setup` AP)
-
-See [ESP32 Setup Guide](esp32-setup.md#reset-wifi-settings) for details.
-
 ---
 
 ## HTTP Status Codes
 
-| Code | Desktop | ESP32 |
-|------|---------|-------|
-| `200` | Success | Success (also used for some errors — check `success` field) |
-| `400` | Bad request (validation error) | Bad request (missing body or invalid input) |
-| `404` | Not found | Likely, via the `WebServer` library's default unmatched-route handler (normal mode registers no custom `onNotFound`) |
-| `408` | Request timeout | - |
-| `413` | Payload too large (>10KB) | - |
-| `429` | Too many requests (rate limited) | - |
-| `500` | Internal server error | - |
-
-> **ESP32 note:** The ESP32 HTTP server always returns HTTP 200 for valid requests (including project-lock rejections). Check the `success` field in the response body to determine the outcome.
+| Code | Description |
+|------|-------------|
+| `200` | Success |
+| `400` | Bad request (validation error) |
+| `404` | Not found |
+| `408` | Request timeout |
+| `413` | Payload too large (>10KB) |
+| `429` | Too many requests (rate limited) |
+| `500` | Internal server error |
 
 ### Error Response Format
 
@@ -575,4 +478,4 @@ See [ESP32 Setup Guide](esp32-setup.md#reset-wifi-settings) for details.
 {"error": "Error message description"}
 ```
 
-> **Desktop note:** Routes not matching any known endpoint return a plain-text `404 Not Found` body, not JSON.
+> Routes not matching any known endpoint return a plain-text `404 Not Found` body, not JSON.

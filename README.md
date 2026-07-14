@@ -8,6 +8,8 @@
 
 See at a glance what your AI assistant is doing — thinking, working, or waiting for input. A cute pixel art character visually represents the current state.
 
+Desktop (Electron) app for VibeMon. For the ESP32 hardware display, see [vibemon-esp32](https://github.com/opspresso/vibemon-esp32).
+
 ## Supported Tools
 
 | Tool | Description |
@@ -19,7 +21,7 @@ See at a glance what your AI assistant is doing — thinking, working, or waitin
 
 ## Agent Integration Model
 
-VibeMon does not talk to agent runtimes directly. Each supported agent is bridged into the same status payload and then rendered by the Desktop App or ESP32 display.
+VibeMon does not talk to agent runtimes directly. Each supported agent is bridged into the same status payload and then rendered by the Desktop App (or the [ESP32 display](https://github.com/opspresso/vibemon-esp32)).
 
 | Agent | Bridge type | Tool visibility | Notes |
 |------|-------------|-----------------|-------|
@@ -47,8 +49,6 @@ VibeMon does not talk to agent runtimes directly. Each supported agent is bridge
 
 ## Quick Start
 
-### Desktop App
-
 Homebrew (macOS, recommended):
 
 ```bash
@@ -66,31 +66,14 @@ That's it! The app launches in the system tray and listens on `http://127.0.0.1:
 
 Open **Settings > AI Tools** from the tray menu and click **Install** for Claude Code, Codex CLI, Kiro IDE, or OpenClaw — this sets up the hooks and collector config for you, no separate installer needed. See [Settings Window](docs/features.md#settings-window) for details.
 
-### ESP32 Hardware
-
-1. Set `BOARD_TYPE` in `credentials.h` and flash firmware (ESP32-C6-LCD-1.47 or 1.9)
-2. Device creates WiFi AP: `VibeMon-Setup` (password: `vibemon123`)
-3. Connect and configure WiFi + WebSocket token via web interface
-4. Device connects and displays AI assistant status
-
-See [ESP32 Setup Guide](docs/esp32-setup.md) for detailed instructions.
-
 ## Preview
 
 ![VibeMon Demo](images/demo.gif)
-
-## Platforms
-
-| Platform | Description | Best For |
-|----------|-------------|----------|
-| **ESP32 Hardware** | Dedicated LCD display (172×320 or 170×320, selected via `BOARD_TYPE`) | Primary, always-on desk companion |
-| **Desktop App** | Electron app with system tray | Alternative for non-hardware users |
 
 ## Documentation
 
 - [Features](docs/features.md) - States, animations, window modes
 - [API Reference](docs/api.md) - Complete HTTP API documentation
-- [ESP32 Setup Guide](docs/esp32-setup.md) - WiFi provisioning, WebSocket token configuration
 
 For full documentation, visit **[vibemon.io/docs](https://vibemon.io/docs)**.
 
@@ -219,14 +202,12 @@ See [Features](docs/features.md) for lock modes and bridge notes.
 | Window not appearing | Check system tray, or run `curl -X POST http://127.0.0.1:19280/show` |
 | Port already in use | Check with `lsof -i :19280` |
 | Hook not working | Verify Python 3: `python3 --version` |
-| Captive portal doesn't open | Navigate to `http://192.168.4.1` manually |
-| WiFi connection fails | Check password, ensure 2.4GHz network |
-| Device won't enter setup mode | Send `POST /wifi-reset` with body `{"confirm":true}` to clear credentials |
 
-See [Features](docs/features.md) for desktop app details, [ESP32 Setup Guide](docs/esp32-setup.md) for hardware troubleshooting.
+See [Features](docs/features.md) for desktop app details.
 
 ## Related Projects
 
+- [vibemon-esp32](https://github.com/opspresso/vibemon-esp32) - ESP32 hardware display firmware
 - [vibemon](https://github.com/opspresso/vibemon) - Cloud dashboard & API ([vibemon.io](https://vibemon.io))
 - [vibemon-docs](https://github.com/opspresso/vibemon-docs) - Agent hook installation & setup guide ([vibemon.io/docs](https://vibemon.io/docs))
 - [vibemon-static](https://github.com/opspresso/vibemon-static) - Static assets & embeddable rendering engine ([static.vibemon.io](https://static.vibemon.io))

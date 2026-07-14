@@ -22,10 +22,6 @@ jobs:
         os: [macos-latest]
       fail-fast: false
 
-    defaults:
-      run:
-        working-directory: desktop
-
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -104,10 +100,10 @@ jobs:
         with:
           name: ${{ matrix.os }}-artifacts
           path: |
-            desktop/dist/*.dmg
-            desktop/dist/*.zip
-            desktop/dist/*.exe
-            desktop/dist/*.yml
+            dist/*.dmg
+            dist/*.zip
+            dist/*.exe
+            dist/*.yml
           if-no-files-found: ignore
 
   release:

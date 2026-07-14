@@ -6,19 +6,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Real-time status monitor for AI assistants (Claude Code, Codex, Kiro, OpenClaw) with pixel art character.
 
-**Platforms:**
-- ESP32 Hardware (172×320 or 170×320 LCD, selected via BOARD_TYPE) - Primary, always-on desk companion
-- Desktop App (Electron) - Alternative for non-hardware users
-
-**Supported ESP32 boards (compile-time selection via `BOARD_TYPE` in `credentials.h`):**
-- ESP32-C6-LCD-1.47 — ST7789V2, 172×320, GPIO22 PWM backlight
-- ESP32-C6-LCD-1.9  — ST7789V2, 170×320, GPIO15 direct backlight active-low (touch optional)
+Desktop App (Electron) with system tray. The ESP32 hardware display lives in the separate [vibemon-esp32](https://github.com/opspresso/vibemon-esp32) repository.
 
 ## Development Environment
 
-### Desktop App
 ```bash
-cd desktop
 npm install
 npm start
 ```
@@ -26,11 +18,6 @@ npm start
 ## Architecture
 
 ```
-┌─────────────────────────────────────────────────────┐
-│              Main Loop (ESP32/.ino)                 │
-│  Serial/WiFi → JSON Parse → State Update → Render   │
-└─────────────────────────────────────────────────────┘
-
 ┌─────────────────────────────────────────────────────┐
 │              Desktop App (Electron)                 │
 │  HTTP Server (19280) → Multi-Window Manager         │
@@ -40,12 +27,10 @@ npm start
 ```
 
 ### Key Files
-- **ESP32**: `esp32.ino` (main orchestrator), `config.h` (constants), `TFT_Compat.h` (LovyanGFX wrapper, defines `TFT_eSPI`/`TFT_eSprite` aliases), `LGFX_ESP32C6.hpp` (dual-board display driver, `configure(boardType)` called before `init()`), `sprites.h` (rendering), `img_clawd.h`/`img_codex.h`/`img_kiro.h`/`img_claw.h` (per-character 128×128 RGB565 bitmaps used by `sprites.h`), `ui_elements.h` (status text, icons), `state.h` (globals, timers, `g_boardType`), `display.h` (screen drawing), `project_lock.h` (lock logic), `input.h` (JSON parsing), `wifi_manager.h` (WiFi/HTTP/WebSocket), `wifi_portal.h` (captive portal HTML), `credentials.h.example` (WiFi/WebSocket/board config template → copy to `credentials.h`)
-- **Desktop**: `main.js` (entry point), `preload.js` (Electron contextBridge/IPC), `modules/*.cjs` (http-server, http-utils, multi-window-manager, bubble-window-manager, state-manager, tray-manager, settings-window-manager, validators, ws-client, hook-installer, update-checker, vibemon-config-manager), `renderer.js` + `index.html`/`bubble.html`/`dashboard.html`/`stats.html` (renderer views; `renderer.js` loads the character/canvas rendering engine from the remote `vibemon-engine-standalone.js`), `settings.html` + `settings-preload.js` (Settings window UI, opened via tray → Settings...)
-- **Shared**: `desktop/shared/` folder (config, constants)
-- **Config Data**: `desktop/shared/data/constants.json` (single source of truth - window dimensions, animation settings, limits)
-- **Tools**: `tools/png_to_rgb565.py` (PNG → ESP32 `img_*.h` RGB565 header; magenta `0xF81F` = transparent), `tools/rgb565_to_png.py` (reverse, regenerates `images/img_*.png`)
-- **Documentation**: `README.md`, `CLAUDE.md`, `docs/*`, `desktop/README.md` (npm package)
+- **Desktop**: `src/main.js` (entry point), `src/preload.js` (Electron contextBridge/IPC), `src/modules/*.cjs` (http-server, http-utils, multi-window-manager, bubble-window-manager, state-manager, tray-manager, settings-window-manager, validators, ws-client, hook-installer, update-checker, vibemon-config-manager), `src/renderer.js` + `src/index.html`/`bubble.html`/`dashboard.html`/`stats.html` (renderer views; `renderer.js` loads the character/canvas rendering engine from the remote `vibemon-engine-standalone.js`), `src/settings.html` + `src/settings-preload.js` (Settings window UI, opened via tray → Settings...)
+- **Shared**: `src/shared/` folder (config, constants)
+- **Config Data**: `src/shared/data/constants.json` (single source of truth - window dimensions, animation settings, limits)
+- **Documentation**: `README.md` (repo + npm package), `CLAUDE.md`, `docs/*`
 
 ## Key Patterns
 
@@ -69,8 +54,6 @@ npm start
 - **Open at Login**: Configurable via system tray menu; uses Electron `app.setLoginItemSettings()` to auto-start on macOS login
 - **Auto-update (Desktop)**: `UpdateChecker` (`update-checker.cjs`) wraps `electron-updater` against the GitHub Releases provider; checks periodically in the background (`UPDATE_CHECK_INTERVAL_MS`, packaged builds only) and surfaces a one-click "⬆ Update to vX" tray menu item that downloads and installs (`autoUpdater.quitAndInstall`) — no auto-download without a user click
 - **Settings Window (Desktop)**: `SettingsWindowManager` (`settings-window-manager.cjs`) hosts `settings.html` (sidebar tabs: VibeMon / Collector / AI Tools / About) behind `settings-preload.js`'s `settingsAPI`; every mutation goes through the same manager methods as the tray menu, `onSettingsChanged` refreshes the tray, and the page re-syncs on window focus. The Collector tab is backed by `VibemonConfigManager` (`vibemon-config-manager.cjs`), which reads/writes `~/.vibemon/config.json` directly (no python installer needed) and keeps `http_urls` pointed at this app
-- **Alert light (ESP32)**: Optional GPIO output for physical alert light; define `ALERT_PIN` in `credentials.h` to enable; HIGH during `alert` state, LOW otherwise; use GPIO2 (safe for both boards) — GPIO4 conflicts with 1.9" board MOSI
-- **Board selection**: Set `#define BOARD_TYPE BOARD_1_9` or `BOARD_1_47` in `credentials.h`; configures SPI pins, panel offset, and backlight at compile time; 1.9" backlight is GPIO15 direct (active-low: LOW=on, HIGH=off); 1.47" backlight is GPIO22 PWM
 - **State-based always on top**: Active states (thinking, planning, working, packing, notification, alert) keep window on top; inactive states (start, idle, done, sleep) disable always on top to reduce screen obstruction
 - **Always on Top Modes**: `all` (default), `active-only`, `disabled` - configurable via system tray menu
 - **Always on Top**: Active states enable on top immediately; inactive states disable on top immediately (no grace period, prevents focus stealing)
@@ -100,32 +83,30 @@ Three mutually-exclusive top-level modes (desktop app only), switched via system
 
 ### API Endpoints
 
-| Endpoint | Platform | Description |
-|----------|----------|-------------|
-| `POST /status` | All | Create/update window for project |
-| `GET /status` | All | Returns current state |
-| `GET /health` | All | Health check |
-| `POST /lock` | All | Lock to project |
-| `POST /unlock` | All | Unlock project |
-| `GET /lock-mode` | All | Get current lock mode |
-| `POST /lock-mode` | All | Set lock mode |
-| `GET /windows` | Desktop | List all active windows |
-| `POST /close` | Desktop | Close specific project window |
-| `POST /show` | Desktop | Show window |
-| `GET /window-mode` | Desktop | Get current window mode sub-mode (multi/single) |
-| `POST /window-mode` | Desktop | Set window mode sub-mode |
-| `GET /app-mode` | Desktop | Get current app mode (character/window/input) |
-| `POST /app-mode` | Desktop | Set app mode |
-| `GET /character-lock` | Desktop | Get current character lock (auto/character name) |
-| `POST /character-lock` | Desktop | Set character lock |
-| `GET /debug` | Desktop | Window/display debug info |
-| `GET /` | Desktop | Dashboard HTML page |
-| `GET /dashboard-data` | Desktop | Dashboard data (windows, modes, lock) |
-| `GET /stats` | Desktop | Stats dashboard page |
-| `GET /stats/data` | Desktop | Stats data from cache |
-| `POST /quit` | Desktop | Quit application |
-| `POST /reboot` | ESP32 | Reboot device |
-| `POST /wifi-reset` | ESP32 | Clear WiFi credentials, enter provisioning mode |
+| Endpoint | Description |
+|----------|-------------|
+| `POST /status` | Create/update window for project |
+| `GET /status` | Returns current state |
+| `GET /health` | Health check |
+| `POST /lock` | Lock to project |
+| `POST /unlock` | Unlock project |
+| `GET /lock-mode` | Get current lock mode |
+| `POST /lock-mode` | Set lock mode |
+| `GET /windows` | List all active windows |
+| `POST /close` | Close specific project window |
+| `POST /show` | Show window |
+| `GET /window-mode` | Get current window mode sub-mode (multi/single) |
+| `POST /window-mode` | Set window mode sub-mode |
+| `GET /app-mode` | Get current app mode (character/window/input) |
+| `POST /app-mode` | Set app mode |
+| `GET /character-lock` | Get current character lock (auto/character name) |
+| `POST /character-lock` | Set character lock |
+| `GET /debug` | Window/display debug info |
+| `GET /` | Dashboard HTML page |
+| `GET /dashboard-data` | Dashboard data (windows, modes, lock) |
+| `GET /stats` | Stats dashboard page |
+| `GET /stats/data` | Stats data from cache |
+| `POST /quit` | Quit application |
 
 ## States
 
@@ -156,17 +137,4 @@ curl -X POST http://127.0.0.1:19280/status \
 
 # List windows
 curl http://127.0.0.1:19280/windows
-
-# ESP32 Serial (macOS)
-echo '{"state":"working","tool":"Bash","project":"my-project"}' > /dev/cu.usbmodem1101
-
-# ESP32 Serial (Raspberry Pi / Linux)
-stty -F /dev/ttyACM0 115200  # Set baud rate first (required)
-echo '{"state":"working","tool":"Bash","project":"my-project"}' > /dev/ttyACM0
 ```
-
-## Important Notes
-
-- ESP32: Uses LovyanGFX library with `LGFX_ESP32C6.hpp` configuration (TFT_eSPI not required)
-- JSON payload must end with LF (`\n`)
-- WiFi mode: Create `credentials.h` from example (WiFi and WebSocket are enabled by default)
