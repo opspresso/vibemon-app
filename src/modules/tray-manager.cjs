@@ -4,12 +4,11 @@
 
 const { Tray, Menu, nativeImage, BrowserWindow } = require('electron');
 const { createCanvas } = require('canvas');
-const fs = require('fs');
 const {
   STATE_COLORS, CHARACTER_CONFIG, DEFAULT_CHARACTER,
   HTTP_PORT, LOCK_MODES, ALWAYS_ON_TOP_MODES, APP_MODES,
   VALID_STATES, CHARACTER_NAMES, TRAY_ICON_SIZE,
-  STATS_CACHE_PATH, SPEECH_BUBBLE_FIELDS
+  SPEECH_BUBBLE_FIELDS
 } = require('../shared/config.cjs');
 
 const COLOR_EYE = '#000000';
@@ -145,7 +144,6 @@ class TrayManager {
     this.hookInstaller = null;
     this.updateChecker = null;
     this.settingsWindowManager = null;
-    this.statsWindow = null;
   }
 
   /**
@@ -178,43 +176,6 @@ class TrayManager {
    */
   setSettingsWindowManager(settingsWindowManager) {
     this.settingsWindowManager = settingsWindowManager;
-  }
-
-  openStatsWindow() {
-    // If window exists, close it first
-    if (this.statsWindow && !this.statsWindow.isDestroyed()) {
-      this.statsWindow.close();
-      this.statsWindow = null;
-    }
-
-    // Create new stats window (frameless like monitor window)
-    this.statsWindow = new BrowserWindow({
-      width: 640,
-      height: 475,
-      frame: false,
-      transparent: true,
-      resizable: false,
-      hasShadow: true,
-      alwaysOnTop: false,
-      skipTaskbar: false,
-      webPreferences: {
-        nodeIntegration: false,
-        contextIsolation: true
-      }
-    });
-
-    this.statsWindow.loadURL(`http://127.0.0.1:${HTTP_PORT}/stats`);
-
-    this.statsWindow.on('closed', () => {
-      this.statsWindow = null;
-    });
-
-    // Close on blur (lose focus)
-    this.statsWindow.on('blur', () => {
-      if (this.statsWindow && !this.statsWindow.isDestroyed()) {
-        this.statsWindow.close();
-      }
-    });
   }
 
   /**
@@ -685,13 +646,6 @@ class TrayManager {
         submenu: this.buildHookInstallerSubmenu()
       },
       { type: 'separator' },
-      // Extras with no Settings tab equivalent
-      {
-        label: 'Claude Stats',
-        enabled: fs.existsSync(STATS_CACHE_PATH),
-        click: () => this.openStatsWindow()
-      },
-      { type: 'separator' },
       // About — opens the Settings window's About tab
       ...(this.settingsWindowManager ? [{
         label: 'About',
@@ -731,10 +685,6 @@ class TrayManager {
   cleanup() {
     // Clear tray icon cache to free memory
     trayIconCache.clear();
-    if (this.statsWindow && !this.statsWindow.isDestroyed()) {
-      this.statsWindow.close();
-      this.statsWindow = null;
-    }
     if (this.tray) {
       this.tray.destroy();
       this.tray = null;

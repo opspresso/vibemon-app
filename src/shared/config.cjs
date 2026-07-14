@@ -6,9 +6,6 @@
  * Constants are in constants.cjs - re-exported here for convenience
  */
 
-const path = require('path');
-const os = require('os');
-
 // Re-export all constants for backward compatibility
 const constants = require('./constants.cjs');
 
@@ -22,11 +19,6 @@ const WS_TOKEN = process.env.VIBEMON_WS_TOKEN || null;
 // Hook Installer Configuration (from environment variables)
 // =============================================================================
 const DOCS_BASE_URL = process.env.VIBEMON_DOCS_URL || 'https://docs.vibemon.io';
-
-// =============================================================================
-// Paths
-// =============================================================================
-const STATS_CACHE_PATH = path.join(os.homedir(), '.claude', 'stats-cache.json');
 
 // =============================================================================
 // State & Character Data (from constants.json)
@@ -51,9 +43,6 @@ const CHARACTER_CONFIG = Object.fromEntries(
 module.exports = {
   // Re-export all constants
   ...constants,
-
-  // Paths
-  STATS_CACHE_PATH,
 
   // State data (from constants.json)
   VALID_STATES,

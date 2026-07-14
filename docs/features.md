@@ -277,13 +277,12 @@ Changes apply immediately through the same code paths as the tray menu, and the 
 
 ### System Tray Menu
 
-Grouped to mirror the Settings window's tab order (VibeMon / Collector / AI Tools / About), plus a couple of extras with no Settings equivalent:
+Grouped to mirror the Settings window's tab order (VibeMon / Collector / AI Tools / About):
 
 - Settings... (opens the Settings window)
 - **VibeMon** — App Mode (Character/Window/Input), Character Lock (Auto/Clawd/Codex/Kiro/Claw/Daangni), Window Mode section (view/switch per-project windows and states, Rearrange, Always on Top, Multi-Window Mode toggle, Project Lock in single mode) or Character Mode section (Always on Top, Speech Bubble field toggles), Open at Login toggle
 - **Collector** — WebSocket status (Connected/Disconnected), HTTP Server port display
 - **AI Tools** — AI Tool Hooks (per-tool install status for Claude Code/Codex CLI/Kiro IDE/OpenClaw, with one-click install)
-- Claude Stats
 - **About** — opens the Settings window's About tab, followed by a version display or a one-click "Update to vX" / "Restart to install vX" item
 - Quit
 

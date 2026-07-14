@@ -5,7 +5,7 @@
 const http = require('http');
 const fsPromises = require('fs').promises;
 const path = require('path');
-const { HTTP_PORT, MAX_PAYLOAD_SIZE, MAX_WINDOWS, STATS_CACHE_PATH, CHARACTER_NAMES } = require('../shared/config.cjs');
+const { HTTP_PORT, MAX_PAYLOAD_SIZE, MAX_WINDOWS, CHARACTER_NAMES } = require('../shared/config.cjs');
 const { setCorsHeaders, sendJson, sendError, parseJsonBody } = require('./http-utils.cjs');
 const { validateStatusPayload } = require('./validators.cjs');
 
@@ -200,12 +200,6 @@ class HttpServer {
         break;
       case 'POST /character-lock':
         await this.handlePostCharacterLock(req, res);
-        break;
-      case 'GET /stats':
-        await this.handleGetStatsPage(res);
-        break;
-      case 'GET /stats/data':
-        await this.handleGetStatsData(res);
         break;
       default:
         res.writeHead(404);
@@ -693,34 +687,6 @@ class HttpServer {
     }
   }
 
-  async handleGetStatsPage(res) {
-    const statsHtmlPath = path.join(__dirname, '..', 'stats.html');
-
-    try {
-      const html = await fsPromises.readFile(statsHtmlPath, 'utf8');
-      res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
-      res.end(html);
-    } catch (err) {
-      console.error('Failed to load stats page:', err.message);
-      sendError(res, 500, 'Failed to load stats page');
-    }
-  }
-
-  async handleGetStatsData(res) {
-    try {
-      const data = await fsPromises.readFile(STATS_CACHE_PATH, 'utf8');
-      const stats = JSON.parse(data);
-      sendJson(res, 200, stats);
-    } catch (err) {
-      if (err.code === 'ENOENT') {
-        sendError(res, 404, 'Stats file not found: ~/.claude/stats-cache.json');
-      } else if (err instanceof SyntaxError) {
-        sendError(res, 500, `Failed to parse stats file: ${err.message}`);
-      } else {
-        sendError(res, 500, `Failed to read stats file: ${err.message}`);
-      }
-    }
-  }
 }
 
 module.exports = { HttpServer };

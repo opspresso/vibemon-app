@@ -27,7 +27,7 @@ npm start
 ```
 
 ### Key Files
-- **Desktop**: `src/main.js` (entry point), `src/preload.js` (Electron contextBridge/IPC), `src/modules/*.cjs` (http-server, http-utils, multi-window-manager, bubble-window-manager, state-manager, tray-manager, settings-window-manager, validators, ws-client, hook-installer, update-checker, vibemon-config-manager), `src/renderer.js` + `src/index.html`/`bubble.html`/`dashboard.html`/`stats.html` (renderer views; `renderer.js` loads the character/canvas rendering engine from the remote `vibemon-engine-standalone.js`), `src/settings.html` + `src/settings-preload.js` (Settings window UI, opened via tray → Settings...)
+- **Desktop**: `src/main.js` (entry point), `src/preload.js` (Electron contextBridge/IPC), `src/modules/*.cjs` (http-server, http-utils, multi-window-manager, bubble-window-manager, state-manager, tray-manager, settings-window-manager, validators, ws-client, hook-installer, update-checker, vibemon-config-manager), `src/renderer.js` + `src/index.html`/`bubble.html`/`dashboard.html` (renderer views; `renderer.js` loads the character/canvas rendering engine from the remote `vibemon-engine-standalone.js`), `src/settings.html` + `src/settings-preload.js` (Settings window UI, opened via tray → Settings...)
 - **Shared**: `src/shared/` folder (config, constants)
 - **Config Data**: `src/shared/data/constants.json` (single source of truth - window dimensions, animation settings, limits)
 - **Documentation**: `README.md` (repo + npm package), `CLAUDE.md`, `docs/*`
@@ -104,8 +104,6 @@ Three mutually-exclusive top-level modes (desktop app only), switched via system
 | `GET /debug` | Window/display debug info |
 | `GET /` | Dashboard HTML page |
 | `GET /dashboard-data` | Dashboard data (windows, modes, lock) |
-| `GET /stats` | Stats dashboard page |
-| `GET /stats/data` | Stats data from cache |
 | `POST /quit` | Quit application |
 
 ## States

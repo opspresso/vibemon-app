@@ -50,8 +50,6 @@ Default port: `19280`
 | GET/POST /window-mode | Get / set window mode sub-mode |
 | GET/POST /app-mode | Get / set app mode |
 | GET/POST /character-lock | Get / set character lock |
-| GET /stats | Stats dashboard page |
-| GET /stats/data | Stats data from cache |
 
 ## Status
 
@@ -379,38 +377,6 @@ curl http://127.0.0.1:19280/dashboard-data
   ]
 }
 ```
-
----
-
-## Statistics
-
-### GET /stats
-
-Serve the stats dashboard HTML page.
-
-```bash
-# Open in browser
-open http://127.0.0.1:19280/stats
-```
-
-### GET /stats/data
-
-Get stats data from `~/.claude/stats-cache.json`.
-
-```bash
-curl http://127.0.0.1:19280/stats/data
-```
-
-**Response:**
-```json
-{
-  "sessions": [...],
-  "totalTokens": 12345,
-  "lastUpdated": "2026-01-29T12:00:00Z"
-}
-```
-
-> Errors: `404` `{"error": "Stats file not found: ~/.claude/stats-cache.json"}` if the cache doesn't exist; `500` `{"error": "Failed to parse stats file: <message>"}` or `{"error": "Failed to read stats file: <message>"}` on other failures.
 
 ---
 
