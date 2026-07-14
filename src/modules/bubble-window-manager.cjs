@@ -1,9 +1,9 @@
 /**
- * Speech bubble window management for Character Only Mode
+ * Speech bubble window management
  * One small transparent, click-through BrowserWindow per project, positioned
- * in screen coordinates relative to that project's character window using a
- * d3-force simulation (forceLink + forceCollide) so it never overlaps the
- * character and stays on-screen.
+ * in screen coordinates relative to the character window using a d3-force
+ * simulation (forceLink + forceCollide) so it never overlaps the character
+ * and stays on-screen.
  */
 
 'use strict';
@@ -14,8 +14,8 @@ const { STATE_COLORS, STATE_TEXTS, TOOL_TEXTS, LOADING_STATES } = require('../sh
 
 // The character sprite's center offset and collision radius within the
 // character window, matching the rendering engine's layout constants
-// (CHAR_X_BASE=22, CHAR_Y_BASE=20, CHAR_SIZE=128) — kept in sync manually
-// since those aren't exported by the remote engine. The radius is generous
+// (CHAR_X_BASE=22, CHAR_Y_BASE=20, CHAR_SIZE=128 in
+// src/engine/vibemon-engine.js). The radius is generous
 // (measured opaque sprite bounds span nearly the full 128x128 canvas for some
 // characters) since the bubble now has the whole screen to move in.
 const CHARACTER_OFFSET = { x: 86, y: 84 };
@@ -30,8 +30,8 @@ const SCREEN_MARGIN = 8;
 // screen, so a pinned edge sits flush — this just tolerates rounding).
 const EDGE_PIN_EPSILON = 2;
 
-// Must match multi-window-manager.cjs's ALWAYS_ON_TOP_LEVEL so the bubble
-// stacks at the same level as its character window.
+// Must match character-window-manager.cjs's ALWAYS_ON_TOP_LEVEL so the
+// bubble stacks at the same level as its character window.
 const ALWAYS_ON_TOP_LEVEL = process.platform === 'darwin' ? 'floating' : 'screen-saver';
 
 // Animate the bubble sliding to a new position instead of teleporting there.
@@ -76,15 +76,14 @@ function buildFieldPayload(state, speechBubbleFields) {
 
   if (speechBubbleFields && speechBubbleFields.status && state && state.state) {
     const stateKey = String(state.state);
-    // Same state/tool -> text mapping as the window mode's status line
-    // (STATES[...].text and getWorkingText(tool) in vibemon-engine-standalone.js).
+    // State/tool -> text mapping from constants.json (STATE_TEXTS/TOOL_TEXTS).
     const text = stateKey === 'working'
       ? TOOL_TEXTS[String(state.tool || '').toLowerCase()] || TOOL_TEXTS.default
       : STATE_TEXTS[stateKey] || stateKey.charAt(0).toUpperCase() + stateKey.slice(1);
     payload.status = { type: 'text', text };
     if (LOADING_STATES.includes(stateKey)) {
-      // Loading dots beside the text, like the window mode's; thinking-style
-      // states animate slower than working (THINKING_ANIMATION_SLOWDOWN).
+      // Loading dots beside the text; thinking-style states animate slower
+      // than working (THINKING_ANIMATION_SLOWDOWN).
       payload.status.showLoading = true;
       payload.status.slow = stateKey !== 'working';
     }
@@ -236,12 +235,12 @@ class BubbleWindowManager {
    * executeJavaScript round-trip takes a moment), and without re-checking, a
    * stale call can recreate a bubble window right after destroy() removed it.
    * @param {string} projectId
-   * @param {{state: Object|null, speechBubbleFields: Object, characterOnlyMode: boolean}} options
+   * @param {{state: Object|null, speechBubbleFields: Object}} options
    */
-  async update(projectId, { state, speechBubbleFields, characterOnlyMode }) {
-    const fields = characterOnlyMode ? buildFieldPayload(state, speechBubbleFields) : {};
+  async update(projectId, { state, speechBubbleFields }) {
+    const fields = buildFieldPayload(state, speechBubbleFields);
 
-    if (!characterOnlyMode || Object.keys(fields).length === 0 || !this.isWindowValid(this.getCharacterWindow(projectId))) {
+    if (Object.keys(fields).length === 0 || !this.isWindowValid(this.getCharacterWindow(projectId))) {
       this.hide(projectId);
       return;
     }
@@ -409,7 +408,7 @@ class BubbleWindowManager {
     if (spaceAbove < requiredClearance) biasYOffset = BIAS_DISTANCE;
 
     // The character window is continuously clamped on screen (see
-    // multi-window-manager.cjs's 'will-move' handler), so when it's pinned
+    // character-window-manager.cjs's handleWindowMove), so when it's pinned
     // flush against an edge, force the bubble onto the axis that still has
     // room instead of the usual diagonal bias: pinned top/bottom -> bubble
     // beside the character; pinned left/right -> bubble above/below it.

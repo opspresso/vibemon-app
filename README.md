@@ -72,7 +72,7 @@ Open **Settings > AI Tools** from the tray menu and click **Install** for Claude
 
 ## Documentation
 
-- [Features](docs/features.md) - States, animations, window modes
+- [Features](docs/features.md) - States, animations, character window behavior
 - [API Reference](docs/api.md) - Complete HTTP API documentation
 
 For full documentation, visit **[vibemon.io/docs](https://vibemon.io/docs)**.
@@ -106,7 +106,7 @@ See [Features](docs/features.md) for animations, working state text, and more.
 
 ### Character Lock
 
-Force every window to always show one character, regardless of what each project's status reports. Default is `auto` (each project shows its own character).
+Force the character to always be one of the above, regardless of what each project's status reports. Default is `auto` (each project shows its own character).
 
 ```bash
 curl -X POST http://127.0.0.1:19280/character-lock \
@@ -132,7 +132,7 @@ curl -X POST http://127.0.0.1:19280/status \
 
 ### GET /status
 
-Get all windows' status:
+Get every tracked project's status and which one the character follows:
 
 ```bash
 curl http://127.0.0.1:19280/status
@@ -148,52 +148,15 @@ curl -X POST http://127.0.0.1:19280/quit
 
 See [API Reference](docs/api.md) for all endpoints.
 
-## App Mode
+## Character Window
 
-| Mode | Description |
-|------|-------------|
-| `character` | One persistent character + following speech bubble, tracking whichever project is active - **Default** |
-| `window` | Per-project windows (see Window Mode below) |
-| `input` | No windows shown; status is still collected in the background |
+One persistent character + following speech bubble, tracking whichever project is active:
 
-Switch via system tray menu or API:
+- A project in an active state (thinking, working, notification, ...) takes focus; otherwise the most recently updated project keeps it
+- Updates from other projects are still collected in the background and shown the moment they gain focus
+- Drag it anywhere; it remembers its spot across restarts
 
-```bash
-curl -X POST http://127.0.0.1:19280/app-mode \
-  -H "Content-Type: application/json" \
-  -d '{"mode":"character"}'
-```
-
-### Window Mode
-
-| Sub-mode | Description |
-|------|-------------|
-| `multi` | One window per project (max 5) |
-| `single` | One window with project lock support - **Default** |
-
-Switch via system tray menu or API:
-
-```bash
-curl -X POST http://127.0.0.1:19280/window-mode \
-  -H "Content-Type: application/json" \
-  -d '{"mode":"single"}'
-```
-
-## Project Lock
-
-Lock the monitor to a specific project (single-window mode only):
-
-```bash
-# Claude Code / Codex / Kiro bridge
-python3 ~/.claude/hooks/vibemon.py --lock
-
-# Unlock
-python3 ~/.claude/hooks/vibemon.py --unlock
-```
-
-Use the matching bridge path for your agent (`~/.claude/hooks`, `~/.codex/hooks`, or `~/.kiro/hooks`). OpenClaw uses its plugin bridge rather than a Python hook command.
-
-See [Features](docs/features.md) for lock modes and bridge notes.
+See [Features](docs/features.md) for details.
 
 ## Troubleshooting
 
@@ -210,7 +173,6 @@ See [Features](docs/features.md) for desktop app details.
 - [vibemon-esp32](https://github.com/opspresso/vibemon-esp32) - ESP32 hardware display firmware
 - [vibemon](https://github.com/opspresso/vibemon) - Cloud dashboard & API ([vibemon.io](https://vibemon.io))
 - [vibemon-docs](https://github.com/opspresso/vibemon-docs) - Agent hook installation & setup guide ([vibemon.io/docs](https://vibemon.io/docs))
-- [vibemon-static](https://github.com/opspresso/vibemon-static) - Static assets & embeddable rendering engine ([static.vibemon.io](https://static.vibemon.io))
 
 ## License
 

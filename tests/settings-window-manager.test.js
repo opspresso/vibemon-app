@@ -51,15 +51,11 @@ jest.mock('electron', () => {
 
 const { BrowserWindow, screen, shell } = require('electron');
 const { SettingsWindowManager } = require('../src/modules/settings-window-manager.cjs');
-const { APP_MODES, CHARACTER_NAMES } = require('../src/shared/config.cjs');
+const { CHARACTER_NAMES } = require('../src/shared/config.cjs');
 
 function makeDeps() {
   return {
     windowManager: {
-      getAppMode: jest.fn(() => 'window'),
-      setAppMode: jest.fn(),
-      getWindowMode: jest.fn(() => 'multi'),
-      setWindowMode: jest.fn(),
       getCharacterLock: jest.fn(() => 'auto'),
       setCharacterLock: jest.fn(),
       getAlwaysOnTopMode: jest.fn(() => 'active-only'),
@@ -129,9 +125,11 @@ describe('settings:get-all', () => {
 
     const before = await invoke('settings:get-all');
     expect(before.version).toBe('9.9.9');
-    expect(before.appMode).toBe('window');
-    expect(before.options.appModes).toEqual(APP_MODES);
-    expect(before.options.characterNames).toEqual(CHARACTER_NAMES);
+    expect(before.characterLock).toBe('auto');
+    expect(before.options.characters.map(c => c.name)).toEqual(CHARACTER_NAMES);
+    for (const c of before.options.characters) {
+      expect(typeof c.displayName).toBe('string');
+    }
     // No wsClient yet: safe defaults
     expect(before.ws).toEqual({ status: 'not-configured', token: '' });
 
@@ -163,33 +161,13 @@ describe('settings:get-all', () => {
 });
 
 describe('setting mutations', () => {
-  test('set-app-mode applies valid modes and notifies', async () => {
+  test('set-character-lock accepts auto and known characters only, and notifies', async () => {
     const { manager, deps } = freshManager();
-    expect(await invoke('settings:set-app-mode', 'character')).toBe(true);
-    expect(deps.windowManager.setAppMode).toHaveBeenCalledWith('character');
-    expect(manager.onSettingsChanged).toHaveBeenCalled();
-  });
-
-  test('set-app-mode rejects unknown modes', async () => {
-    const { manager, deps } = freshManager();
-    expect(await invoke('settings:set-app-mode', 'bogus')).toBe(false);
-    expect(deps.windowManager.setAppMode).not.toHaveBeenCalled();
-    expect(manager.onSettingsChanged).not.toHaveBeenCalled();
-  });
-
-  test('set-window-mode accepts only multi/single', async () => {
-    const { deps } = freshManager();
-    expect(await invoke('settings:set-window-mode', 'single')).toBe(true);
-    expect(deps.windowManager.setWindowMode).toHaveBeenCalledWith('single');
-    expect(await invoke('settings:set-window-mode', 'triple')).toBe(false);
-  });
-
-  test('set-character-lock accepts auto and known characters only', async () => {
-    const { deps } = freshManager();
     expect(await invoke('settings:set-character-lock', 'auto')).toBe(true);
     expect(await invoke('settings:set-character-lock', 'kiro')).toBe(true);
     expect(await invoke('settings:set-character-lock', 'pikachu')).toBe(false);
     expect(deps.windowManager.setCharacterLock).toHaveBeenCalledTimes(2);
+    expect(manager.onSettingsChanged).toHaveBeenCalled();
   });
 
   test('set-always-on-top-mode accepts only known modes', async () => {

@@ -1,8 +1,10 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('electronAPI', {
-  closeWindow: () => ipcRenderer.send('close-window'),
-  minimizeWindow: () => ipcRenderer.send('minimize-window'),
+  // Character registry (single source: src/shared/data/characters.json),
+  // fetched from the main process — the sandboxed preload can't require
+  // arbitrary files itself.
+  getCharacterRegistry: () => ipcRenderer.invoke('get-character-registry'),
   showContextMenu: () => ipcRenderer.send('show-context-menu'),
   focusTerminal: () => ipcRenderer.invoke('focus-terminal'),
   onStateUpdate: (callback) => {
@@ -17,19 +19,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
     // Return cleanup function to prevent memory leaks
     return () => ipcRenderer.removeListener('state-update', handler);
   },
-  onDisplayModeUpdate: (callback) => {
-    const handler = (_event, data) => {
-      try {
-        callback(data);
-      } catch (error) {
-        console.error('Display mode update callback error:', error);
-      }
-    };
-    ipcRenderer.on('display-mode-update', handler);
-    // Return cleanup function to prevent memory leaks
-    return () => ipcRenderer.removeListener('display-mode-update', handler);
-  },
   getVersion: () => ipcRenderer.invoke('get-version'),
-  getPlatform: () => process.platform,
-  getDisplayMode: () => ipcRenderer.invoke('get-display-mode')
+  getPlatform: () => process.platform
 });

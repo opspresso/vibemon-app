@@ -11,10 +11,8 @@ const { BrowserWindow, ipcMain, shell } = require('electron');
 const path = require('path');
 const { centerOnCursorDisplay } = require('./window-position.cjs');
 const {
-  APP_MODES, ALWAYS_ON_TOP_MODES, CHARACTER_NAMES, SPEECH_BUBBLE_FIELDS
+  ALWAYS_ON_TOP_MODES, CHARACTER_NAMES, CHARACTER_CONFIG, SPEECH_BUBBLE_FIELDS
 } = require('../shared/config.cjs');
-
-const WINDOW_MODES = ['multi', 'single'];
 
 // Fixed navigation targets — the renderer picks by key, so no URL ever
 // crosses the IPC boundary.
@@ -77,8 +75,6 @@ class SettingsWindowManager {
     return {
       version: this.app.getVersion(),
       isPackaged: this.app.isPackaged,
-      appMode: this.windowManager.getAppMode(),
-      windowMode: this.windowManager.getWindowMode(),
       characterLock: this.windowManager.getCharacterLock(),
       alwaysOnTopMode: this.windowManager.getAlwaysOnTopMode(),
       speechBubbleFields: this.windowManager.getSpeechBubbleFields(),
@@ -91,10 +87,8 @@ class SettingsWindowManager {
       vibemonConfig: this.getVibemonConfigView(),
       update: this.updateChecker.getState(),
       options: {
-        appModes: APP_MODES,
-        windowModes: WINDOW_MODES,
         alwaysOnTopModes: ALWAYS_ON_TOP_MODES,
-        characterNames: CHARACTER_NAMES,
+        characters: CHARACTER_NAMES.map(name => ({ name, displayName: CHARACTER_CONFIG[name].displayName })),
         speechBubbleFields: SPEECH_BUBBLE_FIELDS
       }
     };
@@ -102,20 +96,6 @@ class SettingsWindowManager {
 
   setupIpc() {
     ipcMain.handle('settings:get-all', () => this.getSnapshot());
-
-    ipcMain.handle('settings:set-app-mode', (_event, mode) => {
-      if (!Object.prototype.hasOwnProperty.call(APP_MODES, mode)) return false;
-      this.windowManager.setAppMode(mode);
-      this.notifyChanged();
-      return true;
-    });
-
-    ipcMain.handle('settings:set-window-mode', (_event, mode) => {
-      if (!WINDOW_MODES.includes(mode)) return false;
-      this.windowManager.setWindowMode(mode);
-      this.notifyChanged();
-      return true;
-    });
 
     ipcMain.handle('settings:set-character-lock', (_event, character) => {
       if (character !== 'auto' && !CHARACTER_NAMES.includes(character)) return false;

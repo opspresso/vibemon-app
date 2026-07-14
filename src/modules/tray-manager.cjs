@@ -1,17 +1,16 @@
 /**
- * System tray management for Vibe Monitor
+ * System tray management for VibeMon
  */
 
 const { Tray, Menu, nativeImage, BrowserWindow } = require('electron');
-const { createCanvas } = require('canvas');
+const { createCanvas, loadImage } = require('canvas');
+const path = require('path');
 const {
   STATE_COLORS, CHARACTER_CONFIG, DEFAULT_CHARACTER,
-  HTTP_PORT, LOCK_MODES, ALWAYS_ON_TOP_MODES, APP_MODES,
-  VALID_STATES, CHARACTER_NAMES, TRAY_ICON_SIZE,
+  HTTP_PORT, ALWAYS_ON_TOP_MODES,
+  CHARACTER_NAMES, TRAY_ICON_SIZE,
   SPEECH_BUBBLE_FIELDS
 } = require('../shared/config.cjs');
-
-const COLOR_EYE = '#000000';
 
 const SPEECH_BUBBLE_FIELD_LABELS = {
   status: 'Status',
@@ -25,31 +24,40 @@ const SPEECH_BUBBLE_FIELD_LABELS = {
 // Tray icon cache for performance
 const trayIconCache = new Map();
 
-/**
- * Create tray icon with state-based background color using canvas
- */
-function createTrayIcon(state, character = 'clawd', hasUpdate = false) {
-  const cacheKey = `${state}-${character}-${hasUpdate}`;
+// Character sprite PNGs (128x128), loaded once and downscaled onto the tray
+// icon — the icon is derived from the same registry image as the character
+// window, so new characters need no tray-specific artwork.
+const characterImageCache = new Map(); // name -> Promise<Image|null>
 
-  // Return cached icon if available
-  if (trayIconCache.has(cacheKey)) {
-    return trayIconCache.get(cacheKey);
+function getCharacterImage(name) {
+  if (!characterImageCache.has(name)) {
+    const config = CHARACTER_CONFIG[name];
+    const imagePath = path.join(__dirname, '..', 'assets', 'characters', config.image);
+    characterImageCache.set(
+      name,
+      loadImage(imagePath).catch((err) => {
+        console.warn(`Failed to load tray character image ${config.image}:`, err.message);
+        return null;
+      })
+    );
   }
+  return characterImageCache.get(name);
+}
 
+/**
+ * Draw the tray icon canvas: state-colored rounded background, optionally
+ * the character sprite (nearest-neighbor downscale), and the update badge.
+ * @param {string} state
+ * @param {import('canvas').Image|null} characterImage
+ * @param {boolean} hasUpdate
+ * @returns {Electron.NativeImage}
+ */
+function drawTrayIcon(state, characterImage, hasUpdate) {
   const size = TRAY_ICON_SIZE;
   const canvas = createCanvas(size, size);
   const ctx = canvas.getContext('2d');
 
   const bgColor = STATE_COLORS[state] || STATE_COLORS.idle;
-  const charConfig = CHARACTER_CONFIG[character] || CHARACTER_CONFIG[DEFAULT_CHARACTER];
-  const charColor = charConfig.color;
-  const charName = charConfig.name;
-
-  // Helper to draw filled rectangle
-  function rect(x, y, w, h, color) {
-    ctx.fillStyle = color;
-    ctx.fillRect(x, y, w, h);
-  }
 
   // Clear canvas (transparent)
   ctx.clearRect(0, 0, size, size);
@@ -61,62 +69,10 @@ function createTrayIcon(state, character = 'clawd', hasUpdate = false) {
   ctx.roundRect(0, 0, size, size, radius);
   ctx.fill();
 
-  if (charName === 'kiro') {
-    // Draw ghost character for kiro
-    rect(6, 4, 10, 2, charColor);   // Rounded top
-    rect(5, 6, 12, 8, charColor);   // Main body
-    rect(5, 14, 4, 3, charColor);   // Left wave
-    rect(9, 15, 4, 2, charColor);   // Middle wave
-    rect(13, 14, 4, 3, charColor);  // Right wave
-    rect(7, 8, 2, 2, COLOR_EYE);    // Left eye
-    rect(13, 8, 2, 2, COLOR_EYE);   // Right eye
-  } else if (charName === 'claw') {
-    // Draw claw character (red with antennae)
-    rect(8, 2, 2, 4, charColor);    // Left antenna
-    rect(12, 2, 2, 4, charColor);   // Right antenna
-    rect(5, 6, 12, 10, charColor);  // Body
-    rect(6, 16, 3, 3, charColor);   // Left leg
-    rect(13, 16, 3, 3, charColor);  // Right leg
-    rect(7, 10, 2, 2, '#40E0D0');   // Left eye (cyan)
-    rect(13, 10, 2, 2, '#40E0D0');  // Right eye (cyan)
-  } else if (charName === 'vibemon') {
-    // Draw vibemon character (purple robot with antenna, white face plate)
-    const purple = '#9968E5';
-    rect(10, 1, 2, 2, purple);      // Antenna tip
-    rect(10, 3, 2, 1, purple);      // Antenna stem
-    rect(5, 4, 12, 10, purple);     // Head
-    rect(3, 7, 2, 4, purple);       // Left ear
-    rect(17, 7, 2, 4, purple);      // Right ear
-    rect(7, 6, 8, 6, charColor);    // Face plate (white)
-    rect(8, 8, 2, 3, COLOR_EYE);    // Left eye
-    rect(12, 8, 2, 3, COLOR_EYE);   // Right eye
-    rect(6, 14, 10, 5, purple);     // Body
-    rect(8, 15, 6, 3, charColor);   // Belly panel
-    rect(9, 16, 1, 1, purple);      // Left belly dot
-    rect(12, 16, 1, 1, purple);     // Right belly dot
-  } else if (charName === 'daangni') {
-    // Draw daangni character (round face with fluffy teal top)
-    const teal = '#2EC4B6';
-    rect(7, 2, 8, 4, teal);          // Fluffy top
-    rect(5, 3, 3, 3, teal);          // Left tuft
-    rect(14, 3, 3, 3, teal);         // Right tuft
-    rect(4, 6, 14, 12, charColor);   // Round face
-    rect(3, 9, 2, 6, charColor);     // Left cheek
-    rect(17, 9, 2, 6, charColor);    // Right cheek
-    rect(7, 11, 2, 2, COLOR_EYE);    // Left eye
-    rect(13, 11, 2, 2, COLOR_EYE);   // Right eye
-    rect(10, 15, 2, 1, COLOR_EYE);   // Nose
-  } else {
-    // Draw clawd character (default)
-    rect(4, 6, 14, 8, charColor);   // Body
-    rect(2, 8, 2, 3, charColor);    // Left arm
-    rect(18, 8, 2, 3, charColor);   // Right arm
-    rect(5, 14, 2, 4, charColor);   // Left outer leg
-    rect(8, 14, 2, 4, charColor);   // Left inner leg
-    rect(12, 14, 2, 4, charColor);  // Right inner leg
-    rect(15, 14, 2, 4, charColor);  // Right outer leg
-    rect(6, 9, 2, 2, COLOR_EYE);    // Left eye
-    rect(14, 9, 2, 2, COLOR_EYE);   // Right eye
+  if (characterImage) {
+    // Nearest-neighbor keeps the pixel-art look at tray size.
+    ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(characterImage, 1, 1, size - 2, size - 2);
   }
 
   if (hasUpdate) {
@@ -127,13 +83,27 @@ function createTrayIcon(state, character = 'clawd', hasUpdate = false) {
     ctx.fill();
   }
 
-  // Convert canvas to PNG buffer and create nativeImage
-  const pngBuffer = canvas.toBuffer('image/png');
-  const icon = nativeImage.createFromBuffer(pngBuffer);
+  return nativeImage.createFromBuffer(canvas.toBuffer('image/png'));
+}
 
-  // Cache the icon for future use
+/**
+ * Create tray icon with state-based background color and the character's
+ * registry sprite.
+ * @returns {Promise<Electron.NativeImage>}
+ */
+async function createTrayIcon(state, character = DEFAULT_CHARACTER, hasUpdate = false) {
+  const name = CHARACTER_CONFIG[character] ? character : DEFAULT_CHARACTER;
+  const cacheKey = `${state}-${name}-${hasUpdate}`;
+
+  // Return cached icon if available
+  if (trayIconCache.has(cacheKey)) {
+    return trayIconCache.get(cacheKey);
+  }
+
+  const characterImage = await getCharacterImage(name);
+  const icon = drawTrayIcon(state, characterImage, hasUpdate);
+
   trayIconCache.set(cacheKey, icon);
-
   return icon;
 }
 
@@ -182,17 +152,17 @@ class TrayManager {
   }
 
   /**
-   * Get state from first window or return default state
+   * Get the followed project's state or a default
    * @returns {Object}
    */
-  getFirstWindowState() {
+  getFocusedState() {
     const projectIds = this.windowManager.getProjectIds();
     if (projectIds.length === 0) {
       return { state: 'idle', character: DEFAULT_CHARACTER, project: null };
     }
-    const firstProjectId = projectIds[0];
-    const state = this.windowManager.getState(firstProjectId);
-    return state || { state: 'idle', character: DEFAULT_CHARACTER, project: firstProjectId };
+    const projectId = projectIds[0];
+    const state = this.windowManager.getState(projectId);
+    return state || { state: 'idle', character: DEFAULT_CHARACTER, project: projectId };
   }
 
   /**
@@ -204,11 +174,13 @@ class TrayManager {
   }
 
   createTray() {
-    const state = this.getFirstWindowState();
-    const icon = createTrayIcon(state.state, state.character, this.hasUpdateAvailable());
-    this.tray = new Tray(icon);
-    this.tray.setToolTip('Vibe Monitor');
+    const state = this.getFocusedState();
+    // Start with a synchronous background-only icon; the character sprite
+    // is drawn in as soon as its image finishes loading (updateIcon below).
+    this.tray = new Tray(drawTrayIcon(state.state, null, this.hasUpdateAvailable()));
+    this.tray.setToolTip('VibeMon');
     this.updateMenu();
+    this.updateIcon();
 
     // Left-click to show menu (Windows support)
     this.tray.on('click', () => {
@@ -220,158 +192,11 @@ class TrayManager {
 
   updateIcon() {
     if (!this.tray) return;
-    const state = this.getFirstWindowState();
-    const icon = createTrayIcon(state.state, state.character, this.hasUpdateAvailable());
-    this.tray.setImage(icon);
-  }
-
-  buildWindowsSubmenu() {
-    const projectIds = this.windowManager.getProjectIds();
-
-    if (projectIds.length === 0) {
-      return [{ label: 'No windows', enabled: false }];
-    }
-
-    const items = projectIds.map(projectId => {
-      const state = this.windowManager.getState(projectId);
-      const currentState = state ? state.state : 'idle';
-      const currentCharacter = state ? state.character : DEFAULT_CHARACTER;
-      return {
-        label: `${projectId} (${currentState})`,
-        submenu: [
-          { label: 'Show', click: () => this.windowManager.showWindow(projectId) },
-          { label: 'Close', click: () => this.windowManager.closeWindow(projectId) },
-          { type: 'separator' },
-          {
-            label: 'State',
-            submenu: VALID_STATES.map(s => ({
-              label: s,
-              type: 'radio',
-              checked: currentState === s,
-              click: () => {
-                // Re-fetch state at click time to avoid stale closure reference
-                const currentState = this.windowManager.getState(projectId);
-                if (!currentState) return;
-                const newState = { ...currentState, state: s };
-                this.windowManager.updateState(projectId, newState);
-                this.windowManager.sendToWindow(projectId, 'state-update', newState);
-                this.windowManager.updateAlwaysOnTopByState(projectId, s);
-                this.stateManager.setupStateTimeout(projectId, s);
-                this.updateMenu();
-                this.updateIcon();
-              }
-            }))
-          },
-          {
-            label: 'Character',
-            submenu: CHARACTER_NAMES.map(c => ({
-              label: c,
-              type: 'radio',
-              checked: currentCharacter === c,
-              click: () => {
-                // Re-fetch state at click time to avoid stale closure reference
-                const currentState = this.windowManager.getState(projectId);
-                if (!currentState) return;
-                const newState = { ...currentState, character: c };
-                this.windowManager.updateState(projectId, newState);
-                this.windowManager.sendToWindow(projectId, 'state-update', newState);
-                this.updateMenu();
-                this.updateIcon();
-              }
-            }))
-          }
-        ]
-      };
+    const state = this.getFocusedState();
+    createTrayIcon(state.state, state.character, this.hasUpdateAvailable()).then((icon) => {
+      // The tray can be destroyed while the character image is loading.
+      if (this.tray) this.tray.setImage(icon);
     });
-
-    items.push({ type: 'separator' });
-    items.push({
-      label: 'Show All',
-      enabled: projectIds.length > 0,
-      click: () => this.windowManager.showAllWindows()
-    });
-    items.push({
-      label: 'Close All',
-      enabled: projectIds.length > 0,
-      click: () => this.windowManager.closeAllWindows()
-    });
-
-    return items;
-  }
-
-  buildProjectLockSubmenu() {
-    const items = [];
-    const lockMode = this.windowManager.getLockMode();
-    const lockedProject = this.windowManager.getLockedProject();
-    const projectList = this.windowManager.getProjectList();
-
-    // Lock Mode selection
-    items.push({
-      label: 'Lock Mode',
-      submenu: Object.entries(LOCK_MODES).map(([mode, label]) => ({
-        label: label,
-        type: 'radio',
-        checked: lockMode === mode,
-        click: () => {
-          this.windowManager.setLockMode(mode);
-          this.updateMenu();
-        }
-      }))
-    });
-
-    items.push({ type: 'separator' });
-
-    if (projectList.length === 0) {
-      items.push({
-        label: 'No projects',
-        enabled: false
-      });
-    } else {
-      // List all projects sorted by name
-      const sortedProjects = [...projectList].sort((a, b) => a.localeCompare(b));
-      sortedProjects.forEach(project => {
-        const isLocked = project === lockedProject;
-        items.push({
-          label: project,
-          type: 'radio',
-          checked: isLocked,
-          click: () => {
-            this.windowManager.lockProject(project);
-            this.updateMenu();
-            this.updateIcon();
-          }
-        });
-      });
-
-      items.push({ type: 'separator' });
-    }
-
-    // Unlock option
-    items.push({
-      label: 'Unlock',
-      enabled: lockedProject !== null,
-      click: () => {
-        this.windowManager.unlockProject();
-        this.updateMenu();
-      }
-    });
-
-    return items;
-  }
-
-  buildAppModeSubmenu() {
-    const currentMode = this.windowManager.getAppMode();
-
-    return Object.entries(APP_MODES).map(([mode, label]) => ({
-      label: label,
-      type: 'radio',
-      checked: currentMode === mode,
-      click: () => {
-        this.windowManager.setAppMode(mode);
-        this.updateMenu();
-        this.updateIcon();
-      }
-    }));
   }
 
   buildCharacterLockSubmenu() {
@@ -390,7 +215,7 @@ class TrayManager {
 
     for (const c of CHARACTER_NAMES) {
       items.push({
-        label: c,
+        label: CHARACTER_CONFIG[c].displayName,
         type: 'radio',
         checked: currentLock === c,
         click: () => {
@@ -523,87 +348,12 @@ class TrayManager {
     return [{ label: `Version: ${this.app.getVersion()}`, enabled: false }];
   }
 
-  /**
-   * Menu items specific to the current app mode — Window Mode's per-project
-   * window management, Character Mode's speech bubble settings, or nothing
-   * extra for Input Mode (which has no windows or bubble to configure).
-   * @param {'character'|'window'|'input'} appMode
-   * @param {number} windowCount
-   * @returns {Array}
-   */
-  buildModeSection(appMode, windowCount) {
-    if (appMode === 'window') {
-      return [
-        {
-          label: 'Windows',
-          submenu: this.buildWindowsSubmenu()
-        },
-        {
-          label: 'Rearrange',
-          enabled: windowCount > 1 && this.windowManager.isMultiMode(),
-          click: () => {
-            this.windowManager.arrangeWindowsByName();
-          }
-        },
-        { type: 'separator' },
-        {
-          label: 'Always on Top',
-          submenu: this.buildAlwaysOnTopSubmenu()
-        },
-        {
-          label: 'Multi-Window Mode',
-          type: 'checkbox',
-          checked: this.windowManager.isMultiMode(),
-          click: () => {
-            const newMode = this.windowManager.isMultiMode() ? 'single' : 'multi';
-            this.windowManager.setWindowMode(newMode);
-            this.updateMenu();
-          }
-        },
-        ...(this.windowManager.isMultiMode() ? [] : [{
-          label: 'Project Lock',
-          submenu: this.buildProjectLockSubmenu()
-        }])
-      ];
-    }
-
-    if (appMode === 'character') {
-      return [
-        {
-          label: 'Always on Top',
-          submenu: this.buildAlwaysOnTopSubmenu()
-        },
-        {
-          label: 'Speech Bubble',
-          submenu: this.buildSpeechBubbleSubmenu()
-        }
-      ];
-    }
-
-    // Input Mode shows nothing, so there's no window/bubble setting to expose.
-    return [];
-  }
-
   buildMenuTemplate() {
-    const appMode = this.windowManager.getAppMode();
-    const projectIds = this.windowManager.getProjectIds();
-    const windowCount = projectIds.length;
-    const state = this.getFirstWindowState();
+    const state = this.getFocusedState();
 
-    // Build status display based on app mode and window count
-    let statusLabel;
-    if (appMode === 'input') {
-      const trackedCount = Object.keys(this.windowManager.getRegisteredStates()).length;
-      statusLabel = trackedCount === 0
-        ? 'Input Mode: no projects tracked yet'
-        : `Input Mode: ${trackedCount} project(s) tracked`;
-    } else if (windowCount === 0) {
-      statusLabel = appMode === 'character' ? 'Character Mode: waiting for status' : 'No active windows';
-    } else if (windowCount === 1) {
-      statusLabel = `${state.project || 'Unknown'}: ${state.state}`;
-    } else {
-      statusLabel = `${windowCount} windows active`;
-    }
+    const statusLabel = state.project
+      ? `${state.project}: ${state.state}`
+      : 'Waiting for status';
 
     return [
       {
@@ -617,14 +367,17 @@ class TrayManager {
       }, { type: 'separator' }] : []),
       // VibeMon — mirrors the Settings window's VibeMon tab
       {
-        label: 'App Mode',
-        submenu: this.buildAppModeSubmenu()
-      },
-      {
         label: 'Character Lock',
         submenu: this.buildCharacterLockSubmenu()
       },
-      ...this.buildModeSection(appMode, windowCount),
+      {
+        label: 'Always on Top',
+        submenu: this.buildAlwaysOnTopSubmenu()
+      },
+      {
+        label: 'Speech Bubble',
+        submenu: this.buildSpeechBubbleSubmenu()
+      },
       {
         label: 'Open at Login',
         type: 'checkbox',
@@ -686,8 +439,9 @@ class TrayManager {
    * Cleanup resources on app quit
    */
   cleanup() {
-    // Clear tray icon cache to free memory
+    // Clear icon caches to free memory
     trayIconCache.clear();
+    characterImageCache.clear();
     if (this.tray) {
       this.tray.destroy();
       this.tray = null;

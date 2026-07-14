@@ -3,7 +3,8 @@
  *
  * This file orchestrates the application by connecting modules:
  * - StateManager: State and timer management (per-project timers)
- * - MultiWindowManager: Multi-window creation and management (one per project)
+ * - CharacterWindowManager: The single character window and per-project state registry
+ * - BubbleWindowManager: The speech bubble that follows the character window
  * - TrayManager: System tray icon and menu
  * - HttpServer: HTTP API server
  */
@@ -13,12 +14,12 @@ const path = require('path');
 require('dotenv').config({ path: path.join(__dirname, '..', '.env.local') });
 require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
 
-const { app, ipcMain, BrowserWindow, dialog } = require('electron');
+const { app, ipcMain, dialog } = require('electron');
 const { exec } = require('child_process');
 
 // Modules
 const { StateManager } = require('./modules/state-manager.cjs');
-const { MultiWindowManager } = require('./modules/multi-window-manager.cjs');
+const { CharacterWindowManager } = require('./modules/character-window-manager.cjs');
 const { BubbleWindowManager } = require('./modules/bubble-window-manager.cjs');
 const { TrayManager } = require('./modules/tray-manager.cjs');
 const { HttpServer } = require('./modules/http-server.cjs');
@@ -28,7 +29,7 @@ const { VibemonConfigManager } = require('./modules/vibemon-config-manager.cjs')
 const { UpdateChecker } = require('./modules/update-checker.cjs');
 const { SettingsWindowManager } = require('./modules/settings-window-manager.cjs');
 const { validateStatusPayload } = require('./modules/validators.cjs');
-const { MAX_WINDOWS, HOOK_CHECK_INTERVAL_MS, UPDATE_CHECK_INTERVAL_MS } = require('./shared/config.cjs');
+const { HOOK_CHECK_INTERVAL_MS, UPDATE_CHECK_INTERVAL_MS } = require('./shared/config.cjs');
 
 // Initial hook-installer check runs shortly after startup so the tray/HTTP
 // server/WebSocket client are fully initialized before any dialog appears.
@@ -48,7 +49,7 @@ if (!gotTheLock) {
 
 // Initialize managers
 const stateManager = new StateManager();
-const windowManager = new MultiWindowManager();
+const windowManager = new CharacterWindowManager();
 const bubbleWindowManager = new BubbleWindowManager((projectId) => windowManager.getWindow(projectId));
 const hookInstaller = new HookInstaller();
 const vibemonConfigManager = new VibemonConfigManager();
@@ -63,70 +64,52 @@ let updateCheckTimer = null;
 function getBubbleOptions(projectId) {
   return {
     state: windowManager.getState(projectId),
-    speechBubbleFields: windowManager.getSpeechBubbleFields(),
-    characterOnlyMode: windowManager.isCharacterMode()
+    speechBubbleFields: windowManager.getSpeechBubbleFields()
   };
 }
 
-// Refresh a project's speech bubble whenever its state/info changes
+// Refresh the speech bubble whenever the followed project's state/info changes
 windowManager.onStateUpdated = (projectId) => {
   bubbleWindowManager.update(projectId, getBubbleOptions(projectId));
 };
 
-// Keep the speech bubble following live while its character window is dragged
+// Keep the speech bubble following live while the character window is dragged
 windowManager.onWindowMoved = (projectId) => {
   bubbleWindowManager.reposition(projectId);
 };
 
-// Character Only Mode / speech bubble field toggles affect every open window
+// Speech bubble field toggles re-render the bubble
 windowManager.onDisplayModeChanged = () => {
   for (const projectId of windowManager.getProjectIds()) {
     bubbleWindowManager.update(projectId, getBubbleOptions(projectId));
   }
 };
 
-// Keep the speech bubble's always-on-top flag matching its character window's
+// Keep the speech bubble's always-on-top flag matching the character window's
 windowManager.onAlwaysOnTopChanged = (projectId) => {
   bubbleWindowManager.syncAlwaysOnTop(projectId);
 };
 
-// After leaving Input Mode, replay every project's last known state through
-// the normal ingestion pipeline so windows reappear immediately instead of
-// waiting for the next external status update.
-windowManager.onResyncNeeded = () => {
-  for (const stateData of Object.values(windowManager.getRegisteredStates())) {
-    handleWsStatusUpdate(stateData);
-  }
-};
-
 // Handle second instance launch attempt
 app.on('second-instance', () => {
-  // Focus the first window if available
-  const first = windowManager.getFirstWindow();
-  if (first && !first.isDestroyed()) {
-    if (first.isMinimized()) first.restore();
-    first.show();
-    first.focus();
-  }
+  windowManager.showActiveWindow();
 });
 
 // Set up state manager callbacks
 stateManager.onStateTimeout = (projectId, newState) => {
   // Merge with existing state to preserve project, model, memory, etc.
   const existingState = windowManager.getState(projectId);
-  if (!existingState) return;  // Window no longer exists
+  if (!existingState) return;  // Window no longer follows this project
 
   const stateData = { ...existingState, state: newState };
 
-  // updateState returns false if window doesn't exist (handles race condition)
+  // updateState returns false if the window follows another project (race condition)
   if (!windowManager.updateState(projectId, stateData)) return;
 
   windowManager.sendToWindow(projectId, 'state-update', stateData);
   stateManager.setupStateTimeout(projectId, newState);
 
-  // Update always on top based on new state and rearrange windows
-  windowManager.updateAlwaysOnTopByState(projectId, newState);
-  windowManager.rearrangeWindows();
+  windowManager.updateAlwaysOnTopByState(newState);
 
   if (trayManager) {
     trayManager.updateIcon();
@@ -138,7 +121,7 @@ stateManager.onWindowCloseTimeout = (projectId) => {
   windowManager.closeWindow(projectId);
 };
 
-// Set up window manager callback for when windows are closed
+// Set up window manager callback for when the window is closed
 windowManager.onWindowClosed = (projectId) => {
   stateManager.cleanupProject(projectId);
   bubbleWindowManager.destroy(projectId);
@@ -173,18 +156,7 @@ function handleWsStatusUpdate(data) {
 
   const routeResult = windowManager.routeStatusUpdate(projectId, stateData);
 
-  // Blocked by lock in single mode
-  if (routeResult.blocked) {
-    return;
-  }
-
-  // No window created (max limit in multi mode)
-  if (routeResult.maxWindowsReached) {
-    console.log(`WebSocket: Max windows limit (${MAX_WINDOWS}) reached`);
-    return;
-  }
-
-  // Project was switched in single mode
+  // The window was retargeted from another project
   if (routeResult.switchedProject) {
     stateManager.cleanupProject(routeResult.switchedProject);
     bubbleWindowManager.destroy(routeResult.switchedProject);
@@ -197,10 +169,9 @@ function handleWsStatusUpdate(data) {
     return;
   }
 
-  // State changed - full update (alwaysOnTop, rearrange, timeout, tray)
+  // State changed - full update (alwaysOnTop, timeout, tray)
   if (updateResult.stateChanged) {
-    windowManager.updateAlwaysOnTopByState(projectId, stateData.state);
-    windowManager.rearrangeWindows();
+    windowManager.updateAlwaysOnTopByState(stateData.state);
     stateManager.setupStateTimeout(projectId, stateData.state);
 
     if (trayManager) {
@@ -215,9 +186,10 @@ function handleWsStatusUpdate(data) {
 
 /**
  * Handle project deletion from WebSocket ({type: 'delete', data: {project}}).
- * Closes the window for the deleted project; windowManager.onWindowClosed
- * cascades into stateManager.cleanupProject and tray refresh, so no extra
- * bookkeeping is needed here. No-op when the project is unknown locally.
+ * Closes the window when it follows the deleted project; windowManager
+ * .onWindowClosed cascades into stateManager.cleanupProject and tray
+ * refresh, so no extra bookkeeping is needed here. No-op when the window
+ * follows another project.
  */
 function handleWsStatusDelete(projectId) {
   if (typeof projectId !== 'string' || projectId.length === 0) {
@@ -234,29 +206,10 @@ ipcMain.handle('get-version', () => {
   return app.getVersion();
 });
 
-// Renderer's engine/image loading is async and can outlast the main
-// process's one-shot 'display-mode-update' push sent at window ready-to-show,
-// dropping that event if the renderer's listener isn't registered yet. This
-// lets the renderer pull the current settings once it's actually ready.
-ipcMain.handle('get-display-mode', () => {
-  return {
-    characterOnlyMode: windowManager.isCharacterMode(),
-    speechBubbleFields: windowManager.getSpeechBubbleFields()
-  };
-});
-
-ipcMain.on('close-window', (event) => {
-  const win = BrowserWindow.fromWebContents(event.sender);
-  if (win) {
-    win.close();
-  }
-});
-
-ipcMain.on('minimize-window', (event) => {
-  const win = BrowserWindow.fromWebContents(event.sender);
-  if (win) {
-    win.minimize();
-  }
+// Character registry for the renderer's engine setup (single source:
+// src/shared/data/characters.json)
+ipcMain.handle('get-character-registry', () => {
+  return require('./shared/data/characters.json');
 });
 
 ipcMain.on('show-context-menu', (event) => {
@@ -372,7 +325,7 @@ app.whenReady().then(() => {
     app.dock.hide();
   }
 
-  // Create tray (windows are created on demand via HTTP /status endpoint)
+  // Create tray (the window is created on demand via HTTP /status endpoint)
   trayManager = new TrayManager(windowManager, app, stateManager);
   trayManager.createTray();
 
@@ -463,11 +416,7 @@ app.whenReady().then(() => {
   updateCheckTimer = setInterval(() => updateChecker.checkForUpdates(), UPDATE_CHECK_INTERVAL_MS);
 
   app.on('activate', () => {
-    const first = windowManager.getFirstWindow();
-    if (first && !first.isDestroyed()) {
-      first.show();
-      first.focus();
-    }
+    windowManager.showActiveWindow();
   });
 });
 

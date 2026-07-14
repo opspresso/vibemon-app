@@ -1,0 +1,40 @@
+{
+  "default": "vibemon",
+  "characters": {
+    "vibemon": {
+      "displayName": "VibeMon",
+      "color": "#FFFFFF",
+      "image": "vibemon.png",
+      "eyes": { "left": { "x": 22, "y": 26 }, "right": { "x": 38, "y": 26 }, "w": 4, "h": 6 },
+      "effect": { "x": 48, "y": 3 }
+    },
+    "clawd": {
+      "displayName": "Clawd",
+      "color": "#D97757",
+      "image": "clawd.png",
+      "eyes": { "left": { "x": 14, "y": 21 }, "right": { "x": 44, "y": 21 }, "size": 6 },
+      "effect": { "x": 52, "y": 4 }
+    },
+    "kiro": {
+      "displayName": "Kiro",
+      "color": "#FFFFFF",
+      "image": "kiro.png",
+      "eyes": { "left": { "x": 31, "y": 18 }, "right": { "x": 44, "y": 18 }, "w": 5, "h": 10 },
+      "effect": { "x": 50, "y": 3 }
+    },
+    "claw": {
+      "displayName": "Claw",
+      "color": "#DD4444",
+      "image": "claw.png",
+      "eyes": { "left": { "x": 21, "y": 16 }, "right": { "x": 38, "y": 16 }, "size": 6 },
+      "effect": { "x": 49, "y": 4 }
+    },
+    "daangni": {
+      "displayName": "Daangni",
+      "color": "#F2CAB2",
+      "image": "daangni.png",
+      "eyes": { "left": { "x": 20, "y": 35 }, "right": { "x": 39, "y": 35 }, "w": 4, "h": 6 },
+      "effect": { "x": 47, "y": 3 }
+    }
+  }
+}

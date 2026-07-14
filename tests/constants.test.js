@@ -19,23 +19,12 @@ describe('Constants', () => {
   });
 
   describe('Window Settings', () => {
-    test('window dimensions are positive', () => {
+    test('window width is positive', () => {
       expect(constants.WINDOW_WIDTH).toBeGreaterThan(0);
-      expect(constants.WINDOW_HEIGHT).toBeGreaterThan(0);
     });
 
-    test('MAX_WINDOWS is reasonable', () => {
-      expect(constants.MAX_WINDOWS).toBe(5);
-      expect(constants.MAX_WINDOWS).toBeGreaterThan(0);
-    });
-
-    test('MAX_PROJECT_LIST is defined and reasonable', () => {
-      expect(constants.MAX_PROJECT_LIST).toBe(10);
-      expect(constants.MAX_PROJECT_LIST).toBeGreaterThan(constants.MAX_WINDOWS);
-    });
-
-    test('MAX_STATE_REGISTRY_SIZE is defined and larger than MAX_PROJECT_LIST', () => {
-      expect(constants.MAX_STATE_REGISTRY_SIZE).toBeGreaterThan(constants.MAX_PROJECT_LIST);
+    test('MAX_STATE_REGISTRY_SIZE is defined and reasonable', () => {
+      expect(constants.MAX_STATE_REGISTRY_SIZE).toBeGreaterThan(0);
     });
 
     test('SNAP_THRESHOLD is positive', () => {
@@ -51,12 +40,7 @@ describe('Constants', () => {
     });
   });
 
-  describe('Window Modes', () => {
-    test('LOCK_MODES has required modes', () => {
-      expect(constants.LOCK_MODES).toHaveProperty('first-project');
-      expect(constants.LOCK_MODES).toHaveProperty('on-thinking');
-    });
-
+  describe('Modes and States', () => {
     test('ALWAYS_ON_TOP_MODES has required modes', () => {
       expect(constants.ALWAYS_ON_TOP_MODES).toHaveProperty('active-only');
       expect(constants.ALWAYS_ON_TOP_MODES).toHaveProperty('all');
@@ -73,14 +57,9 @@ describe('Constants', () => {
     });
   });
 
-  describe('Character Settings', () => {
-    test('DEFAULT_CHARACTER is valid', () => {
-      expect(constants.DEFAULT_CHARACTER).toBe('vibemon');
-    });
-
-    test('CHAR_SIZE and SCALE are positive', () => {
+  describe('Character Layout', () => {
+    test('CHAR_SIZE is positive', () => {
       expect(constants.CHAR_SIZE).toBeGreaterThan(0);
-      expect(constants.SCALE).toBeGreaterThan(0);
     });
   });
 });

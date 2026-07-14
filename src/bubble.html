@@ -184,8 +184,7 @@
   </div>
 
   <script>
-    // Same green/yellow/orange/red thresholds as statusline.py's C_GREEN/C_YELLOW/C_ORANGE/C_RED
-    // and the engine's own metric bars (getBarColor in vibemon-engine-standalone.js).
+    // Same green/yellow/orange/red thresholds as statusline.py's C_GREEN/C_YELLOW/C_ORANGE/C_RED.
     function barColor(percent) {
       if (percent > 90) return '#FF4444';
       if (percent > 70) return '#FF8800';
