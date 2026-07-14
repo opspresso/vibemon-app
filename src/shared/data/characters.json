@@ -5,36 +5,36 @@
       "displayName": "VibeMon",
       "color": "#FFFFFF",
       "image": "vibemon.png",
-      "eyes": { "left": { "x": 22, "y": 26 }, "right": { "x": 38, "y": 26 }, "w": 4, "h": 6 },
-      "effect": { "x": 48, "y": 3 }
+      "eyes": { "left": { "x": 44, "y": 52 }, "right": { "x": 76, "y": 52 }, "w": 8, "h": 12 },
+      "effect": { "x": 96, "y": 6 }
     },
     "clawd": {
       "displayName": "Clawd",
       "color": "#D97757",
       "image": "clawd.png",
-      "eyes": { "left": { "x": 14, "y": 21 }, "right": { "x": 44, "y": 21 }, "size": 6 },
-      "effect": { "x": 52, "y": 4 }
+      "eyes": { "left": { "x": 28, "y": 42 }, "right": { "x": 88, "y": 42 }, "size": 12 },
+      "effect": { "x": 104, "y": 8 }
     },
     "kiro": {
       "displayName": "Kiro",
       "color": "#FFFFFF",
       "image": "kiro.png",
-      "eyes": { "left": { "x": 31, "y": 18 }, "right": { "x": 44, "y": 18 }, "w": 5, "h": 10 },
-      "effect": { "x": 50, "y": 3 }
+      "eyes": { "left": { "x": 62, "y": 36 }, "right": { "x": 88, "y": 36 }, "w": 10, "h": 20 },
+      "effect": { "x": 100, "y": 6 }
     },
     "claw": {
       "displayName": "Claw",
       "color": "#DD4444",
       "image": "claw.png",
-      "eyes": { "left": { "x": 21, "y": 16 }, "right": { "x": 38, "y": 16 }, "size": 6 },
-      "effect": { "x": 49, "y": 4 }
+      "eyes": { "left": { "x": 42, "y": 32 }, "right": { "x": 76, "y": 32 }, "size": 12 },
+      "effect": { "x": 98, "y": 8 }
     },
     "daangni": {
       "displayName": "Daangni",
       "color": "#F2CAB2",
       "image": "daangni.png",
-      "eyes": { "left": { "x": 20, "y": 35 }, "right": { "x": 39, "y": 35 }, "w": 4, "h": 6 },
-      "effect": { "x": 47, "y": 3 }
+      "eyes": { "left": { "x": 40, "y": 70 }, "right": { "x": 78, "y": 70 }, "w": 8, "h": 12 },
+      "effect": { "x": 94, "y": 6 }
     }
   }
 }

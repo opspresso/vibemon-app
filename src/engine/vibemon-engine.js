@@ -15,6 +15,7 @@
  * Usage:
  *   const engine = createVibeMonEngine(container, {
  *     characters,          // registry entries: { [name]: { color, eyes, effect, ... } }
+ *                          // eye/effect anchors are in canvas pixels (0..128)
  *     defaultCharacter,    // registry default: fallback for unknown names
  *     characterImageUrls,  // { [name]: url }
  *     states               // registry entries: { [name]: { eyeType, effect, ... } }
@@ -67,6 +68,24 @@ const COLOR_EFFECT_ALT = '#FFA500';
 const COLOR_SUNGLASSES_FRAME = '#111111';
 const COLOR_SUNGLASSES_LENS = '#001100';
 const COLOR_SUNGLASSES_SHINE = '#003300';
+
+// Registry eye/effect anchors are authored in canvas pixels (0..CHAR_SIZE)
+// so characters can be aligned with 1px precision, while the drawing
+// functions work on the SCALE-wide pixel-art grid. Convert the anchors once
+// here — fractional art units scale back to whole pixels in drawRect.
+function toArtUnits(char) {
+  if (!char || !char.eyes || !char.effect) return char;
+  const s = CONSTANTS.SCALE;
+  const eyes = {
+    ...char.eyes,
+    left: { x: char.eyes.left.x / s, y: char.eyes.left.y / s },
+    right: { x: char.eyes.right.x / s, y: char.eyes.right.y / s }
+  };
+  if (eyes.w !== undefined) eyes.w = char.eyes.w / s;
+  if (eyes.h !== undefined) eyes.h = char.eyes.h / s;
+  if (eyes.size !== undefined) eyes.size = char.eyes.size / s;
+  return { ...char, eyes, effect: { x: char.effect.x / s, y: char.effect.y / s } };
+}
 
 function getEyeCoverPosition(char) {
   const eyeW = char.eyes.w || char.eyes.size || 6;
@@ -306,7 +325,9 @@ class CharacterRenderer {
 export class VibeMonEngine {
   constructor(container, options = {}) {
     this.container = container;
-    this.characters = options.characters || {};
+    this.characters = Object.fromEntries(
+      Object.entries(options.characters || {}).map(([name, char]) => [name, toArtUnits(char)])
+    );
     this.defaultCharacter = options.defaultCharacter || Object.keys(this.characters)[0] || null;
     this.characterImageUrls = options.characterImageUrls || {};
     this.states = options.states || {};
