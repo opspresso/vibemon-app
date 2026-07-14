@@ -111,7 +111,7 @@ After 10 minutes in sleep state, the window automatically closes. It reappears o
 
 The app shows exactly one character window plus its following speech bubble:
 
-- Follows whichever project is currently "focused": a project in an active state (thinking, planning, working, packing, notification, alert) always takes focus; otherwise the most recently updated project keeps it. Focus switches away from a still-active project only after a 4-second hysteresis, except `alert`/`notification` which switch immediately.
+- Follows whichever project is currently "focused": the focused project holds the window while it is busy — in an active state (thinking, planning, working, packing, notification, alert) or within 4 seconds of its last active update — so the brief done/idle moments between tools don't bounce the window between concurrent sessions. `alert`/`notification` from another project switch immediately; once the focused project settles, the most recently updated project takes over.
 - Status updates for unfocused projects are still recorded in the background (up to 50 projects) and become visible the moment that project gains focus.
 - Can be dragged past the screen edge while the drag is in progress; once you let go, it's clamped back fully on-screen.
 - Reappears at the same spot you last left it, across restarts.

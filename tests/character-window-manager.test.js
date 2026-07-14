@@ -129,7 +129,7 @@ describe('selectFocus', () => {
     expect(manager.selectFocus('b', 'thinking')).toBe('a');
   });
 
-  test('a different active project takes focus once the hysteresis window elapses', () => {
+  test('a still-active focused project keeps focus even after the hysteresis window', () => {
     const manager = new CharacterWindowManager();
     manager.stateRegistry.set('a', { state: 'working' });
     manager.selectFocus('a', 'working');
@@ -137,7 +137,37 @@ describe('selectFocus', () => {
     now += FOCUS_HYSTERESIS_MS;
     manager.stateRegistry.set('b', { state: 'thinking' });
 
-    expect(manager.selectFocus('b', 'thinking')).toBe('b');
+    expect(manager.selectFocus('b', 'thinking')).toBe('a');
+  });
+
+  test('a momentary done between tools does not let another project steal focus', () => {
+    const manager = new CharacterWindowManager();
+    manager.stateRegistry.set('a', { state: 'working' });
+    manager.selectFocus('a', 'working');
+
+    now += 500;
+    manager.stateRegistry.set('a', { state: 'done' });
+    manager.selectFocus('a', 'done');
+
+    now += 200;
+    manager.stateRegistry.set('b', { state: 'working' });
+
+    expect(manager.selectFocus('b', 'working')).toBe('a');
+  });
+
+  test('an active project takes focus once the focused one has settled past the window', () => {
+    const manager = new CharacterWindowManager();
+    manager.stateRegistry.set('a', { state: 'working' });
+    manager.selectFocus('a', 'working');
+
+    now += 500;
+    manager.stateRegistry.set('a', { state: 'done' });
+    manager.selectFocus('a', 'done');
+
+    now += FOCUS_HYSTERESIS_MS;
+    manager.stateRegistry.set('b', { state: 'working' });
+
+    expect(manager.selectFocus('b', 'working')).toBe('b');
   });
 
   test('an alert bypasses the hysteresis window and takes focus immediately', () => {
@@ -209,6 +239,21 @@ describe('routeStatusUpdate', () => {
     expect(result.switchedProject).toBe('a');
     expect(manager.entry.projectId).toBe('b');
     expect(result.updateResult.updated).toBe(true);
+  });
+
+  test('a background state timeout records state without moving focus', () => {
+    const manager = new CharacterWindowManager();
+    stubWindow(manager, 'a');
+    manager.stateRegistry.set('a', { state: 'idle' });
+    manager.focusedProjectId = 'a';
+    manager.stateRegistry.set('b', { state: 'idle', project: 'b' });
+
+    const result = manager.routeStatusUpdate('b', { state: 'sleep', project: 'b' }, { preserveFocus: true });
+
+    expect(manager.getFocusedProjectId()).toBe('a');
+    expect(manager.entry.projectId).toBe('a');
+    expect(result.updateResult.updated).toBe(false);
+    expect(manager.getRegisteredState('b').state).toBe('sleep');
   });
 
   test('character lock overrides the incoming character everywhere downstream', () => {

@@ -98,7 +98,9 @@ stateManager.onStateTimeout = (projectId, newState) => {
   if (!existingState) return;
 
   const stateData = { ...existingState, state: newState };
-  const routeResult = windowManager.routeStatusUpdate(projectId, stateData);
+  // A timeout is a clock event, not project activity — it must never move
+  // focus to (or open a window for) a background project.
+  const routeResult = windowManager.routeStatusUpdate(projectId, stateData, { preserveFocus: true });
   if (routeResult.switchedProject) {
     bubbleWindowManager.destroy(routeResult.switchedProject);
   }

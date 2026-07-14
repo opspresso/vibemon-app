@@ -110,8 +110,9 @@ class CharacterWindowManager {
 
     // The project the window currently follows.
     this.focusedProjectId = null;
-    // When focusedProjectId last changed — see selectFocus()'s hysteresis check.
-    this.focusSwitchedAt = 0;
+    // When the focused project last reported an active state — see
+    // selectFocus()'s busy-hold check.
+    this.focusedLastActiveAt = 0;
   }
 
   // ============================================================================
@@ -639,7 +640,7 @@ class CharacterWindowManager {
     const removed = this.stateRegistry.delete(projectId);
     if (this.focusedProjectId === projectId) {
       this.focusedProjectId = null;
-      this.focusSwitchedAt = 0;
+      this.focusedLastActiveAt = 0;
     }
     return removed;
   }
@@ -653,51 +654,44 @@ class CharacterWindowManager {
 
   /**
    * Decide which project the window should show, given an incoming status
-   * update. An active-state project takes focus, but if another project is
-   * already focused and still active, focus only moves away from it once
-   * FOCUS_HYSTERESIS_MS has passed since the last switch — otherwise
-   * concurrent AI tools ping-pong the window every time either one posts an
-   * update. Priority states (alert/notification) bypass the hysteresis
-   * since they need the user's attention immediately. Non-active states
-   * keep focus unless the currently focused project is itself no longer
-   * active.
+   * update. The focused project holds focus while it is busy: currently in
+   * an active state, or within FOCUS_HYSTERESIS_MS of its last active
+   * update — AI tools pass through momentary inactive states (done after
+   * every tool, idle between prompts), and treating those gaps as "no
+   * longer busy" made concurrent sessions steal the window from each other
+   * many times a minute. Priority states (alert/notification) bypass the
+   * hold since they need the user's attention immediately. Once the
+   * focused project has settled past the window, the most recently
+   * updated project takes focus.
    * @param {string} projectId
    * @param {string} state
    * @returns {string} the projectId that should now be focused
    */
   selectFocus(projectId, state) {
-    if (ACTIVE_STATES.includes(state)) {
-      if (projectId === this.focusedProjectId) {
+    const now = Date.now();
+    const isActive = ACTIVE_STATES.includes(state);
+
+    if (projectId === this.focusedProjectId) {
+      if (isActive) this.focusedLastActiveAt = now;
+      return this.focusedProjectId;
+    }
+
+    if (this.focusedProjectId) {
+      const focusedState = this.stateRegistry.get(this.focusedProjectId);
+      const focusedIsActive = focusedState && ACTIVE_STATES.includes(focusedState.state);
+      const focusedIsBusy = focusedIsActive || now - this.focusedLastActiveAt < FOCUS_HYSTERESIS_MS;
+
+      if (focusedIsBusy && !(isActive && PRIORITY_FOCUS_STATES.includes(state))) {
         return this.focusedProjectId;
       }
 
-      if (this.focusedProjectId) {
-        const focusedState = this.stateRegistry.get(this.focusedProjectId);
-        const focusedIsActive = focusedState && ACTIVE_STATES.includes(focusedState.state);
-        const withinHysteresis = Date.now() - this.focusSwitchedAt < FOCUS_HYSTERESIS_MS;
-
-        if (focusedIsActive && withinHysteresis && !PRIORITY_FOCUS_STATES.includes(state)) {
-          return this.focusedProjectId;
-        }
-      }
-
-      this.focusedProjectId = projectId;
-      this.focusSwitchedAt = Date.now();
-      return this.focusedProjectId;
+      // Focus only leaves a settled project for another one that has
+      // something to show: an active update, or any update while the
+      // settled project has gone quiet (most-recently-updated rule).
     }
 
-    if (!this.focusedProjectId) {
-      this.focusedProjectId = projectId;
-      this.focusSwitchedAt = Date.now();
-      return this.focusedProjectId;
-    }
-
-    const focusedState = this.stateRegistry.get(this.focusedProjectId);
-    const focusedIsActive = focusedState && ACTIVE_STATES.includes(focusedState.state);
-    if (!focusedIsActive) {
-      this.focusedProjectId = projectId;
-      this.focusSwitchedAt = Date.now();
-    }
+    this.focusedProjectId = projectId;
+    this.focusedLastActiveAt = isActive ? now : 0;
 
     return this.focusedProjectId;
   }
@@ -710,13 +704,16 @@ class CharacterWindowManager {
    * Shared by the HTTP POST /status and WebSocket status-update paths.
    * @param {string} projectId
    * @param {Object} stateData - validated/normalized state data
+   * @param {{preserveFocus?: boolean}} [options] - preserveFocus records the
+   *   state without moving focus; used by state timeouts, which are clock
+   *   events rather than project activity and must not steal the window.
    * @returns {{
    *   switchedProject: string|null,
    *   updateResult: {updated: boolean, stateChanged: boolean, infoChanged: boolean},
    *   stateData: Object
    * }}
    */
-  routeStatusUpdate(projectId, stateData) {
+  routeStatusUpdate(projectId, stateData, { preserveFocus = false } = {}) {
     // Character Lock overrides whatever character the incoming status
     // specifies — reassign the local reference to a new object (not the
     // caller's) so every downstream use (stateRegistry, window state, the
@@ -732,7 +729,9 @@ class CharacterWindowManager {
     this.stateRegistry.set(projectId, stateData);
     this.pruneStateRegistry();
 
-    const focusedProjectId = this.selectFocus(projectId, stateData.state);
+    const focusedProjectId = preserveFocus
+      ? this.focusedProjectId
+      : this.selectFocus(projectId, stateData.state);
 
     if (focusedProjectId !== projectId) {
       // Focus stayed on a different (still-active) project — state was
