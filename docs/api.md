@@ -11,16 +11,17 @@ Default port: `19280`
 | Payload size | 10KB | Maximum request body size |
 | Rate limit | 100 req/min | Per IP address |
 | Request timeout | 30 sec | Prevents Slowloris attacks |
-| CORS | localhost only | Only allows localhost origins |
+| Browser origin | localhost only | Requests with a non-local browser `Origin` are rejected |
+| Content type | `application/json` | Required for JSON mutation endpoints |
 
 ### Input Validation
 
 | Field | Max Length | Format |
 |-------|------------|--------|
 | `state` | - | One of valid states |
-| `project` | 100 chars | String |
-| `tool` | 50 chars | String |
-| `model` | 50 chars | String |
+| `project` | 128 chars | String |
+| `tool` | 64 chars | String |
+| `model` | 64 chars | String |
 | `memory` | - | Integer 0-100 (context-window usage) |
 | `usage5h` | - | Integer 0-100 (5-hour plan-usage window) |
 | `usageWeek` | - | Integer 0-100 (weekly plan-usage window) |
@@ -278,9 +279,11 @@ curl -X POST http://127.0.0.1:19280/quit
 |------|-------------|
 | `200` | Success |
 | `400` | Bad request (validation error) |
+| `403` | Browser origin is not localhost |
 | `404` | Not found |
 | `408` | Request timeout |
 | `413` | Payload too large (>10KB) |
+| `415` | JSON endpoint called without `application/json` |
 | `429` | Too many requests (rate limited) |
 | `500` | Internal server error |
 

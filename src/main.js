@@ -97,19 +97,23 @@ app.on('second-instance', () => {
 
 // Set up state manager callbacks
 stateManager.onStateTimeout = (projectId, newState) => {
-  // Merge with existing state to preserve project, model, memory, etc.
-  const existingState = windowManager.getState(projectId);
-  if (!existingState) return;  // Window no longer follows this project
+  // Merge with the registry state so background projects expire too.
+  const existingState = windowManager.getRegisteredState(projectId);
+  if (!existingState) return;
 
   const stateData = { ...existingState, state: newState };
-
-  // updateState returns false if the window follows another project (race condition)
-  if (!windowManager.updateState(projectId, stateData)) return;
-
-  windowManager.sendToWindow(projectId, 'state-update', stateData);
+  const routeResult = windowManager.routeStatusUpdate(projectId, stateData);
+  if (routeResult.switchedProject) {
+    bubbleWindowManager.destroy(routeResult.switchedProject);
+  }
+  if (routeResult.updateResult.updated) {
+    windowManager.sendToWindow(projectId, 'state-update', routeResult.stateData);
+  }
   stateManager.setupStateTimeout(projectId, newState);
 
-  windowManager.updateAlwaysOnTopByState(newState);
+  if (windowManager.getFocusedProjectId() === projectId) {
+    windowManager.updateAlwaysOnTopByState(newState);
+  }
 
   if (trayManager) {
     trayManager.updateIcon();
@@ -158,13 +162,15 @@ function handleWsStatusUpdate(data) {
 
   // The window was retargeted from another project
   if (routeResult.switchedProject) {
-    stateManager.cleanupProject(routeResult.switchedProject);
     bubbleWindowManager.destroy(routeResult.switchedProject);
   }
 
   const updateResult = routeResult.updateResult;
 
-  // No change - skip unnecessary updates
+  // Every accepted update is activity, including unchanged/background updates.
+  stateManager.setupStateTimeout(projectId, stateData.state);
+
+  // No visible change - skip unnecessary renderer/tray updates
   if (!updateResult.updated) {
     return;
   }
@@ -172,8 +178,6 @@ function handleWsStatusUpdate(data) {
   // State changed - full update (alwaysOnTop, timeout, tray)
   if (updateResult.stateChanged) {
     windowManager.updateAlwaysOnTopByState(stateData.state);
-    stateManager.setupStateTimeout(projectId, stateData.state);
-
     if (trayManager) {
       trayManager.updateIcon();
       trayManager.updateMenu();
@@ -195,10 +199,9 @@ function handleWsStatusDelete(projectId) {
   if (typeof projectId !== 'string' || projectId.length === 0) {
     return;
   }
-  if (!windowManager.getWindow(projectId)) {
-    return;
-  }
-  windowManager.closeWindow(projectId);
+  stateManager.cleanupProject(projectId);
+  windowManager.removeProject(projectId);
+  if (windowManager.getWindow(projectId)) windowManager.closeWindow(projectId);
 }
 
 // IPC handlers
@@ -398,13 +401,13 @@ app.whenReady().then(() => {
   // ~/.vibemon/config.json pointed at this app, since a hook file can be
   // present while that shared config is missing or stale.
   setTimeout(() => {
-    hookInstaller.checkAndPrompt(wsClient.getToken());
     vibemonConfigManager.ensureDesktopUrl(wsClient.getToken());
+    hookInstaller.checkAndPrompt(wsClient.getToken());
   }, HOOK_CHECK_INITIAL_DELAY_MS);
   hookCheckTimer = setInterval(
     () => {
-      hookInstaller.checkAndPrompt(wsClient.getToken());
       vibemonConfigManager.ensureDesktopUrl(wsClient.getToken());
+      hookInstaller.checkAndPrompt(wsClient.getToken());
     },
     HOOK_CHECK_INTERVAL_MS
   );

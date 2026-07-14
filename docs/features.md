@@ -172,6 +172,8 @@ A dedicated settings window (tray menu → **Settings...**) with four tabs in a 
 
 Changes apply immediately through the same code paths as the tray menu, and the window re-syncs when refocused so tray-made changes are reflected.
 
+The account token is never returned to the settings renderer after it is saved; the UI only receives whether a token is configured. WebSocket authentication sends the token both as a connection URL query parameter (required by the deployed relay, which authorizes at the HTTP upgrade) and in a protocol auth message after connecting.
+
 ### System Tray Menu
 
 Grouped to mirror the Settings window's tab order (VibeMon / Collector / AI Tools / About):
@@ -188,6 +190,8 @@ Grouped to mirror the Settings window's tab order (VibeMon / Collector / AI Tool
 The character is rendered by a bundled engine (`src/engine/vibemon-engine.js`): a 128x128 canvas drawing the character PNG, state-driven pixel-art eyes/effects, and the floating animation, over a fully transparent background. Character images live in `src/assets/characters/`. No network access is needed to render.
 
 ## Build
+
+Hook installation verifies the downloaded installer against the SHA-256 pinned by the app before executing it. Custom installer deployments must provide the matching `VIBEMON_INSTALLER_SHA256` value together with `VIBEMON_DOCS_URL`.
 
 ```bash
 npm run build:mac     # macOS (DMG, ZIP)

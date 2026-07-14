@@ -20,6 +20,16 @@ function setCorsHeaders(res, req) {
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 }
 
+function isAllowedOrigin(req) {
+  const origin = req?.headers?.origin;
+  return !origin || /^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/.test(origin);
+}
+
+function hasJsonContentType(req) {
+  const contentType = req?.headers?.['content-type'] || '';
+  return /^application\/json(?:\s*;|$)/i.test(contentType);
+}
+
 /**
  * Send JSON response
  * @param {http.ServerResponse} res
@@ -104,6 +114,8 @@ function parseJsonBody(req, maxSize, timeout = REQUEST_TIMEOUT) {
 
 module.exports = {
   setCorsHeaders,
+  isAllowedOrigin,
+  hasJsonContentType,
   sendJson,
   sendError,
   parseJsonBody

@@ -289,7 +289,8 @@ class CharacterWindowManager {
       webPreferences: {
         preload: path.join(__dirname, '..', 'preload.js'),
         contextIsolation: true,
-        nodeIntegration: false
+        nodeIntegration: false,
+        sandbox: true
       }
     };
 
@@ -299,6 +300,13 @@ class CharacterWindowManager {
     }
 
     const window = new BrowserWindow(windowOptions);
+
+    if (typeof window.webContents.setWindowOpenHandler === 'function') {
+      window.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
+    }
+    if (typeof window.webContents.on === 'function') {
+      window.webContents.on('will-navigate', (event) => event.preventDefault());
+    }
 
     window.loadFile(path.join(__dirname, '..', 'index.html'));
 
@@ -552,6 +560,20 @@ class CharacterWindowManager {
       result[projectId] = state;
     }
     return result;
+  }
+
+  /**
+   * Remove every in-memory reference to a tracked project.
+   * @param {string} projectId
+   * @returns {boolean} whether the project was registered
+   */
+  removeProject(projectId) {
+    const removed = this.stateRegistry.delete(projectId);
+    if (this.focusedProjectId === projectId) {
+      this.focusedProjectId = null;
+      this.focusSwitchedAt = 0;
+    }
+    return removed;
   }
 
   /**

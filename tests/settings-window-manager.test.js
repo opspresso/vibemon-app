@@ -13,6 +13,10 @@ jest.mock('electron', () => {
       super();
       this.opts = opts;
       this.webContents = { send: jest.fn(), once: jest.fn() };
+      if (MockBrowserWindow.secureWebContents) {
+        this.webContents.setWindowOpenHandler = jest.fn();
+        this.webContents.on = jest.fn();
+      }
       this._destroyed = false;
       this.loadFile = jest.fn();
       this.show = jest.fn();
@@ -31,6 +35,7 @@ jest.mock('electron', () => {
     }
   }
   MockBrowserWindow.instances = [];
+  MockBrowserWindow.secureWebContents = false;
 
   return {
     BrowserWindow: MockBrowserWindow,
@@ -107,6 +112,7 @@ function makeDeps() {
 function freshManager() {
   mockIpcHandlers.clear();
   BrowserWindow.instances.length = 0;
+  BrowserWindow.secureWebContents = false;
   const deps = makeDeps();
   const manager = new SettingsWindowManager(deps);
   manager.onSettingsChanged = jest.fn();
@@ -131,11 +137,11 @@ describe('settings:get-all', () => {
       expect(typeof c.displayName).toBe('string');
     }
     // No wsClient yet: safe defaults
-    expect(before.ws).toEqual({ status: 'not-configured', token: '' });
+    expect(before.ws).toEqual({ status: 'not-configured', tokenConfigured: false });
 
     manager.setWsClient({ getStatus: () => 'connected', getToken: () => 'tok' });
     const after = await invoke('settings:get-all');
-    expect(after.ws).toEqual({ status: 'connected', token: 'tok' });
+    expect(after.ws).toEqual({ status: 'connected', tokenConfigured: true });
   });
 
   test('strips filesystem paths from hook statuses', async () => {
@@ -344,6 +350,17 @@ describe('settings:open-external', () => {
 });
 
 describe('open', () => {
+  test('installs navigation guards when supported by Electron', () => {
+    const { manager } = freshManager();
+    BrowserWindow.secureWebContents = true;
+
+    manager.open();
+
+    const win = BrowserWindow.instances[0];
+    expect(win.webContents.setWindowOpenHandler).toHaveBeenCalled();
+    expect(win.webContents.on).toHaveBeenCalledWith('will-navigate', expect.any(Function));
+  });
+
   test('creates a window, loads settings.html, and shows it once ready-to-show fires', () => {
     const { manager } = freshManager();
     manager.open();

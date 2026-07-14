@@ -210,6 +210,29 @@ describe('routeStatusUpdate', () => {
   });
 });
 
+describe('removeProject', () => {
+  test('removes registry state and clears focus for the removed project', () => {
+    const manager = new CharacterWindowManager();
+    manager.stateRegistry.set('a', { state: 'working' });
+    manager.focusedProjectId = 'a';
+
+    expect(manager.removeProject('a')).toBe(true);
+    expect(manager.getRegisteredState('a')).toBeNull();
+    expect(manager.getFocusedProjectId()).toBeNull();
+  });
+
+  test('keeps focus when removing a background project', () => {
+    const manager = new CharacterWindowManager();
+    manager.stateRegistry.set('a', { state: 'working' });
+    manager.stateRegistry.set('b', { state: 'idle' });
+    manager.focusedProjectId = 'a';
+
+    manager.removeProject('b');
+
+    expect(manager.getFocusedProjectId()).toBe('a');
+  });
+});
+
 describe('updateState change detection', () => {
   function managerWithWindow(projectId, state) {
     const manager = new CharacterWindowManager();

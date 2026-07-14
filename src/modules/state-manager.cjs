@@ -11,6 +11,11 @@ const {
   CHARACTER_CONFIG, DEFAULT_CHARACTER
 } = require('../shared/config.cjs');
 
+const STATUS_FIELDS = [
+  'state', 'project', 'tool', 'model', 'memory', 'usage5h', 'usageWeek',
+  'usage5hResetsIn', 'usageWeekResetsIn', 'character', 'terminalId'
+];
+
 class StateManager {
   constructor() {
     // Per-project timers
@@ -122,7 +127,9 @@ class StateManager {
     }
 
     // Create a new normalized data object (immutability)
-    const normalized = { ...data };
+    const normalized = Object.fromEntries(
+      STATUS_FIELDS.filter(field => data[field] !== undefined).map(field => [field, data[field]])
+    );
 
     // Validate and normalize character field
     if (normalized.character !== undefined) {

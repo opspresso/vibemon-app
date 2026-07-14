@@ -13,10 +13,11 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const https = require('https');
+const crypto = require('crypto');
 const { spawn, spawnSync } = require('child_process');
 const { dialog, shell } = require('electron');
 const Store = require('electron-store');
-const { DOCS_BASE_URL } = require('../shared/config.cjs');
+const { DOCS_BASE_URL, INSTALLER_SHA256 } = require('../shared/config.cjs');
 
 // Tolerate an accidental trailing slash on the (env-overridable) base URL.
 const DOCS_BASE = DOCS_BASE_URL.replace(/\/+$/, '');
@@ -25,6 +26,12 @@ const SETUP_GUIDE_URL = `${DOCS_BASE}/setup.md`;
 // install.py is a few KB; this just bounds worst-case memory if the
 // response is ever unexpectedly large.
 const MAX_SCRIPT_SIZE = 1024 * 1024;
+
+function verifyInstallerScript(script, expectedHash = INSTALLER_SHA256) {
+  if (!expectedHash) return true;
+  const actualHash = crypto.createHash('sha256').update(script, 'utf8').digest('hex');
+  return actualHash === expectedHash;
+}
 
 function homePath(...segments) {
   return path.join(os.homedir(), ...segments);
@@ -77,6 +84,8 @@ function describeFailure(result) {
       return `Failed to download install script (HTTP ${result.statusCode})`;
     case 'download-too-large':
       return 'Install script response exceeded the size limit';
+    case 'integrity-check-failed':
+      return 'Install script integrity check failed';
     case 'network-error':
       return `Network error: ${result.error}`;
     case 'spawn-error':
@@ -185,7 +194,13 @@ class HookInstaller {
             reject({ reason: 'download-too-large' });
           }
         });
-        res.on('end', () => resolve(script));
+        res.on('end', () => {
+          if (!verifyInstallerScript(script)) {
+            reject({ reason: 'integrity-check-failed' });
+            return;
+          }
+          resolve(script);
+        });
       });
       req.on('error', (err) => reject({ reason: 'network-error', error: err.message }));
     });
@@ -196,15 +211,11 @@ class HookInstaller {
    * flags, piping the script over stdin (no shell, no temp file).
    * @param {string} script
    * @param {string[]} flags - e.g. ['--claude']
-   * @param {string|null} token - VibeMon account token
    * @returns {Promise<{ok: boolean, reason?: string, [key: string]: any}>}
    */
-  runScript(script, flags, token) {
+  runScript(script, flags) {
     return new Promise((resolve) => {
       const args = ['-', ...flags, '--yes'];
-      if (token) {
-        args.push('--token', token);
-      }
 
       const child = spawn(PYTHON_COMMAND, args, { stdio: ['pipe', 'pipe', 'pipe'] });
       let stderr = '';
@@ -262,7 +273,7 @@ class HookInstaller {
 
         if (script !== null) {
           for (const tool of tools) {
-            const result = await this.runScript(script, [tool.flag], token);
+            const result = await this.runScript(script, [tool.flag]);
             results.push({ tool, result });
           }
         }
@@ -363,4 +374,4 @@ class HookInstaller {
   }
 }
 
-module.exports = { HookInstaller, TOOLS };
+module.exports = { HookInstaller, TOOLS, verifyInstallerScript };

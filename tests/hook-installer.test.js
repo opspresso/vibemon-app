@@ -27,7 +27,15 @@ const fs = require('fs');
 const { spawnSync, spawn } = require('child_process');
 const https = require('https');
 const { dialog, shell } = require('electron');
-const { HookInstaller, TOOLS } = require('../src/modules/hook-installer.cjs');
+const { HookInstaller, TOOLS, verifyInstallerScript } = require('../src/modules/hook-installer.cjs');
+
+test('installer integrity verification rejects a mismatched digest', () => {
+  expect(verifyInstallerScript('print(1)', '0'.repeat(64))).toBe(false);
+});
+
+test('installer integrity verification accepts a matching digest', () => {
+  expect(verifyInstallerScript('print(1)', 'd287bb7f9d15abdc5b6e98536263815744b6ef21c8f3c839fc434ca70d8efe99')).toBe(true);
+});
 
 // Makes a tool "present" via its CLI command, with no hook file, so it
 // shows up as missing. Other tools stay absent (default mocks).
@@ -228,7 +236,7 @@ describe('HookInstaller', () => {
   });
 
   describe('runScript', () => {
-    test('spawns python3 with flags/token via stdin (no shell)', async () => {
+    test('spawns python3 without exposing the token in process arguments', async () => {
       const fakeChild = new EventEmitter();
       fakeChild.stdin = { write: jest.fn(), end: jest.fn() };
       fakeChild.stdout = new EventEmitter();
@@ -242,7 +250,7 @@ describe('HookInstaller', () => {
       expect(result.ok).toBe(true);
       expect(spawn).toHaveBeenCalledWith(
         'python3',
-        ['-', '--claude', '--yes', '--token', 'my_token123'],
+        ['-', '--claude', '--yes'],
         expect.objectContaining({ stdio: ['pipe', 'pipe', 'pipe'] })
       );
       expect(spawn.mock.calls[0][2].shell).toBeUndefined();
@@ -298,8 +306,8 @@ describe('HookInstaller', () => {
       expect(spawn).toHaveBeenCalledTimes(2);
       expect(children).toHaveLength(2);
       expect(results.every(r => r.result.ok)).toBe(true);
-      expect(spawn.mock.calls[0][1]).toEqual(['-', TOOLS[0].flag, '--yes', '--token', 'tok']);
-      expect(spawn.mock.calls[1][1]).toEqual(['-', TOOLS[1].flag, '--yes', '--token', 'tok']);
+      expect(spawn.mock.calls[0][1]).toEqual(['-', TOOLS[0].flag, '--yes']);
+      expect(spawn.mock.calls[1][1]).toEqual(['-', TOOLS[1].flag, '--yes']);
     });
 
     test('suppresses the whole batch and skips spawning when the download fails', async () => {
@@ -408,7 +416,7 @@ describe('HookInstaller', () => {
       }));
       expect(spawn).toHaveBeenCalledWith(
         'python3',
-        ['-', TOOLS[0].flag, '--yes', '--token', 'tok'],
+        ['-', TOOLS[0].flag, '--yes'],
         expect.anything()
       );
     });

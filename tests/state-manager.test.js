@@ -82,6 +82,12 @@ describe('StateManager', () => {
       expect(result.data).not.toBe(data);
       expect(result.data).toEqual(data);
     });
+
+    test('drops unknown payload fields at the application boundary', () => {
+      const result = stateManager.validateStateData({ state: 'working', project: 'a', secret: 'do-not-store' });
+
+      expect(result.data).toEqual({ state: 'working', project: 'a' });
+    });
   });
 
   describe('clearStateTimeout', () => {
@@ -182,6 +188,16 @@ describe('StateManager', () => {
       stateManager.setupStateTimeout('project1', 'notification');
 
       jest.advanceTimersByTime(300000);
+      expect(callback).toHaveBeenCalledWith('project1', 'idle');
+    });
+
+    test.each(['packing', 'alert'])('sets timer for %s state (5 min -> idle)', (state) => {
+      const callback = jest.fn();
+      stateManager.onStateTimeout = callback;
+
+      stateManager.setupStateTimeout('project1', state);
+      jest.advanceTimersByTime(300000);
+
       expect(callback).toHaveBeenCalledWith('project1', 'idle');
     });
 

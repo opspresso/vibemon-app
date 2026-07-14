@@ -181,9 +181,16 @@ class BubbleWindowManager {
       show: false,
       webPreferences: {
         contextIsolation: true,
-        nodeIntegration: false
+        nodeIntegration: false,
+        sandbox: true
       }
     });
+    if (typeof win.webContents.setWindowOpenHandler === 'function') {
+      win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
+    }
+    if (typeof win.webContents.on === 'function') {
+      win.webContents.on('will-navigate', (event) => event.preventDefault());
+    }
     if (startsOnTop) win.setAlwaysOnTop(true, ALWAYS_ON_TOP_LEVEL);
     win.setIgnoreMouseEvents(true);
     this.bubbleWindows.set(projectId, win);

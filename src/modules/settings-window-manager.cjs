@@ -81,7 +81,7 @@ class SettingsWindowManager {
       openAtLogin: this.app.getLoginItemSettings().openAtLogin,
       ws: {
         status: this.wsClient ? this.wsClient.getStatus() : 'not-configured',
-        token: this.wsClient ? (this.wsClient.getToken() || '') : ''
+        tokenConfigured: Boolean(this.wsClient && this.wsClient.getToken())
       },
       hooks: this.toHookView(this.hookInstaller.getCachedStatuses()),
       vibemonConfig: this.getVibemonConfigView(),
@@ -239,9 +239,17 @@ class SettingsWindowManager {
       webPreferences: {
         contextIsolation: true,
         nodeIntegration: false,
+        sandbox: true,
         preload: path.join(__dirname, '..', 'settings-preload.js')
       }
     });
+
+    if (typeof this.window.webContents.setWindowOpenHandler === 'function') {
+      this.window.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
+    }
+    if (typeof this.window.webContents.on === 'function') {
+      this.window.webContents.on('will-navigate', (event) => event.preventDefault());
+    }
 
     this.window.loadFile(path.join(__dirname, '..', 'settings.html'));
 

@@ -18,6 +18,7 @@ const WS_TOKEN = process.env.VIBEMON_WS_TOKEN || null;
 // Hook Installer Configuration (from environment variables)
 // =============================================================================
 const DOCS_BASE_URL = process.env.VIBEMON_DOCS_URL || 'https://docs.vibemon.io';
+const INSTALLER_SHA256 = process.env.VIBEMON_INSTALLER_SHA256 || 'bc3b47e214d1bed16339740cfd44099bbc228909e04da12a43553f55563173c9';
 
 module.exports = {
   // App constants (constants.json)
@@ -32,5 +33,6 @@ module.exports = {
   WS_TOKEN,
 
   // Hook Installer
-  DOCS_BASE_URL
+  DOCS_BASE_URL,
+  INSTALLER_SHA256
 };

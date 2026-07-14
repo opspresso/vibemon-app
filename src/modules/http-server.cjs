@@ -6,7 +6,7 @@ const http = require('http');
 const fsPromises = require('fs').promises;
 const path = require('path');
 const { HTTP_PORT, MAX_PAYLOAD_SIZE, CHARACTER_NAMES } = require('../shared/config.cjs');
-const { setCorsHeaders, sendJson, sendError, parseJsonBody } = require('./http-utils.cjs');
+const { setCorsHeaders, isAllowedOrigin, hasJsonContentType, sendJson, sendError, parseJsonBody } = require('./http-utils.cjs');
 const { validateStatusPayload } = require('./validators.cjs');
 
 // Rate limiting configuration
@@ -123,6 +123,10 @@ class HttpServer {
   }
 
   async handleRequest(req, res) {
+    if (!isAllowedOrigin(req)) {
+      sendError(res, 403, 'Origin not allowed');
+      return;
+    }
     setCorsHeaders(res, req);
 
     if (req.method === 'OPTIONS') {
@@ -181,6 +185,10 @@ class HttpServer {
   }
 
   async handlePostStatus(req, res) {
+    if (!hasJsonContentType(req)) {
+      sendError(res, 415, 'Content-Type must be application/json');
+      return;
+    }
     const { data, error, statusCode } = await parseJsonBody(req, MAX_PAYLOAD_SIZE);
 
     if (error) {
@@ -210,14 +218,15 @@ class HttpServer {
 
     // The window was retargeted from another project
     if (routeResult.switchedProject) {
-      // Clean up old project's timers
-      this.stateManager.cleanupProject(routeResult.switchedProject);
       if (this.onProjectSwitched) {
         this.onProjectSwitched(routeResult.switchedProject);
       }
     }
 
     const updateResult = routeResult.updateResult;
+
+    // Every accepted update is activity, including unchanged/background updates.
+    this.stateManager.setupStateTimeout(projectId, stateData.state);
 
     // No change - skip unnecessary updates
     if (!updateResult.updated) {
@@ -235,9 +244,6 @@ class HttpServer {
     if (updateResult.stateChanged) {
       // Update always on top based on state (active states stay on top)
       this.windowManager.updateAlwaysOnTopByState(stateData.state);
-
-      // Set up state timeout for this project
-      this.stateManager.setupStateTimeout(projectId, stateData.state);
 
       // Update tray
       if (this.onStateUpdate) {
@@ -267,6 +273,10 @@ class HttpServer {
   }
 
   async handlePostClose(req, res) {
+    if (!hasJsonContentType(req)) {
+      sendError(res, 415, 'Content-Type must be application/json');
+      return;
+    }
     const { data, error, statusCode } = await parseJsonBody(req, MAX_PAYLOAD_SIZE);
 
     if (error) {
@@ -307,6 +317,10 @@ class HttpServer {
   }
 
   async handlePostShow(req, res) {
+    if (req.headers['content-length'] && !hasJsonContentType(req)) {
+      sendError(res, 415, 'Content-Type must be application/json');
+      return;
+    }
     const { data, error, statusCode } = await parseJsonBody(req, MAX_PAYLOAD_SIZE);
 
     if (error) {
@@ -345,6 +359,10 @@ class HttpServer {
   }
 
   async handlePostCharacterLock(req, res) {
+    if (!hasJsonContentType(req)) {
+      sendError(res, 415, 'Content-Type must be application/json');
+      return;
+    }
     const { data, error, statusCode } = await parseJsonBody(req, MAX_PAYLOAD_SIZE);
 
     if (error) {
