@@ -4,6 +4,7 @@
 
 const { Tray, Menu, nativeImage, BrowserWindow } = require('electron');
 const { createCanvas, loadImage } = require('canvas');
+const fs = require('fs');
 const path = require('path');
 const {
   STATE_COLORS, CHARACTER_CONFIG, DEFAULT_CHARACTER,
@@ -35,10 +36,15 @@ function getCharacterImage(name) {
     const imagePath = path.join(__dirname, '..', 'assets', 'characters', config.image);
     characterImageCache.set(
       name,
-      loadImage(imagePath).catch((err) => {
-        console.warn(`Failed to load tray character image ${config.image}:`, err.message);
-        return null;
-      })
+      // Read through Electron's asar-aware fs and hand loadImage a Buffer:
+      // node-canvas reads path arguments with its own native I/O, which
+      // cannot see inside app.asar in packaged builds.
+      fs.promises.readFile(imagePath)
+        .then((buffer) => loadImage(buffer))
+        .catch((err) => {
+          console.warn(`Failed to load tray character image ${config.image}:`, err.message);
+          return null;
+        })
     );
   }
   return characterImageCache.get(name);
