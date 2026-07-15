@@ -83,6 +83,9 @@
     min-width: 0;
     height: 3px;
     background: rgba(0, 0, 0, 0.35);
+    /* Keeps the fill visible when its color matches the bubble background
+       (e.g. a green bar on the green idle/done bubble). */
+    border: 1px solid rgba(0, 0, 0, 0.35);
     border-radius: 2px;
     overflow: hidden;
   }
