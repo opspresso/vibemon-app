@@ -220,17 +220,17 @@
       return 'rgba(' + c.r + ',' + c.g + ',' + c.b + ',' + alpha + ')';
     }
 
-    // Same behavior as the window mode's own state-colored background: pick
-    // black or white text depending on how light the background reads.
+    // Pick black or white text depending on how light the state-colored
+    // background reads.
     function pickTextColor(hex) {
       var c = hexToRgb(hex);
       var luminance = c.r * 0.299 + c.g * 0.587 + c.b * 0.114;
       return luminance > 140 ? '#1a1a1a' : '#ffffff';
     }
 
-    // Loading dots beside the status text — same cadence as the window mode's
-    // dots (FRAME_INTERVAL=100ms, LOADING_DOT_COUNT=4 in constants.json), with
-    // thinking-style states running 3x slower (THINKING_ANIMATION_SLOWDOWN).
+    // Loading dots beside the status text: DOT_FRAME_MS advances the active
+    // dot (there are 4 .bubble-dot spans in the markup), and thinking-style
+    // states animate DOT_SLOWDOWN× slower than working.
     var DOT_FRAME_MS = 100;
     var DOT_SLOWDOWN = 3;
     var dotFrame = 0;
@@ -261,7 +261,7 @@
     // Called from the main process via webContents.executeJavaScript().
     // `fields` is a plain object keyed by field name: { type: 'text', text }
     // for the status/project/model rows (status may also carry showLoading/slow
-    // to animate loading dots beside the text, like the window mode's), or
+    // to animate loading dots beside the text), or
     // { type: 'metric', icon, value, resetIn } (value is
     // 0-100) for the memory/usage rows, rendered as an icon + inline bar + percentage —
     // only enabled/truthy fields are present. `resetIn`, when present (usage5h/usageWeek
@@ -272,8 +272,8 @@
     // tail's offset in px along that edge (left offset for top/bottom, top
     // offset for left/right) — both computed by the main process from the
     // bubble's final position relative to the character. bgColor is the
-    // current state's hex color (same mapping as the window mode's own
-    // background), used for both the bubble's background and its text color.
+    // current state's hex color, used for both the bubble's background and
+    // its text color.
     window.__setBubbleContent = function (fields, tailOffset, tailSide, bgColor) {
       var bubble = document.getElementById('bubble');
 

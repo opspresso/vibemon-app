@@ -26,7 +26,7 @@ const BIAS_DISTANCE = 100;
 const SCREEN_MARGIN = 8;
 
 // How close the character window's edge must be to the work area's edge to
-// count as "pinned" there (Character Mode continuously clamps its window on
+// count as "pinned" there (the character window is continuously clamped on
 // screen, so a pinned edge sits flush — this just tolerates rounding).
 const EDGE_PIN_EPSILON = 2;
 
@@ -83,7 +83,7 @@ function buildFieldPayload(state, speechBubbleFields) {
     payload.status = { type: 'text', text };
     if (LOADING_STATES.includes(stateKey)) {
       // Loading dots beside the text; thinking-style states animate slower
-      // than working (THINKING_ANIMATION_SLOWDOWN).
+      // than working (bubble.html's DOT_SLOWDOWN).
       payload.status.showLoading = true;
       payload.status.slow = stateKey !== 'working';
     }
@@ -116,9 +116,9 @@ function buildFieldPayload(state, speechBubbleFields) {
 }
 
 /**
- * Same state -> background color mapping used for the tray icon and the
- * character window's own canvas backdrop, so the bubble's background tracks
- * the current state the same way the window mode's does.
+ * Same state -> background color mapping (STATE_COLORS) used for the tray
+ * icon, so the bubble's background tracks the current state. The character
+ * window's own canvas is transparent — the bubble is where state color shows.
  * @param {Object|null} state
  * @returns {string} hex color
  */

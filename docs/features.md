@@ -35,7 +35,7 @@ VibeMon normalizes multiple agent ecosystems into one display model. The renderi
 
 All characters use **image-based rendering** (128x128 PNG, bundled with the app in `src/assets/characters/`). Character is **auto-selected by bridge**, not by the core display runtime. You can also force one with [Character Lock](#character-lock).
 
-Characters are defined in a single registry (`src/shared/data/characters.json`): display name, color, image file, and eye/effect coordinates (in canvas pixels on the 128x128 sprite, adjustable at 1px). The character window, tray icon (downscaled from the same PNG), menus, and validation all derive from it — adding a character is one PNG plus one registry entry.
+Characters are defined in a single registry (`src/shared/data/characters.json`): display name, accent color (the eye/accent overlay drawn on the sprite — white for VibeMon, distinct from the "Color" appearance above), image file, and eye/effect coordinates (in canvas pixels on the 128x128 sprite, adjustable at 1px). The character window, tray icon (downscaled from the same PNG), menus, and validation all derive from it — adding a character is one PNG plus one registry entry.
 
 ### Character Lock
 

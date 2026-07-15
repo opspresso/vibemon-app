@@ -407,6 +407,7 @@ class HttpServer {
 
     sendJson(res, 200, {
       health: 'ok',
+      version: this.app.getVersion(),
       focusedProject,
       characterLock: this.windowManager.getCharacterLock(),
       projects

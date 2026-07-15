@@ -65,9 +65,7 @@ function needsAnimationRedraw(state, blinkFrame) {
 // =============================================================================
 
 const COLOR_EFFECT_ALT = '#FFA500';
-const COLOR_SUNGLASSES_FRAME = '#111111';
-const COLOR_SUNGLASSES_LENS = '#001100';
-const COLOR_SUNGLASSES_SHINE = '#003300';
+const COLOR_GLASSES_FRAME = '#111111';
 
 // Registry eye/effect anchors are authored in canvas pixels (0..CHAR_SIZE)
 // so characters can be aligned with 1px precision, while the drawing
@@ -98,46 +96,22 @@ function getEyeCoverPosition(char) {
   return { lensW, lensH, lensY, leftLensX, rightLensX };
 }
 
-function drawSunglasses(char, drawRect) {
-  const { lensW, lensH, lensY, leftLensX, rightLensX } = getEyeCoverPosition(char);
-
-  // Lenses
-  drawRect(leftLensX, lensY, lensW, lensH, COLOR_SUNGLASSES_LENS);
-  drawRect(leftLensX + 1, lensY + 1, 2, 1, COLOR_SUNGLASSES_SHINE);
-  drawRect(rightLensX, lensY, lensW, lensH, COLOR_SUNGLASSES_LENS);
-  drawRect(rightLensX + 1, lensY + 1, 2, 1, COLOR_SUNGLASSES_SHINE);
-
-  // Frame
-  drawRect(leftLensX - 1, lensY - 1, lensW + 2, 1, COLOR_SUNGLASSES_FRAME);
-  drawRect(rightLensX - 1, lensY - 1, lensW + 2, 1, COLOR_SUNGLASSES_FRAME);
-  drawRect(leftLensX - 1, lensY + lensH, lensW + 2, 1, COLOR_SUNGLASSES_FRAME);
-  drawRect(rightLensX - 1, lensY + lensH, lensW + 2, 1, COLOR_SUNGLASSES_FRAME);
-  drawRect(leftLensX - 1, lensY, 1, lensH, COLOR_SUNGLASSES_FRAME);
-  drawRect(leftLensX + lensW, lensY, 1, lensH, COLOR_SUNGLASSES_FRAME);
-  drawRect(rightLensX - 1, lensY, 1, lensH, COLOR_SUNGLASSES_FRAME);
-  drawRect(rightLensX + lensW, lensY, 1, lensH, COLOR_SUNGLASSES_FRAME);
-
-  // Bridge
-  const bridgeY = lensY + Math.floor(lensH / 2);
-  drawRect(leftLensX + lensW, bridgeY, rightLensX - leftLensX - lensW, 1, COLOR_SUNGLASSES_FRAME);
-}
-
 function drawGlasses(char, drawRect) {
   const { lensW, lensH, lensY, leftLensX, rightLensX } = getEyeCoverPosition(char);
 
   // Frame only - lenses stay clear so the eyes underneath remain visible
-  drawRect(leftLensX - 1, lensY - 1, lensW + 2, 1, COLOR_SUNGLASSES_FRAME);
-  drawRect(rightLensX - 1, lensY - 1, lensW + 2, 1, COLOR_SUNGLASSES_FRAME);
-  drawRect(leftLensX - 1, lensY + lensH, lensW + 2, 1, COLOR_SUNGLASSES_FRAME);
-  drawRect(rightLensX - 1, lensY + lensH, lensW + 2, 1, COLOR_SUNGLASSES_FRAME);
-  drawRect(leftLensX - 1, lensY, 1, lensH, COLOR_SUNGLASSES_FRAME);
-  drawRect(leftLensX + lensW, lensY, 1, lensH, COLOR_SUNGLASSES_FRAME);
-  drawRect(rightLensX - 1, lensY, 1, lensH, COLOR_SUNGLASSES_FRAME);
-  drawRect(rightLensX + lensW, lensY, 1, lensH, COLOR_SUNGLASSES_FRAME);
+  drawRect(leftLensX - 1, lensY - 1, lensW + 2, 1, COLOR_GLASSES_FRAME);
+  drawRect(rightLensX - 1, lensY - 1, lensW + 2, 1, COLOR_GLASSES_FRAME);
+  drawRect(leftLensX - 1, lensY + lensH, lensW + 2, 1, COLOR_GLASSES_FRAME);
+  drawRect(rightLensX - 1, lensY + lensH, lensW + 2, 1, COLOR_GLASSES_FRAME);
+  drawRect(leftLensX - 1, lensY, 1, lensH, COLOR_GLASSES_FRAME);
+  drawRect(leftLensX + lensW, lensY, 1, lensH, COLOR_GLASSES_FRAME);
+  drawRect(rightLensX - 1, lensY, 1, lensH, COLOR_GLASSES_FRAME);
+  drawRect(rightLensX + lensW, lensY, 1, lensH, COLOR_GLASSES_FRAME);
 
   // Bridge
   const bridgeY = lensY + Math.floor(lensH / 2) - 2;
-  drawRect(leftLensX + lensW, bridgeY, rightLensX - leftLensX - lensW, 1, COLOR_SUNGLASSES_FRAME);
+  drawRect(leftLensX + lensW, bridgeY, rightLensX - leftLensX - lensW, 1, COLOR_GLASSES_FRAME);
 }
 
 function drawBlinkEyes(char, drawRect) {
@@ -173,8 +147,7 @@ function drawHappyEyes(char, drawRect) {
 }
 
 function drawEyeType(eyeType, char, drawRect) {
-  if (eyeType === 'focused') drawSunglasses(char, drawRect);
-  else if (eyeType === 'glasses') drawGlasses(char, drawRect);
+  if (eyeType === 'glasses') drawGlasses(char, drawRect);
   else if (eyeType === 'blink') drawBlinkEyes(char, drawRect);
   else if (eyeType === 'happy') drawHappyEyes(char, drawRect);
 }

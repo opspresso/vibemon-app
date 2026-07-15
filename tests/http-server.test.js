@@ -58,7 +58,7 @@ function createServer() {
     setCharacterLock: jest.fn(),
     getDebugInfo: jest.fn(() => ({ ok: true }))
   };
-  const app = { quit: jest.fn() };
+  const app = { quit: jest.fn(), getVersion: jest.fn(() => '0.0.0-test') };
   return { server: new HttpServer(stateManager, windowManager, app), stateManager, windowManager, app };
 }
 

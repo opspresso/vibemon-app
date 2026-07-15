@@ -1,7 +1,8 @@
 /**
- * State and timer management for Vibe Monitor (Multi-Window Architecture)
+ * State and timer management for VibeMon
  *
- * Each window manages its own state. StateManager handles:
+ * The app shows a single character window that follows one project at a
+ * time, but state is tracked per project. StateManager handles:
  * - Per-project timers (state timeouts, window close timeouts)
  * - State data validation
  */

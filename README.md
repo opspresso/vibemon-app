@@ -44,7 +44,7 @@ VibeMon does not talk to agent runtimes directly. Each supported agent is bridge
 | **State** | Current activity state | `working`, `idle`, `notification` |
 | **Project** | Active project directory | `vibemon-app` |
 | **Tool** | Currently executing tool | `Bash`, `Read`, `Edit` |
-| **Model** | Active model | `Opus 4.5`, `Sonnet` |
+| **Model** | Active model | `Opus`, `Sonnet` |
 | **Memory** | Context window usage | `45%` |
 
 ## Quick Start
@@ -103,6 +103,8 @@ See [Features](docs/features.md) for animations, working state text, and more.
 | `kiro` | White | Kiro |
 | `claw` | Red | OpenClaw |
 | `daangni` | Peach/teal | Manual only (Character Lock) |
+
+> The **Color** column is each character's overall look. This is distinct from the per-character `color` in the registry, which sets the eye/accent overlay drawn on the sprite — white for VibeMon, whose face is white.
 
 ### Character Lock
 

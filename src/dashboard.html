@@ -265,6 +265,7 @@
 
       document.getElementById('focused-value').textContent = data.focusedProject || '—';
       document.getElementById('character-lock-value').textContent = data.characterLock || 'auto';
+      if (data.version) document.getElementById('version').textContent = 'v' + data.version;
 
       const list = document.getElementById('projects-list');
       if (!data.projects || data.projects.length === 0) {

@@ -91,8 +91,9 @@ Agent bridges usually set `character` automatically:
 
 > `skipped: true` is added when the update didn't change the visible window —
 > either because neither `state` nor the info fields (`tool`, `model`,
-> `memory`, `usage5h`, `usageWeek`, `character`) changed, or because another
-> project currently holds focus (the update is still recorded).
+> `memory`, `usage5h`, `usageWeek`, `usage5hResetsIn`, `usageWeekResetsIn`,
+> `character`) changed, or because another project currently holds focus (the
+> update is still recorded).
 
 ### GET /status
 
@@ -216,6 +217,7 @@ curl http://127.0.0.1:19280/dashboard-data
 ```json
 {
   "health": "ok",
+  "version": "2.1.0",
   "focusedProject": "my-project",
   "characterLock": "auto",
   "projects": [
