@@ -57,7 +57,13 @@ async function init() {
     // Ignore right-click
     if (e.button !== 0) return;
     if (window.electronAPI?.focusTerminal) {
-      window.electronAPI.focusTerminal();
+      window.electronAPI.focusTerminal()
+        .then((result) => {
+          if (result && !result.success) {
+            console.warn('Focus terminal failed:', result.reason);
+          }
+        })
+        .catch((err) => console.warn('Focus terminal failed:', err));
     }
   });
 }

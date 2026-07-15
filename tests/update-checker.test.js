@@ -3,7 +3,8 @@
  */
 
 jest.mock('electron', () => ({
-  app: { isPackaged: true }
+  app: { isPackaged: true },
+  dialog: { showErrorBox: jest.fn() }
 }));
 
 jest.mock('electron-updater', () => {
@@ -15,7 +16,7 @@ jest.mock('electron-updater', () => {
   return { autoUpdater };
 });
 
-const { app } = require('electron');
+const { app, dialog } = require('electron');
 const { autoUpdater } = require('electron-updater');
 const { UpdateChecker } = require('../src/modules/update-checker.cjs');
 
@@ -26,6 +27,7 @@ function freshChecker() {
   autoUpdater.checkForUpdates.mockClear();
   autoUpdater.downloadUpdate.mockClear();
   autoUpdater.quitAndInstall.mockClear();
+  dialog.showErrorBox.mockClear();
   return new UpdateChecker();
 }
 
@@ -128,6 +130,25 @@ describe('UpdateChecker', () => {
       expect(checker.getState()).toEqual({ status: null, version: null });
     });
 
+    test('background check failure stays silent (no dialog)', async () => {
+      const checker = freshChecker();
+      autoUpdater.checkForUpdates.mockRejectedValueOnce(new Error('network down'));
+
+      await checker.checkForUpdates();
+
+      expect(dialog.showErrorBox).not.toHaveBeenCalled();
+    });
+
+    test('user-initiated check failure shows an error dialog', async () => {
+      const checker = freshChecker();
+      autoUpdater.checkForUpdates.mockRejectedValueOnce(new Error('network down'));
+
+      await checker.checkForUpdates({ notifyOnError: true });
+
+      expect(dialog.showErrorBox).toHaveBeenCalledTimes(1);
+      expect(dialog.showErrorBox.mock.calls[0][1]).toContain('network down');
+    });
+
     test('skips and returns null while a download is in progress', async () => {
       const checker = freshChecker();
       let resolveDownload;
@@ -176,6 +197,16 @@ describe('UpdateChecker', () => {
 
       expect(checker.getState()).toEqual({ status: 'available', version: '2.0.0' });
       expect(autoUpdater.quitAndInstall).not.toHaveBeenCalled();
+    });
+
+    test('shows an error dialog on download failure', async () => {
+      const checker = freshChecker();
+      autoUpdater.downloadUpdate.mockRejectedValueOnce(new Error('download failed'));
+
+      await checker.downloadAndInstall('2.0.0');
+
+      expect(dialog.showErrorBox).toHaveBeenCalledTimes(1);
+      expect(dialog.showErrorBox.mock.calls[0][1]).toContain('download failed');
     });
   });
 

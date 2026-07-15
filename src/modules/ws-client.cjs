@@ -26,6 +26,9 @@ class WsClient {
     this.shouldReconnect = true;
     this.pingTimer = null;
     this.pongReceived = true;
+    // Last server-reported error message (e.g. a rejected token), shown in
+    // the tray so a failing connection isn't just a bare "Disconnected".
+    this.lastError = null;
 
     // Persistent storage for token
     this.store = new Store({
@@ -121,6 +124,14 @@ class WsClient {
       return 'connecting';
     }
     return 'disconnected';
+  }
+
+  /**
+   * Last server-reported error message, or null. Cleared on successful auth.
+   * @returns {string|null}
+   */
+  getLastError() {
+    return this.lastError;
   }
 
   /**
@@ -232,12 +243,16 @@ class WsClient {
       // Handle error messages from server
       if (message.type === 'error') {
         console.error('WebSocket server error:', message.message);
+        this.lastError = message.message || 'server error';
+        this.notifyConnectionChange();
         return;
       }
 
       // Handle auth success
       if (message.type === 'authenticated') {
         console.log('WebSocket authenticated, userId:', message.userId);
+        this.lastError = null;
+        this.notifyConnectionChange();
         return;
       }
 

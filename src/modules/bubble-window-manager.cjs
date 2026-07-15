@@ -236,6 +236,23 @@ class BubbleWindowManager {
   }
 
   /**
+   * Run script in the bubble window, absorbing the rejection that
+   * executeJavaScript throws when the window is destroyed mid-flight (the
+   * same race the isWindowValid re-checks guard against). Returns null on
+   * failure so callers take their existing invalid-window path.
+   * @param {BrowserWindow} win
+   * @param {string} code
+   * @returns {Promise<any|null>}
+   */
+  async execInBubble(win, code) {
+    try {
+      return await win.webContents.executeJavaScript(code);
+    } catch {
+      return null;
+    }
+  }
+
+  /**
    * Refresh a project's speech bubble content and position, creating or
    * hiding the bubble window as needed. Re-checks the character window's
    * validity after every await — its window can close mid-flight (each
@@ -262,10 +279,11 @@ class BubbleWindowManager {
 
     // First pass: render content with a neutral tail position, just to
     // measure the bubble's natural size (varies with which fields/text show).
-    const size = await win.webContents.executeJavaScript(
+    const size = await this.execInBubble(
+      win,
       `window.__setBubbleContent(${JSON.stringify(fields)}, 0, 'bottom', ${JSON.stringify(bgColor)})`
     );
-    if (!this.isWindowValid(win) || !this.isWindowValid(this.getCharacterWindow(projectId))) {
+    if (!size || !this.isWindowValid(win) || !this.isWindowValid(this.getCharacterWindow(projectId))) {
       this.destroy(projectId);
       return;
     }
@@ -282,7 +300,8 @@ class BubbleWindowManager {
 
     // Second pass: point the tail at the character now that we know the
     // bubble's final position relative to it.
-    await win.webContents.executeJavaScript(
+    await this.execInBubble(
+      win,
       `window.__setBubbleContent(${JSON.stringify(fields)}, ${placement.tailOffset}, ${JSON.stringify(placement.tailSide)}, ${JSON.stringify(bgColor)})`
     );
     if (!this.isWindowValid(win) || !this.isWindowValid(this.getCharacterWindow(projectId))) {
@@ -318,13 +337,14 @@ class BubbleWindowManager {
     this.computePlacement(charWindow, size).then(async (placement) => {
       if (!placement || !this.isWindowValid(win) || !this.isWindowValid(this.getCharacterWindow(projectId))) return;
 
-      await win.webContents.executeJavaScript(
+      await this.execInBubble(
+        win,
         `window.__setBubbleContent(${JSON.stringify(fields)}, ${placement.tailOffset}, ${JSON.stringify(placement.tailSide)}, ${JSON.stringify(bgColor)})`
       );
       if (!this.isWindowValid(win) || !this.isWindowValid(this.getCharacterWindow(projectId))) return;
 
       this.animateTo(projectId, win, { x: placement.x, y: placement.y, width: size.width, height: size.height });
-    });
+    }).catch((err) => console.error('Bubble reposition failed:', err));
   }
 
   /**

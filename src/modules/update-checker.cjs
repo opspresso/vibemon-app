@@ -7,7 +7,7 @@
  * automatically — only a menu click does that.
  */
 
-const { app } = require('electron');
+const { app, dialog } = require('electron');
 const { autoUpdater } = require('electron-updater');
 
 class UpdateChecker {
@@ -62,8 +62,12 @@ class UpdateChecker {
    * while a download is already in progress — checkForUpdates() can flip
    * state via the checking/available/not-available/error events, which
    * would otherwise clobber the downloading/downloaded state mid-download.
+   * @param {{notifyOnError?: boolean}} [options] - notifyOnError: show an
+   *   error dialog on failure. Pass true for user-initiated checks (the
+   *   Settings button), where a silent failure looks identical to "up to
+   *   date"; background timer checks stay silent.
    */
-  async checkForUpdates() {
+  async checkForUpdates({ notifyOnError = false } = {}) {
     if (!app.isPackaged || this.downloadInProgress) {
       return null;
     }
@@ -72,6 +76,9 @@ class UpdateChecker {
     } catch (err) {
       console.error('[UpdateChecker] check failed:', err);
       this.setState(null);
+      if (notifyOnError) {
+        dialog.showErrorBox('VibeMon Update', `Failed to check for updates:\n${err.message}`);
+      }
       return null;
     }
   }
@@ -95,6 +102,9 @@ class UpdateChecker {
     } catch (err) {
       console.error('[UpdateChecker] download/install failed:', err);
       this.setState('available', version);
+      // Always user-initiated (tray/Settings click), so a silent revert to
+      // 'available' would read as "nothing happened" — say what went wrong.
+      dialog.showErrorBox('VibeMon Update', `Failed to download or install v${version}:\n${err.message}`);
     } finally {
       this.downloadInProgress = false;
     }

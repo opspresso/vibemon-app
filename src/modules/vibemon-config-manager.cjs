@@ -178,17 +178,30 @@ class VibemonConfigManager {
     return true;
   }
 
+  /**
+   * Atomically write the config. Never throws — callers run from timers and
+   * IPC handlers whose UIs re-read the file afterwards, so a failed write
+   * surfaces as the on-disk value winning; the error itself is logged here.
+   * @param {object} config
+   * @returns {boolean} whether the write succeeded
+   */
   persist(config) {
-    fs.mkdirSync(VIBEMON_HOME, { recursive: true });
-    const tempPath = `${VIBEMON_CONFIG_PATH}.${process.pid}.tmp`;
-    fs.writeFileSync(tempPath, JSON.stringify(config, null, 2) + '\n', { mode: 0o600 });
     try {
-      fs.chmodSync(VIBEMON_HOME, 0o700);
-      fs.chmodSync(tempPath, 0o600);
-    } catch {
-      // Best-effort; non-Unix platforms may not support chmod.
+      fs.mkdirSync(VIBEMON_HOME, { recursive: true });
+      const tempPath = `${VIBEMON_CONFIG_PATH}.${process.pid}.tmp`;
+      fs.writeFileSync(tempPath, JSON.stringify(config, null, 2) + '\n', { mode: 0o600 });
+      try {
+        fs.chmodSync(VIBEMON_HOME, 0o700);
+        fs.chmodSync(tempPath, 0o600);
+      } catch {
+        // Best-effort; non-Unix platforms may not support chmod.
+      }
+      fs.renameSync(tempPath, VIBEMON_CONFIG_PATH);
+      return true;
+    } catch (err) {
+      console.error('[VibemonConfig] failed to save ~/.vibemon/config.json:', err.message);
+      return false;
     }
-    fs.renameSync(tempPath, VIBEMON_CONFIG_PATH);
   }
 }
 

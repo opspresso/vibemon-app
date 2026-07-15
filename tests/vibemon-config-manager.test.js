@@ -234,4 +234,35 @@ describe('VibemonConfigManager', () => {
       expect(written.vibemon_token).toBe('');
     });
   });
+
+  describe('persist', () => {
+    let consoleError;
+
+    beforeEach(() => {
+      fs.renameSync.mockReset();
+      consoleError = jest.spyOn(console, 'error').mockImplementation(() => {});
+    });
+
+    afterEach(() => {
+      consoleError.mockRestore();
+    });
+
+    test('returns true on a successful write', () => {
+      expect(manager.persist({ debug: false })).toBe(true);
+    });
+
+    test('does not throw and returns false when the write fails', () => {
+      fs.renameSync.mockImplementation(() => { throw new Error('EACCES'); });
+
+      expect(() => manager.persist({ debug: false })).not.toThrow();
+      expect(manager.persist({ debug: false })).toBe(false);
+      expect(consoleError).toHaveBeenCalled();
+    });
+
+    test('write() does not throw when the underlying write fails', () => {
+      fs.renameSync.mockImplementation(() => { throw new Error('EACCES'); });
+
+      expect(() => manager.write({ debug: true })).not.toThrow();
+    });
+  });
 });

@@ -70,7 +70,8 @@ function getBubbleOptions(projectId) {
 
 // Refresh the speech bubble whenever the followed project's state/info changes
 windowManager.onStateUpdated = (projectId) => {
-  bubbleWindowManager.update(projectId, getBubbleOptions(projectId));
+  bubbleWindowManager.update(projectId, getBubbleOptions(projectId))
+    .catch((err) => console.error('Bubble update failed:', err));
 };
 
 // Keep the speech bubble following live while the character window is dragged
@@ -81,7 +82,8 @@ windowManager.onWindowMoved = (projectId) => {
 // Speech bubble field toggles re-render the bubble
 windowManager.onDisplayModeChanged = () => {
   for (const projectId of windowManager.getProjectIds()) {
-    bubbleWindowManager.update(projectId, getBubbleOptions(projectId));
+    bubbleWindowManager.update(projectId, getBubbleOptions(projectId))
+      .catch((err) => console.error('Bubble update failed:', err));
   }
 };
 
@@ -410,12 +412,14 @@ app.whenReady().then(() => {
   // present while that shared config is missing or stale.
   setTimeout(() => {
     vibemonConfigManager.ensureDesktopUrl(wsClient.getToken());
-    hookInstaller.checkAndPrompt(wsClient.getToken());
+    hookInstaller.checkAndPrompt(wsClient.getToken())
+      .catch((err) => console.error('Hook check failed:', err));
   }, HOOK_CHECK_INITIAL_DELAY_MS);
   hookCheckTimer = setInterval(
     () => {
       vibemonConfigManager.ensureDesktopUrl(wsClient.getToken());
-      hookInstaller.checkAndPrompt(wsClient.getToken());
+      hookInstaller.checkAndPrompt(wsClient.getToken())
+        .catch((err) => console.error('Hook check failed:', err));
     },
     HOOK_CHECK_INTERVAL_MS
   );

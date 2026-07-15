@@ -282,10 +282,14 @@ class TrayManager {
         statusIcon = '○';
         statusLabel = 'WebSocket: Connecting...';
         break;
-      case 'disconnected':
+      case 'disconnected': {
         statusIcon = '○';
-        statusLabel = 'WebSocket: Disconnected';
+        const lastError = this.wsClient.getLastError();
+        statusLabel = lastError
+          ? `WebSocket: Disconnected (${lastError})`
+          : 'WebSocket: Disconnected';
         break;
+      }
       case 'not-configured':
       default:
         statusIcon = '○';

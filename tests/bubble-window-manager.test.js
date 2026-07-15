@@ -153,3 +153,25 @@ describe('ensureBubbleWindow', () => {
     expect(BrowserWindow.instances).toHaveLength(1);
   });
 });
+
+describe('update', () => {
+  test('a rejected executeJavaScript destroys the bubble instead of leaking a rejection', async () => {
+    let charWindow;
+    const manager = freshManager(() => charWindow);
+    charWindow = new BrowserWindow({});
+
+    const updatePromise = manager.update('proj-e', {
+      state: { state: 'idle' },
+      speechBubbleFields: { status: true }
+    });
+
+    // The bubble window is created after the character-window validity check.
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    const bubbleWin = BrowserWindow.instances[1];
+    bubbleWin.webContents.executeJavaScript = () => Promise.reject(new Error('Script failed'));
+    bubbleWin.webContents.emit('did-finish-load');
+
+    await expect(updatePromise).resolves.toBeUndefined();
+    expect(bubbleWin.isDestroyed()).toBe(true);
+  });
+});

@@ -178,7 +178,7 @@ class SettingsWindowManager {
     });
 
     ipcMain.handle('settings:check-for-updates', async () => {
-      await this.updateChecker.checkForUpdates();
+      await this.updateChecker.checkForUpdates({ notifyOnError: true });
       return this.updateChecker.getState();
     });
 

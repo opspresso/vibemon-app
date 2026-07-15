@@ -325,6 +325,39 @@ describe('WsClient', () => {
       consoleSpy.mockRestore();
     });
 
+    test('a server error is kept as lastError and notifies the tray', () => {
+      const client = createClient();
+      client.url = 'wss://example.com/ws';
+      const consoleSpy = jest.spyOn(console, 'error').mockImplementation();
+      const onConnectionChange = jest.fn();
+      client.onConnectionChange = onConnectionChange;
+
+      client.connect();
+      mockWsInstance.simulateOpen();
+      onConnectionChange.mockClear();
+      mockWsInstance.simulateMessage({ type: 'error', message: 'Auth failed' });
+
+      expect(client.getLastError()).toBe('Auth failed');
+      expect(onConnectionChange).toHaveBeenCalled();
+      consoleSpy.mockRestore();
+    });
+
+    test('successful auth clears lastError', () => {
+      const client = createClient();
+      client.url = 'wss://example.com/ws';
+      const errorSpy = jest.spyOn(console, 'error').mockImplementation();
+      const logSpy = jest.spyOn(console, 'log').mockImplementation();
+
+      client.connect();
+      mockWsInstance.simulateOpen();
+      mockWsInstance.simulateMessage({ type: 'error', message: 'Auth failed' });
+      mockWsInstance.simulateMessage({ type: 'authenticated', userId: 'test-user' });
+
+      expect(client.getLastError()).toBeNull();
+      errorSpy.mockRestore();
+      logSpy.mockRestore();
+    });
+
     test('handles invalid JSON gracefully', () => {
       const client = createClient();
       client.url = 'wss://example.com/ws';
