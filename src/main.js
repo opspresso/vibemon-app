@@ -28,10 +28,12 @@ const { HookInstaller } = require('./modules/hook-installer.cjs');
 const { VibemonConfigManager } = require('./modules/vibemon-config-manager.cjs');
 const { UpdateChecker } = require('./modules/update-checker.cjs');
 const { SettingsWindowManager } = require('./modules/settings-window-manager.cjs');
+const { UsageRefresher } = require('./modules/usage-refresher.cjs');
 const { validateStatusPayload } = require('./modules/validators.cjs');
 const {
   HOOK_CHECK_INITIAL_DELAY_MS, HOOK_CHECK_INTERVAL_MS,
-  UPDATE_CHECK_INITIAL_DELAY_MS, UPDATE_CHECK_INTERVAL_MS
+  UPDATE_CHECK_INITIAL_DELAY_MS, UPDATE_CHECK_INTERVAL_MS,
+  USAGE_REFRESH_INITIAL_DELAY_MS, USAGE_REFRESH_INTERVAL_MS
 } = require('./shared/config.cjs');
 
 // Single instance lock - prevent duplicate instances
@@ -50,12 +52,14 @@ const bubbleWindowManager = new BubbleWindowManager((projectId) => windowManager
 const hookInstaller = new HookInstaller();
 const vibemonConfigManager = new VibemonConfigManager();
 const updateChecker = new UpdateChecker();
+const usageRefresher = new UsageRefresher();
 let trayManager = null;
 let settingsWindowManager = null;
 let httpServer = null;
 let wsClient = null;
 let hookCheckTimer = null;
 let updateCheckTimer = null;
+let usageRefreshTimer = null;
 
 function getBubbleOptions(projectId) {
   return {
@@ -422,6 +426,12 @@ app.whenReady().then(() => {
   setTimeout(() => updateChecker.checkForUpdates(), UPDATE_CHECK_INITIAL_DELAY_MS);
   updateCheckTimer = setInterval(() => updateChecker.checkForUpdates(), UPDATE_CHECK_INTERVAL_MS);
 
+  // Refresh the shared plan-usage cache (~/.vibemon/cache/usage.json) via
+  // ~/.vibemon/usage.py: once shortly after startup, then periodically, so
+  // usage data stays fresh even when no Claude Code session is running.
+  setTimeout(() => usageRefresher.refresh(), USAGE_REFRESH_INITIAL_DELAY_MS);
+  usageRefreshTimer = setInterval(() => usageRefresher.refresh(), USAGE_REFRESH_INTERVAL_MS);
+
   // Screen lock, system sleep, and display attach/detach make macOS move
   // windows itself (e.g. onto the primary display while another display
   // sleeps). Those moves must not be persisted as the user's position, and
@@ -459,6 +469,10 @@ app.on('before-quit', () => {
   if (updateCheckTimer) {
     clearInterval(updateCheckTimer);
     updateCheckTimer = null;
+  }
+  if (usageRefreshTimer) {
+    clearInterval(usageRefreshTimer);
+    usageRefreshTimer = null;
   }
 
   // Null callbacks first to prevent any fired timers from triggering updates
