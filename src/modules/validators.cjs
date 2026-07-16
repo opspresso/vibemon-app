@@ -24,8 +24,12 @@ const GHOSTTY_PID_PATTERN = /^ghostty:\d{1,10}$/;
  * @returns {{valid: boolean, error: string|null}}
  */
 function validateState(state) {
+  // Required, matching the cloud API (POST /api/status rejects a missing
+  // state): a state-less update has nothing to display, would take focus
+  // while rendering as idle, and never gets a state timeout — so it would
+  // linger in the registry forever.
   if (state === undefined) {
-    return { valid: true, error: null };
+    return { valid: false, error: 'state is required' };
   }
   if (!VALID_STATES.includes(state)) {
     return { valid: false, error: `Invalid state: ${state}. Valid states: ${VALID_STATES.join(', ')}` };

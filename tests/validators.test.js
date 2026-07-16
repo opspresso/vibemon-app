@@ -14,10 +14,10 @@ const {
 } = require('../src/modules/validators.cjs');
 
 describe('validateState', () => {
-  test('accepts undefined state', () => {
+  test('rejects undefined state (required, matching the cloud API)', () => {
     const result = validateState(undefined);
-    expect(result.valid).toBe(true);
-    expect(result.error).toBeNull();
+    expect(result.valid).toBe(false);
+    expect(result.error).toBe('state is required');
   });
 
   test('accepts valid states', () => {
@@ -255,10 +255,10 @@ describe('validateStatusPayload', () => {
     expect(result.error).toBeNull();
   });
 
-  test('accepts empty payload', () => {
+  test('rejects payload without state', () => {
     const result = validateStatusPayload({});
-    expect(result.valid).toBe(true);
-    expect(result.error).toBeNull();
+    expect(result.valid).toBe(false);
+    expect(result.error).toBe('state is required');
   });
 
   test('rejects invalid state in payload', () => {
@@ -271,6 +271,7 @@ describe('validateStatusPayload', () => {
 
   test('accepts unknown character in payload (normalized downstream)', () => {
     const result = validateStatusPayload({
+      state: 'idle',
       character: 'invalid'
     });
     expect(result.valid).toBe(true);
@@ -279,6 +280,7 @@ describe('validateStatusPayload', () => {
 
   test('rejects non-string character in payload', () => {
     const result = validateStatusPayload({
+      state: 'idle',
       character: 42
     });
     expect(result.valid).toBe(false);
@@ -287,6 +289,7 @@ describe('validateStatusPayload', () => {
 
   test('rejects invalid memory in payload', () => {
     const result = validateStatusPayload({
+      state: 'idle',
       memory: 150
     });
     expect(result.valid).toBe(false);
@@ -308,6 +311,7 @@ describe('validateStatusPayload', () => {
 
   test('rejects invalid usage in payload', () => {
     const result = validateStatusPayload({
+      state: 'idle',
       usage5h: 150
     });
     expect(result.valid).toBe(false);
@@ -325,6 +329,7 @@ describe('validateStatusPayload', () => {
 
   test('rejects invalid tool in payload', () => {
     const result = validateStatusPayload({
+      state: 'idle',
       tool: 123
     });
     expect(result.valid).toBe(false);
