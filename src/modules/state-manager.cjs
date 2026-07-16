@@ -132,6 +132,12 @@ class StateManager {
       STATUS_FIELDS.filter(field => data[field] !== undefined).map(field => [field, data[field]])
     );
 
+    // Empty and '-' (some collectors' placeholder) mean "no project name" —
+    // drop the field so it is never displayed and routing falls back to 'default'.
+    if (normalized.project === '' || normalized.project === '-') {
+      delete normalized.project;
+    }
+
     // Validate and normalize character field
     if (normalized.character !== undefined) {
       normalized.character = CHARACTER_CONFIG[normalized.character]

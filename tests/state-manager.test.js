@@ -76,6 +76,18 @@ describe('StateManager', () => {
       expect(result.data.character).toBeUndefined();
     });
 
+    test('drops empty project name', () => {
+      const result = stateManager.validateStateData({ state: 'working', project: '' });
+      expect(result.valid).toBe(true);
+      expect(result.data.project).toBeUndefined();
+    });
+
+    test('drops "-" placeholder project name', () => {
+      const result = stateManager.validateStateData({ state: 'working', project: '-' });
+      expect(result.valid).toBe(true);
+      expect(result.data.project).toBeUndefined();
+    });
+
     test('creates new object (immutability)', () => {
       const data = { state: 'idle', project: 'test' };
       const result = stateManager.validateStateData(data);
