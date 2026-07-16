@@ -86,7 +86,7 @@ npm start
 | `packing` | Gray | Context compacting |
 | `notification` | Yellow | User input needed |
 | `done` | Green | Tool completed |
-| `sleep` | Navy | 5min inactivity |
+| `sleep` | Navy | After 5min in idle |
 | `alert` | Red | Critical error/failure |
 
 ## Testing
