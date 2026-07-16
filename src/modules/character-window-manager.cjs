@@ -724,6 +724,17 @@ class CharacterWindowManager {
       stateData = { ...stateData, character: this.characterLock };
     }
 
+    // terminalId only arrives via local HTTP — the cloud API neither stores
+    // nor rebroadcasts it — so a WebSocket echo of a locally-posted status
+    // would otherwise wipe the terminal reference and break click-to-focus.
+    // Keep the project's last known terminalId when an update omits it.
+    if (stateData.terminalId === undefined) {
+      const previous = this.stateRegistry.get(projectId);
+      if (previous && previous.terminalId !== undefined) {
+        stateData = { ...stateData, terminalId: previous.terminalId };
+      }
+    }
+
     // Delete-then-set moves projectId to the end of the Map's insertion
     // order, so pruneStateRegistry() evicts the least-recently-updated
     // project first rather than whichever happened to be added earliest.

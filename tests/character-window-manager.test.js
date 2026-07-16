@@ -314,6 +314,14 @@ describe('updateState change detection', () => {
     expect(manager.updateState('a', { state: 'working', memory: 10 }).updated).toBe(false);
   });
 
+  test('keeps last known terminalId when an update omits it (cloud WS echo)', () => {
+    const manager = managerWithWindow('a', null);
+    manager.routeStatusUpdate('a', { state: 'working', project: 'a', terminalId: 'ghostty:100' });
+    manager.routeStatusUpdate('a', { state: 'working', project: 'a' });
+    expect(manager.getRegisteredState('a').terminalId).toBe('ghostty:100');
+    expect(manager.getTerminalId('a')).toBe('ghostty:100');
+  });
+
   test('detects a terminalId-only change (keeps click-to-focus current)', () => {
     const manager = managerWithWindow('a', { state: 'working', terminalId: 'ghostty:100' });
     const result = manager.updateState('a', { state: 'working', terminalId: 'ghostty:200' });
