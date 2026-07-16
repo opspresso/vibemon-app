@@ -126,7 +126,18 @@ stateManager.onStateTimeout = (projectId, newState) => {
 };
 
 stateManager.onWindowCloseTimeout = (projectId) => {
+  // End of the project's lifecycle (sleep held for the full close window).
+  // closeWindow only acts when the window follows this project; drop the
+  // project from tracking either way, so background projects don't linger
+  // in the registry (and dashboard) as ghost sleep entries.
   windowManager.closeWindow(projectId);
+  stateManager.cleanupProject(projectId);
+  windowManager.removeProject(projectId);
+  bubbleWindowManager.destroy(projectId);
+  if (trayManager) {
+    trayManager.updateMenu();
+    trayManager.updateIcon();
+  }
 };
 
 // Set up window manager callback for when the window is closed
