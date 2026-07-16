@@ -298,6 +298,23 @@ describe('WsClient', () => {
       expect(callback).toHaveBeenCalledWith(statusData);
     });
 
+    test('passes auto flag through for server status messages', () => {
+      const client = createClient();
+      client.url = 'wss://example.com/ws';
+      const callback = jest.fn();
+      client.onStatusUpdate = callback;
+
+      client.connect();
+      mockWsInstance.simulateOpen();
+
+      const statusData = { state: 'idle', project: 'test-project' };
+      mockWsInstance.simulateMessage({ type: 'status', data: statusData });
+      expect(callback).toHaveBeenLastCalledWith(statusData, { auto: false });
+
+      mockWsInstance.simulateMessage({ type: 'status', auto: true, data: statusData });
+      expect(callback).toHaveBeenLastCalledWith(statusData, { auto: true });
+    });
+
     test('handles auth success message', () => {
       const client = createClient();
       client.url = 'wss://example.com/ws';

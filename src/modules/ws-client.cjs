@@ -256,10 +256,12 @@ class WsClient {
         return;
       }
 
-      // Handle status update (server sends {type: "status", data: {...}})
+      // Handle status update (server sends {type: "status", data: {...}}).
+      // auto:true marks a clock-driven transition from the server's
+      // state-transition Lambda rather than agent activity.
       if (message.type === 'status' && message.data) {
         if (this.onStatusUpdate) {
-          this.onStatusUpdate(message.data);
+          this.onStatusUpdate(message.data, { auto: message.auto === true });
         }
         return;
       }

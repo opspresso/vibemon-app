@@ -153,8 +153,13 @@ windowManager.onWindowClosed = (projectId) => {
 /**
  * Handle status update from WebSocket
  * Reuses the same logic as HTTP POST /status
+ * @param {Object} data - status payload
+ * @param {{auto?: boolean}} [meta] - auto:true marks a clock-driven
+ *   transition from the server's state-transition Lambda; like local state
+ *   timeouts it must not move focus to (or open a window for) a background
+ *   project.
  */
-function handleWsStatusUpdate(data) {
+function handleWsStatusUpdate(data, meta = {}) {
   // Validate payload
   const validation = validateStatusPayload(data);
   if (!validation.valid) {
@@ -174,7 +179,9 @@ function handleWsStatusUpdate(data) {
   if (!stateData.project) return;
   const projectId = stateData.project;
 
-  const routeResult = windowManager.routeStatusUpdate(projectId, stateData);
+  const routeResult = windowManager.routeStatusUpdate(projectId, stateData, {
+    preserveFocus: meta.auto === true
+  });
 
   // The window was retargeted from another project
   if (routeResult.switchedProject) {
