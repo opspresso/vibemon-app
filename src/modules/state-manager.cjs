@@ -133,7 +133,7 @@ class StateManager {
     );
 
     // Empty and '-' (some collectors' placeholder) mean "no project name" —
-    // drop the field so it is never displayed and routing falls back to 'default'.
+    // drop the field so ingestion discards the update instead of showing it.
     if (normalized.project === '' || normalized.project === '-') {
       delete normalized.project;
     }

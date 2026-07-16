@@ -226,6 +226,32 @@ describe('HttpServer request boundaries', () => {
     expect(windowManager.routeStatusUpdate).not.toHaveBeenCalled();
   });
 
+  test('skips status updates without a project name instead of routing them', async () => {
+    const { server, windowManager } = createServer();
+    const res = response();
+
+    await server.handleRequest(request('POST', '/status', {
+      headers: { 'content-type': 'application/json' }, body: { state: 'done' }
+    }), res);
+
+    expect(res.statusCode).toBe(200);
+    expect(JSON.parse(res.body).skipped).toBe(true);
+    expect(windowManager.routeStatusUpdate).not.toHaveBeenCalled();
+  });
+
+  test('skips status updates with an empty project name instead of routing them', async () => {
+    const { server, windowManager } = createServer();
+    const res = response();
+
+    await server.handleRequest(request('POST', '/status', {
+      headers: { 'content-type': 'application/json' }, body: { state: 'idle', project: '' }
+    }), res);
+
+    expect(res.statusCode).toBe(200);
+    expect(JSON.parse(res.body).skipped).toBe(true);
+    expect(windowManager.routeStatusUpdate).not.toHaveBeenCalled();
+  });
+
   test('reports unchanged status updates as skipped', async () => {
     const { server, windowManager } = createServer();
     windowManager.routeStatusUpdate.mockReturnValue({

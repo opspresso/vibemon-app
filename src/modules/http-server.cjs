@@ -209,8 +209,19 @@ class HttpServer {
     }
     const stateData = stateValidation.data;  // Extract normalized data
 
-    // Get projectId from data or use default
-    const projectId = stateData.project || 'default';
+    // A status without a project name has nothing meaningful to display —
+    // accept it but never route it to the window.
+    if (!stateData.project) {
+      sendJson(res, 200, {
+        success: true,
+        project: null,
+        state: stateData.state,
+        focusedProject: this.windowManager.getFocusedProjectId(),
+        skipped: true
+      });
+      return;
+    }
+    const projectId = stateData.project;
 
     const routeResult = this.windowManager.routeStatusUpdate(projectId, stateData);
 

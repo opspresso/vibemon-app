@@ -159,8 +159,9 @@ function handleWsStatusUpdate(data) {
   }
   const stateData = stateValidation.data;
 
-  // Get projectId from data or use default
-  const projectId = stateData.project || 'default';
+  // A status without a project name has nothing meaningful to display — drop it.
+  if (!stateData.project) return;
+  const projectId = stateData.project;
 
   const routeResult = windowManager.routeStatusUpdate(projectId, stateData);
 
