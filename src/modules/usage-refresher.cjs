@@ -56,6 +56,12 @@ class UsageRefresher {
     return new Promise((resolve) => {
       const args = [USAGE_SCRIPT_PATH, '--max-age', String(USAGE_REFRESH_MAX_AGE_SECONDS)];
       const child = spawn(PYTHON_COMMAND, args, {
+        // Launched from Finder/Dock the app's cwd is `/`, which the spawned
+        // `claude` CLI would treat as its workspace — its file enumeration
+        // can then descend into TCC-protected folders (Documents, Desktop,
+        // ...) and macOS attributes that to this app as a folder-access
+        // permission prompt. Pin the workspace to a harmless directory.
+        cwd: path.dirname(USAGE_SCRIPT_PATH),
         stdio: ['ignore', 'ignore', 'pipe'],
         env: buildEnv()
       });
