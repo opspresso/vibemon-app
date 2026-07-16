@@ -314,6 +314,13 @@ describe('updateState change detection', () => {
     expect(manager.updateState('a', { state: 'working', memory: 10 }).updated).toBe(false);
   });
 
+  test('detects a terminalId-only change (keeps click-to-focus current)', () => {
+    const manager = managerWithWindow('a', { state: 'working', terminalId: 'ghostty:100' });
+    const result = manager.updateState('a', { state: 'working', terminalId: 'ghostty:200' });
+    expect(result).toEqual({ updated: true, stateChanged: false, infoChanged: true });
+    expect(manager.entry.state.terminalId).toBe('ghostty:200');
+  });
+
   test('ignores updates for a project the window does not follow', () => {
     const manager = managerWithWindow('a', { state: 'idle' });
     expect(manager.updateState('b', { state: 'working' }).updated).toBe(false);

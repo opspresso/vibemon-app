@@ -479,7 +479,8 @@ class CharacterWindowManager {
 
     const stateChanged = oldState.state !== newState.state;
 
-    // Check if info fields changed (tool, model, memory, usage, character)
+    // Check if info fields changed (tool, model, memory, usage, character,
+    // terminalId — a stale terminalId would break click-to-focus)
     const infoChanged = !stateChanged && (
       oldState.tool !== newState.tool ||
       oldState.model !== newState.model ||
@@ -488,7 +489,8 @@ class CharacterWindowManager {
       oldState.usageWeek !== newState.usageWeek ||
       oldState.usage5hResetsIn !== newState.usage5hResetsIn ||
       oldState.usageWeekResetsIn !== newState.usageWeekResetsIn ||
-      oldState.character !== newState.character
+      oldState.character !== newState.character ||
+      oldState.terminalId !== newState.terminalId
     );
 
     // No change - skip update
