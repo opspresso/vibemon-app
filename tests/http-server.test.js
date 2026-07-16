@@ -109,7 +109,8 @@ describe('HttpServer request boundaries', () => {
 
   test('rate limits repeated requests from the same client', async () => {
     const { server } = createServer();
-    server.requestCounts.set('127.0.0.1', { count: 100, resetTime: Date.now() + 1000 });
+    const { RATE_LIMIT } = require('../src/shared/config.cjs');
+    server.requestCounts.set('127.0.0.1', { count: RATE_LIMIT, resetTime: Date.now() + 1000 });
     const res = response();
 
     await server.handleRequest(request('GET', '/health'), res);
