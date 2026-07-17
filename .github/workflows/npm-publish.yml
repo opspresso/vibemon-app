@@ -34,6 +34,7 @@ jobs:
         run: |
           npm run lint
           npm run test:coverage -- --runInBand
+          npm run check:registry
 
       - name: Publish to npm
         run: npm publish --access public

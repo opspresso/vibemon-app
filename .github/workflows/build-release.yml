@@ -40,6 +40,7 @@ jobs:
         run: |
           npm run lint
           npm run test:coverage -- --runInBand
+          npm run check:registry
 
       - name: Sync version from tag
         shell: bash
