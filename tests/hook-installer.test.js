@@ -300,14 +300,25 @@ describe('HookInstaller', () => {
       spawnSync.mockReturnValue({ status: 0 }); // python present
       const children = mockSuccessfulInstall();
 
-      const results = await hookInstaller.installTools([TOOLS[0], TOOLS[1]], 'tok');
+      const results = await hookInstaller.installTools([TOOLS[0], TOOLS[1]], 'my_token_123');
 
       expect(https.get).toHaveBeenCalledTimes(1);
       expect(spawn).toHaveBeenCalledTimes(2);
       expect(children).toHaveLength(2);
       expect(results.every(r => r.result.ok)).toBe(true);
+      expect(spawn.mock.calls[0][1]).toEqual(['-', TOOLS[0].flag, '--token', 'my_token_123', '--yes']);
+      expect(spawn.mock.calls[1][1]).toEqual(['-', TOOLS[1].flag, '--token', 'my_token_123', '--yes']);
+    });
+
+    test('omits --token when the token is missing or malformed (install.py exits 2 on a bad --token)', async () => {
+      spawnSync.mockReturnValue({ status: 0 }); // python present
+      mockSuccessfulInstall();
+
+      await hookInstaller.installTools([TOOLS[0]], null);
       expect(spawn.mock.calls[0][1]).toEqual(['-', TOOLS[0].flag, '--yes']);
-      expect(spawn.mock.calls[1][1]).toEqual(['-', TOOLS[1].flag, '--yes']);
+
+      await hookInstaller.installTools([TOOLS[0]], 'BAD TOKEN!');
+      expect(spawn.mock.calls[1][1]).toEqual(['-', TOOLS[0].flag, '--yes']);
     });
 
     test('suppresses the whole batch and skips spawning when the download fails', async () => {
