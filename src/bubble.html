@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'">
 <title>VibeMon Speech Bubble</title>
+<link rel="stylesheet" href="bubble/vibemon-bubble.css">
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
 
@@ -12,155 +13,22 @@
     overflow: hidden;
   }
 
-  /* The tail overflows 6px outside #bubble's own box on any of its four
-     edges (see .bubble-tail below) — without this reserved space the bubble
+  /* The tail overflows 6px outside .bubble's own box on any of its four
+     edges (see vibemon-bubble.css) — without this reserved space the bubble
      window (sized to exactly fit its content) would clip it off entirely. */
   body {
     padding: 6px;
   }
 
-  #bubble {
-    position: relative;
-    display: inline-flex;
-    flex-direction: column;
-    gap: 5px;
-    padding: 8px 12px;
-    /* Matches the desktop character window's WINDOW_WIDTH (constants.json)
-       so the bubble reads as the same width as the character below it. */
+  /* Matches the desktop character window's WINDOW_WIDTH (constants.json)
+     so the bubble reads as the same width as the character below it. */
+  .bubble {
     min-width: 172px;
-    background: rgba(60, 60, 60, 0.9);
-    color: #fff;
-    border-radius: 10px;
-    white-space: nowrap;
-  }
-
-  .bubble-row {
-    display: none;
-    color: inherit;
-    font-size: 11px;
-    font-family: -apple-system, BlinkMacSystemFont, sans-serif;
-  }
-
-  .bubble-row[data-field="status"] {
-    font-size: 14px;
-    align-items: center;
-    gap: 6px;
-  }
-
-  .bubble-dots {
-    display: none;
-    align-items: center;
-    gap: 3px;
-  }
-
-  .bubble-dot {
-    width: 5px;
-    height: 5px;
-    border-radius: 50%;
-    background: currentColor;
-    transition: opacity 0.1s;
-  }
-
-  .bubble-dot.dim {
-    opacity: 0.25;
-  }
-
-  .bubble-metric {
-    align-items: center;
-    gap: 6px;
-  }
-
-  .bubble-icon {
-    flex: none;
-    font-size: 11px;
-    line-height: 1;
-  }
-
-  .bubble-bar-track {
-    /* Grow to fill whatever row width the bubble ends up at, instead of a
-       fixed px length that leaves dead space when the bubble is wider. */
-    flex: 1 1 0;
-    min-width: 0;
-    height: 5px;
-    background: rgba(0, 0, 0, 0.35);
-    /* Keeps the fill visible when its color matches the bubble background
-       (e.g. a green bar on the green idle/done bubble). */
-    border: 1px solid rgba(0, 0, 0, 0.35);
-    border-radius: 2px;
-    overflow: hidden;
-  }
-
-  .bubble-bar-fill {
-    display: block;
-    height: 100%;
-    width: 0%;
-    border-radius: 2px;
-    transition: width 0.3s, background 0.3s;
-  }
-
-  .bubble-value {
-    flex: none;
-    width: 30px;
-    text-align: right;
-    font-variant-numeric: tabular-nums;
-  }
-
-  .bubble-row[data-field="usage5h"] .bubble-value,
-  .bubble-row[data-field="usageWeek"] .bubble-value {
-    width: auto;
-    min-width: 30px;
-  }
-
-  .bubble-tail {
-    position: absolute;
-    width: 0;
-    height: 0;
-  }
-
-  .bubble-tail.tail-top,
-  .bubble-tail.tail-bottom {
-    transform: translateX(-50%);
-    border-left: 6px solid transparent;
-    border-right: 6px solid transparent;
-  }
-
-  /* Bubble above the character (usual case): tail on the bottom edge, pointing down.
-     Border color is set inline by __setBubbleContent to match the current
-     state-colored background (see .bubble-tail.tail-* selection below). */
-  .bubble-tail.tail-bottom {
-    bottom: -6px;
-    border-top: 6px solid;
-  }
-
-  /* Bubble below the character (no room above, e.g. near the top of the screen):
-     tail on the top edge, pointing up. */
-  .bubble-tail.tail-top {
-    top: -6px;
-    border-bottom: 6px solid;
-  }
-
-  /* Bubble beside the character (it's pinned to the screen's top/bottom
-     edge): tail on the vertical edge facing it, pointing sideways. */
-  .bubble-tail.tail-left,
-  .bubble-tail.tail-right {
-    transform: translateY(-50%);
-    border-top: 6px solid transparent;
-    border-bottom: 6px solid transparent;
-  }
-
-  .bubble-tail.tail-left {
-    left: -6px;
-    border-right: 6px solid;
-  }
-
-  .bubble-tail.tail-right {
-    right: -6px;
-    border-left: 6px solid;
   }
 </style>
 </head>
 <body>
-  <div id="bubble">
+  <div class="bubble" id="bubble">
     <div class="bubble-row" data-field="status">
       <span class="bubble-status-text"></span>
       <span class="bubble-dots" id="bubble-dots">
@@ -187,144 +55,23 @@
     <div class="bubble-tail tail-bottom" id="bubble-tail"></div>
   </div>
 
-  <script>
-    // Same green/yellow/orange/red thresholds as statusline.py's C_GREEN/C_YELLOW/C_ORANGE/C_RED.
-    function barColor(percent) {
-      if (percent > 90) return '#FF4444';
-      if (percent > 70) return '#FF8800';
-      if (percent > 50) return '#FFCC00';
-      return '#00AA00';
-    }
+  <script type="module">
+    import { renderBubble } from './bubble/vibemon-bubble.js';
 
-    // Minutes until a usage quota resets, formatted compactly: "24m", "2h5m", "3d4h".
-    function formatMinutes(mins) {
-      mins = Math.max(0, Math.round(mins));
-      if (mins < 60) return mins + 'm';
-      var hours = Math.floor(mins / 60);
-      var remMins = mins % 60;
-      if (hours < 24) return remMins > 0 ? hours + 'h' + remMins + 'm' : hours + 'h';
-      var days = Math.floor(hours / 24);
-      var remHours = hours % 24;
-      return remHours > 0 ? days + 'd' + remHours + 'h' : days + 'd';
-    }
-
-    function hexToRgb(hex) {
-      var h = String(hex || '').replace('#', '');
-      if (h.length === 3) h = h[0] + h[0] + h[1] + h[1] + h[2] + h[2];
-      var num = parseInt(h, 16);
-      return { r: (num >> 16) & 255, g: (num >> 8) & 255, b: num & 255 };
-    }
-
-    function bgRgba(hex, alpha) {
-      var c = hexToRgb(hex);
-      return 'rgba(' + c.r + ',' + c.g + ',' + c.b + ',' + alpha + ')';
-    }
-
-    // Pick black or white text depending on how light the state-colored
-    // background reads.
-    function pickTextColor(hex) {
-      var c = hexToRgb(hex);
-      var luminance = c.r * 0.299 + c.g * 0.587 + c.b * 0.114;
-      return luminance > 140 ? '#1a1a1a' : '#ffffff';
-    }
-
-    // Loading dots beside the status text: DOT_FRAME_MS advances the active
-    // dot (there are 4 .bubble-dot spans in the markup), and thinking-style
-    // states animate DOT_SLOWDOWN× slower than working.
-    var DOT_FRAME_MS = 100;
-    var DOT_SLOWDOWN = 3;
-    var dotFrame = 0;
-    var dotTimer = null;
-    var dotSlow = false;
-
-    function updateDots() {
-      var dots = document.querySelectorAll('.bubble-dot');
-      var frame = dotSlow ? Math.floor(dotFrame / DOT_SLOWDOWN) : dotFrame;
-      var active = frame % dots.length;
-      for (var i = 0; i < dots.length; i++) {
-        dots[i].classList.toggle('dim', i !== active);
-      }
-    }
-
-    function setDots(show, slow) {
-      dotSlow = Boolean(slow);
-      document.getElementById('bubble-dots').style.display = show ? 'inline-flex' : 'none';
-      if (show && !dotTimer) {
-        dotTimer = setInterval(function () { dotFrame++; updateDots(); }, DOT_FRAME_MS);
-        updateDots();
-      } else if (!show && dotTimer) {
-        clearInterval(dotTimer);
-        dotTimer = null;
-      }
-    }
-
-    // Called from the main process via webContents.executeJavaScript().
-    // `fields` is a plain object keyed by field name: { type: 'text', text }
-    // for the status/project/model rows (status may also carry showLoading/slow
-    // to animate loading dots beside the text), or
-    // { type: 'metric', icon, value, resetIn } (value is
-    // 0-100) for the memory/usage rows, rendered as an icon + inline bar + percentage —
-    // only enabled/truthy fields are present. `resetIn`, when present (usage5h/usageWeek
-    // only, if the collector sends it), is minutes until that quota resets and is
-    // appended next to the percentage. tailSide is the bubble edge
-    // the tail sits on ('bottom'/'top' when the bubble is above/below the
-    // character, 'left'/'right' when it's beside it); tailOffset is the
-    // tail's offset in px along that edge (left offset for top/bottom, top
-    // offset for left/right) — both computed by the main process from the
-    // bubble's final position relative to the character. bgColor is the
-    // current state's hex color, used for both the bubble's background and
-    // its text color.
+    // Called from the main process via webContents.executeJavaScript(). See
+    // bubble/vibemon-bubble.js's renderBubble() for the `fields` shape.
+    // tailSide is the bubble edge the tail sits on ('bottom'/'top' when the
+    // bubble is above/below the character, 'left'/'right' when it's beside
+    // it); tailOffset is the tail's offset in px along that edge (left
+    // offset for top/bottom, top offset for left/right) — both computed by
+    // the main process from the bubble's final position relative to the
+    // character (see modules/bubble-window-manager.cjs). bgColor is the
+    // current state's hex color.
     window.__setBubbleContent = function (fields, tailOffset, tailSide, bgColor) {
-      var bubble = document.getElementById('bubble');
+      const bubble = document.getElementById('bubble');
+      renderBubble(bubble, fields, tailSide, bgColor);
 
-      if (bgColor) {
-        bubble.style.background = bgRgba(bgColor, 0.9);
-        bubble.style.color = pickTextColor(bgColor);
-      }
-
-      var rows = bubble.querySelectorAll('.bubble-row');
-      for (var i = 0; i < rows.length; i++) {
-        var row = rows[i];
-        var data = fields[row.dataset.field];
-        if (!data) {
-          if (row.dataset.field === 'status') setDots(false, false);
-          row.style.display = 'none';
-          continue;
-        }
-
-        if (data.type === 'metric') {
-          var icon = row.querySelector('.bubble-icon');
-          var fill = row.querySelector('.bubble-bar-fill');
-          var value = row.querySelector('.bubble-value');
-          if (!icon || !fill || !value) {
-            row.style.display = 'none';
-            continue;
-          }
-          var pct = Math.max(0, Math.min(100, data.value));
-          icon.textContent = data.icon;
-          fill.style.width = pct + '%';
-          fill.style.background = barColor(pct);
-          value.textContent = typeof data.resetIn === 'number'
-            ? pct + '% · ' + formatMinutes(data.resetIn)
-            : pct + '%';
-          row.style.display = 'flex';
-        } else if (row.dataset.field === 'status') {
-          row.querySelector('.bubble-status-text').textContent = data.text;
-          setDots(Boolean(data.showLoading), Boolean(data.slow));
-          row.style.display = 'flex';
-        } else {
-          row.textContent = data.text;
-          row.style.display = 'block';
-        }
-      }
-
-      var tail = document.getElementById('bubble-tail');
-      var sides = ['top', 'bottom', 'left', 'right'];
-      if (sides.indexOf(tailSide) !== -1) {
-        for (var s = 0; s < sides.length; s++) {
-          tail.classList.toggle('tail-' + sides[s], tailSide === sides[s]);
-        }
-      }
+      const tail = document.getElementById('bubble-tail');
       if (typeof tailOffset === 'number') {
         if (tailSide === 'left' || tailSide === 'right') {
           tail.style.top = tailOffset + 'px';
@@ -333,13 +80,6 @@
           tail.style.left = tailOffset + 'px';
           tail.style.top = '';
         }
-      }
-      if (bgColor) {
-        var tailColor = bgRgba(bgColor, 0.9);
-        tail.style.borderTopColor = tailSide === 'bottom' ? tailColor : '';
-        tail.style.borderBottomColor = tailSide === 'top' ? tailColor : '';
-        tail.style.borderRightColor = tailSide === 'left' ? tailColor : '';
-        tail.style.borderLeftColor = tailSide === 'right' ? tailColor : '';
       }
 
       // body is a block element, so its width always reports the current

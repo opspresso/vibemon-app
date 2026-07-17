@@ -1,15 +1,19 @@
 /**
  * VibeMon rendering engine
  *
- * Draws the floating pixel-art character onto a 128x128 canvas: the
- * character sprite image, state-driven eyes/effects, the idle blink cycle,
- * and a cosine/sine floating offset. The canvas background stays fully
- * transparent — state color and status/metric text live in the speech
- * bubble window, not here.
+ * Canonical shared module for drawing the floating pixel-art character onto
+ * a 128x128 canvas: the character sprite image, state-driven eyes/effects,
+ * the idle blink cycle, and a cosine/sine floating offset. The canvas
+ * background stays fully transparent — state color and status/metric text
+ * live in the speech bubble module (vibemon-bubble.js), not here.
+ *
+ * This file is the source of truth. vibemon-app and vibemon vendor a copy
+ * at build time (see each repo's check-registry script); vibemon-docs and
+ * vibemon-static's own pages import it directly at runtime.
  *
  * Character definitions (colors, eye/effect coordinates, image files) and
  * state definitions (eyeType/effect per state) come from the shared
- * registries (src/shared/data/characters.json and states.json) and are
+ * registries (data/characters.json and data/states.json) and are
  * passed in via options — the engine itself is data-agnostic.
  *
  * Usage:

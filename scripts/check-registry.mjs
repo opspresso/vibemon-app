@@ -23,6 +23,8 @@ const CANONICAL_BASE_URL =
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const DATA_DIR = path.join(ROOT, 'src', 'shared', 'data');
 const ASSETS_DIR = path.join(ROOT, 'src', 'assets', 'characters');
+const ENGINE_DIR = path.join(ROOT, 'src', 'engine');
+const BUBBLE_DIR = path.join(ROOT, 'src', 'bubble');
 
 const FIX = process.argv.includes('--fix');
 
@@ -76,6 +78,9 @@ const imageFiles = Object.values(canonicalCharacters.characters).map((c) => c.im
 const checks = [
   compare('data/states.json', path.join(DATA_DIR, 'states.json'), true),
   compare('data/characters.json', path.join(DATA_DIR, 'characters.json'), true),
+  compare('js/vibemon-engine.js', path.join(ENGINE_DIR, 'vibemon-engine.js'), false),
+  compare('js/vibemon-bubble.js', path.join(BUBBLE_DIR, 'vibemon-bubble.js'), false),
+  compare('css/vibemon-bubble.css', path.join(BUBBLE_DIR, 'vibemon-bubble.css'), false),
   ...imageFiles.map((img) => compare(`characters/${img}`, path.join(ASSETS_DIR, img), false)),
 ];
 
