@@ -212,19 +212,16 @@ describe('VibemonConfigManager', () => {
       expect(written.debug).toBe(true);
     });
 
-    test('backs up and recreates when the existing file has invalid JSON', () => {
+    test('leaves the file untouched when it has invalid JSON', () => {
+      const consoleError = jest.spyOn(console, 'error').mockImplementation(() => {});
       fs.existsSync.mockReturnValue(true);
       fs.readFileSync.mockReturnValue('{not json');
 
-      expect(manager.ensureDesktopUrl(null)).toBe(true);
+      expect(manager.ensureDesktopUrl(null)).toBe(false);
 
-      expect(fs.copyFileSync).toHaveBeenCalledWith(
-        expect.stringContaining('.vibemon'),
-        expect.stringContaining('.bak')
-      );
-      expect(fs.chmodSync).toHaveBeenCalledWith(expect.stringContaining('.bak'), 0o600);
-      const written = JSON.parse(fs.writeFileSync.mock.calls[0][1]);
-      expect(written.http_urls).toEqual(['http://127.0.0.1:19280']);
+      expect(fs.copyFileSync).not.toHaveBeenCalled();
+      expect(fs.writeFileSync).not.toHaveBeenCalled();
+      consoleError.mockRestore();
     });
 
     test('leaves vibemon_token empty when no token is available', () => {

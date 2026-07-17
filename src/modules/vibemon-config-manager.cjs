@@ -154,15 +154,19 @@ class VibemonConfigManager {
     }
 
     const raw = readRawConfig();
-    let config = { ...VIBEMON_CONFIG_DEFAULTS };
     if (raw === undefined) {
-      try {
-        fs.copyFileSync(VIBEMON_CONFIG_PATH, `${VIBEMON_CONFIG_PATH}.bak`);
-        fs.chmodSync(`${VIBEMON_CONFIG_PATH}.bak`, 0o600);
-      } catch {
-        // Best-effort backup; proceed to overwrite either way.
-      }
-    } else if (raw !== null) {
+      // Invalid JSON: don't silently overwrite whatever the user has in
+      // there (vibemon_token, serial_port, etc.) with defaults just because
+      // of a syntax error. Leave the file untouched and surface the problem
+      // instead — same reasoning as cache_path above.
+      console.error(
+        `[VibemonConfig] ${VIBEMON_CONFIG_PATH} is not valid JSON — leaving it untouched. Fix the syntax error to restore auto-configuration.`
+      );
+      return false;
+    }
+
+    let config = { ...VIBEMON_CONFIG_DEFAULTS };
+    if (raw !== null) {
       config = { ...config, ...raw };
     }
 
