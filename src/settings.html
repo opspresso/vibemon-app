@@ -326,10 +326,13 @@
 
       <!-- AI Tools -->
       <section id="tab-ai-tools" class="tab">
-        <h1>AI Tools</h1>
+        <div class="section-head" style="margin: 0 0 16px;">
+          <h1 style="margin: 0;">AI Tools</h1>
+          <button class="action secondary" id="hooks-refresh">Refresh</button>
+        </div>
+        <div class="rows" id="vibemon-scripts-list"></div>
         <div class="section-head">
           <h2>Hook Install Status</h2>
-          <button class="action secondary" id="hooks-refresh">Refresh</button>
         </div>
         <div class="rows" id="hook-list"></div>
         <p class="hint" style="color:var(--muted-foreground); margin-top:8px;">
@@ -432,64 +435,72 @@
       $('ws-token').placeholder = s.ws.tokenConfigured ? 'Token configured' : 'Enter a new token';
     }
 
+    function buildHookRow(tool) {
+      const row = document.createElement('div');
+      row.className = 'row';
+
+      const text = document.createElement('div');
+      text.className = 'row-text';
+      const label = document.createElement('label');
+      label.textContent = tool.name;
+      text.appendChild(label);
+      row.appendChild(text);
+
+      if (!tool.present) {
+        const badge = document.createElement('span');
+        badge.className = 'badge';
+        badge.textContent = 'Not detected';
+        row.appendChild(badge);
+      } else {
+        const actions = document.createElement('div');
+        actions.className = 'row-actions';
+
+        if (tool.hasHook) {
+          const badge = document.createElement('span');
+          badge.className = 'badge ' + (tool.changed ? 'warn' : 'ok');
+          badge.textContent = tool.changed ? 'Changed' : 'Installed ✓';
+          actions.appendChild(badge);
+        }
+
+        const btn = document.createElement('button');
+        btn.className = 'action' + (tool.hasHook && !tool.changed ? ' secondary' : '');
+        btn.textContent = tool.hasHook ? 'Reinstall' : 'Install';
+        btn.addEventListener('click', async () => {
+          const idleText = tool.hasHook ? 'Reinstall' : 'Install';
+          btn.disabled = true;
+          btn.textContent = tool.hasHook ? 'Reinstalling…' : 'Installing…';
+          try {
+            renderHooks(await window.settingsAPI.installHook(tool.flag));
+          } catch (err) {
+            console.error('Hook install failed:', err);
+            btn.textContent = 'Failed';
+            setTimeout(() => {
+              btn.disabled = false;
+              btn.textContent = idleText;
+            }, FAILED_LABEL_MS);
+          }
+        });
+        actions.appendChild(btn);
+
+        row.appendChild(actions);
+      }
+      return row;
+    }
+
     function renderHooks(hooks) {
       // Dot badge on the sidebar tab while any installed tool's scripts
       // drifted from the published versions.
       const tabBtn = document.querySelector('.sidebar button[data-tab="ai-tools"]');
       tabBtn.classList.toggle('attention', hooks.some((t) => t.present && t.changed));
 
+      // The shared VibeMon Scripts entry renders in its own box above the
+      // per-tool hook list.
+      const sharedList = $('vibemon-scripts-list');
+      sharedList.innerHTML = '';
       const list = $('hook-list');
       list.innerHTML = '';
       for (const tool of hooks) {
-        const row = document.createElement('div');
-        row.className = 'row';
-
-        const text = document.createElement('div');
-        text.className = 'row-text';
-        const label = document.createElement('label');
-        label.textContent = tool.name;
-        text.appendChild(label);
-        row.appendChild(text);
-
-        if (!tool.present) {
-          const badge = document.createElement('span');
-          badge.className = 'badge';
-          badge.textContent = 'Not detected';
-          row.appendChild(badge);
-        } else {
-          const actions = document.createElement('div');
-          actions.className = 'row-actions';
-
-          if (tool.hasHook) {
-            const badge = document.createElement('span');
-            badge.className = 'badge ' + (tool.changed ? 'warn' : 'ok');
-            badge.textContent = tool.changed ? 'Changed' : 'Installed ✓';
-            actions.appendChild(badge);
-          }
-
-          const btn = document.createElement('button');
-          btn.className = 'action' + (tool.hasHook && !tool.changed ? ' secondary' : '');
-          btn.textContent = tool.hasHook ? 'Reinstall' : 'Install';
-          btn.addEventListener('click', async () => {
-            const idleText = tool.hasHook ? 'Reinstall' : 'Install';
-            btn.disabled = true;
-            btn.textContent = tool.hasHook ? 'Reinstalling…' : 'Installing…';
-            try {
-              renderHooks(await window.settingsAPI.installHook(tool.flag));
-            } catch (err) {
-              console.error('Hook install failed:', err);
-              btn.textContent = 'Failed';
-              setTimeout(() => {
-                btn.disabled = false;
-                btn.textContent = idleText;
-              }, FAILED_LABEL_MS);
-            }
-          });
-          actions.appendChild(btn);
-
-          row.appendChild(actions);
-        }
-        list.appendChild(row);
+        (tool.flag === '--vibemon' ? sharedList : list).appendChild(buildHookRow(tool));
       }
     }
 
