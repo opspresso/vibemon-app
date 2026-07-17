@@ -53,10 +53,10 @@ class SettingsWindowManager {
   /**
    * Strip filesystem paths etc. from hook statuses before they cross IPC.
    * @param {Array} statuses - hookInstaller status entries
-   * @returns {Array<{name: string, flag: string, present: boolean, hasHook: boolean}>}
+   * @returns {Array<{name: string, flag: string, present: boolean, hasHook: boolean, changed: boolean}>}
    */
   toHookView(statuses) {
-    return statuses.map(({ name, flag, present, hasHook }) => ({ name, flag, present, hasHook }));
+    return statuses.map(({ name, flag, present, hasHook, changed }) => ({ name, flag, present, hasHook, changed: Boolean(changed) }));
   }
 
   /**
@@ -133,8 +133,12 @@ class SettingsWindowManager {
       return true;
     });
 
-    ipcMain.handle('settings:refresh-hook-statuses', () => {
-      return this.toHookView(this.hookInstaller.refreshStatuses());
+    ipcMain.handle('settings:refresh-hook-statuses', async () => {
+      // Re-fetches the manifest too, so Refresh re-verifies file hashes and
+      // not just existence.
+      await this.hookInstaller.checkForChanges();
+      this.notifyChanged();
+      return this.toHookView(this.hookInstaller.getCachedStatuses());
     });
 
     ipcMain.handle('settings:install-hook', async (_event, flag) => {
@@ -211,6 +215,17 @@ class SettingsWindowManager {
   notifyUpdateStateChanged() {
     if (this.window && !this.window.isDestroyed()) {
       this.window.webContents.send('settings:update-state', this.updateChecker.getState());
+    }
+  }
+
+  /**
+   * Push the latest hook statuses to an open settings window, so the AI
+   * Tools tab (rows + tab badge) reflects the periodic change check without
+   * polling.
+   */
+  notifyHookStatusChanged() {
+    if (this.window && !this.window.isDestroyed()) {
+      this.window.webContents.send('settings:hook-statuses', this.toHookView(this.hookInstaller.getCachedStatuses()));
     }
   }
 

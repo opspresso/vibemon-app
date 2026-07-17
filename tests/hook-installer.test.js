@@ -396,6 +396,128 @@ describe('HookInstaller', () => {
     });
   });
 
+  describe('change detection', () => {
+    const realCrypto = jest.requireActual('crypto');
+    const sha256 = (data) => realCrypto.createHash('sha256').update(data).digest('hex');
+    const claude = TOOLS.find(t => t.flag === '--claude');
+    const shared = TOOLS.find(t => t.flag === '--vibemon');
+
+    // Serves a manifest.json body from the mocked https.get.
+    function mockManifestResponse(body) {
+      const fakeRes = new EventEmitter();
+      fakeRes.statusCode = 200;
+      fakeRes.setEncoding = jest.fn();
+      https.get.mockImplementation((url, opts, cb) => {
+        expect(url).toBe('https://docs.example.test/manifest.json');
+        cb(fakeRes);
+        setTimeout(() => {
+          fakeRes.emit('data', body);
+          fakeRes.emit('end');
+        }, 0);
+        return new EventEmitter();
+      });
+    }
+
+    // Claude present with every tracked file on disk, holding `contents`.
+    function mockClaudeInstalled(contents = 'local-bytes') {
+      const paths = new Set([claude.homeDir, claude.hookFile, ...claude.files.map(f => f.local)]);
+      fs.existsSync.mockImplementation(p => paths.has(p));
+      fs.readFileSync.mockImplementation(p => {
+        if (!paths.has(p)) throw new Error('ENOENT');
+        return Buffer.from(contents);
+      });
+    }
+
+    function manifestFor(hashByRemote) {
+      return JSON.stringify({ files: hashByRemote });
+    }
+
+    test('downloadManifest rejects invalid JSON and malformed shapes', async () => {
+      mockManifestResponse('not json');
+      await expect(hookInstaller.downloadManifest()).rejects.toEqual({ reason: 'invalid-manifest' });
+
+      mockManifestResponse(JSON.stringify({ files: { 'a.py': 'not-a-hash' } }));
+      await expect(hookInstaller.downloadManifest()).rejects.toEqual({ reason: 'invalid-manifest' });
+
+      mockManifestResponse(JSON.stringify({ nope: true }));
+      await expect(hookInstaller.downloadManifest()).rejects.toEqual({ reason: 'invalid-manifest' });
+    });
+
+    test('checkForChanges flags a tool whose file hash differs from the manifest', async () => {
+      mockClaudeInstalled('local-bytes');
+      mockManifestResponse(manifestFor({ 'claude/hooks/vibemon.py': sha256('published-bytes') }));
+
+      await expect(hookInstaller.checkForChanges()).resolves.toBe(true);
+
+      const status = hookInstaller.getCachedStatuses().find(t => t.flag === claude.flag);
+      expect(status.changed).toBe(true);
+      expect(hookInstaller.hasChanges()).toBe(true);
+    });
+
+    test('checkForChanges reports no drift when hashes match', async () => {
+      mockClaudeInstalled('local-bytes');
+      mockManifestResponse(manifestFor({
+        'claude/hooks/vibemon.py': sha256('local-bytes'),
+        'claude/statusline.py': sha256('local-bytes')
+      }));
+
+      await expect(hookInstaller.checkForChanges()).resolves.toBe(false);
+      expect(hookInstaller.hasChanges()).toBe(false);
+    });
+
+    test('a missing tracked file counts as changed while the hook itself is installed', async () => {
+      mockClaudeInstalled('local-bytes');
+      const statuslinePath = claude.files.find(f => f.remote === 'claude/statusline.py').local;
+      fs.existsSync.mockImplementation(p => p !== statuslinePath && (p === claude.homeDir || p === claude.hookFile || claude.files.some(f => f.local === p)));
+      fs.readFileSync.mockImplementation(p => {
+        if (p === statuslinePath) throw new Error('ENOENT');
+        return Buffer.from('local-bytes');
+      });
+      mockManifestResponse(manifestFor({
+        'claude/hooks/vibemon.py': sha256('local-bytes'),
+        'claude/statusline.py': sha256('local-bytes')
+      }));
+
+      await expect(hookInstaller.checkForChanges()).resolves.toBe(true);
+    });
+
+    test('a failed manifest fetch keeps changed flags off (existence-only checking)', async () => {
+      mockClaudeInstalled('local-bytes');
+      const fakeReq = new EventEmitter();
+      https.get.mockImplementation(() => fakeReq);
+
+      const promise = hookInstaller.checkForChanges();
+      setTimeout(() => fakeReq.emit('error', new Error('offline')), 0);
+
+      await expect(promise).resolves.toBe(false);
+      expect(hookInstaller.hasChanges()).toBe(false);
+    });
+
+    test('files untracked by the manifest never count as changed', async () => {
+      mockClaudeInstalled('local-bytes');
+      mockManifestResponse(manifestFor({ 'unrelated/file.py': sha256('whatever') }));
+
+      await expect(hookInstaller.checkForChanges()).resolves.toBe(false);
+    });
+
+    test('VibeMon Scripts entry is always present and excluded from the install prompt', () => {
+      expect(shared).toBeDefined();
+      const status = hookInstaller.getCachedStatuses().find(t => t.flag === '--vibemon');
+      expect(status.present).toBe(true);
+      expect(status.hasHook).toBe(false); // no files on disk in this mock
+      expect(hookInstaller.getMissingTools().map(t => t.flag)).not.toContain('--vibemon');
+    });
+
+    test('VibeMon Scripts hasHook requires every shared file to exist', () => {
+      const [first, ...rest] = shared.files.map(f => f.local);
+      fs.existsSync.mockImplementation(p => rest.includes(p)); // one file missing
+      expect(hookInstaller.refreshStatuses().find(t => t.flag === '--vibemon').hasHook).toBe(false);
+
+      fs.existsSync.mockImplementation(p => p === first || rest.includes(p));
+      expect(hookInstaller.refreshStatuses().find(t => t.flag === '--vibemon').hasHook).toBe(true);
+    });
+  });
+
   describe('checkAndPrompt', () => {
     test('does nothing when no tools are missing', async () => {
       await hookInstaller.checkAndPrompt(null);

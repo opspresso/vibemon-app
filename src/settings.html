@@ -54,6 +54,15 @@
     }
     .sidebar button:hover { background: var(--muted); color: var(--foreground); }
     .sidebar button.active { background: var(--muted); color: var(--primary); }
+    .sidebar button.attention::after {
+      content: '';
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: #FF6633;
+      margin-left: auto;
+      flex-shrink: 0;
+    }
     main { flex: 1; overflow-y: auto; padding: 20px 24px; }
     .tab { display: none; }
     .tab.active { display: block; }
@@ -424,6 +433,11 @@
     }
 
     function renderHooks(hooks) {
+      // Dot badge on the sidebar tab while any installed tool's scripts
+      // drifted from the published versions.
+      const tabBtn = document.querySelector('.sidebar button[data-tab="ai-tools"]');
+      tabBtn.classList.toggle('attention', hooks.some((t) => t.present && t.changed));
+
       const list = $('hook-list');
       list.innerHTML = '';
       for (const tool of hooks) {
@@ -448,13 +462,13 @@
 
           if (tool.hasHook) {
             const badge = document.createElement('span');
-            badge.className = 'badge ok';
-            badge.textContent = 'Installed ✓';
+            badge.className = 'badge ' + (tool.changed ? 'warn' : 'ok');
+            badge.textContent = tool.changed ? 'Changed' : 'Installed ✓';
             actions.appendChild(badge);
           }
 
           const btn = document.createElement('button');
-          btn.className = 'action' + (tool.hasHook ? ' secondary' : '');
+          btn.className = 'action' + (tool.hasHook && !tool.changed ? ' secondary' : '');
           btn.textContent = tool.hasHook ? 'Reinstall' : 'Install';
           btn.addEventListener('click', async () => {
             const idleText = tool.hasHook ? 'Reinstall' : 'Install';
@@ -681,6 +695,9 @@
     window.settingsAPI.onUpdateState((state) => {
       if (snapshot) renderUpdate(state, snapshot.isPackaged);
     });
+
+    // Live hook-status pushes from the periodic change check
+    window.settingsAPI.onHookStatuses(renderHooks);
 
     // Tab selection pushed from the main process (e.g. tray → About)
     window.settingsAPI.onSelectTab(selectTab);

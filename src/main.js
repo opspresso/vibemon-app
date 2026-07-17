@@ -447,20 +447,28 @@ app.whenReady().then(() => {
   // Detect AI tools missing VibeMon hooks: once shortly after startup, then
   // periodically so tools installed later are picked up too. Also keeps
   // ~/.vibemon/config.json pointed at this app, since a hook file can be
-  // present while that shared config is missing or stale.
-  setTimeout(() => {
+  // present while that shared config is missing or stale. The same cycle
+  // compares installed hook/script files against the published manifest and
+  // surfaces drift as badges (tray icon dot, tray submenu, Settings AI Tools
+  // tab) — no dialog.
+  const runHookCheck = () => {
     vibemonConfigManager.ensureDesktopUrl(wsClient.getToken());
     hookInstaller.checkAndPrompt(wsClient.getToken())
       .catch((err) => console.error('Hook check failed:', err));
-  }, HOOK_CHECK_INITIAL_DELAY_MS);
-  hookCheckTimer = setInterval(
-    () => {
-      vibemonConfigManager.ensureDesktopUrl(wsClient.getToken());
-      hookInstaller.checkAndPrompt(wsClient.getToken())
-        .catch((err) => console.error('Hook check failed:', err));
-    },
-    HOOK_CHECK_INTERVAL_MS
-  );
+    hookInstaller.checkForChanges()
+      .then(() => {
+        if (trayManager) {
+          trayManager.updateIcon();
+          trayManager.updateMenu();
+        }
+        if (settingsWindowManager) {
+          settingsWindowManager.notifyHookStatusChanged();
+        }
+      })
+      .catch((err) => console.error('Hook change check failed:', err));
+  };
+  setTimeout(runHookCheck, HOOK_CHECK_INITIAL_DELAY_MS);
+  hookCheckTimer = setInterval(runHookCheck, HOOK_CHECK_INTERVAL_MS);
 
   // Detect new VibeMon releases: once shortly after startup, then
   // periodically. Installing only happens when the user clicks the tray's

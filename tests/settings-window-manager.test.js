@@ -76,11 +76,12 @@ function makeDeps() {
     },
     hookInstaller: {
       getCachedStatuses: jest.fn(() => [
-        { name: 'Claude Code', flag: '--claude', present: true, hasHook: false, hookFile: '/secret/path' }
+        { name: 'Claude Code', flag: '--claude', present: true, hasHook: false, changed: false, hookFile: '/secret/path' }
       ]),
       refreshStatuses: jest.fn(() => [
-        { name: 'Claude Code', flag: '--claude', present: true, hasHook: true, hookFile: '/secret/path' }
+        { name: 'Claude Code', flag: '--claude', present: true, hasHook: true, changed: false, hookFile: '/secret/path' }
       ]),
+      checkForChanges: jest.fn(() => Promise.resolve(false)),
       installByFlag: jest.fn(() => Promise.resolve([
         { tool: { flag: '--claude' }, result: { ok: true } }
       ]))
@@ -148,7 +149,7 @@ describe('settings:get-all', () => {
     freshManager();
     const snap = await invoke('settings:get-all');
     expect(snap.hooks).toEqual([
-      { name: 'Claude Code', flag: '--claude', present: true, hasHook: false }
+      { name: 'Claude Code', flag: '--claude', present: true, hasHook: false, changed: false }
     ]);
   });
 
@@ -229,12 +230,12 @@ describe('AI tool hooks', () => {
     await expect(invoke('settings:install-hook', '--claude')).rejects.toThrow();
   });
 
-  test('refresh-hook-statuses recomputes and strips paths', async () => {
+  test('refresh-hook-statuses re-verifies against the manifest and strips paths', async () => {
     const { deps } = freshManager();
     const result = await invoke('settings:refresh-hook-statuses');
-    expect(deps.hookInstaller.refreshStatuses).toHaveBeenCalled();
+    expect(deps.hookInstaller.checkForChanges).toHaveBeenCalled();
     expect(result).toEqual([
-      { name: 'Claude Code', flag: '--claude', present: true, hasHook: true }
+      { name: 'Claude Code', flag: '--claude', present: true, hasHook: false, changed: false }
     ]);
   });
 });

@@ -123,13 +123,14 @@ function getCharacterImage(name) {
 
 /**
  * Draw the tray icon canvas: state-colored rounded background, optionally
- * the character sprite (nearest-neighbor downscale), and the update badge.
+ * the character sprite (nearest-neighbor downscale), and the attention badge
+ * (update available or installed hook scripts drifted).
  * @param {string} state
  * @param {import('canvas').Image|null} characterImage
- * @param {boolean} hasUpdate
+ * @param {boolean} showBadge
  * @returns {Electron.NativeImage}
  */
-function drawTrayIcon(state, characterImage, hasUpdate) {
+function drawTrayIcon(state, characterImage, showBadge) {
   const size = TRAY_ICON_SIZE;
   const canvas = createCanvas(size, size);
   const ctx = canvas.getContext('2d');
@@ -152,8 +153,8 @@ function drawTrayIcon(state, characterImage, hasUpdate) {
     ctx.drawImage(characterImage, 1, 1, size - 2, size - 2);
   }
 
-  if (hasUpdate) {
-    // Small badge in the top-right corner signaling an update is available.
+  if (showBadge) {
+    // Small badge in the top-right corner signaling attention is needed.
     ctx.fillStyle = '#FF6633';
     ctx.beginPath();
     ctx.arc(size - 5, 5, 3, 0, Math.PI * 2);
@@ -168,9 +169,9 @@ function drawTrayIcon(state, characterImage, hasUpdate) {
  * registry sprite.
  * @returns {Promise<Electron.NativeImage>}
  */
-async function createTrayIcon(state, character = DEFAULT_CHARACTER, hasUpdate = false) {
+async function createTrayIcon(state, character = DEFAULT_CHARACTER, showBadge = false) {
   const name = CHARACTER_CONFIG[character] ? character : DEFAULT_CHARACTER;
-  const cacheKey = `${state}-${name}-${hasUpdate}`;
+  const cacheKey = `${state}-${name}-${showBadge}`;
 
   // Return cached icon if available
   if (trayIconCache.has(cacheKey)) {
@@ -178,7 +179,7 @@ async function createTrayIcon(state, character = DEFAULT_CHARACTER, hasUpdate = 
   }
 
   const characterImage = await getCharacterImage(name);
-  const icon = drawTrayIcon(state, characterImage, hasUpdate);
+  const icon = drawTrayIcon(state, characterImage, showBadge);
 
   trayIconCache.set(cacheKey, icon);
   return icon;
@@ -250,11 +251,21 @@ class TrayManager {
     return Boolean(this.updateChecker && this.updateChecker.getState().status !== null);
   }
 
+  /**
+   * Whether the tray icon should show its attention badge: an app update is
+   * available, or installed hook scripts drifted from the published manifest.
+   * @returns {boolean}
+   */
+  hasAttentionBadge() {
+    return this.hasUpdateAvailable() ||
+      Boolean(this.hookInstaller && this.hookInstaller.hasChanges());
+  }
+
   createTray() {
     const state = this.getFocusedState();
     // Start with a synchronous background-only icon; the character sprite
     // is drawn in as soon as its image finishes loading (updateIcon below).
-    this.tray = new Tray(drawTrayIcon(state.state, null, this.hasUpdateAvailable()));
+    this.tray = new Tray(drawTrayIcon(state.state, null, this.hasAttentionBadge()));
     this.tray.setToolTip('VibeMon');
     this.updateMenu();
     this.updateIcon();
@@ -270,7 +281,7 @@ class TrayManager {
   updateIcon() {
     if (!this.tray) return;
     const state = this.getFocusedState();
-    createTrayIcon(state.state, state.character, this.hasUpdateAvailable()).then((icon) => {
+    createTrayIcon(state.state, state.character, this.hasAttentionBadge()).then((icon) => {
       // The tray can be destroyed while the character image is loading.
       if (this.tray) this.tray.setImage(icon);
     });
@@ -423,16 +434,20 @@ class TrayManager {
       if (!tool.present) {
         return { label: `${tool.name}: Not detected`, enabled: false };
       }
+      const install = () => {
+        const token = this.wsClient ? this.wsClient.getToken() : null;
+        this.hookInstaller.installByFlag(tool.flag, token).then(() => {
+          this.updateMenu();
+          this.updateIcon();
+        });
+      };
       if (tool.hasHook) {
+        if (tool.changed) {
+          return { label: `${tool.name}: Changed — Reinstall...`, click: install };
+        }
         return { label: `${tool.name}: Installed ✓`, enabled: false };
       }
-      return {
-        label: `${tool.name}: Install...`,
-        click: () => {
-          const token = this.wsClient ? this.wsClient.getToken() : null;
-          this.hookInstaller.installByFlag(tool.flag, token).then(() => this.updateMenu());
-        }
-      };
+      return { label: `${tool.name}: Install...`, click: install };
     });
   }
 

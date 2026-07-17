@@ -22,6 +22,11 @@ contextBridge.exposeInMainWorld('settingsAPI', {
     ipcRenderer.on('settings:update-state', handler);
     return () => ipcRenderer.removeListener('settings:update-state', handler);
   },
+  onHookStatuses: (callback) => {
+    const handler = (_event, hooks) => callback(hooks);
+    ipcRenderer.on('settings:hook-statuses', handler);
+    return () => ipcRenderer.removeListener('settings:hook-statuses', handler);
+  },
   onSelectTab: (callback) => {
     const handler = (_event, tab) => callback(tab);
     ipcRenderer.on('settings:select-tab', handler);

@@ -33,9 +33,53 @@ function verifyInstallerScript(script, expectedHash = INSTALLER_SHA256) {
   return actualHash === expectedHash;
 }
 
+/**
+ * sha256 of a local file's bytes, or null when it can't be read.
+ * @param {string} filePath
+ * @returns {string|null}
+ */
+function fileSha256(filePath) {
+  try {
+    return crypto.createHash('sha256').update(fs.readFileSync(filePath)).digest('hex');
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Whether a parsed manifest.json has the expected shape:
+ * { files: { "<docs path>": "<sha256 hex>" } }. Detection-only data — a
+ * malformed manifest is rejected wholesale rather than partially trusted.
+ * @param {any} manifest
+ * @returns {boolean}
+ */
+function isValidManifest(manifest) {
+  if (!manifest || typeof manifest !== 'object' || Array.isArray(manifest)) return false;
+  const files = manifest.files;
+  if (!files || typeof files !== 'object' || Array.isArray(files)) return false;
+  return Object.values(files).every(
+    hash => typeof hash === 'string' && /^[0-9a-f]{64}$/.test(hash)
+  );
+}
+
 function homePath(...segments) {
   return path.join(os.homedir(), ...segments);
 }
+
+// Per tool, `files` lists every file install.py copies verbatim (local
+// install path ↔ path under docs.vibemon.io), used to detect drift against
+// the published manifest.json. Merged config files (settings.json,
+// hooks.json, ...) are excluded — their installed form never matches the
+// source hash. The `sharedAssets` entry covers the shared ~/.vibemon
+// scripts: always considered "present" (they belong to every installation)
+// and excluded from the missing-tools install prompt.
+const KIRO_HOOK_FILES = [
+  'vibemon-prompt-submit.kiro.hook',
+  'vibemon-agent-stop.kiro.hook',
+  'vibemon-file-created.kiro.hook',
+  'vibemon-file-edited.kiro.hook',
+  'vibemon-file-deleted.kiro.hook'
+];
 
 const TOOLS = [
   {
@@ -43,28 +87,58 @@ const TOOLS = [
     flag: '--claude',
     command: 'claude',
     homeDir: homePath('.claude'),
-    hookFile: homePath('.claude', 'hooks', 'vibemon.py')
+    hookFile: homePath('.claude', 'hooks', 'vibemon.py'),
+    files: [
+      { local: homePath('.claude', 'hooks', 'vibemon.py'), remote: 'claude/hooks/vibemon.py' },
+      { local: homePath('.claude', 'statusline.py'), remote: 'claude/statusline.py' }
+    ]
   },
   {
     name: 'Codex CLI',
     flag: '--codex',
     command: 'codex',
     homeDir: homePath('.codex'),
-    hookFile: homePath('.codex', 'hooks', 'vibemon.py')
+    hookFile: homePath('.codex', 'hooks', 'vibemon.py'),
+    files: [
+      { local: homePath('.codex', 'hooks', 'vibemon.py'), remote: 'codex/hooks/vibemon.py' }
+    ]
   },
   {
     name: 'Kiro IDE',
     flag: '--kiro',
     command: 'kiro',
     homeDir: homePath('.kiro'),
-    hookFile: homePath('.kiro', 'hooks', 'vibemon.py')
+    hookFile: homePath('.kiro', 'hooks', 'vibemon.py'),
+    files: [
+      { local: homePath('.kiro', 'hooks', 'vibemon.py'), remote: 'kiro/hooks/vibemon.py' },
+      ...KIRO_HOOK_FILES.map(name => ({
+        local: homePath('.kiro', 'hooks', name),
+        remote: `kiro/hooks/${name}`
+      }))
+    ]
   },
   {
     name: 'OpenClaw',
     flag: '--openclaw',
     command: 'openclaw',
     homeDir: homePath('.openclaw'),
-    hookFile: homePath('.openclaw', 'extensions', 'vibemon-bridge', 'index.mjs')
+    hookFile: homePath('.openclaw', 'extensions', 'vibemon-bridge', 'index.mjs'),
+    files: [
+      { local: homePath('.openclaw', 'extensions', 'vibemon-bridge', 'index.mjs'), remote: 'openclaw/extensions/index.mjs' },
+      { local: homePath('.openclaw', 'extensions', 'vibemon-bridge', 'openclaw.plugin.json'), remote: 'openclaw/extensions/openclaw.plugin.json' }
+    ]
+  },
+  {
+    name: 'VibeMon Scripts',
+    flag: '--vibemon',
+    command: null,
+    homeDir: homePath('.vibemon'),
+    sharedAssets: true,
+    files: [
+      { local: homePath('.vibemon', 'usage.py'), remote: 'vibemon/usage.py' },
+      { local: homePath('.vibemon', 'usage_cache.py'), remote: 'vibemon/usage_cache.py' },
+      { local: homePath('.vibemon', 'vibemon_core.py'), remote: 'vibemon/vibemon_core.py' }
+    ]
   }
 ];
 
@@ -107,6 +181,10 @@ class HookInstaller {
     // In-memory only (cleared on restart): avoids re-prompting every check
     // cycle for an error that won't resolve itself (e.g. missing python3).
     this.sessionSuppressed = new Set();
+    // Last successfully fetched manifest.json ({files: {path: sha256}}).
+    // Null until checkForChanges() succeeds once; without it, statuses
+    // report changed: false (existence-only checking).
+    this.manifest = null;
     // Detecting tools spawns `which`/`where` per tool, which blocks the
     // main process for tens of ms. Computed once eagerly here (a one-time
     // startup cost) so cheap, frequent reads (e.g. the tray menu, which
@@ -116,11 +194,29 @@ class HookInstaller {
   }
 
   isPresent(tool) {
+    if (tool.sharedAssets) return true;
     return commandExists(tool.command) || fs.existsSync(tool.homeDir);
   }
 
   hasHook(tool) {
+    if (tool.sharedAssets) return tool.files.every(f => fs.existsSync(f.local));
     return fs.existsSync(tool.hookFile);
+  }
+
+  /**
+   * Whether any of the tool's verbatim-installed files differs from the
+   * published manifest (missing files count as changed). Always false until
+   * a manifest has been fetched.
+   * @param {object} tool
+   * @returns {boolean}
+   */
+  isChanged(tool) {
+    if (!this.manifest) return false;
+    return tool.files.some(({ local, remote }) => {
+      const expected = this.manifest.files[remote];
+      if (!expected) return false;
+      return fileSha256(local) !== expected;
+    });
   }
 
   isDismissed(tool) {
@@ -139,15 +235,29 @@ class HookInstaller {
    * Recompute and cache each tool's status. Blocking (spawns `which`/`where`
    * per tool) — safe to call occasionally (startup, periodic check, after an
    * install), not on every render.
-   * @returns {Array} status of every known tool: {..., present, hasHook}
+   * @returns {Array} status of every known tool: {..., present, hasHook, changed}
    */
   refreshStatuses() {
-    this.cachedStatuses = TOOLS.map(tool => ({
-      ...tool,
-      present: this.isPresent(tool),
-      hasHook: this.hasHook(tool)
-    }));
+    this.cachedStatuses = TOOLS.map(tool => {
+      const present = this.isPresent(tool);
+      const hasHook = this.hasHook(tool);
+      return {
+        ...tool,
+        present,
+        hasHook,
+        changed: present && hasHook && this.isChanged(tool)
+      };
+    });
     return this.cachedStatuses;
+  }
+
+  /**
+   * Whether any installed tool's files drifted from the manifest, per the
+   * last refreshStatuses(). Non-blocking — for badge rendering.
+   * @returns {boolean}
+   */
+  hasChanges() {
+    return this.cachedStatuses.some(tool => tool.changed);
   }
 
   /**
@@ -165,6 +275,7 @@ class HookInstaller {
    */
   getMissingTools() {
     return this.refreshStatuses().filter(tool =>
+      !tool.sharedAssets &&
       tool.present &&
       !tool.hasHook &&
       !this.isDismissed(tool) &&
@@ -204,6 +315,64 @@ class HookInstaller {
       });
       req.on('error', (err) => reject({ reason: 'network-error', error: err.message }));
     });
+  }
+
+  /**
+   * Download and validate manifest.json (the sha256 map of every file
+   * install.py copies verbatim), published next to install.py.
+   * @returns {Promise<{files: Object<string, string>}>}
+   */
+  downloadManifest() {
+    return new Promise((resolve, reject) => {
+      const req = https.get(`${DOCS_BASE}/manifest.json`, { timeout: 30000 }, (res) => {
+        if (res.statusCode !== 200) {
+          res.resume();
+          reject({ reason: 'download-failed', statusCode: res.statusCode });
+          return;
+        }
+
+        let body = '';
+        res.setEncoding('utf8');
+        res.on('data', (chunk) => {
+          body += chunk;
+          if (body.length > MAX_SCRIPT_SIZE) {
+            res.destroy();
+            reject({ reason: 'download-too-large' });
+          }
+        });
+        res.on('end', () => {
+          let manifest;
+          try {
+            manifest = JSON.parse(body);
+          } catch {
+            reject({ reason: 'invalid-manifest' });
+            return;
+          }
+          if (!isValidManifest(manifest)) {
+            reject({ reason: 'invalid-manifest' });
+            return;
+          }
+          resolve(manifest);
+        });
+      });
+      req.on('error', (err) => reject({ reason: 'network-error', error: err.message }));
+    });
+  }
+
+  /**
+   * Fetch the latest manifest and re-evaluate every tool's changed flag.
+   * A failed fetch keeps the previously fetched manifest (if any) and only
+   * logs — detection quietly degrades to existence-only checking offline.
+   * @returns {Promise<boolean>} whether any installed tool has drifted
+   */
+  async checkForChanges() {
+    try {
+      this.manifest = await this.downloadManifest();
+    } catch (err) {
+      console.error('[HookInstaller] manifest fetch failed:', err.reason || err.error || err);
+    }
+    this.refreshStatuses();
+    return this.hasChanges();
   }
 
   /**
