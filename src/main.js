@@ -400,8 +400,8 @@ app.whenReady().then(() => {
 
   // Start WebSocket client (if configured)
   wsClient = new WsClient();
-  wsClient.onStatusUpdate = (data) => {
-    handleWsStatusUpdate(data);
+  wsClient.onStatusUpdate = (data, meta) => {
+    handleWsStatusUpdate(data, meta);
   };
   wsClient.onStatusDelete = (projectId) => {
     handleWsStatusDelete(projectId);
