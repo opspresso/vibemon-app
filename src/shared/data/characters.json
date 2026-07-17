@@ -8,6 +8,13 @@
       "eyes": { "left": { "x": 44, "y": 52 }, "right": { "x": 76, "y": 52 }, "w": 8, "h": 12 },
       "effect": { "x": 96, "y": 6 }
     },
+    "clawd": {
+      "displayName": "Clawd",
+      "color": "#D97757",
+      "image": "clawd.png",
+      "eyes": { "left": { "x": 28, "y": 42 }, "right": { "x": 88, "y": 42 }, "size": 12 },
+      "effect": { "x": 104, "y": 8 }
+    },
     "codex": {
       "displayName": "Codex",
       "color": "#1B2745",
@@ -16,13 +23,6 @@
       "image": "codex.png",
       "eyes": { "left": { "x": 42, "y": 71 }, "right": { "x": 81, "y": 71 }, "w": 5, "h": 11 },
       "effect": { "x": 100, "y": 10 }
-    },
-    "clawd": {
-      "displayName": "Clawd",
-      "color": "#D97757",
-      "image": "clawd.png",
-      "eyes": { "left": { "x": 28, "y": 42 }, "right": { "x": 88, "y": 42 }, "size": 12 },
-      "effect": { "x": 104, "y": 8 }
     },
     "kiro": {
       "displayName": "Kiro",
