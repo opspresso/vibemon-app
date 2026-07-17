@@ -8,6 +8,15 @@
       "eyes": { "left": { "x": 44, "y": 52 }, "right": { "x": 76, "y": 52 }, "w": 8, "h": 12 },
       "effect": { "x": 96, "y": 6 }
     },
+    "codex": {
+      "displayName": "Codex",
+      "color": "#1B2745",
+      "eyeColor": "#ECF8FC",
+      "glassesColor": "#ECF8FC",
+      "image": "codex.png",
+      "eyes": { "left": { "x": 42, "y": 71 }, "right": { "x": 81, "y": 71 }, "w": 5, "h": 11 },
+      "effect": { "x": 100, "y": 10 }
+    },
     "clawd": {
       "displayName": "Clawd",
       "color": "#D97757",

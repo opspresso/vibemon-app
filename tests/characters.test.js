@@ -24,6 +24,12 @@ describe('character registry', () => {
       expect(typeof config.displayName).toBe('string');
       expect(config.displayName.length).toBeGreaterThan(0);
       expect(config.color).toMatch(/^#[0-9A-Fa-f]{6}$/);
+      if (config.eyeColor !== undefined) {
+        expect(config.eyeColor).toMatch(/^#[0-9A-Fa-f]{6}$/);
+      }
+      if (config.glassesColor !== undefined) {
+        expect(config.glassesColor).toMatch(/^#[0-9A-Fa-f]{6}$/);
+      }
       expect(config.image).toMatch(/\.png$/);
 
       // Engine eye/effect coordinates
