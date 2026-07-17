@@ -3,18 +3,17 @@ import { createVibeMonEngine } from './engine/vibemon-engine.js';
 // VibeMon engine instance
 let vibeMonEngine = null;
 
-// IPC cleanup functions
+// IPC cleanup function
 let cleanupStateListener = null;
-let cleanupDragListener = null;
 
-// Interaction override: while the character is clicked (mouse held down) or
-// dragged, it shows the 'done' expression (happy eyes). A drag is signaled
-// by the main process via 'window-drag' — mouse move/up events don't reach
-// the page while the OS handles the app-region drag — and is considered
-// over once move events stop for DRAG_SETTLE_MS.
-const DRAG_SETTLE_MS = 250;
+// Interaction override: while the character is held (pointer down) or
+// dragged, it shows the 'done' expression (happy eyes), restoring the last
+// reported state on release. The display area is deliberately not an
+// app-region drag surface — that would swallow pointerdown, and the
+// expression must react the moment the mouse goes down — so dragging is
+// done manually: pointerdown anchors the drag and pointermove asks the
+// main process to move the window along with the cursor.
 let interactionActive = false;
-let dragSettleTimer = null;
 let lastReportedState = null;
 
 function setInteractionActive(active) {
@@ -69,29 +68,47 @@ async function init() {
       if (interactionActive) vibeMonEngine.setState({ state: 'done' });
       vibeMonEngine.render();
     });
-
-    if (window.electronAPI.onWindowDrag) {
-      cleanupDragListener = window.electronAPI.onWindowDrag(() => {
-        setInteractionActive(true);
-        if (dragSettleTimer) clearTimeout(dragSettleTimer);
-        dragSettleTimer = setTimeout(() => {
-          dragSettleTimer = null;
-          setInteractionActive(false);
-        }, DRAG_SETTLE_MS);
-      });
-    }
   }
 
-  // Interaction expression while the mouse is held down on the character.
-  // A drag swallows mouseup — the window-drag settle timer clears instead.
-  document.addEventListener('mousedown', (e) => {
+  // Manual window drag + interaction expression. pointerdown shows the
+  // 'done' expression and anchors the drag in the main process, pointermove
+  // moves the window along with the cursor, pointerup restores the
+  // expression. The window follows the cursor, so the pointer stays inside
+  // it and keeps receiving events for the whole drag.
+  const DRAG_CLICK_SUPPRESS_PX = 4;
+  let pointerDragging = false;
+  let dragMoved = false;
+  let dragStartX = 0;
+  let dragStartY = 0;
+
+  document.addEventListener('pointerdown', (e) => {
     if (e.button !== 0) return;
+    pointerDragging = true;
+    dragMoved = false;
+    dragStartX = e.screenX;
+    dragStartY = e.screenY;
     setInteractionActive(true);
+    window.electronAPI?.beginWindowDrag?.();
   });
-  document.addEventListener('mouseup', (e) => {
-    if (e.button !== 0) return;
+
+  document.addEventListener('pointermove', (e) => {
+    if (!pointerDragging || (e.buttons & 1) === 0) return;
+    if (Math.abs(e.screenX - dragStartX) > DRAG_CLICK_SUPPRESS_PX ||
+        Math.abs(e.screenY - dragStartY) > DRAG_CLICK_SUPPRESS_PX) {
+      dragMoved = true;
+    }
+    window.electronAPI?.moveWindowDrag?.();
+  });
+
+  const endPointerDrag = () => {
+    pointerDragging = false;
     setInteractionActive(false);
+  };
+  document.addEventListener('pointerup', (e) => {
+    if (e.button !== 0) return;
+    endPointerDrag();
   });
+  document.addEventListener('pointercancel', endPointerDrag);
 
   // Right-click context menu (works on all platforms)
   document.addEventListener('contextmenu', (e) => {
@@ -103,8 +120,8 @@ async function init() {
 
   // Click to focus terminal (iTerm2/Ghostty on macOS)
   document.addEventListener('click', (e) => {
-    // Ignore right-click
-    if (e.button !== 0) return;
+    // Ignore right-click and clicks that dragged the window
+    if (e.button !== 0 || dragMoved) return;
     if (window.electronAPI?.focusTerminal) {
       window.electronAPI.focusTerminal()
         .then((result) => {
@@ -126,14 +143,6 @@ function cleanup() {
   if (cleanupStateListener) {
     cleanupStateListener();
     cleanupStateListener = null;
-  }
-  if (cleanupDragListener) {
-    cleanupDragListener();
-    cleanupDragListener = null;
-  }
-  if (dragSettleTimer) {
-    clearTimeout(dragSettleTimer);
-    dragSettleTimer = null;
   }
 }
 

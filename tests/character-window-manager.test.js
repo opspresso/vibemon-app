@@ -8,7 +8,8 @@ jest.mock('electron', () => ({
   screen: {
     getDisplayMatching: jest.fn(() => ({ workArea: { x: 0, y: 0, width: 1920, height: 1080 } })),
     getAllDisplays: jest.fn(() => [{ workArea: { x: 0, y: 0, width: 1920, height: 1080 } }]),
-    getPrimaryDisplay: jest.fn(() => ({ workArea: { x: 0, y: 0, width: 1920, height: 1080 } }))
+    getPrimaryDisplay: jest.fn(() => ({ workArea: { x: 0, y: 0, width: 1920, height: 1080 } })),
+    getCursorScreenPoint: jest.fn(() => ({ x: 0, y: 0 }))
   }
 }));
 
@@ -379,27 +380,39 @@ describe('position tracking across lock/sleep/display changes', () => {
     jest.useRealTimers();
   });
 
-  test('a user drag notifies the renderer so the character can show its interaction expression', () => {
+  test('a manual drag moves the window along with the cursor from its anchored origin', () => {
     const manager = new CharacterWindowManager();
     const window = makeWindow([500, 300]);
-    window.webContents = { isDestroyed: () => false, send: jest.fn() };
     manager.entry = { window, state: null, projectId: 'a' };
 
-    manager.handleWindowMove();
+    screen.getCursorScreenPoint.mockReturnValueOnce({ x: 600, y: 400 });
+    manager.beginUserDrag();
+    screen.getCursorScreenPoint.mockReturnValueOnce({ x: 650, y: 430 });
+    manager.moveUserDrag();
 
-    expect(window.webContents.send).toHaveBeenCalledWith('window-drag');
+    expect(window.setPosition).toHaveBeenCalledWith(550, 330);
   });
 
-  test('an OS-initiated move while tracking is suspended does not notify the renderer', () => {
+  test('drag moves without an anchored origin are ignored', () => {
     const manager = new CharacterWindowManager();
     const window = makeWindow([500, 300]);
-    window.webContents = { isDestroyed: () => false, send: jest.fn() };
     manager.entry = { window, state: null, projectId: 'a' };
 
-    manager.suspendPositionTracking();
-    manager.handleWindowMove();
+    manager.moveUserDrag();
 
-    expect(window.webContents.send).not.toHaveBeenCalled();
+    expect(window.setPosition).not.toHaveBeenCalled();
+  });
+
+  test('drag moves while position tracking is suspended are ignored', () => {
+    const manager = new CharacterWindowManager();
+    const window = makeWindow([500, 300]);
+    manager.entry = { window, state: null, projectId: 'a' };
+
+    manager.beginUserDrag();
+    manager.suspendPositionTracking();
+    manager.moveUserDrag();
+
+    expect(window.setPosition).not.toHaveBeenCalled();
   });
 
   test('suspendPositionTracking cancels a pending snap so an OS move is not persisted', () => {

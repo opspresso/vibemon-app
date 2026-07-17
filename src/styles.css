@@ -9,12 +9,14 @@ html, body {
   overflow: hidden;
 }
 
-/* Character display: transparent, draggable, fills the frameless window.
+/* Character display: transparent, fills the frameless window. Window
+   dragging is manual (renderer pointer events -> window-drag IPC) instead
+   of -webkit-app-region: drag, which would swallow pointerdown — the
+   interaction expression must react the moment the mouse goes down.
    Sized to the sprite canvas (128x128 at 22,20) plus clearance for its
    floating animation — must stay in sync with the window size set by
    character-window-manager.cjs. */
 .vibemon-display {
-  -webkit-app-region: drag;
   position: relative;
   width: 172px;
   height: 160px;

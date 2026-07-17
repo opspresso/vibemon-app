@@ -254,6 +254,21 @@ ipcMain.on('show-context-menu', (event) => {
   }
 });
 
+// Manual character-window drag: the display area is not an app-region drag
+// surface (see renderer.js), so the renderer drives dragging over IPC. Only
+// the character window itself may move the window.
+ipcMain.on('window-drag-start', (event) => {
+  if (windowManager.getProjectIdByWebContents(event.sender)) {
+    windowManager.beginUserDrag();
+  }
+});
+
+ipcMain.on('window-drag-move', (event) => {
+  if (windowManager.getProjectIdByWebContents(event.sender)) {
+    windowManager.moveUserDrag();
+  }
+});
+
 // Focus terminal (iTerm2 or Ghostty on macOS)
 ipcMain.handle('focus-terminal', async (event) => {
   // Only supported on macOS

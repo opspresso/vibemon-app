@@ -54,6 +54,10 @@ class CharacterWindowManager {
     this.positionTrackingSuspended = false;
     this.restoreTimer = null;
 
+    // Anchor of an in-progress manual drag ({winX, winY, cursorX, cursorY})
+    // — see beginUserDrag()/moveUserDrag().
+    this.dragOrigin = null;
+
     this.onWindowClosed = null;  // callback: (projectId) => void
     this.onStateUpdated = null;  // callback: (projectId) => void, fires after state/info changes
     this.onAlwaysOnTopChanged = null;  // callback: (projectId) => void, fires after the always-on-top flag changes
@@ -226,14 +230,6 @@ class CharacterWindowManager {
     if (!this.entry || this.positionTrackingSuspended) return;
     const entry = this.entry;
 
-    // Tell the renderer a user drag is in progress so the character can
-    // show its interaction expression — mouse move/up events never reach
-    // the page while the OS handles a -webkit-app-region: drag.
-    const webContents = entry.window.webContents;
-    if (webContents && !webContents.isDestroyed()) {
-      webContents.send('window-drag');
-    }
-
     if (this.snapTimer) {
       clearTimeout(this.snapTimer);
     }
@@ -270,6 +266,36 @@ class CharacterWindowManager {
 
       this.saveWindowPosition({ x: newX, y: newY });
     }, SNAP_DEBOUNCE_MS);
+  }
+
+  /**
+   * Anchor a manual window drag: remember where the window and the cursor
+   * are when the renderer sees pointerdown. The display area is not an
+   * app-region drag surface (that would swallow pointerdown, and the
+   * character's interaction expression must react the moment the mouse
+   * goes down), so the renderer drives dragging through the
+   * window-drag-start/window-drag-move IPC.
+   */
+  beginUserDrag() {
+    if (!this.isWindowValid(this.entry)) return;
+    const [x, y] = this.entry.window.getPosition();
+    const cursor = screen.getCursorScreenPoint();
+    this.dragOrigin = { winX: x, winY: y, cursorX: cursor.x, cursorY: cursor.y };
+  }
+
+  /**
+   * Move the window to follow the cursor during a manual drag. The cursor
+   * is read here rather than trusted from renderer coordinates, keeping the
+   * math in one coordinate space. The resulting 'move' events feed the
+   * usual snap/persist debounce in handleWindowMove().
+   */
+  moveUserDrag() {
+    if (!this.dragOrigin || !this.isWindowValid(this.entry) || this.positionTrackingSuspended) return;
+    const cursor = screen.getCursorScreenPoint();
+    this.entry.window.setPosition(
+      this.dragOrigin.winX + (cursor.x - this.dragOrigin.cursorX),
+      this.dragOrigin.winY + (cursor.y - this.dragOrigin.cursorY)
+    );
   }
 
   /**
