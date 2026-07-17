@@ -14,7 +14,9 @@ const nodeGlobals = {
   clearTimeout: 'readonly',
   setInterval: 'readonly',
   clearInterval: 'readonly',
-  Buffer: 'readonly'
+  Buffer: 'readonly',
+  fetch: 'readonly',
+  AbortSignal: 'readonly'
 };
 
 const browserGlobals = {

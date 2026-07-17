@@ -30,6 +30,7 @@ const { UpdateChecker } = require('./modules/update-checker.cjs');
 const { SettingsWindowManager } = require('./modules/settings-window-manager.cjs');
 const { UsageRefresher } = require('./modules/usage-refresher.cjs');
 const { validateStatusPayload } = require('./modules/validators.cjs');
+const registryCache = require('./shared/registry-cache.cjs');
 const {
   HOOK_CHECK_INITIAL_DELAY_MS, HOOK_CHECK_INTERVAL_MS,
   UPDATE_CHECK_INITIAL_DELAY_MS, UPDATE_CHECK_INTERVAL_MS,
@@ -60,6 +61,7 @@ let wsClient = null;
 let hookCheckTimer = null;
 let updateCheckTimer = null;
 let usageRefreshTimer = null;
+let registryRefreshTimer = null;
 
 function getBubbleOptions(projectId) {
   return {
@@ -232,16 +234,18 @@ ipcMain.handle('get-version', () => {
   return app.getVersion();
 });
 
-// Character registry for the renderer's engine setup (single source:
-// src/shared/data/characters.json)
+// Character registry for the renderer's engine setup (canonical:
+// vibemon-static, resolved by registry-cache.cjs — cached remote copy or
+// bundled fallback). staticBaseUrl lets the renderer build remote-first
+// image URLs.
 ipcMain.handle('get-character-registry', () => {
-  return require('./shared/data/characters.json');
+  return { ...registryCache.charactersRegistry, staticBaseUrl: registryCache.STATIC_BASE_URL };
 });
 
-// State registry for the renderer's engine setup (single source:
-// src/shared/data/states.json)
+// State registry for the renderer's engine setup (canonical: vibemon-static,
+// resolved by registry-cache.cjs)
 ipcMain.handle('get-state-registry', () => {
-  return require('./shared/data/states.json');
+  return registryCache.statesRegistry;
 });
 
 ipcMain.on('show-context-menu', (event) => {
@@ -455,6 +459,12 @@ app.whenReady().then(() => {
   setTimeout(() => usageRefresher.refresh(), USAGE_REFRESH_INITIAL_DELAY_MS);
   usageRefreshTimer = setInterval(() => usageRefresher.refresh(), USAGE_REFRESH_INTERVAL_MS);
 
+  // Refresh the canonical registry cache from vibemon-static: once shortly
+  // after startup, then periodically. A refreshed registry applies on the
+  // next launch (startup resolves cache → bundled synchronously).
+  setTimeout(() => registryCache.refresh(), UPDATE_CHECK_INITIAL_DELAY_MS);
+  registryRefreshTimer = setInterval(() => registryCache.refresh(), UPDATE_CHECK_INTERVAL_MS);
+
   // Screen lock, system sleep, and display attach/detach make macOS move
   // windows itself (e.g. onto the primary display while another display
   // sleeps). Those moves must not be persisted as the user's position, and
@@ -496,6 +506,10 @@ app.on('before-quit', () => {
   if (usageRefreshTimer) {
     clearInterval(usageRefreshTimer);
     usageRefreshTimer = null;
+  }
+  if (registryRefreshTimer) {
+    clearInterval(registryRefreshTimer);
+    registryRefreshTimer = null;
   }
 
   // Null callbacks first to prevent any fired timers from triggering updates

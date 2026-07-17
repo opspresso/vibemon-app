@@ -10,10 +10,12 @@ let cleanupStateListener = null;
 async function init() {
   const container = document.getElementById('vibemon-display');
 
-  // Character/state registries (single sources: src/shared/data/
-  // characters.json and states.json), fetched via preload.js — image URLs
-  // are derived from each character entry.
-  const [{ characters, default: defaultCharacter }, { states }] = await Promise.all([
+  // Character/state registries (canonical: vibemon-static, resolved by
+  // registry-cache.cjs in the main process), fetched via preload.js.
+  // Character images are remote-first (static.vibemon.io), with the bundled
+  // asset as offline fallback — each entry carries its candidate URLs in
+  // order.
+  const [{ characters, default: defaultCharacter, staticBaseUrl }, { states }] = await Promise.all([
     window.electronAPI.getCharacterRegistry(),
     window.electronAPI.getStateRegistry()
   ]);
@@ -22,7 +24,10 @@ async function init() {
     characters,
     defaultCharacter,
     characterImageUrls: Object.fromEntries(
-      Object.entries(characters).map(([name, config]) => [name, `assets/characters/${config.image}`])
+      Object.entries(characters).map(([name, config]) => [name, [
+        `${staticBaseUrl}/characters/${config.image}`,
+        `assets/characters/${config.image}`
+      ]])
     ),
     states
   });

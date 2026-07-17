@@ -1,13 +1,15 @@
 /**
  * Character registry (CommonJS)
  *
- * Single source of truth: data/characters.json. To add a character, drop
- * its 128x128 PNG into src/assets/characters/ and add one entry there —
- * the rendering engine, tray icon, menus, and validation all derive from
- * the registry.
+ * Single source of truth: the canonical registry in vibemon-static
+ * (static.vibemon.io/data/characters.json), resolved at startup by
+ * registry-cache.cjs (cached remote copy → bundled data/characters.json).
+ * To add a character, add its 128x128 PNG and one registry entry to
+ * vibemon-static — the rendering engine, tray icon, menus, and validation
+ * all derive from the registry (bundled copies remain as offline fallback).
  */
 
-const registry = require('./data/characters.json');
+const registry = require('./registry-cache.cjs').charactersRegistry;
 
 const DEFAULT_CHARACTER = registry.default;
 

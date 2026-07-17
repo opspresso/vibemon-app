@@ -21,6 +21,11 @@ const WS_TOKEN = process.env.VIBEMON_WS_TOKEN || null;
 const DOCS_BASE_URL = process.env.VIBEMON_DOCS_URL || 'https://docs.vibemon.io';
 const INSTALLER_SHA256 = process.env.VIBEMON_INSTALLER_SHA256 || 'aff30260e4791c4b72d892c098c527074d2c4beea46de1cdb4fa176d718cb0e7';
 
+// =============================================================================
+// Canonical Registry (vibemon-static)
+// =============================================================================
+const { STATIC_BASE_URL } = require('./registry-cache.cjs');
+
 module.exports = {
   // App constants (constants.json)
   ...constants,
@@ -40,5 +45,8 @@ module.exports = {
 
   // Hook Installer
   DOCS_BASE_URL,
-  INSTALLER_SHA256
+  INSTALLER_SHA256,
+
+  // Canonical registry base URL (vibemon-static)
+  STATIC_BASE_URL
 };

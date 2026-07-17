@@ -98,35 +98,42 @@ function getEyeCoverPosition(char) {
 
 function drawGlasses(char, drawRect) {
   const { lensW, lensH, lensY, leftLensX, rightLensX } = getEyeCoverPosition(char);
+  // Frame color: per-character glassesColor (e.g. codex's light frame on a
+  // dark screen), near-black by default.
+  const frameColor = char.glassesColor || COLOR_GLASSES_FRAME;
 
   // Frame only - lenses stay clear so the eyes underneath remain visible
-  drawRect(leftLensX - 1, lensY - 1, lensW + 2, 1, COLOR_GLASSES_FRAME);
-  drawRect(rightLensX - 1, lensY - 1, lensW + 2, 1, COLOR_GLASSES_FRAME);
-  drawRect(leftLensX - 1, lensY + lensH, lensW + 2, 1, COLOR_GLASSES_FRAME);
-  drawRect(rightLensX - 1, lensY + lensH, lensW + 2, 1, COLOR_GLASSES_FRAME);
-  drawRect(leftLensX - 1, lensY, 1, lensH, COLOR_GLASSES_FRAME);
-  drawRect(leftLensX + lensW, lensY, 1, lensH, COLOR_GLASSES_FRAME);
-  drawRect(rightLensX - 1, lensY, 1, lensH, COLOR_GLASSES_FRAME);
-  drawRect(rightLensX + lensW, lensY, 1, lensH, COLOR_GLASSES_FRAME);
+  drawRect(leftLensX - 1, lensY - 1, lensW + 2, 1, frameColor);
+  drawRect(rightLensX - 1, lensY - 1, lensW + 2, 1, frameColor);
+  drawRect(leftLensX - 1, lensY + lensH, lensW + 2, 1, frameColor);
+  drawRect(rightLensX - 1, lensY + lensH, lensW + 2, 1, frameColor);
+  drawRect(leftLensX - 1, lensY, 1, lensH, frameColor);
+  drawRect(leftLensX + lensW, lensY, 1, lensH, frameColor);
+  drawRect(rightLensX - 1, lensY, 1, lensH, frameColor);
+  drawRect(rightLensX + lensW, lensY, 1, lensH, frameColor);
 
   // Bridge
   const bridgeY = lensY + Math.floor(lensH / 2) - 2;
-  drawRect(leftLensX + lensW, bridgeY, rightLensX - leftLensX - lensW, 1, COLOR_GLASSES_FRAME);
+  drawRect(leftLensX + lensW, bridgeY, rightLensX - leftLensX - lensW, 1, frameColor);
 }
 
 function drawBlinkEyes(char, drawRect) {
   const { lensW, lensH, lensY, leftLensX, rightLensX } = getEyeCoverPosition(char);
+  // Stroke color for the closed-eye line: per-character eyeColor (e.g. codex's
+  // light eyes on a dark screen), black by default.
+  const eyeColor = char.eyeColor || CONSTANTS.COLOR_EYE;
 
   drawRect(leftLensX, lensY, lensW, lensH, char.color);
   drawRect(rightLensX, lensY, lensW, lensH, char.color);
 
   const closedEyeY = lensY + Math.floor(lensH / 2);
-  drawRect(leftLensX + 1, closedEyeY, lensW - 2, 2, CONSTANTS.COLOR_EYE);
-  drawRect(rightLensX + 1, closedEyeY, lensW - 2, 2, CONSTANTS.COLOR_EYE);
+  drawRect(leftLensX + 1, closedEyeY, lensW - 2, 2, eyeColor);
+  drawRect(rightLensX + 1, closedEyeY, lensW - 2, 2, eyeColor);
 }
 
 function drawHappyEyes(char, drawRect) {
   const { lensW, lensH, lensY, leftLensX, rightLensX } = getEyeCoverPosition(char);
+  const eyeColor = char.eyeColor || CONSTANTS.COLOR_EYE;
 
   drawRect(leftLensX, lensY, lensW, lensH, char.color);
   drawRect(rightLensX, lensY, lensW, lensH, char.color);
@@ -136,14 +143,14 @@ function drawHappyEyes(char, drawRect) {
   const rightCX = rightLensX + Math.floor(lensW / 2);
 
   // Left eye >
-  drawRect(leftCX - 2, centerY - 2, 2, 2, CONSTANTS.COLOR_EYE);
-  drawRect(leftCX, centerY, 2, 2, CONSTANTS.COLOR_EYE);
-  drawRect(leftCX - 2, centerY + 2, 2, 2, CONSTANTS.COLOR_EYE);
+  drawRect(leftCX - 2, centerY - 2, 2, 2, eyeColor);
+  drawRect(leftCX, centerY, 2, 2, eyeColor);
+  drawRect(leftCX - 2, centerY + 2, 2, 2, eyeColor);
 
   // Right eye <
-  drawRect(rightCX, centerY - 2, 2, 2, CONSTANTS.COLOR_EYE);
-  drawRect(rightCX - 2, centerY, 2, 2, CONSTANTS.COLOR_EYE);
-  drawRect(rightCX, centerY + 2, 2, 2, CONSTANTS.COLOR_EYE);
+  drawRect(rightCX, centerY - 2, 2, 2, eyeColor);
+  drawRect(rightCX - 2, centerY, 2, 2, eyeColor);
+  drawRect(rightCX, centerY + 2, 2, 2, eyeColor);
 }
 
 function drawEyeType(eyeType, char, drawRect) {
@@ -260,13 +267,25 @@ class CharacterRenderer {
   async preloadImages(imageUrls) {
     if (this.imagesLoaded) return;
 
-    const promises = Object.entries(imageUrls).map(([name, url]) => {
-      return new Promise((resolve) => {
-        const img = new Image();
-        img.onload = () => { this.characterImages[name] = img; resolve(); };
-        img.onerror = () => { console.warn(`Failed to load: ${url}`); resolve(); };
-        img.src = url;
-      });
+    // Each value is a URL or an ordered list of candidate URLs (e.g. remote
+    // CDN first, bundled asset as offline fallback).
+    const loadOne = (src) => new Promise((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => resolve(img);
+      img.onerror = () => reject(new Error(`Failed to load: ${src}`));
+      img.src = src;
+    });
+
+    const promises = Object.entries(imageUrls).map(async ([name, url]) => {
+      const candidates = Array.isArray(url) ? url : [url];
+      for (const src of candidates) {
+        try {
+          this.characterImages[name] = await loadOne(src);
+          return;
+        } catch (error) {
+          console.warn(error.message);
+        }
+      }
     });
 
     await Promise.all(promises);

@@ -1,15 +1,17 @@
 /**
  * State registry (CommonJS)
  *
- * Single source of truth: data/states.json. Each entry defines a state's
- * speech-bubble color/text, focus behavior (active), loading-dot animation
- * (loading), and engine rendering (eyeType/effect) — the lists and maps
- * below are derived from it, and the engine receives the same registry via
- * IPC (main → preload → renderer). To add or change a state, edit one
- * entry there.
+ * Single source of truth: the canonical registry in vibemon-static
+ * (static.vibemon.io/data/states.json), resolved at startup by
+ * registry-cache.cjs (cached remote copy → bundled data/states.json).
+ * Each entry defines a state's speech-bubble color/text, focus behavior
+ * (active), loading-dot animation (loading), and engine rendering
+ * (eyeType/effect) — the lists and maps below are derived from it, and the
+ * engine receives the same registry via IPC (main → preload → renderer).
+ * To add or change a state, edit the vibemon-static registry.
  */
 
-const registry = require('./data/states.json');
+const registry = require('./registry-cache.cjs').statesRegistry;
 
 const STATE_CONFIG = registry.states;
 
