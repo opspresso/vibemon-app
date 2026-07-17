@@ -107,6 +107,15 @@ describe('HttpServer request boundaries', () => {
     expect(missing.statusCode).toBe(404);
   });
 
+  test('routes on the pathname, ignoring a query string', async () => {
+    const { server } = createServer();
+    const health = response();
+
+    await server.handleRequest(request('GET', '/health?probe=1'), health);
+
+    expect(health.statusCode).toBe(200);
+  });
+
   test('rate limits repeated requests from the same client', async () => {
     const { server } = createServer();
     const { RATE_LIMIT } = require('../src/shared/config.cjs');

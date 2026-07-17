@@ -3,6 +3,7 @@
  */
 
 const http = require('http');
+const { URL } = require('url');
 const fsPromises = require('fs').promises;
 const path = require('path');
 const { HTTP_PORT, MAX_PAYLOAD_SIZE, RATE_LIMIT, RATE_WINDOW_MS, CHARACTER_NAMES } = require('../shared/config.cjs');
@@ -140,7 +141,15 @@ class HttpServer {
       return;
     }
 
-    const route = `${req.method} ${req.url}`;
+    // Match on the pathname only, so a query string (e.g. GET /status?x=1)
+    // doesn't fall through to 404. Fall back to the raw url if parsing fails.
+    let pathname = req.url;
+    try {
+      pathname = new URL(req.url, 'http://127.0.0.1').pathname;
+    } catch {
+      // keep raw req.url
+    }
+    const route = `${req.method} ${pathname}`;
 
     switch (route) {
       case 'GET /':
