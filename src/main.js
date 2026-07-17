@@ -456,8 +456,16 @@ app.whenReady().then(() => {
   // Refresh the shared plan-usage cache (~/.vibemon/cache/usage.json) via
   // ~/.vibemon/usage.py: once shortly after startup, then periodically, so
   // usage data stays fresh even when no Claude Code session is running.
-  setTimeout(() => usageRefresher.refresh(), USAGE_REFRESH_INITIAL_DELAY_MS);
-  usageRefreshTimer = setInterval(() => usageRefresher.refresh(), USAGE_REFRESH_INTERVAL_MS);
+  // The tray menu's Claude/Codex usage rows read that cache fresh on every
+  // build, so a successful refresh is followed by a menu rebuild to surface
+  // the new numbers right away.
+  const refreshUsageAndUpdateTray = () => usageRefresher.refresh().then((result) => {
+    if (result.ok && trayManager) {
+      trayManager.updateMenu();
+    }
+  });
+  setTimeout(refreshUsageAndUpdateTray, USAGE_REFRESH_INITIAL_DELAY_MS);
+  usageRefreshTimer = setInterval(refreshUsageAndUpdateTray, USAGE_REFRESH_INTERVAL_MS);
 
   // Refresh the canonical registry cache from vibemon-static: once shortly
   // after startup, then periodically. A refreshed registry applies on the

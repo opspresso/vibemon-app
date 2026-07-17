@@ -16,7 +16,23 @@ jest.mock('canvas', () => ({
   loadImage: jest.fn(() => Promise.resolve(null))
 }));
 
+jest.mock('../src/modules/usage-cache-reader.cjs', () => ({
+  getUsageSnapshot: jest.fn(),
+  formatResetIn: jest.fn()
+}));
+
 const { TrayManager } = require('../src/modules/tray-manager.cjs');
+const { getUsageSnapshot, formatResetIn } = require('../src/modules/usage-cache-reader.cjs');
+
+const EMPTY_USAGE_SNAPSHOT = {
+  claude: { session: null, week: null },
+  codex: { session: null, week: null }
+};
+
+beforeEach(() => {
+  getUsageSnapshot.mockReset().mockReturnValue(EMPTY_USAGE_SNAPSHOT);
+  formatResetIn.mockReset();
+});
 
 function makeWindowManager(state) {
   return {
@@ -119,5 +135,71 @@ describe('TrayManager speech bubble submenu', () => {
     projectItem.click();
 
     expect(windowManager.setSpeechBubbleField).toHaveBeenCalledWith('project', true);
+  });
+});
+
+describe('TrayManager usage menu', () => {
+  function makeTray() {
+    const windowManager = makeWindowManager({ state: 'idle', character: 'clawd', project: 'proj-a' });
+    return new TrayManager(windowManager, makeApp(), { setupStateTimeout: jest.fn() });
+  }
+
+  test('shows only the buckets that have fresh data, each as a disabled row', () => {
+    getUsageSnapshot.mockReturnValue({
+      claude: { session: { pct: 32, resetsAt: 5000 }, week: { pct: 67, resetsAt: 900000 } },
+      codex: { session: null, week: null }
+    });
+    formatResetIn.mockImplementation((resetsAt) => (resetsAt === 5000 ? '3h18m' : '3d21h'));
+
+    const items = makeTray().buildUsageMenuItems();
+
+    expect(items.map(i => i.label)).toEqual([
+      '⏱️ Claude 5h  32% · resets 3h18m',
+      '📅 Claude Week  67% · resets 3d21h'
+    ]);
+    expect(items.every(i => i.enabled === false)).toBe(true);
+  });
+
+  test('omits a row when resetsAt is unavailable', () => {
+    getUsageSnapshot.mockReturnValue({
+      claude: { session: { pct: 32, resetsAt: null }, week: null },
+      codex: { session: null, week: null }
+    });
+
+    const items = makeTray().buildUsageMenuItems();
+
+    expect(items).toEqual([{ label: '⏱️ Claude 5h  32%', enabled: false }]);
+  });
+
+  test('returns no rows when no fresh data is available', () => {
+    getUsageSnapshot.mockReturnValue(EMPTY_USAGE_SNAPSHOT);
+
+    expect(makeTray().buildUsageMenuItems()).toEqual([]);
+  });
+
+  test('omits the usage section (and its separator) from the menu when there is no data', () => {
+    getUsageSnapshot.mockReturnValue(EMPTY_USAGE_SNAPSHOT);
+
+    const template = makeTray().buildMenuTemplate();
+
+    expect(template[0].label).toBe('proj-a: idle');
+    expect(template[1]).toEqual({ type: 'separator' });
+    expect(template[2].type).not.toBe('separator');
+  });
+
+  test('inserts usage rows right after the status separator, before Settings', () => {
+    getUsageSnapshot.mockReturnValue({
+      claude: { session: { pct: 32, resetsAt: 5000 }, week: null },
+      codex: { session: null, week: null }
+    });
+    formatResetIn.mockReturnValue('3h18m');
+
+    const tray = makeTray();
+    tray.setSettingsWindowManager({ open: jest.fn() });
+    const template = tray.buildMenuTemplate();
+
+    expect(template[2]).toEqual({ label: '⏱️ Claude 5h  32% · resets 3h18m', enabled: false });
+    expect(template[3]).toEqual({ type: 'separator' });
+    expect(template[4].label).toBe('Settings...');
   });
 });

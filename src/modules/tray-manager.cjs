@@ -12,6 +12,7 @@ const {
   CHARACTER_NAMES, TRAY_ICON_SIZE,
   SPEECH_BUBBLE_FIELDS
 } = require('../shared/config.cjs');
+const { getUsageSnapshot, formatResetIn } = require('./usage-cache-reader.cjs');
 
 const SPEECH_BUBBLE_FIELD_LABELS = {
   status: 'Status',
@@ -21,6 +22,15 @@ const SPEECH_BUBBLE_FIELD_LABELS = {
   usage5h: 'Usage 5h',
   usageWeek: 'Usage Week'
 };
+
+// Same icon semantics as bubble-window-manager.cjs's METRIC_ICONS: ⏱️ for the
+// 5-hour session window, 📅 for the weekly window.
+const USAGE_ROWS = [
+  { provider: 'claude', label: 'Claude', bucket: 'session', suffix: '5h', icon: '⏱️' },
+  { provider: 'claude', label: 'Claude', bucket: 'week', suffix: 'Week', icon: '📅' },
+  { provider: 'codex', label: 'Codex', bucket: 'session', suffix: '5h', icon: '⏱️' },
+  { provider: 'codex', label: 'Codex', bucket: 'week', suffix: 'Week', icon: '📅' }
+];
 
 // Tray icon cache for performance
 const trayIconCache = new Map();
@@ -264,6 +274,28 @@ class TrayManager {
     }));
   }
 
+  /**
+   * Claude/Codex plan-usage rows (5h + weekly, each with time-to-reset),
+   * read directly from the shared usage cache — account-level, so it shows
+   * both tools regardless of which project is currently focused. Buckets
+   * with no fresh data are omitted entirely (no "N/A" placeholders); returns
+   * [] when nothing is available yet.
+   * @returns {Array<Object>}
+   */
+  buildUsageMenuItems() {
+    const snapshot = getUsageSnapshot();
+    const items = [];
+
+    for (const { provider, label, bucket, suffix, icon } of USAGE_ROWS) {
+      const data = snapshot[provider][bucket];
+      if (!data) continue;
+      const resetPart = data.resetsAt !== null ? ` · resets ${formatResetIn(data.resetsAt)}` : '';
+      items.push({ label: `${icon} ${label} ${suffix}  ${data.pct}%${resetPart}`, enabled: false });
+    }
+
+    return items;
+  }
+
   buildWebSocketStatusMenu() {
     if (!this.wsClient) {
       return [];
@@ -365,12 +397,15 @@ class TrayManager {
       ? `${state.project}: ${state.state}`
       : 'Waiting for status';
 
+    const usageItems = this.buildUsageMenuItems();
+
     return [
       {
         label: statusLabel,
         enabled: false
       },
       { type: 'separator' },
+      ...(usageItems.length ? [...usageItems, { type: 'separator' }] : []),
       ...(this.settingsWindowManager ? [{
         label: 'Settings...',
         click: () => this.settingsWindowManager.open()
