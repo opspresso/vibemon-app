@@ -58,8 +58,14 @@ function getFloatOffset(animFrame) {
   return { x: Math.cos(angle) * CONSTANTS.FLOAT_AMPLITUDE_X, y: Math.sin(angle) * CONSTANTS.FLOAT_AMPLITUDE_Y };
 }
 
-function needsAnimationRedraw(state, blinkFrame) {
-  if (['start', 'thinking', 'planning', 'working', 'packing', 'sleep', 'alert'].includes(state)) return true;
+// Effects whose drawing depends on animFrame. Deriving the redraw gate from
+// the state's effect (instead of a hardcoded state-name list) means a new
+// registry state with an animated effect animates without an engine change.
+const ANIMATED_EFFECTS = ['sparkle', 'thinking', 'zzz', 'exclamation'];
+
+function needsAnimationRedraw(state, stateDef, blinkFrame) {
+  if (stateDef && ANIMATED_EFFECTS.includes(stateDef.effect)) return true;
+  // The idle blink cycle is the one state-name special case the engine keeps.
   if (state === 'idle') return blinkFrame === CONSTANTS.BLINK_START_FRAME || blinkFrame === CONSTANTS.BLINK_END_FRAME;
   return false;
 }
@@ -161,6 +167,8 @@ function drawEyeType(eyeType, char, drawRect) {
   if (eyeType === 'glasses') drawGlasses(char, drawRect);
   else if (eyeType === 'blink') drawBlinkEyes(char, drawRect);
   else if (eyeType === 'happy') drawHappyEyes(char, drawRect);
+  // 'normal' means the sprite's own eyes: intentionally draws nothing.
+  else if (eyeType !== 'normal') console.warn(`VibeMon engine: unknown eyeType "${eyeType}" - nothing drawn`);
 }
 
 // Draw rects expanded by 1px in outlineColor first (halo pass), then the
@@ -253,6 +261,9 @@ function drawEffect(effect, char, animFrame, drawRect) {
     drawRect(effectX, markY + 14, 6, 1, '#DD0000');
     drawRect(effectX, markY + 12, 1, 2, '#DD0000');
     drawRect(effectX + 5, markY + 12, 1, 2, '#DD0000');
+  } else if (effect !== 'none') {
+    // 'none' intentionally draws nothing; anything else is a registry typo.
+    console.warn(`VibeMon engine: unknown effect "${effect}" - nothing drawn`);
   }
 }
 
@@ -418,7 +429,7 @@ export class VibeMonEngine {
       if (this.blinkFrame > CONSTANTS.BLINK_END_FRAME) this.blinkFrame = 0;
     }
 
-    if (needsAnimationRedraw(this.currentState, this.blinkFrame)) {
+    if (needsAnimationRedraw(this.currentState, this.states[this.currentState], this.blinkFrame)) {
       this.render();
     }
 
