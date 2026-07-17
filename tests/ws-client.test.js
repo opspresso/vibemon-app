@@ -322,10 +322,13 @@ describe('WsClient', () => {
 
       client.connect();
       mockWsInstance.simulateOpen();
-      // Server responds with 'authenticated' type (not 'auth')
-      mockWsInstance.simulateMessage({ type: 'authenticated', userId: 'test-user' });
+      // Server responds with 'authenticated' type (not 'auth'); the payload
+      // carries the raw token, which must not be logged.
+      mockWsInstance.simulateMessage({ type: 'authenticated', token: 'test_token_123' });
 
-      expect(consoleSpy).toHaveBeenCalledWith('WebSocket authenticated, userId:', 'test-user');
+      expect(consoleSpy).toHaveBeenCalledWith('WebSocket authenticated');
+      const logged = consoleSpy.mock.calls.flat().join(' ');
+      expect(logged).not.toContain('test_token_123');
       consoleSpy.mockRestore();
     });
 
@@ -368,7 +371,7 @@ describe('WsClient', () => {
       client.connect();
       mockWsInstance.simulateOpen();
       mockWsInstance.simulateMessage({ type: 'error', message: 'Auth failed' });
-      mockWsInstance.simulateMessage({ type: 'authenticated', userId: 'test-user' });
+      mockWsInstance.simulateMessage({ type: 'authenticated', token: 'test_token_123' });
 
       expect(client.getLastError()).toBeNull();
       errorSpy.mockRestore();

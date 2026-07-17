@@ -248,9 +248,10 @@ class WsClient {
         return;
       }
 
-      // Handle auth success
+      // Handle auth success. The server's payload also carries the raw
+      // token; don't log it.
       if (message.type === 'authenticated') {
-        console.log('WebSocket authenticated, userId:', message.userId);
+        console.log('WebSocket authenticated');
         this.lastError = null;
         this.notifyConnectionChange();
         return;
