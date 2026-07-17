@@ -40,8 +40,8 @@ function validateState(state) {
 /**
  * Validate character value. Names outside CHARACTER_NAMES are accepted here
  * and normalized to DEFAULT_CHARACTER downstream (state-manager), so bridges
- * still sending a retired character (e.g. codex) degrade gracefully instead
- * of having their whole status update rejected.
+ * still sending a character that has been removed from the registry degrade
+ * gracefully instead of having their whole status update rejected.
  * @param {string} character
  * @returns {{valid: boolean, error: string|null}}
  */

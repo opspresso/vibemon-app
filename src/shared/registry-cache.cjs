@@ -128,8 +128,7 @@ function sanitizeEyes(eyes) {
  * Validate and sanitize a remote characters registry. Returns a
  * `{ default, characters }` object in the bundled file's shape, or null
  * when unusable. Invalid entries are dropped (character removal is a
- * legitimate registry change — see the codex retirement — so no superset
- * rule here); the file is rejected if its default is missing or invalid.
+ * legitimate registry change, so no superset rule here); the file is rejected if its default is missing or invalid.
  */
 function sanitizeCharactersRegistry(json) {
   if (!json || typeof json !== 'object' || !json.characters || typeof json.characters !== 'object') {
