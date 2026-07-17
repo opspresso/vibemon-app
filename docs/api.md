@@ -9,7 +9,7 @@ Default port: `19280`
 | Limit | Value | Description |
 |-------|-------|-------------|
 | Payload size | 10KB | Maximum request body size |
-| Rate limit | 100 req/min | Per IP address |
+| Rate limit | 600 req/min | Per IP address |
 | Request timeout | 30 sec | Prevents Slowloris attacks |
 | Browser origin | localhost only | Requests with a non-local browser `Origin` are rejected |
 | Content type | `application/json` | Required for JSON mutation endpoints |
@@ -25,7 +25,9 @@ Default port: `19280`
 | `memory` | - | Integer 0-100 (context-window usage) |
 | `usage5h` | - | Integer 0-100 (5-hour plan-usage window) |
 | `usageWeek` | - | Integer 0-100 (weekly plan-usage window) |
-| `character` | - | `vibemon`, `clawd`, `kiro`, `claw`, or `daangni` (unknown names fall back to `vibemon`) |
+| `usage5hResetsIn` | - | Non-negative integer (minutes until the 5-hour window resets) |
+| `usageWeekResetsIn` | - | Non-negative integer (minutes until the weekly window resets) |
+| `character` | - | `vibemon`, `clawd`, `codex`, `kiro`, `claw`, or `daangni` (unknown names fall back to `vibemon`) |
 | `terminalId` | 100 chars | Terminal session ID with prefix: `iterm2:w0t0p0:UUID` (from `ITERM_SESSION_ID`) or `ghostty:12345` (from `GHOSTTY_PID`) |
 
 > `character` is a visual rendering choice, typically selected by the agent bridge. It is not a general agent identity field.
@@ -73,16 +75,19 @@ curl -X POST http://127.0.0.1:19280/status \
 | `memory` | number | Context-window usage (0-100) |
 | `usage5h` | number | 5-hour plan-usage window (0-100) |
 | `usageWeek` | number | Weekly plan-usage window (0-100) |
-| `character` | string | `vibemon`, `clawd`, `kiro`, `claw`, or `daangni` |
+| `usage5hResetsIn` | number | Minutes until the 5-hour window resets |
+| `usageWeekResetsIn` | number | Minutes until the weekly window resets |
+| `character` | string | `vibemon`, `clawd`, `codex`, `kiro`, `claw`, or `daangni` |
 | `terminalId` | string | Terminal ID for click-to-focus (e.g., `iterm2:w0t0p0:UUID` or `ghostty:12345`) |
 
 > An unrecognized `state` value is rejected with a `400` error.
 
 Agent bridges usually set `character` automatically:
 - `clawd` for Claude Code
+- `codex` for Codex CLI
 - `kiro` for Kiro
 - `claw` for OpenClaw
-- bridges without their own character (e.g. Codex) fall back to `vibemon`
+- bridges without their own character fall back to `vibemon`
 
 **Response:**
 ```json
@@ -176,7 +181,7 @@ curl http://127.0.0.1:19280/character-lock
 ### POST /character-lock
 
 Force the window to show one character regardless of what each project's
-status reports (`auto`, or one of `vibemon`, `clawd`, `kiro`, `claw`,
+status reports (`auto`, or one of `vibemon`, `clawd`, `codex`, `kiro`, `claw`,
 `daangni`). `auto` restores each project's own character on its next status
 update.
 
@@ -191,7 +196,7 @@ curl -X POST http://127.0.0.1:19280/character-lock \
 {"success": true, "character": "daangni"}
 ```
 
-> On an invalid `character`, the response is `{"success": false, "error": "Invalid character: <character>", "validCharacters": ["auto", "vibemon", "clawd", "kiro", "claw", "daangni"]}`.
+> On an invalid `character`, the response is `{"success": false, "error": "Invalid character: <character>", "validCharacters": ["auto", "vibemon", "clawd", "codex", "kiro", "claw", "daangni"]}`.
 
 ---
 

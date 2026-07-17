@@ -64,6 +64,8 @@ npx vibemon
 
 That's it! The app launches in the system tray and listens on `http://127.0.0.1:19280`.
 
+`vibemon --version` prints the installed version, `vibemon --help` prints usage — both exit without launching the app.
+
 Open **Settings > AI Tools** from the tray menu and click **Install** for Claude Code, Codex CLI, Kiro IDE, or OpenClaw — this sets up the hooks and collector config for you, no separate installer needed. See [Settings Window](docs/features.md#settings-window) for details.
 
 ## Preview
