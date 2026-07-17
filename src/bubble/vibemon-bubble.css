@@ -48,11 +48,48 @@
   height: 5px;
   border-radius: 50%;
   background: currentColor;
-  transition: opacity 0.1s;
 }
 
-.bubble-dot.dim {
-  opacity: 0.25;
+@keyframes bubble-dot-pulse {
+  0%, 100% { opacity: 0.3; transform: scale(1); }
+  50% { opacity: 1; transform: scale(1.2); }
+}
+
+.bubble-dots.slow .bubble-dot {
+  animation: bubble-dot-pulse 1.2s ease-in-out infinite;
+}
+
+.bubble-dots.fast .bubble-dot {
+  animation: bubble-dot-pulse 0.4s ease-in-out infinite;
+}
+
+.bubble-dots.slow .bubble-dot:nth-child(1),
+.bubble-dots.fast .bubble-dot:nth-child(1) {
+  animation-delay: 0s;
+}
+
+.bubble-dots.slow .bubble-dot:nth-child(2) {
+  animation-delay: 0.3s;
+}
+
+.bubble-dots.fast .bubble-dot:nth-child(2) {
+  animation-delay: 0.1s;
+}
+
+.bubble-dots.slow .bubble-dot:nth-child(3) {
+  animation-delay: 0.6s;
+}
+
+.bubble-dots.fast .bubble-dot:nth-child(3) {
+  animation-delay: 0.2s;
+}
+
+.bubble-dots.slow .bubble-dot:nth-child(4) {
+  animation-delay: 0.9s;
+}
+
+.bubble-dots.fast .bubble-dot:nth-child(4) {
+  animation-delay: 0.3s;
 }
 
 .bubble-metric {
