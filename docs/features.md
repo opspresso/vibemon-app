@@ -183,11 +183,10 @@ The account token is never returned to the settings renderer after it is saved; 
 
 Grouped to mirror the Settings window's tab order (VibeMon / Collector / AI Tools / About):
 
-- Claude/Codex plan usage (5h and weekly %, with time-to-reset) — read from the shared usage cache independent of which project is focused; rows with no fresh data are omitted
 - Settings... (opens the Settings window)
 - **VibeMon** — Character Lock (Auto/VibeMon/Clawd/Codex/Kiro/Claw/Daangni), Always on Top, Speech Bubble field toggles, Open at Login toggle
 - **Collector** — WebSocket status (Connected/Disconnected), HTTP Server port display
-- **AI Tools** — AI Tool Hooks (per-tool install status for Claude Code/Codex CLI/Kiro IDE/OpenClaw, with one-click install)
+- **AI Tools** — AI Tool Hooks (per-tool install status for Claude Code/Codex CLI/Kiro IDE/OpenClaw, with one-click install), followed by Claude/Codex plan usage grouped per provider (5h and weekly %, each with a heat-colored bar icon and time-to-reset) — read from the shared usage cache independent of which project is focused; rows with no fresh data are omitted
 - **About** — opens the Settings window's About tab, followed by a version display or a one-click "Update to vX" / "Restart to install vX" item
 - Quit
 

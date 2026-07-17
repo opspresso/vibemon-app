@@ -5,14 +5,25 @@
 jest.mock('electron', () => ({
   Tray: jest.fn(),
   Menu: { buildFromTemplate: jest.fn() },
-  nativeImage: { createFromBuffer: jest.fn() },
+  nativeImage: { createFromBuffer: jest.fn(() => ({ isNativeImage: true })) },
   BrowserWindow: jest.fn(),
   ipcMain: { on: jest.fn(), handle: jest.fn() },
   shell: {}
 }));
 
 jest.mock('canvas', () => ({
-  createCanvas: jest.fn(),
+  createCanvas: jest.fn(() => ({
+    getContext: () => ({
+      beginPath: jest.fn(),
+      roundRect: jest.fn(),
+      fill: jest.fn(),
+      fillRect: jest.fn(),
+      save: jest.fn(),
+      clip: jest.fn(),
+      restore: jest.fn()
+    }),
+    toBuffer: () => Buffer.alloc(0)
+  })),
   loadImage: jest.fn(() => Promise.resolve(null))
 }));
 
@@ -144,7 +155,7 @@ describe('TrayManager usage menu', () => {
     return new TrayManager(windowManager, makeApp(), { setupStateTimeout: jest.fn() });
   }
 
-  test('shows only the buckets that have fresh data, each as a disabled row', () => {
+  test('groups fresh buckets under a provider header, each row with a bar icon', () => {
     getUsageSnapshot.mockReturnValue({
       claude: { session: { pct: 32, resetsAt: 5000 }, week: { pct: 67, resetsAt: 900000 } },
       codex: { session: null, week: null }
@@ -154,13 +165,33 @@ describe('TrayManager usage menu', () => {
     const items = makeTray().buildUsageMenuItems();
 
     expect(items.map(i => i.label)).toEqual([
-      '⏱️ Claude 5h  32% · resets 3h18m',
-      '📅 Claude Week  67% · resets 3d21h'
+      'Claude',
+      '⏱️ 5h  32% · 3h18m',
+      '📅 Week  67% · 3d21h'
     ]);
     expect(items.every(i => i.enabled === false)).toBe(true);
+    expect(items[0].icon).toBeUndefined();
+    expect(items[1].icon).toEqual({ isNativeImage: true });
+    expect(items[2].icon).toEqual({ isNativeImage: true });
   });
 
-  test('omits a row when resetsAt is unavailable', () => {
+  test('shows both providers as separate groups when both have fresh data', () => {
+    getUsageSnapshot.mockReturnValue({
+      claude: { session: { pct: 0, resetsAt: null }, week: null },
+      codex: { session: null, week: { pct: 100, resetsAt: null } }
+    });
+
+    const items = makeTray().buildUsageMenuItems();
+
+    expect(items.map(i => i.label)).toEqual([
+      'Claude',
+      '⏱️ 5h  0%',
+      'Codex',
+      '📅 Week  100%'
+    ]);
+  });
+
+  test('omits the reset suffix when resetsAt is unavailable', () => {
     getUsageSnapshot.mockReturnValue({
       claude: { session: { pct: 32, resetsAt: null }, week: null },
       codex: { session: null, week: null }
@@ -168,7 +199,7 @@ describe('TrayManager usage menu', () => {
 
     const items = makeTray().buildUsageMenuItems();
 
-    expect(items).toEqual([{ label: '⏱️ Claude 5h  32%', enabled: false }]);
+    expect(items.map(i => i.label)).toEqual(['Claude', '⏱️ 5h  32%']);
   });
 
   test('returns no rows when no fresh data is available', () => {
@@ -181,25 +212,27 @@ describe('TrayManager usage menu', () => {
     getUsageSnapshot.mockReturnValue(EMPTY_USAGE_SNAPSHOT);
 
     const template = makeTray().buildMenuTemplate();
+    const hooksIndex = template.findIndex(i => i.label === 'AI Tool Hooks');
 
-    expect(template[0].label).toBe('proj-a: idle');
-    expect(template[1]).toEqual({ type: 'separator' });
-    expect(template[2].type).not.toBe('separator');
+    expect(hooksIndex).toBeGreaterThan(-1);
+    expect(template[hooksIndex + 1]).toEqual({ type: 'separator' });
+    expect(template[hooksIndex + 2].type).not.toBe('separator');
+    expect(template.find(i => i.label === 'Claude')).toBeUndefined();
   });
 
-  test('inserts usage rows right after the status separator, before Settings', () => {
+  test('inserts usage rows right below AI Tool Hooks', () => {
     getUsageSnapshot.mockReturnValue({
       claude: { session: { pct: 32, resetsAt: 5000 }, week: null },
       codex: { session: null, week: null }
     });
     formatResetIn.mockReturnValue('3h18m');
 
-    const tray = makeTray();
-    tray.setSettingsWindowManager({ open: jest.fn() });
-    const template = tray.buildMenuTemplate();
+    const template = makeTray().buildMenuTemplate();
+    const hooksIndex = template.findIndex(i => i.label === 'AI Tool Hooks');
 
-    expect(template[2]).toEqual({ label: '⏱️ Claude 5h  32% · resets 3h18m', enabled: false });
-    expect(template[3]).toEqual({ type: 'separator' });
-    expect(template[4].label).toBe('Settings...');
+    expect(template[hooksIndex + 1]).toEqual({ type: 'separator' });
+    expect(template[hooksIndex + 2]).toEqual({ label: 'Claude', enabled: false });
+    expect(template[hooksIndex + 3].label).toBe('⏱️ 5h  32% · 3h18m');
+    expect(template[hooksIndex + 4]).toEqual({ type: 'separator' });
   });
 });

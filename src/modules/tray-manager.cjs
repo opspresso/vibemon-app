@@ -23,14 +23,75 @@ const SPEECH_BUBBLE_FIELD_LABELS = {
   usageWeek: 'Usage Week'
 };
 
-// Same icon semantics as bubble-window-manager.cjs's METRIC_ICONS: ⏱️ for the
-// 5-hour session window, 📅 for the weekly window.
-const USAGE_ROWS = [
-  { provider: 'claude', label: 'Claude', bucket: 'session', suffix: '5h', icon: '⏱️' },
-  { provider: 'claude', label: 'Claude', bucket: 'week', suffix: 'Week', icon: '📅' },
-  { provider: 'codex', label: 'Codex', bucket: 'session', suffix: '5h', icon: '⏱️' },
-  { provider: 'codex', label: 'Codex', bucket: 'week', suffix: 'Week', icon: '📅' }
+// Same emoji semantics as bubble-window-manager.cjs's METRIC_ICONS: ⏱️ for
+// the 5-hour session window, 📅 for the weekly window.
+const USAGE_PROVIDERS = [
+  { provider: 'claude', label: 'Claude' },
+  { provider: 'codex', label: 'Codex' }
 ];
+const USAGE_BUCKETS = [
+  { bucket: 'session', suffix: '5h', emoji: '⏱️' },
+  { bucket: 'week', suffix: 'Week', emoji: '📅' }
+];
+
+// Usage bar graph rendered as a PNG menu-item icon (capsule track + heat
+// colored fill). An icon — unlike label text — aligns pixel-perfectly
+// regardless of the menu's proportional font and can carry color.
+const USAGE_BAR_WIDTH = 56;
+const USAGE_BAR_HEIGHT = 12;
+const USAGE_BAR_SCALE = 2; // draw at 2x for retina menus
+
+const usageBarIconCache = new Map(); // pct (0-100 int) -> NativeImage
+
+/**
+ * Usage heat color: green while comfortable, yellow past 50%, red past 80%.
+ * @param {number} pct
+ * @returns {string}
+ */
+function usageHeatColor(pct) {
+  if (pct >= 80) return '#FF453A';
+  if (pct >= 50) return '#FFD60A';
+  return '#30D158';
+}
+
+/**
+ * Render (and cache) the bar icon for a usage percentage.
+ * @param {number} pct
+ * @returns {Electron.NativeImage}
+ */
+function getUsageBarIcon(pct) {
+  const key = Math.max(0, Math.min(100, Math.round(pct)));
+  if (usageBarIconCache.has(key)) return usageBarIconCache.get(key);
+
+  const w = USAGE_BAR_WIDTH * USAGE_BAR_SCALE;
+  const h = USAGE_BAR_HEIGHT * USAGE_BAR_SCALE;
+  const canvas = createCanvas(w, h);
+  const ctx = canvas.getContext('2d');
+  const radius = h / 2;
+
+  // Track: translucent mid-gray, readable on both light and dark menus.
+  ctx.fillStyle = 'rgba(127, 127, 127, 0.35)';
+  ctx.beginPath();
+  ctx.roundRect(0, 0, w, h, radius);
+  ctx.fill();
+
+  const fillWidth = Math.round((key / 100) * w);
+  if (fillWidth > 0) {
+    ctx.save();
+    ctx.beginPath();
+    ctx.roundRect(0, 0, w, h, radius);
+    ctx.clip();
+    ctx.fillStyle = usageHeatColor(key);
+    ctx.fillRect(0, 0, fillWidth, h);
+    ctx.restore();
+  }
+
+  const icon = nativeImage.createFromBuffer(canvas.toBuffer('image/png'), {
+    scaleFactor: USAGE_BAR_SCALE
+  });
+  usageBarIconCache.set(key, icon);
+  return icon;
+}
 
 // Tray icon cache for performance
 const trayIconCache = new Map();
@@ -275,22 +336,33 @@ class TrayManager {
   }
 
   /**
-   * Claude/Codex plan-usage rows (5h + weekly, each with time-to-reset),
-   * read directly from the shared usage cache — account-level, so it shows
-   * both tools regardless of which project is currently focused. Buckets
-   * with no fresh data are omitted entirely (no "N/A" placeholders); returns
-   * [] when nothing is available yet.
+   * Claude/Codex plan-usage rows (5h + weekly, each with a heat-colored bar
+   * icon and time-to-reset), read directly from the shared usage cache —
+   * account-level, so it shows both tools regardless of which project is
+   * currently focused. Rows are grouped under a disabled header per provider;
+   * buckets with no fresh data are omitted entirely (no "N/A" placeholders),
+   * a provider with no fresh buckets loses its header too, and [] is
+   * returned when nothing is available yet.
    * @returns {Array<Object>}
    */
   buildUsageMenuItems() {
     const snapshot = getUsageSnapshot();
     const items = [];
 
-    for (const { provider, label, bucket, suffix, icon } of USAGE_ROWS) {
-      const data = snapshot[provider][bucket];
-      if (!data) continue;
-      const resetPart = data.resetsAt !== null ? ` · resets ${formatResetIn(data.resetsAt)}` : '';
-      items.push({ label: `${icon} ${label} ${suffix}  ${data.pct}%${resetPart}`, enabled: false });
+    for (const { provider, label } of USAGE_PROVIDERS) {
+      const rows = [];
+      for (const { bucket, suffix, emoji } of USAGE_BUCKETS) {
+        const data = snapshot[provider][bucket];
+        if (!data) continue;
+        const resetPart = data.resetsAt !== null ? ` · ${formatResetIn(data.resetsAt)}` : '';
+        rows.push({
+          label: `${emoji} ${suffix}  ${data.pct}%${resetPart}`,
+          icon: getUsageBarIcon(data.pct),
+          enabled: false
+        });
+      }
+      if (rows.length === 0) continue;
+      items.push({ label, enabled: false }, ...rows);
     }
 
     return items;
@@ -405,7 +477,6 @@ class TrayManager {
         enabled: false
       },
       { type: 'separator' },
-      ...(usageItems.length ? [...usageItems, { type: 'separator' }] : []),
       ...(this.settingsWindowManager ? [{
         label: 'Settings...',
         click: () => this.settingsWindowManager.open()
@@ -446,6 +517,7 @@ class TrayManager {
         label: 'AI Tool Hooks',
         submenu: this.buildHookInstallerSubmenu()
       },
+      ...(usageItems.length ? [{ type: 'separator' }, ...usageItems] : []),
       { type: 'separator' },
       // About — opens the Settings window's About tab
       ...(this.settingsWindowManager ? [{
@@ -487,6 +559,7 @@ class TrayManager {
     // Clear icon caches to free memory
     trayIconCache.clear();
     characterImageCache.clear();
+    usageBarIconCache.clear();
     if (this.tray) {
       this.tray.destroy();
       this.tray = null;
