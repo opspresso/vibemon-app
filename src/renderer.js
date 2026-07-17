@@ -3,8 +3,26 @@ import { createVibeMonEngine } from './engine/vibemon-engine.js';
 // VibeMon engine instance
 let vibeMonEngine = null;
 
-// IPC cleanup function
+// IPC cleanup functions
 let cleanupStateListener = null;
+let cleanupDragListener = null;
+
+// Interaction override: while the character is clicked (mouse held down) or
+// dragged, it shows the 'done' expression (happy eyes). A drag is signaled
+// by the main process via 'window-drag' — mouse move/up events don't reach
+// the page while the OS handles the app-region drag — and is considered
+// over once move events stop for DRAG_SETTLE_MS.
+const DRAG_SETTLE_MS = 250;
+let interactionActive = false;
+let dragSettleTimer = null;
+let lastReportedState = null;
+
+function setInteractionActive(active) {
+  if (interactionActive === active || !vibeMonEngine) return;
+  interactionActive = active;
+  vibeMonEngine.setState({ state: active ? 'done' : (lastReportedState || 'start') });
+  vibeMonEngine.render();
+}
 
 // Initialize
 async function init() {
@@ -44,10 +62,36 @@ async function init() {
       if (!data || typeof data !== 'object') return;
 
       // Update state in VibeMon engine
+      if (typeof data.state === 'string') lastReportedState = data.state;
       vibeMonEngine.setState(data);
+      // Keep the interaction expression on top of updates that arrive
+      // mid-click/drag; the real state is restored when it ends.
+      if (interactionActive) vibeMonEngine.setState({ state: 'done' });
       vibeMonEngine.render();
     });
+
+    if (window.electronAPI.onWindowDrag) {
+      cleanupDragListener = window.electronAPI.onWindowDrag(() => {
+        setInteractionActive(true);
+        if (dragSettleTimer) clearTimeout(dragSettleTimer);
+        dragSettleTimer = setTimeout(() => {
+          dragSettleTimer = null;
+          setInteractionActive(false);
+        }, DRAG_SETTLE_MS);
+      });
+    }
   }
+
+  // Interaction expression while the mouse is held down on the character.
+  // A drag swallows mouseup — the window-drag settle timer clears instead.
+  document.addEventListener('mousedown', (e) => {
+    if (e.button !== 0) return;
+    setInteractionActive(true);
+  });
+  document.addEventListener('mouseup', (e) => {
+    if (e.button !== 0) return;
+    setInteractionActive(false);
+  });
 
   // Right-click context menu (works on all platforms)
   document.addEventListener('contextmenu', (e) => {
@@ -82,6 +126,14 @@ function cleanup() {
   if (cleanupStateListener) {
     cleanupStateListener();
     cleanupStateListener = null;
+  }
+  if (cleanupDragListener) {
+    cleanupDragListener();
+    cleanupDragListener = null;
+  }
+  if (dragSettleTimer) {
+    clearTimeout(dragSettleTimer);
+    dragSettleTimer = null;
   }
 }
 

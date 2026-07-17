@@ -379,6 +379,29 @@ describe('position tracking across lock/sleep/display changes', () => {
     jest.useRealTimers();
   });
 
+  test('a user drag notifies the renderer so the character can show its interaction expression', () => {
+    const manager = new CharacterWindowManager();
+    const window = makeWindow([500, 300]);
+    window.webContents = { isDestroyed: () => false, send: jest.fn() };
+    manager.entry = { window, state: null, projectId: 'a' };
+
+    manager.handleWindowMove();
+
+    expect(window.webContents.send).toHaveBeenCalledWith('window-drag');
+  });
+
+  test('an OS-initiated move while tracking is suspended does not notify the renderer', () => {
+    const manager = new CharacterWindowManager();
+    const window = makeWindow([500, 300]);
+    window.webContents = { isDestroyed: () => false, send: jest.fn() };
+    manager.entry = { window, state: null, projectId: 'a' };
+
+    manager.suspendPositionTracking();
+    manager.handleWindowMove();
+
+    expect(window.webContents.send).not.toHaveBeenCalled();
+  });
+
   test('suspendPositionTracking cancels a pending snap so an OS move is not persisted', () => {
     const manager = new CharacterWindowManager();
     manager.entry = { window: makeWindow([500, 300]), state: null, projectId: 'a' };

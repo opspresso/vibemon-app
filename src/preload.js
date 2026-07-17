@@ -20,6 +20,18 @@ contextBridge.exposeInMainWorld('electronAPI', {
     // Return cleanup function to prevent memory leaks
     return () => ipcRenderer.removeListener('state-update', handler);
   },
+  onWindowDrag: (callback) => {
+    const handler = () => {
+      try {
+        callback();
+      } catch (error) {
+        console.error('Window drag callback error:', error);
+      }
+    };
+    ipcRenderer.on('window-drag', handler);
+    // Return cleanup function to prevent memory leaks
+    return () => ipcRenderer.removeListener('window-drag', handler);
+  },
   getVersion: () => ipcRenderer.invoke('get-version'),
   getPlatform: () => process.platform
 });

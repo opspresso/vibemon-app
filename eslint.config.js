@@ -22,6 +22,8 @@ const nodeGlobals = {
 const browserGlobals = {
   window: 'readonly',
   document: 'readonly',
+  setTimeout: 'readonly',
+  clearTimeout: 'readonly',
   requestAnimationFrame: 'readonly',
   cancelAnimationFrame: 'readonly',
   URL: 'readonly',

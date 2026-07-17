@@ -226,6 +226,14 @@ class CharacterWindowManager {
     if (!this.entry || this.positionTrackingSuspended) return;
     const entry = this.entry;
 
+    // Tell the renderer a user drag is in progress so the character can
+    // show its interaction expression — mouse move/up events never reach
+    // the page while the OS handles a -webkit-app-region: drag.
+    const webContents = entry.window.webContents;
+    if (webContents && !webContents.isDestroyed()) {
+      webContents.send('window-drag');
+    }
+
     if (this.snapTimer) {
       clearTimeout(this.snapTimer);
     }
