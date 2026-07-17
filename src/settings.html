@@ -713,6 +713,11 @@
     // Tab selection pushed from the main process (e.g. tray → About)
     window.settingsAPI.onSelectTab(selectTab);
 
+    // Esc closes the window, like a native settings dialog.
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') window.close();
+    });
+
     // Re-sync when the window regains focus, so changes made from the tray
     // menu while this window was open are reflected.
     window.addEventListener('focus', loadAll);
