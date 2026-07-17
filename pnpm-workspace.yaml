@@ -1,0 +1,3 @@
+allowBuilds:
+  canvas: true
+  electron-winstaller: true
