@@ -38,7 +38,7 @@ const USAGE_BUCKETS = [
 // colored fill). An icon — unlike label text — aligns pixel-perfectly
 // regardless of the menu's proportional font and can carry color.
 const USAGE_BAR_WIDTH = 56;
-const USAGE_BAR_HEIGHT = 12;
+const USAGE_BAR_HEIGHT = 5;
 const USAGE_BAR_SCALE = 2; // draw at 2x for retina menus
 
 const usageBarIconCache = new Map(); // pct (0-100 int) -> NativeImage
