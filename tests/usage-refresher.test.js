@@ -74,6 +74,17 @@ describe('UsageRefresher', () => {
     expect(pathDirs).toContain('/usr/local/bin');
   });
 
+  test('sets VIBEMON_SUPPRESS_HOOKS so the spawned claude session stays silent', async () => {
+    const child = mockSpawnedChild();
+
+    const promise = refresher.refresh();
+    child.emit('close', 0);
+    await promise;
+
+    const options = spawn.mock.calls[0][2];
+    expect(options.env.VIBEMON_SUPPRESS_HOOKS).toBe('1');
+  });
+
   test('does not spawn a second refresh while one is in flight', async () => {
     const child = mockSpawnedChild();
 

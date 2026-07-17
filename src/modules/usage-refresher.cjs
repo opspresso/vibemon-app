@@ -8,6 +8,10 @@
  * when no Claude Code session is rendering the statusline. The script's
  * --max-age flag and file lock make overlapping refreshes (statusline,
  * concurrent runs) cheap and collision-free.
+ *
+ * `claude -p "/usage"` is itself a real Claude Code session, so its own
+ * hooks are suppressed via VIBEMON_SUPPRESS_HOOKS (see buildEnv()) to keep
+ * it from reporting status back to this app as a phantom project.
  */
 
 const fs = require('fs');
@@ -31,7 +35,16 @@ const EXTRA_PATH_DIRS = [
 function buildEnv() {
   const parts = (process.env.PATH || '').split(path.delimiter).filter(Boolean);
   const missing = EXTRA_PATH_DIRS.filter((dir) => !parts.includes(dir));
-  return { ...process.env, PATH: [...parts, ...missing].join(path.delimiter) };
+  return {
+    ...process.env,
+    PATH: [...parts, ...missing].join(path.delimiter),
+    // usage.py runs `claude -p "/usage"`, a real Claude Code session whose
+    // own hooks would otherwise report status back to this app under a
+    // ".vibemon" project (the cwd we spawn usage.py in). This env var is
+    // inherited down to that subprocess so the Claude Code hook adapter can
+    // skip reporting for it.
+    VIBEMON_SUPPRESS_HOOKS: '1'
+  };
 }
 
 class UsageRefresher {
