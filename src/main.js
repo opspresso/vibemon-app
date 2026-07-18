@@ -519,10 +519,8 @@ app.whenReady().then(() => {
 });
 
 app.on('window-all-closed', () => {
-  // Keep app running in tray on macOS
-  if (process.platform !== 'darwin') {
-    app.quit();
-  }
+  // Keep app running in the system tray on all platforms;
+  // quitting is handled by the tray menu, POST /quit, and the updater
 });
 
 app.on('before-quit', () => {
