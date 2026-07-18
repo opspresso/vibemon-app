@@ -17,10 +17,9 @@ jobs:
 
     strategy:
       matrix:
-        # windows-latest temporarily disabled: WINDOWS_CERTS pfx is expired,
-        # re-add once a new cert is issued (see nalbam/keys/develop/win/README.md)
-        os: [macos-latest]
+        os: [macos-latest, windows-latest] # , ubuntu-latest
       fail-fast: false
+    continue-on-error: ${{ matrix.os == 'windows-latest' }}
 
     steps:
       - name: Checkout
@@ -37,6 +36,7 @@ jobs:
         run: npm install
 
       - name: Validate
+        if: matrix.os == 'macos-latest'
         run: |
           npm run lint
           npm run test:coverage -- --runInBand
