@@ -401,9 +401,9 @@ describe('open', () => {
 
     expect(screen.getDisplayNearestPoint).toHaveBeenCalledWith({ x: 2000, y: 300 });
     expect(win.setBounds).toHaveBeenCalledWith({
-      x: 1440 + Math.round((1920 - 680) / 2),
+      x: 1440 + Math.round((1920 - 700) / 2),
       y: Math.round((1080 - 620) / 2),
-      width: 680,
+      width: 700,
       height: 620
     });
   });

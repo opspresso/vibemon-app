@@ -245,7 +245,7 @@ class SettingsWindowManager {
     }
 
     this.window = new BrowserWindow({
-      width: 680,
+      width: 700,
       height: 620,
       minWidth: 560,
       minHeight: 480,
