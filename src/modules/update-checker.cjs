@@ -20,6 +20,13 @@ class UpdateChecker {
 
     autoUpdater.autoDownload = false;
     autoUpdater.autoInstallOnAppQuit = true;
+    // Windows builds are signed with a self-signed certificate whose chain
+    // doesn't terminate in a trusted root on user machines, so
+    // electron-updater's Authenticode check rejects every update ("not
+    // signed by the application owner"). Skip it — update integrity is
+    // still covered by HTTPS to GitHub Releases plus the sha512 checksum
+    // from latest.yml that electron-updater always verifies.
+    autoUpdater.verifyUpdateCodeSignature = () => Promise.resolve(null);
 
     autoUpdater.on('checking-for-update', () => this.setState('checking'));
     autoUpdater.on('update-available', (info) => this.setState('available', info.version));

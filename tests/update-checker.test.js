@@ -36,6 +36,13 @@ describe('UpdateChecker', () => {
     app.isPackaged = true;
   });
 
+  test('skips Authenticode verification (self-signed Windows cert can never chain to a trusted root)', async () => {
+    freshChecker();
+
+    await expect(autoUpdater.verifyUpdateCodeSignature(['OpsPresso'], 'C:\\temp\\update.exe'))
+      .resolves.toBeNull();
+  });
+
   describe('event -> state transitions', () => {
     test('checking-for-update sets status to checking and notifies', () => {
       const checker = freshChecker();
