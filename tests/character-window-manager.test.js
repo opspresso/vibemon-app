@@ -227,6 +227,22 @@ describe('routeStatusUpdate', () => {
     expect(manager.entry.projectId).toBe('a');
   });
 
+  test('drops the internal .vibemon project (usage-refresh session) at ingestion', () => {
+    const manager = new CharacterWindowManager();
+    stubWindow(manager, 'a');
+    manager.stateRegistry.set('a', { state: 'idle' });
+    manager.focusedProjectId = 'a';
+
+    const result = manager.routeStatusUpdate('.vibemon', { state: 'working', project: '.vibemon' });
+
+    expect(result.switchedProject).toBeNull();
+    expect(result.updateResult.updated).toBe(false);
+    expect(manager.getRegisteredState('.vibemon')).toBeFalsy();
+    expect(manager.stateRegistry.has('.vibemon')).toBe(false);
+    expect(manager.getFocusedProjectId()).toBe('a');
+    expect(manager.entry.projectId).toBe('a');
+  });
+
   test('retargets the window when focus moves to another project', () => {
     jest.spyOn(Date, 'now').mockImplementation(() => 1_000_000);
     const manager = new CharacterWindowManager();

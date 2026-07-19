@@ -30,6 +30,13 @@ const {
 // something needs the user's attention right away.
 const PRIORITY_FOCUS_STATES = ['alert', 'notification'];
 
+// A session working inside ~/.vibemon is VibeMon's own plumbing (the
+// `claude -p "/usage"` session the usage refresher spawns), never a user
+// project. Current hooks skip reporting it themselves, but hooks installed
+// before those guards existed still send it — drop it at the shared
+// ingestion point so it can never reach the registry, focus, or window.
+const INTERNAL_PROJECT_ID = '.vibemon';
+
 // Platform-specific always-on-top level
 // macOS: 'floating' (required for tray menu visibility)
 // Windows/Linux: 'screen-saver' (required for window visibility in WSL/Windows)
@@ -750,6 +757,14 @@ class CharacterWindowManager {
    * }}
    */
   routeStatusUpdate(projectId, stateData, { preserveFocus = false } = {}) {
+    if (projectId === INTERNAL_PROJECT_ID) {
+      return {
+        switchedProject: null,
+        updateResult: { updated: false, stateChanged: false, infoChanged: false },
+        stateData
+      };
+    }
+
     // Character Lock overrides whatever character the incoming status
     // specifies — reassign the local reference to a new object (not the
     // caller's) so every downstream use (stateRegistry, window state, the
