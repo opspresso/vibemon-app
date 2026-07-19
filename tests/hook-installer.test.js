@@ -29,6 +29,9 @@ const https = require('https');
 const { dialog, shell } = require('electron');
 const { HookInstaller, TOOLS, verifyInstallerScript } = require('../src/modules/hook-installer.cjs');
 
+const realCrypto = jest.requireActual('crypto');
+const sha256 = (data) => realCrypto.createHash('sha256').update(data).digest('hex');
+
 test('installer integrity verification rejects a mismatched digest', () => {
   expect(verifyInstallerScript('print(1)', '0'.repeat(64))).toBe(false);
 });
@@ -43,18 +46,22 @@ function mockToolMissing(tool) {
   spawnSync.mockImplementation((which, args) => ({ status: args[0] === tool.command ? 0 : 1 }));
 }
 
-// Configures https.get + spawn to simulate a successful install.py run.
-// Events fire via setTimeout(..., 0) so this works regardless of how many
-// microtask boundaries (dialog awaits, etc.) sit between the mock setup
-// and the actual https.get()/spawn() calls.
-function mockSuccessfulInstall() {
-  const fakeRes = new EventEmitter();
-  fakeRes.statusCode = 200;
-  fakeRes.setEncoding = jest.fn();
+// Configures https.get + spawn to simulate a successful install.py run:
+// serves manifest.json (whose installer hash matches the script) and
+// install.py by URL. Events fire via setTimeout(..., 0) so this works
+// regardless of how many microtask boundaries (dialog awaits, etc.) sit
+// between the mock setup and the actual https.get()/spawn() calls.
+function mockSuccessfulInstall(script = 'script-source') {
   https.get.mockImplementation((url, opts, cb) => {
+    const fakeRes = new EventEmitter();
+    fakeRes.statusCode = 200;
+    fakeRes.setEncoding = jest.fn();
     cb(fakeRes);
+    const body = url.endsWith('/manifest.json')
+      ? JSON.stringify({ installer: sha256(script), files: {} })
+      : script;
     setTimeout(() => {
-      fakeRes.emit('data', 'script-source');
+      fakeRes.emit('data', body);
       fakeRes.emit('end');
     }, 0);
     return new EventEmitter();
@@ -302,7 +309,8 @@ describe('HookInstaller', () => {
 
       const results = await hookInstaller.installTools([TOOLS[0], TOOLS[1]], 'my_token_123');
 
-      expect(https.get).toHaveBeenCalledTimes(1);
+      const scriptFetches = https.get.mock.calls.filter(c => c[0].endsWith('/install.py'));
+      expect(scriptFetches).toHaveLength(1);
       expect(spawn).toHaveBeenCalledTimes(2);
       expect(children).toHaveLength(2);
       expect(results.every(r => r.result.ok)).toBe(true);
@@ -334,6 +342,82 @@ describe('HookInstaller', () => {
       expect(spawn).not.toHaveBeenCalled();
       expect(hookInstaller.sessionSuppressed.has(TOOLS[0].flag)).toBe(true);
       expect(hookInstaller.sessionSuppressed.has(TOOLS[1].flag)).toBe(true);
+    });
+
+    test('fails the batch with integrity-check-failed when install.py does not match the manifest installer hash', async () => {
+      spawnSync.mockReturnValue({ status: 0 }); // python present
+      https.get.mockImplementation((url, opts, cb) => {
+        const fakeRes = new EventEmitter();
+        fakeRes.statusCode = 200;
+        fakeRes.setEncoding = jest.fn();
+        cb(fakeRes);
+        const body = url.endsWith('/manifest.json')
+          ? JSON.stringify({ installer: sha256('published-script'), files: {} })
+          : 'tampered-script';
+        setTimeout(() => {
+          fakeRes.emit('data', body);
+          fakeRes.emit('end');
+        }, 0);
+        return new EventEmitter();
+      });
+
+      const results = await hookInstaller.installTools([TOOLS[0]], null);
+
+      expect(results.map(r => r.result.reason)).toEqual(['integrity-check-failed']);
+      expect(spawn).not.toHaveBeenCalled();
+    });
+
+    test('fails the batch with integrity-reference-missing when the manifest has no installer hash', async () => {
+      spawnSync.mockReturnValue({ status: 0 }); // python present
+      https.get.mockImplementation((url, opts, cb) => {
+        const fakeRes = new EventEmitter();
+        fakeRes.statusCode = 200;
+        fakeRes.setEncoding = jest.fn();
+        cb(fakeRes);
+        setTimeout(() => {
+          fakeRes.emit('data', JSON.stringify({ files: {} }));
+          fakeRes.emit('end');
+        }, 0);
+        return new EventEmitter();
+      });
+
+      const results = await hookInstaller.installTools([TOOLS[0]], null);
+
+      expect(results.map(r => r.result.reason)).toEqual(['integrity-reference-missing']);
+      expect(spawn).not.toHaveBeenCalled();
+    });
+
+    test('a previously fetched manifest verifies the install when the fresh fetch fails', async () => {
+      hookInstaller.manifest = { installer: sha256('script-source'), files: {} };
+      spawnSync.mockReturnValue({ status: 0 }); // python present
+      https.get.mockImplementation((url, opts, cb) => {
+        if (url.endsWith('/manifest.json')) {
+          const fakeReq = new EventEmitter();
+          setTimeout(() => fakeReq.emit('error', new Error('offline')), 0);
+          return fakeReq;
+        }
+        const fakeRes = new EventEmitter();
+        fakeRes.statusCode = 200;
+        fakeRes.setEncoding = jest.fn();
+        cb(fakeRes);
+        setTimeout(() => {
+          fakeRes.emit('data', 'script-source');
+          fakeRes.emit('end');
+        }, 0);
+        return new EventEmitter();
+      });
+      spawn.mockImplementation(() => {
+        const child = new EventEmitter();
+        child.stdin = { write: jest.fn(), end: jest.fn() };
+        child.stdout = new EventEmitter();
+        child.stderr = new EventEmitter();
+        setTimeout(() => child.emit('close', 0), 0);
+        return child;
+      });
+
+      const results = await hookInstaller.installTools([TOOLS[0]], null);
+
+      expect(results.every(r => r.result.ok)).toBe(true);
     });
 
     test('refreshes the status cache after finishing', async () => {
@@ -397,8 +481,6 @@ describe('HookInstaller', () => {
   });
 
   describe('change detection', () => {
-    const realCrypto = jest.requireActual('crypto');
-    const sha256 = (data) => realCrypto.createHash('sha256').update(data).digest('hex');
     const claude = TOOLS.find(t => t.flag === '--claude');
     const shared = TOOLS.find(t => t.flag === '--vibemon');
 
@@ -441,6 +523,16 @@ describe('HookInstaller', () => {
 
       mockManifestResponse(JSON.stringify({ nope: true }));
       await expect(hookInstaller.downloadManifest()).rejects.toEqual({ reason: 'invalid-manifest' });
+
+      mockManifestResponse(JSON.stringify({ installer: 'not-a-hash', files: {} }));
+      await expect(hookInstaller.downloadManifest()).rejects.toEqual({ reason: 'invalid-manifest' });
+    });
+
+    test('downloadManifest accepts a manifest with a valid installer hash', async () => {
+      const installer = sha256('install.py source');
+      mockManifestResponse(JSON.stringify({ installer, files: {} }));
+
+      await expect(hookInstaller.downloadManifest()).resolves.toEqual({ installer, files: {} });
     });
 
     test('checkForChanges flags a tool whose file hash differs from the manifest', async () => {

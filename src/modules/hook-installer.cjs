@@ -27,7 +27,7 @@ const SETUP_GUIDE_URL = `${DOCS_BASE}/setup.md`;
 // response is ever unexpectedly large.
 const MAX_SCRIPT_SIZE = 1024 * 1024;
 
-function verifyInstallerScript(script, expectedHash = INSTALLER_SHA256) {
+function verifyInstallerScript(script, expectedHash) {
   if (!expectedHash) return true;
   const actualHash = crypto.createHash('sha256').update(script, 'utf8').digest('hex');
   return actualHash === expectedHash;
@@ -48,13 +48,19 @@ function fileSha256(filePath) {
 
 /**
  * Whether a parsed manifest.json has the expected shape:
- * { files: { "<docs path>": "<sha256 hex>" } }. Detection-only data — a
- * malformed manifest is rejected wholesale rather than partially trusted.
+ * { installer?: "<sha256 hex>", files: { "<docs path>": "<sha256 hex>" } }.
+ * `installer` (the sha256 of install.py itself) is optional for backward
+ * compatibility with manifests published before it existed. A malformed
+ * manifest is rejected wholesale rather than partially trusted.
  * @param {any} manifest
  * @returns {boolean}
  */
 function isValidManifest(manifest) {
   if (!manifest || typeof manifest !== 'object' || Array.isArray(manifest)) return false;
+  if (manifest.installer !== undefined &&
+      !(typeof manifest.installer === 'string' && /^[0-9a-f]{64}$/.test(manifest.installer))) {
+    return false;
+  }
   const files = manifest.files;
   if (!files || typeof files !== 'object' || Array.isArray(files)) return false;
   return Object.values(files).every(
@@ -160,6 +166,10 @@ function describeFailure(result) {
       return 'Install script response exceeded the size limit';
     case 'integrity-check-failed':
       return 'Install script integrity check failed';
+    case 'integrity-reference-missing':
+      return 'Installer checksum unavailable (manifest.json has no installer hash)';
+    case 'invalid-manifest':
+      return 'Published manifest.json is malformed';
     case 'network-error':
       return `Network error: ${result.error}`;
     case 'spawn-error':
@@ -284,10 +294,12 @@ class HookInstaller {
   }
 
   /**
-   * Download install.py over HTTPS.
+   * Download install.py over HTTPS and verify it against expectedHash.
+   * @param {string} [expectedHash] - sha256 the script must match (from
+   *   resolveInstallerHash()); when omitted, verification is skipped
    * @returns {Promise<string>} script source
    */
-  downloadScript() {
+  downloadScript(expectedHash) {
     return new Promise((resolve, reject) => {
       const req = https.get(`${DOCS_BASE}/install.py`, { timeout: 30000 }, (res) => {
         if (res.statusCode !== 200) {
@@ -306,7 +318,7 @@ class HookInstaller {
           }
         });
         res.on('end', () => {
-          if (!verifyInstallerScript(script)) {
+          if (!verifyInstallerScript(script, expectedHash)) {
             reject({ reason: 'integrity-check-failed' });
             return;
           }
@@ -315,6 +327,27 @@ class HookInstaller {
       });
       req.on('error', (err) => reject({ reason: 'network-error', error: err.message }));
     });
+  }
+
+  /**
+   * The sha256 the downloaded install.py must match. The env pin
+   * (VIBEMON_INSTALLER_SHA256) wins when set; otherwise the manifest is
+   * fetched fresh — a stale cached manifest right after a docs deploy would
+   * fail verification against the newly published script — falling back to
+   * the last fetched copy only when the fetch fails.
+   * @returns {Promise<string>} sha256 hex
+   * @throws {{reason: string}} when no hash source is available
+   */
+  async resolveInstallerHash() {
+    if (INSTALLER_SHA256) return INSTALLER_SHA256;
+    try {
+      this.manifest = await this.downloadManifest();
+    } catch (err) {
+      if (!this.manifest) throw err;
+      console.error('[HookInstaller] manifest fetch failed, using cached copy:', err.reason || err.error || err);
+    }
+    if (!this.manifest.installer) throw { reason: 'integrity-reference-missing' };
+    return this.manifest.installer;
   }
 
   /**
@@ -434,7 +467,8 @@ class HookInstaller {
       } else {
         let script = null;
         try {
-          script = await this.downloadScript();
+          const expectedHash = await this.resolveInstallerHash();
+          script = await this.downloadScript(expectedHash);
         } catch (err) {
           for (const tool of tools) {
             results.push({ tool, result: { ok: false, ...err } });

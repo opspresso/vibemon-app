@@ -196,7 +196,7 @@ The character is rendered by a bundled engine (`src/engine/vibemon-engine.js`): 
 
 ## Build
 
-Hook installation verifies the downloaded installer against the SHA-256 pinned by the app before executing it. Custom installer deployments must provide the matching `VIBEMON_INSTALLER_SHA256` value together with `VIBEMON_DOCS_URL`. Whenever install.py changes in vibemon-docs, re-sync the pinned hash with `npm run check:installer -- --fix`.
+Hook installation verifies the downloaded installer against the `installer` SHA-256 published in the same origin's `manifest.json` (fetched fresh at install time), so install.py updates ship with a vibemon-docs deploy alone — no app release needed. Custom installer deployments can pin a specific hash via `VIBEMON_INSTALLER_SHA256` together with `VIBEMON_DOCS_URL`; the pin takes precedence over the manifest.
 
 ```bash
 npm run build:mac     # macOS (DMG, ZIP)

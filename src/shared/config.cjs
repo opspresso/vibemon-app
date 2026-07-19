@@ -19,7 +19,10 @@ const WS_TOKEN = process.env.VIBEMON_WS_TOKEN || null;
 // Hook Installer Configuration (from environment variables)
 // =============================================================================
 const DOCS_BASE_URL = process.env.VIBEMON_DOCS_URL || 'https://docs.vibemon.io';
-const INSTALLER_SHA256 = process.env.VIBEMON_INSTALLER_SHA256 || 'd195c13fef21a7415f184ebe6b68071ee3ba527d95527b235c00b0c5b5663390';
+// Optional strict pin for custom installer deployments. Normally null: the
+// installer hash comes from the published manifest.json, so install.py
+// updates ship with a docs deploy alone (no app release needed).
+const INSTALLER_SHA256 = process.env.VIBEMON_INSTALLER_SHA256 || null;
 
 // =============================================================================
 // Canonical Registry (vibemon-static)
