@@ -55,21 +55,21 @@ describe('default settings', () => {
     expect(manager.getCharacterLock()).toBe('clawd');
   });
 
-  test('render mode defaults to 3d and only accepts 2d/3d', () => {
+  test('render mode defaults to 2d and only accepts 2d/3d', () => {
     const manager = new CharacterWindowManager();
 
+    expect(manager.getRenderMode()).toBe('2d');
+    manager.setRenderMode('3d');
     expect(manager.getRenderMode()).toBe('3d');
-    manager.setRenderMode('2d');
-    expect(manager.getRenderMode()).toBe('2d');
     manager.setRenderMode('nope');
-    expect(manager.getRenderMode()).toBe('2d');
+    expect(manager.getRenderMode()).toBe('3d');
   });
 
-  test('a stored render mode with an unknown value falls back to 3d', () => {
+  test('a stored render mode with an unknown value falls back to 2d', () => {
     Store.__presetNextStore({ renderMode: 'weird' });
     const manager = new CharacterWindowManager();
 
-    expect(manager.getRenderMode()).toBe('3d');
+    expect(manager.getRenderMode()).toBe('2d');
   });
 
   test('migrates the legacy per-key window position map', () => {

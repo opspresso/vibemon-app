@@ -77,7 +77,7 @@ class CharacterWindowManager {
         alwaysOnTopMode: 'all',  // 'active-only', 'all', or 'disabled'
         speechBubbleFields: { status: true, project: true, model: true, memory: true, usage5h: true, usageWeek: true, usageWeekModel: true },
         characterLock: 'auto',  // 'auto' or a CHARACTER_NAMES entry
-        renderMode: '3d',  // '3d' (three.js pet) or '2d' (pixel-art sprite)
+        renderMode: '2d',  // '2d' (pixel-art sprite) or '3d' (three.js pet)
         windowPosition: null  // {x, y} - last dragged position, restored on next creation
       }
     });
@@ -105,7 +105,7 @@ class CharacterWindowManager {
     }
 
     const storedRenderMode = this.store.get('renderMode');
-    this.renderMode = storedRenderMode === '2d' ? '2d' : '3d';
+    this.renderMode = storedRenderMode === '3d' ? '3d' : '2d';
 
     // Migrate the window position saved by earlier versions, which kept it
     // in a per-key map under the '__character__' key.
