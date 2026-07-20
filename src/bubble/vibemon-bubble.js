@@ -14,11 +14,12 @@
  * src/modules/bubble-window-manager.cjs) — that placement logic is
  * desktop-specific and lives only in vibemon-app.
  *
- * This file is the source of truth. vibemon-app vendors a copy at build
- * time (see its check-registry script); vibemon-docs and vibemon-static's
- * own pages import it directly at runtime. vibemon vendors just the pure
- * helpers (barColor, formatMinutes, pickTextColor) since its speech bubble
- * renders as JSX/CSS-modules, not this module's DOM structure.
+ * This file is the source of truth, consumed at build time only —
+ * vibemon-app vendors a copy (see its check-registry script), and vibemon
+ * vendors the full module but imports just the pure helpers (barColor,
+ * formatMinutes, pickTextColor) since its speech bubble renders as
+ * JSX/CSS-modules, not this module's DOM structure. No page on this site
+ * imports it at runtime.
  *
  * Expected bubble element structure (see vibemon-bubble.css):
  *   <div class="bubble">

@@ -8,8 +8,8 @@
  * live in the speech bubble module (vibemon-bubble.js), not here.
  *
  * This file is the source of truth. vibemon-app and vibemon vendor a copy
- * at build time (see each repo's check-registry script); vibemon-docs and
- * vibemon-static's own pages import it directly at runtime.
+ * at build time (see each repo's check-registry script). No page on this
+ * site imports it at runtime.
  *
  * Character definitions (colors, eye/effect coordinates, image files) and
  * state definitions (eyeType/effect per state) come from the shared

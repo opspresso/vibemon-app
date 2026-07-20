@@ -8,9 +8,9 @@
  * CSS (bubble.html always sets an explicit offset from JS instead, since its
  * bubble window is physics-positioned relative to the character).
  *
- * This file is the source of truth. vibemon-app vendors a copy at build
- * time (see its check-registry script); vibemon-docs and vibemon-static's
- * own pages link it directly at runtime.
+ * This file is the source of truth, consumed at build time only —
+ * vibemon-app vendors a copy (see its check-registry script). No page on
+ * this site links it at runtime.
  */
 
 .bubble {
