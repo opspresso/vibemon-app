@@ -49,14 +49,17 @@ const USAGE_BAR_SCALE = 2; // draw at 2x for retina menus
 const usageBarIconCache = new Map(); // pct (0-100 int) -> NativeImage
 
 /**
- * Usage heat color: green while comfortable, yellow past 50%, red past 80%.
+ * Usage heat color — same thresholds and palette as the speech bubble's
+ * barColor() (vibemon-bubble.js) and statusline.py: green, yellow past 50%,
+ * orange past 70%, red past 90%.
  * @param {number} pct
  * @returns {string}
  */
 function usageHeatColor(pct) {
-  if (pct >= 80) return '#FF453A';
-  if (pct >= 50) return '#FFD60A';
-  return '#30D158';
+  if (pct > 90) return '#FF4444';
+  if (pct > 70) return '#FF8800';
+  if (pct > 50) return '#FFCC00';
+  return '#00AA00';
 }
 
 /**
