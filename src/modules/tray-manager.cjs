@@ -25,7 +25,8 @@ const SPEECH_BUBBLE_FIELD_LABELS = {
 };
 
 // Same emoji semantics as bubble-window-manager.cjs's METRIC_ICONS: ⏱️ for
-// the 5-hour session window, 📅 for the weekly window.
+// the 5-hour session window, 📅 for the weekly window, 🎯 for the
+// model-scoped weekly limit.
 const USAGE_PROVIDERS = [
   { provider: 'claude', label: 'Claude' },
   { provider: 'codex', label: 'Codex' }
@@ -35,7 +36,7 @@ const USAGE_BUCKETS = [
   { bucket: 'week', suffix: 'Week', emoji: '📅' },
   // Model-scoped weekly limit (e.g. Fable); suffix comes from the bucket's
   // label, and the reset time is omitted — it matches the Week row's.
-  { bucket: 'modelWeek', suffix: null, emoji: '📅', showReset: false }
+  { bucket: 'modelWeek', suffix: null, emoji: '🎯', showReset: false }
 ];
 
 // Usage bar graph rendered as a PNG menu-item icon (capsule track + heat

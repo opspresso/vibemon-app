@@ -225,7 +225,7 @@ describe('TrayManager usage menu', () => {
       'Claude',
       '⏱️ 5h  7%',
       '📅 Week  7% · 4d11h',
-      '📅 Fable  12%'
+      '🎯 Fable  12%'
     ]);
     expect(items[3].icon).toEqual({ isNativeImage: true });
   });
