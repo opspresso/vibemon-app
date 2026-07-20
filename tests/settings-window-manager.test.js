@@ -63,6 +63,8 @@ function makeDeps() {
     windowManager: {
       getCharacterLock: jest.fn(() => 'auto'),
       setCharacterLock: jest.fn(),
+      getRenderMode: jest.fn(() => '2d'),
+      setRenderMode: jest.fn(),
       getAlwaysOnTopMode: jest.fn(() => 'active-only'),
       setAlwaysOnTopMode: jest.fn(),
       getSpeechBubbleFields: jest.fn(() => ({ status: true })),

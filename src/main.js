@@ -248,6 +248,11 @@ ipcMain.handle('get-state-registry', () => {
   return registryCache.statesRegistry;
 });
 
+// Which engine the renderer should boot: '2d' pixel-art or '3d' pet
+ipcMain.handle('get-render-mode', () => {
+  return windowManager.getRenderMode();
+});
+
 ipcMain.on('show-context-menu', (event) => {
   if (trayManager) {
     trayManager.showContextMenu(event.sender);

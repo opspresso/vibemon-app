@@ -77,6 +77,7 @@ class CharacterWindowManager {
         alwaysOnTopMode: 'all',  // 'active-only', 'all', or 'disabled'
         speechBubbleFields: { status: true, project: true, model: true, memory: true, usage5h: true, usageWeek: true, usageWeekModel: true },
         characterLock: 'auto',  // 'auto' or a CHARACTER_NAMES entry
+        renderMode: '3d',  // '3d' (three.js pet) or '2d' (pixel-art sprite)
         windowPosition: null  // {x, y} - last dragged position, restored on next creation
       }
     });
@@ -102,6 +103,9 @@ class CharacterWindowManager {
     if (this.characterLock !== storedCharacterLock) {
       this.store.set('characterLock', this.characterLock);
     }
+
+    const storedRenderMode = this.store.get('renderMode');
+    this.renderMode = storedRenderMode === '2d' ? '2d' : '3d';
 
     // Migrate the window position saved by earlier versions, which kept it
     // in a per-key map under the '__character__' key.
@@ -150,6 +154,42 @@ class CharacterWindowManager {
     this.store.set('speechBubbleFields', this.speechBubbleFields);
     if (this.onDisplayModeChanged) {
       this.onDisplayModeChanged();
+    }
+  }
+
+  // ============================================================================
+  // Render Mode
+  // ============================================================================
+
+  /**
+   * Get the character render mode
+   * @returns {'2d'|'3d'}
+   */
+  getRenderMode() {
+    return this.renderMode;
+  }
+
+  /**
+   * Switch between the 2D pixel-art engine and the 3D pet engine. The open
+   * character window is reloaded so the renderer boots the selected engine;
+   * its state is replayed once the new page is ready.
+   * @param {'2d'|'3d'} mode
+   */
+  setRenderMode(mode) {
+    if (mode !== '2d' && mode !== '3d') return;
+    if (mode === this.renderMode) return;
+
+    this.renderMode = mode;
+    this.store.set('renderMode', mode);
+
+    if (this.entry && this.entry.window && !this.entry.window.isDestroyed()) {
+      const entry = this.entry;
+      entry.window.webContents.once('did-finish-load', () => {
+        if (this.entry === entry && entry.state) {
+          entry.window.webContents.send('state-update', entry.state);
+        }
+      });
+      entry.window.webContents.reload();
     }
   }
 

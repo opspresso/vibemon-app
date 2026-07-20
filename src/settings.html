@@ -202,6 +202,13 @@
         <div class="rows">
           <div class="row">
             <div class="row-text">
+              <label for="render-mode">Render Mode</label>
+              <p class="hint">2D pixel-art sprite or 3D pet</p>
+            </div>
+            <select id="render-mode"></select>
+          </div>
+          <div class="row">
+            <div class="row-text">
               <label for="character-lock">Character Lock</label>
               <p class="hint">Force every window to one character, or Auto to follow each project</p>
             </div>
@@ -396,6 +403,11 @@
     }
 
     function renderVibemon(s) {
+      fillSelect(
+        $('render-mode'),
+        [['2d', '2D (Pixel Art)'], ['3d', '3D (Pet)']],
+        s.renderMode
+      );
       fillSelect(
         $('character-lock'),
         [['auto', 'Auto'], ...s.options.characters.map((c) => [c.name, c.displayName])],
@@ -655,6 +667,9 @@
     // --- Control wiring ---
     $('character-lock').addEventListener('change', async (e) => {
       await window.settingsAPI.setCharacterLock(e.target.value);
+    });
+    $('render-mode').addEventListener('change', async (e) => {
+      await window.settingsAPI.setRenderMode(e.target.value);
     });
     $('always-on-top').addEventListener('change', async (e) => {
       await window.settingsAPI.setAlwaysOnTopMode(e.target.value);

@@ -23,6 +23,17 @@ html, body {
   image-rendering: pixelated;
 }
 
+/* 3D engine canvas: transparent WebGL filling the whole display area; the
+   floating animation happens in-scene, not via CSS offsets. */
+.vibemon-display .vibemon-canvas-3d {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  image-rendering: auto;
+}
+
 .vibemon-display .vibemon-canvas {
   position: absolute;
   top: 20px;

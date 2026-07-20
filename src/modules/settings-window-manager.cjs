@@ -76,6 +76,7 @@ class SettingsWindowManager {
       version: this.app.getVersion(),
       isPackaged: this.app.isPackaged,
       characterLock: this.windowManager.getCharacterLock(),
+      renderMode: this.windowManager.getRenderMode(),
       alwaysOnTopMode: this.windowManager.getAlwaysOnTopMode(),
       speechBubbleFields: this.windowManager.getSpeechBubbleFields(),
       openAtLogin: this.app.getLoginItemSettings().openAtLogin,
@@ -100,6 +101,13 @@ class SettingsWindowManager {
     ipcMain.handle('settings:set-character-lock', (_event, character) => {
       if (character !== 'auto' && !CHARACTER_NAMES.includes(character)) return false;
       this.windowManager.setCharacterLock(character);
+      this.notifyChanged();
+      return true;
+    });
+
+    ipcMain.handle('settings:set-render-mode', (_event, mode) => {
+      if (mode !== '2d' && mode !== '3d') return false;
+      this.windowManager.setRenderMode(mode);
       this.notifyChanged();
       return true;
     });

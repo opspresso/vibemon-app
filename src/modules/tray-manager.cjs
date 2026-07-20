@@ -295,6 +295,23 @@ class TrayManager {
     });
   }
 
+  buildRenderModeSubmenu() {
+    const currentMode = this.windowManager.getRenderMode();
+
+    return [
+      ['2d', '2D (Pixel Art)'],
+      ['3d', '3D (Pet)']
+    ].map(([mode, label]) => ({
+      label,
+      type: 'radio',
+      checked: currentMode === mode,
+      click: () => {
+        this.windowManager.setRenderMode(mode);
+        this.updateMenu();
+      }
+    }));
+  }
+
   buildCharacterLockSubmenu() {
     const currentLock = this.windowManager.getCharacterLock();
 
@@ -513,6 +530,10 @@ class TrayManager {
         click: () => this.settingsWindowManager.open()
       }, { type: 'separator' }] : []),
       // VibeMon — mirrors the Settings window's VibeMon tab
+      {
+        label: 'Render Mode',
+        submenu: this.buildRenderModeSubmenu()
+      },
       {
         label: 'Character Lock',
         submenu: this.buildCharacterLockSubmenu()

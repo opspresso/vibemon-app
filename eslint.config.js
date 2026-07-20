@@ -77,7 +77,8 @@ module.exports = [
       'node_modules/**',
       'dist/**',
       'coverage/**',
-      'src/shared/config.js'  // Uses import assertions not supported by ESLint
+      'src/shared/config.js',  // Uses import assertions not supported by ESLint
+      'src/vendor/**'          // Vendored three.js builds
     ]
   },
   // CommonJS files (main process, modules)
@@ -95,7 +96,7 @@ module.exports = [
   },
   // ES Module files (renderer, shared)
   {
-    files: ['src/renderer.js', 'src/shared/*.js'],
+    files: ['src/renderer.js', 'src/shared/*.js', 'src/engine/monster-states.js', 'src/engine/vibemon-engine-3d.js'],
     languageOptions: {
       ecmaVersion: 2022,
       sourceType: 'module',

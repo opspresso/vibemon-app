@@ -3,6 +3,7 @@ const { contextBridge, ipcRenderer } = require('electron');
 contextBridge.exposeInMainWorld('settingsAPI', {
   getAll: () => ipcRenderer.invoke('settings:get-all'),
   setCharacterLock: (character) => ipcRenderer.invoke('settings:set-character-lock', character),
+  setRenderMode: (mode) => ipcRenderer.invoke('settings:set-render-mode', mode),
   setAlwaysOnTopMode: (mode) => ipcRenderer.invoke('settings:set-always-on-top-mode', mode),
   setSpeechBubbleField: (field, enabled) => ipcRenderer.invoke('settings:set-speech-bubble-field', field, enabled),
   setOpenAtLogin: (enabled) => ipcRenderer.invoke('settings:set-open-at-login', enabled),

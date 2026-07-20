@@ -1,6 +1,5 @@
-import { createVibeMonEngine } from './engine/vibemon-engine.js';
-
-// VibeMon engine instance
+// VibeMon engine instance (2D pixel-art or 3D pet, chosen by the persisted
+// render mode — see init())
 let vibeMonEngine = null;
 
 // IPC cleanup function
@@ -28,26 +27,40 @@ async function init() {
   const container = document.getElementById('vibemon-display');
 
   // Character/state registries (canonical: vibemon-static, resolved by
-  // registry-cache.cjs in the main process), fetched via preload.js.
-  // Character images are remote-first (static.vibemon.io), with the bundled
-  // asset as offline fallback — each entry carries its candidate URLs in
-  // order.
-  const [{ characters, default: defaultCharacter, staticBaseUrl }, { states }] = await Promise.all([
+  // registry-cache.cjs in the main process), fetched via preload.js, and
+  // the persisted render mode selecting which engine to boot.
+  const [{ characters, default: defaultCharacter, staticBaseUrl }, { states }, renderMode] = await Promise.all([
     window.electronAPI.getCharacterRegistry(),
-    window.electronAPI.getStateRegistry()
+    window.electronAPI.getStateRegistry(),
+    window.electronAPI.getRenderMode()
   ]);
 
-  vibeMonEngine = createVibeMonEngine(container, {
-    characters,
-    defaultCharacter,
-    characterImageUrls: Object.fromEntries(
-      Object.entries(characters).map(([name, config]) => [name, [
-        `${staticBaseUrl}/characters/${config.image}`,
-        `assets/characters/${config.image}`
-      ]])
-    ),
-    states
-  });
+  if (renderMode === '3d') {
+    // 3D pet engine: renders procedurally — characters map to color themes,
+    // no images are loaded.
+    const { createVibeMonEngine } = await import('./engine/vibemon-engine-3d.js');
+    vibeMonEngine = createVibeMonEngine(container, {
+      characters,
+      defaultCharacter,
+      states
+    });
+  } else {
+    // 2D pixel-art engine: character images are remote-first
+    // (static.vibemon.io), with the bundled asset as offline fallback —
+    // each entry carries its candidate URLs in order.
+    const { createVibeMonEngine } = await import('./engine/vibemon-engine.js');
+    vibeMonEngine = createVibeMonEngine(container, {
+      characters,
+      defaultCharacter,
+      characterImageUrls: Object.fromEntries(
+        Object.entries(characters).map(([name, config]) => [name, [
+          `${staticBaseUrl}/characters/${config.image}`,
+          `assets/characters/${config.image}`
+        ]])
+      ),
+      states
+    });
+  }
   await vibeMonEngine.init();
 
   // Initial render and start animation

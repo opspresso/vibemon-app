@@ -51,6 +51,8 @@ function makeWindowManager(state) {
     getState: () => state,
     getCharacterLock: () => 'auto',
     setCharacterLock: jest.fn(),
+    getRenderMode: () => '2d',
+    setRenderMode: jest.fn(),
     getAlwaysOnTopMode: () => 'active-only',
     setAlwaysOnTopMode: jest.fn(),
     getSpeechBubbleFields: () => ({ status: true, project: false }),

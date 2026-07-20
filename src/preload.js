@@ -6,6 +6,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // sandboxed preload can't require arbitrary files itself.
   getCharacterRegistry: () => ipcRenderer.invoke('get-character-registry'),
   getStateRegistry: () => ipcRenderer.invoke('get-state-registry'),
+  getRenderMode: () => ipcRenderer.invoke('get-render-mode'),
   showContextMenu: () => ipcRenderer.send('show-context-menu'),
   focusTerminal: () => ipcRenderer.invoke('focus-terminal'),
   onStateUpdate: (callback) => {
