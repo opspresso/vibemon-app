@@ -493,7 +493,11 @@ class TrayManager {
       },
       { type: 'separator' },
       ...(this.settingsWindowManager ? [{
-        label: 'Settings...',
+        // Trailing dot mirrors the Settings window's AI Tools tab attention
+        // dot: installed hook scripts drifted and need a reinstall.
+        label: this.hookInstaller && this.hookInstaller.hasChanges()
+          ? 'Settings... ●'
+          : 'Settings...',
         click: () => this.settingsWindowManager.open()
       }, { type: 'separator' }] : []),
       // VibeMon — mirrors the Settings window's VibeMon tab

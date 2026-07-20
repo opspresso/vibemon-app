@@ -81,6 +81,21 @@ describe('TrayManager settings menu item', () => {
     expect(settingsWindowManager.open).toHaveBeenCalled();
   });
 
+  test('marks Settings... with an attention dot when hook scripts drifted', () => {
+    const windowManager = makeWindowManager({ state: 'idle', character: 'clawd', project: 'proj-a' });
+    const tray = new TrayManager(windowManager, makeApp(), { setupStateTimeout: jest.fn() });
+    const settingsWindowManager = { open: jest.fn() };
+    tray.setSettingsWindowManager(settingsWindowManager);
+    tray.setHookInstaller({ hasChanges: () => true, getCachedStatuses: () => [] });
+
+    const template = tray.buildMenuTemplate();
+    const settingsItem = template.find(i => i.label === 'Settings... ●');
+
+    expect(settingsItem).toBeDefined();
+    settingsItem.click();
+    expect(settingsWindowManager.open).toHaveBeenCalled();
+  });
+
   test('omits Settings... when no settings window manager is set', () => {
     const windowManager = makeWindowManager({ state: 'idle', character: 'clawd', project: 'proj-a' });
     const tray = new TrayManager(windowManager, makeApp(), { setupStateTimeout: jest.fn() });
