@@ -176,7 +176,7 @@ See [Features](docs/features.md) for desktop app details.
 ## Related Projects
 
 - [vibemon-esp32](https://github.com/opspresso/vibemon-esp32) - ESP32 hardware display firmware
-- [vibemon](https://github.com/opspresso/vibemon) - Cloud dashboard & API ([vibemon.io](https://vibemon.io))
+- [vibemon-web](https://github.com/opspresso/vibemon-web) - Cloud dashboard & API ([vibemon.io](https://vibemon.io))
 - [vibemon-docs](https://github.com/opspresso/vibemon-docs) - Agent hook installation & setup guide ([vibemon.io/docs](https://vibemon.io/docs))
 
 ## License
