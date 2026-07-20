@@ -6,7 +6,7 @@ let vibeMonEngine = null;
 let cleanupStateListener = null;
 
 // Interaction override: while the character is held (pointer down) or
-// dragged, it shows the 'done' expression (happy eyes), restoring the last
+// dragged, it shows the 'start' greeting expression, restoring the last
 // reported state on release. The display area is deliberately not an
 // app-region drag surface — that would swallow pointerdown, and the
 // expression must react the moment the mouse goes down — so dragging is
@@ -18,7 +18,7 @@ let lastReportedState = null;
 function setInteractionActive(active) {
   if (interactionActive === active || !vibeMonEngine) return;
   interactionActive = active;
-  vibeMonEngine.setState({ state: active ? 'done' : (lastReportedState || 'start') });
+  vibeMonEngine.setState({ state: active ? 'start' : (lastReportedState || 'start') });
   vibeMonEngine.render();
 }
 
@@ -78,7 +78,7 @@ async function init() {
       vibeMonEngine.setState(data);
       // Keep the interaction expression on top of updates that arrive
       // mid-click/drag; the real state is restored when it ends.
-      if (interactionActive) vibeMonEngine.setState({ state: 'done' });
+      if (interactionActive) vibeMonEngine.setState({ state: 'start' });
       vibeMonEngine.render();
     });
   }
