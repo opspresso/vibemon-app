@@ -206,22 +206,25 @@ describe('TrayManager usage menu', () => {
     ]);
   });
 
-  test('shows the model-scoped weekly row labeled with the bucket label', () => {
+  test('shows the model-scoped weekly row labeled, without a reset suffix', () => {
     getUsageSnapshot.mockReturnValue({
       claude: {
         session: { pct: 7, resetsAt: null },
-        week: { pct: 7, resetsAt: null },
-        modelWeek: { pct: 12, resetsAt: null, label: 'Fable' }
+        week: { pct: 7, resetsAt: 900000 },
+        modelWeek: { pct: 12, resetsAt: 900000, label: 'Fable' }
       },
       codex: { session: null, week: null, modelWeek: null }
     });
+    formatResetIn.mockReturnValue('4d11h');
 
     const items = makeTray().buildUsageMenuItems();
 
+    // The model row omits the reset time even though resetsAt is present —
+    // its window resets together with the Week row.
     expect(items.map(i => i.label)).toEqual([
       'Claude',
       '⏱️ 5h  7%',
-      '📅 Week  7%',
+      '📅 Week  7% · 4d11h',
       '📅 Fable  12%'
     ]);
     expect(items[3].icon).toEqual({ isNativeImage: true });

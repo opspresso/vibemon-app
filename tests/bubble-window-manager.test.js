@@ -95,7 +95,7 @@ describe('buildFieldPayload status text', () => {
 describe('buildFieldPayload model-scoped weekly usage', () => {
   const fields = { usageWeekModel: true };
 
-  test('renders the model week metric with its label and reset minutes', () => {
+  test('renders the model week metric with its label and no reset time', () => {
     const payload = buildFieldPayload({
       state: 'working',
       usageWeekModel: 12,
@@ -103,11 +103,12 @@ describe('buildFieldPayload model-scoped weekly usage', () => {
       usageWeekModelLabel: 'Fable'
     }, fields);
 
+    // No resetIn even though the collector sent one — the model-scoped
+    // window resets together with the Week row, so the row shows "Fable 12%".
     expect(payload.usageWeekModel).toEqual({
       type: 'metric',
       icon: '🎯',
       value: 12,
-      resetIn: 6300,
       label: 'Fable'
     });
   });

@@ -33,8 +33,9 @@ const USAGE_PROVIDERS = [
 const USAGE_BUCKETS = [
   { bucket: 'session', suffix: '5h', emoji: '⏱️' },
   { bucket: 'week', suffix: 'Week', emoji: '📅' },
-  // Model-scoped weekly limit (e.g. Fable); suffix comes from the bucket's label.
-  { bucket: 'modelWeek', suffix: null, emoji: '📅' }
+  // Model-scoped weekly limit (e.g. Fable); suffix comes from the bucket's
+  // label, and the reset time is omitted — it matches the Week row's.
+  { bucket: 'modelWeek', suffix: null, emoji: '📅', showReset: false }
 ];
 
 // Usage bar graph rendered as a PNG menu-item icon (capsule track + heat
@@ -365,12 +366,14 @@ class TrayManager {
 
     for (const { provider, label } of USAGE_PROVIDERS) {
       const rows = [];
-      for (const { bucket, suffix, emoji } of USAGE_BUCKETS) {
+      for (const { bucket, suffix, emoji, showReset } of USAGE_BUCKETS) {
         const data = snapshot[provider][bucket];
         if (!data) continue;
         const suffixText = suffix ?? data.label;
         if (!suffixText) continue;
-        const resetPart = data.resetsAt !== null ? ` · ${formatResetIn(data.resetsAt)}` : '';
+        const resetPart = showReset !== false && data.resetsAt !== null
+          ? ` · ${formatResetIn(data.resetsAt)}`
+          : '';
         rows.push({
           label: `${emoji} ${suffixText}  ${data.pct}%${resetPart}`,
           icon: getUsageBarIcon(data.pct),

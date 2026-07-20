@@ -59,10 +59,11 @@ const TEXT_ICONS = {
 // optionally send how many minutes remain until that reset in these fields,
 // shown next to the usual usage percentage (e.g. "18% · 24m"). Absent for
 // collectors that don't send it yet, or for memory (not a resetting quota).
+// usageWeekModel intentionally has no entry: the model-scoped weekly limit
+// resets together with the Week row, so its row shows the percentage only.
 const RESET_MINUTES_FIELDS = {
   usage5h: 'usage5hResetsIn',
-  usageWeek: 'usageWeekResetsIn',
-  usageWeekModel: 'usageWeekModelResetsIn'
+  usageWeek: 'usageWeekResetsIn'
 };
 
 /**

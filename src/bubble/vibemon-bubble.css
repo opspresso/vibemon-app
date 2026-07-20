@@ -104,8 +104,10 @@
 }
 
 .bubble-bar-track {
-  flex: 1 1 0;
-  min-width: 0;
+  /* Fixed track lengths so every row's bar is comparable: the usage rows
+     (5h/week/model) are 60% of the memory bar. */
+  flex: none;
+  width: 100px;
   height: 5px;
   background: rgba(0, 0, 0, 0.35);
   border: 1px solid rgba(0, 0, 0, 0.35);
@@ -121,18 +123,18 @@
   transition: width 0.3s, background 0.3s;
 }
 
-.bubble-value {
-  flex: none;
-  width: 30px;
-  text-align: right;
-  font-variant-numeric: tabular-nums;
+.bubble-row[data-field="usage5h"] .bubble-bar-track,
+.bubble-row[data-field="usageWeek"] .bubble-bar-track,
+.bubble-row[data-field="usageWeekModel"] .bubble-bar-track {
+  width: 60px;
 }
 
-.bubble-row[data-field="usage5h"] .bubble-value,
-.bubble-row[data-field="usageWeek"] .bubble-value,
-.bubble-row[data-field="usageWeekModel"] .bubble-value {
-  width: auto;
+.bubble-value {
+  /* Fill the space after the fixed track so values stay right-aligned. */
+  flex: 1 1 auto;
   min-width: 30px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
 }
 
 .bubble-tail {
