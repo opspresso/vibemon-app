@@ -72,8 +72,8 @@ describe('getUsageSnapshot', () => {
     });
 
     expect(getUsageSnapshot(1_500_000)).toEqual({
-      claude: { session: null, week: null },
-      codex: { session: null, week: null }
+      claude: { session: null, week: null, modelWeek: null },
+      codex: { session: null, week: null, modelWeek: null }
     });
   });
 
@@ -93,13 +93,69 @@ describe('getUsageSnapshot', () => {
     expect(getUsageSnapshot(1_500_000)).toEqual({
       claude: {
         session: { pct: 32, resetsAt: 5000 },
-        week: { pct: 67, resetsAt: 900000 }
+        week: { pct: 67, resetsAt: 900000 },
+        modelWeek: null
       },
       codex: {
         session: { pct: 10, resetsAt: 2000 },
-        week: null
+        week: null,
+        modelWeek: null
       }
     });
+  });
+
+  test('returns the model-scoped weekly bucket with its label', () => {
+    mockCache({
+      claude: {
+        updated_at: 1000,
+        week_all: { pct: 7, resets_at: 900000, updated_at: 1000 },
+        week_fable: { pct: 12, resets_at: 900000, label: 'Fable', updated_at: 1000 }
+      }
+    });
+
+    expect(getUsageSnapshot(1_500_000).claude.modelWeek).toEqual({
+      pct: 12,
+      resetsAt: 900000,
+      label: 'Fable'
+    });
+  });
+
+  test('derives a label from the bucket key when the cache has none', () => {
+    mockCache({
+      claude: {
+        updated_at: 1000,
+        week_fable: { pct: 12, resets_at: 900000, updated_at: 1000 }
+      }
+    });
+
+    expect(getUsageSnapshot(1_500_000).claude.modelWeek.label).toBe('Fable');
+  });
+
+  test('picks the highest-pct model bucket when several exist', () => {
+    mockCache({
+      claude: {
+        updated_at: 1000,
+        week_fable: { pct: 12, resets_at: 900000, label: 'Fable', updated_at: 1000 },
+        week_sonnet: { pct: 40, resets_at: 900000, label: 'Sonnet', updated_at: 1000 }
+      }
+    });
+
+    expect(getUsageSnapshot(1_500_000).claude.modelWeek).toEqual({
+      pct: 40,
+      resetsAt: 900000,
+      label: 'Sonnet'
+    });
+  });
+
+  test('drops a stale model-scoped bucket', () => {
+    mockCache({
+      claude: {
+        updated_at: 4900,
+        week_fable: { pct: 12, resets_at: 900000, label: 'Fable', updated_at: 1000 }
+      }
+    });
+
+    expect(getUsageSnapshot(5_000_000).claude.modelWeek).toBeNull();
   });
 
   test('drops a provider whose updated_at is older than the stale threshold', () => {

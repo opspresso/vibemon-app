@@ -46,7 +46,8 @@ const LOAD_TIMEOUT_MS = 5000;
 const METRIC_ICONS = {
   memory: '🧠',
   usage5h: '⏱️',
-  usageWeek: '📅'
+  usageWeek: '📅',
+  usageWeekModel: '🎯'
 };
 
 const TEXT_ICONS = {
@@ -60,7 +61,8 @@ const TEXT_ICONS = {
 // collectors that don't send it yet, or for memory (not a resetting quota).
 const RESET_MINUTES_FIELDS = {
   usage5h: 'usage5hResetsIn',
-  usageWeek: 'usageWeekResetsIn'
+  usageWeek: 'usageWeekResetsIn',
+  usageWeekModel: 'usageWeekModelResetsIn'
 };
 
 /**
@@ -97,7 +99,7 @@ function buildFieldPayload(state, speechBubbleFields) {
     payload.model = { type: 'text', text: `${TEXT_ICONS.model} ${state.model}` };
   }
 
-  for (const field of ['memory', 'usage5h', 'usageWeek']) {
+  for (const field of ['memory', 'usage5h', 'usageWeek', 'usageWeekModel']) {
     const value = state && state[field];
     if (speechBubbleFields && speechBubbleFields[field] && value !== undefined && value !== null && value !== '') {
       const metric = { type: 'metric', icon: METRIC_ICONS[field], value: Number(value) };
@@ -106,6 +108,12 @@ function buildFieldPayload(state, speechBubbleFields) {
       const resetValue = resetField && state[resetField];
       if (resetValue !== undefined && resetValue !== null && resetValue !== '') {
         metric.resetIn = Number(resetValue);
+      }
+
+      if (field === 'usageWeekModel' && typeof state.usageWeekModelLabel === 'string' && state.usageWeekModelLabel) {
+        // Model-scoped weekly limit: prefix the percentage with the model
+        // name (e.g. "Fable 12%") so the row reads distinctly from Week.
+        metric.label = state.usageWeekModelLabel;
       }
 
       payload[field] = metric;

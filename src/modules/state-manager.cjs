@@ -14,7 +14,9 @@ const {
 
 const STATUS_FIELDS = [
   'state', 'project', 'tool', 'model', 'memory', 'usage5h', 'usageWeek',
-  'usage5hResetsIn', 'usageWeekResetsIn', 'character', 'terminalId'
+  'usage5hResetsIn', 'usageWeekResetsIn',
+  'usageWeekModel', 'usageWeekModelResetsIn', 'usageWeekModelLabel',
+  'character', 'terminalId'
 ];
 
 class StateManager {

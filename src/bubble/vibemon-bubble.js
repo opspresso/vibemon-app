@@ -34,7 +34,7 @@
  *       <span class="bubble-bar-track"><span class="bubble-bar-fill"></span></span>
  *       <span class="bubble-value"></span>
  *     </div>
- *     <!-- usage5h / usageWeek follow the same metric-row shape -->
+ *     <!-- usage5h / usageWeek / usageWeekModel follow the same metric-row shape -->
  *   </div>
  * Only the rows actually present in a given page's markup are touched, so a
  * page that only cares about status+dots can omit the rest.
@@ -106,8 +106,9 @@ function setDots(dotsEl, show, slow) {
  * Fill a bubble element's rows from field data and point its tail at one
  * edge. `fields` is a plain object keyed by field name: { type: 'text', text }
  * for status/project/model (status may also carry showLoading/slow to
- * animate the loading dots), or { type: 'metric', icon, value, resetIn }
- * (value is 0-100) for memory/usage rows. Only enabled/truthy fields are
+ * animate the loading dots), or { type: 'metric', icon, value, resetIn, label }
+ * (value is 0-100; the optional label prefixes the percentage, e.g. a
+ * model-scoped usage row's model name) for memory/usage rows. Only enabled/truthy fields are
  * present; rows with no matching field are hidden. `tailSide` is one of
  * 'top'/'bottom'/'left'/'right'; `bgColor` is the current state's hex color,
  * used for both the bubble's background and its text/tail color. `opts.opaque`
@@ -146,9 +147,10 @@ export function renderBubble(bubbleEl, fields, tailSide, bgColor, opts) {
       icon.textContent = data.icon;
       fill.style.width = pct + '%';
       fill.style.background = barColor(pct);
-      value.textContent = typeof data.resetIn === 'number'
+      const pctText = typeof data.resetIn === 'number'
         ? `${pct}% · ${formatMinutes(data.resetIn)}`
         : `${pct}%`;
+      value.textContent = data.label ? `${data.label} ${pctText}` : pctText;
       row.style.display = 'flex';
     } else if (row.dataset.field === 'status') {
       const textEl = row.querySelector('.bubble-status-text');

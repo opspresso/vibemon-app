@@ -92,6 +92,43 @@ describe('buildFieldPayload status text', () => {
   });
 });
 
+describe('buildFieldPayload model-scoped weekly usage', () => {
+  const fields = { usageWeekModel: true };
+
+  test('renders the model week metric with its label and reset minutes', () => {
+    const payload = buildFieldPayload({
+      state: 'working',
+      usageWeekModel: 12,
+      usageWeekModelResetsIn: 6300,
+      usageWeekModelLabel: 'Fable'
+    }, fields);
+
+    expect(payload.usageWeekModel).toEqual({
+      type: 'metric',
+      icon: '🎯',
+      value: 12,
+      resetIn: 6300,
+      label: 'Fable'
+    });
+  });
+
+  test('omits the label when the collector did not send one', () => {
+    const payload = buildFieldPayload({ state: 'working', usageWeekModel: 12 }, fields);
+
+    expect(payload.usageWeekModel.label).toBeUndefined();
+    expect(payload.usageWeekModel.value).toBe(12);
+  });
+
+  test('omits the row when the field toggle is off', () => {
+    const payload = buildFieldPayload(
+      { state: 'working', usageWeekModel: 12 },
+      { usageWeekModel: false }
+    );
+
+    expect(payload.usageWeekModel).toBeUndefined();
+  });
+});
+
 describe('ensureBubbleWindow', () => {
   test('concurrent calls for the same project share one window instead of racing', async () => {
     const manager = freshManager();

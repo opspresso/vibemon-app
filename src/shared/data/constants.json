@@ -35,7 +35,7 @@
     "disabled": "Never"
   },
 
-  "SPEECH_BUBBLE_FIELDS": ["status", "project", "model", "memory", "usage5h", "usageWeek"],
+  "SPEECH_BUBBLE_FIELDS": ["status", "project", "model", "memory", "usage5h", "usageWeek", "usageWeekModel"],
 
   "TOOL_TEXTS": {
     "bash": "Running",

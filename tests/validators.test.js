@@ -318,6 +318,35 @@ describe('validateStatusPayload', () => {
     expect(result.error).toContain('usage5h');
   });
 
+  test('accepts payload with model-scoped weekly usage fields', () => {
+    const result = validateStatusPayload({
+      state: 'working',
+      usageWeekModel: 12,
+      usageWeekModelResetsIn: 6300,
+      usageWeekModelLabel: 'Fable'
+    });
+    expect(result.valid).toBe(true);
+    expect(result.error).toBeNull();
+  });
+
+  test('rejects invalid usageWeekModel in payload', () => {
+    const result = validateStatusPayload({
+      state: 'idle',
+      usageWeekModel: 150
+    });
+    expect(result.valid).toBe(false);
+    expect(result.error).toContain('usageWeekModel');
+  });
+
+  test('rejects non-string usageWeekModelLabel in payload', () => {
+    const result = validateStatusPayload({
+      state: 'idle',
+      usageWeekModelLabel: 42
+    });
+    expect(result.valid).toBe(false);
+    expect(result.error).toContain('usageWeekModelLabel');
+  });
+
   test('accepts payload with tool, model', () => {
     const result = validateStatusPayload({
       state: 'working',

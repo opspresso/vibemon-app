@@ -20,7 +20,8 @@ const SPEECH_BUBBLE_FIELD_LABELS = {
   model: 'Model',
   memory: 'Memory',
   usage5h: 'Usage 5h',
-  usageWeek: 'Usage Week'
+  usageWeek: 'Usage Week',
+  usageWeekModel: 'Usage Model Week'
 };
 
 // Same emoji semantics as bubble-window-manager.cjs's METRIC_ICONS: ⏱️ for
@@ -31,7 +32,9 @@ const USAGE_PROVIDERS = [
 ];
 const USAGE_BUCKETS = [
   { bucket: 'session', suffix: '5h', emoji: '⏱️' },
-  { bucket: 'week', suffix: 'Week', emoji: '📅' }
+  { bucket: 'week', suffix: 'Week', emoji: '📅' },
+  // Model-scoped weekly limit (e.g. Fable); suffix comes from the bucket's label.
+  { bucket: 'modelWeek', suffix: null, emoji: '📅' }
 ];
 
 // Usage bar graph rendered as a PNG menu-item icon (capsule track + heat
@@ -365,9 +368,11 @@ class TrayManager {
       for (const { bucket, suffix, emoji } of USAGE_BUCKETS) {
         const data = snapshot[provider][bucket];
         if (!data) continue;
+        const suffixText = suffix ?? data.label;
+        if (!suffixText) continue;
         const resetPart = data.resetsAt !== null ? ` · ${formatResetIn(data.resetsAt)}` : '';
         rows.push({
-          label: `${emoji} ${suffix}  ${data.pct}%${resetPart}`,
+          label: `${emoji} ${suffixText}  ${data.pct}%${resetPart}`,
           icon: getUsageBarIcon(data.pct),
           enabled: false
         });

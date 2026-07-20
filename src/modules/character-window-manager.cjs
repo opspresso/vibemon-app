@@ -75,7 +75,7 @@ class CharacterWindowManager {
     this.store = new Store({
       defaults: {
         alwaysOnTopMode: 'all',  // 'active-only', 'all', or 'disabled'
-        speechBubbleFields: { status: true, project: true, model: true, memory: true, usage5h: true, usageWeek: true },
+        speechBubbleFields: { status: true, project: true, model: true, memory: true, usage5h: true, usageWeek: true, usageWeekModel: true },
         characterLock: 'auto',  // 'auto' or a CHARACTER_NAMES entry
         windowPosition: null  // {x, y} - last dragged position, restored on next creation
       }
@@ -530,6 +530,9 @@ class CharacterWindowManager {
       oldState.usageWeek !== newState.usageWeek ||
       oldState.usage5hResetsIn !== newState.usage5hResetsIn ||
       oldState.usageWeekResetsIn !== newState.usageWeekResetsIn ||
+      oldState.usageWeekModel !== newState.usageWeekModel ||
+      oldState.usageWeekModelResetsIn !== newState.usageWeekModelResetsIn ||
+      oldState.usageWeekModelLabel !== newState.usageWeekModelLabel ||
       oldState.character !== newState.character ||
       oldState.terminalId !== newState.terminalId
     );

@@ -90,10 +90,42 @@ function getFreshBucket(cache, provider, bucketKey, nowMs) {
 }
 
 /**
+ * Freshness-filtered model-scoped weekly bucket (any "week_*" key other than
+ * "week_all", e.g. "week_fable") for one provider — the one with the highest
+ * pct when several exist, since that's the binding limit. Mirrors
+ * usage_cache.py's model_week_bucket().
+ * @param {object|null} cache
+ * @param {string} provider - 'claude' | 'codex'
+ * @param {number} nowMs
+ * @returns {{pct: number, resetsAt: number|null, label: string}|null}
+ */
+function getFreshModelWeekBucket(cache, provider, nowMs) {
+  const providerData = cache && typeof cache === 'object' ? cache[provider] : null;
+  if (!providerData || typeof providerData !== 'object') return null;
+
+  let best = null;
+  for (const key of Object.keys(providerData)) {
+    if (!key.startsWith('week_') || key === 'week_all') continue;
+    const fresh = getFreshBucket(cache, provider, key, nowMs);
+    if (!fresh) continue;
+    if (!best || fresh.pct > best.pct) {
+      const rawLabel = providerData[key] && providerData[key].label;
+      const label = typeof rawLabel === 'string' && rawLabel
+        ? rawLabel
+        : key.slice('week_'.length).replace(/^./, (c) => c.toUpperCase());
+      best = { ...fresh, label };
+    }
+  }
+  return best;
+}
+
+/**
  * @param {number} [nowMs]
  * @returns {{
- *   claude: {session: {pct, resetsAt}|null, week: {pct, resetsAt}|null},
- *   codex:  {session: {pct, resetsAt}|null, week: {pct, resetsAt}|null}
+ *   claude: {session: {pct, resetsAt}|null, week: {pct, resetsAt}|null,
+ *            modelWeek: {pct, resetsAt, label}|null},
+ *   codex:  {session: {pct, resetsAt}|null, week: {pct, resetsAt}|null,
+ *            modelWeek: {pct, resetsAt, label}|null}
  * }}
  */
 function getUsageSnapshot(nowMs = Date.now()) {
@@ -101,11 +133,13 @@ function getUsageSnapshot(nowMs = Date.now()) {
   return {
     claude: {
       session: getFreshBucket(cache, 'claude', 'session', nowMs),
-      week: getFreshBucket(cache, 'claude', 'week_all', nowMs)
+      week: getFreshBucket(cache, 'claude', 'week_all', nowMs),
+      modelWeek: getFreshModelWeekBucket(cache, 'claude', nowMs)
     },
     codex: {
       session: getFreshBucket(cache, 'codex', 'session', nowMs),
-      week: getFreshBucket(cache, 'codex', 'week_all', nowMs)
+      week: getFreshBucket(cache, 'codex', 'week_all', nowMs),
+      modelWeek: getFreshModelWeekBucket(cache, 'codex', nowMs)
     }
   };
 }

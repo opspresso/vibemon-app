@@ -206,6 +206,27 @@ describe('TrayManager usage menu', () => {
     ]);
   });
 
+  test('shows the model-scoped weekly row labeled with the bucket label', () => {
+    getUsageSnapshot.mockReturnValue({
+      claude: {
+        session: { pct: 7, resetsAt: null },
+        week: { pct: 7, resetsAt: null },
+        modelWeek: { pct: 12, resetsAt: null, label: 'Fable' }
+      },
+      codex: { session: null, week: null, modelWeek: null }
+    });
+
+    const items = makeTray().buildUsageMenuItems();
+
+    expect(items.map(i => i.label)).toEqual([
+      'Claude',
+      '⏱️ 5h  7%',
+      '📅 Week  7%',
+      '📅 Fable  12%'
+    ]);
+    expect(items[3].icon).toEqual({ isNativeImage: true });
+  });
+
   test('omits the reset suffix when resetsAt is unavailable', () => {
     getUsageSnapshot.mockReturnValue({
       claude: { session: { pct: 32, resetsAt: null }, week: null },

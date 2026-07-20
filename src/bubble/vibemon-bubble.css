@@ -129,7 +129,8 @@
 }
 
 .bubble-row[data-field="usage5h"] .bubble-value,
-.bubble-row[data-field="usageWeek"] .bubble-value {
+.bubble-row[data-field="usageWeek"] .bubble-value,
+.bubble-row[data-field="usageWeekModel"] .bubble-value {
   width: auto;
   min-width: 30px;
 }

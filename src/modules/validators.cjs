@@ -169,6 +169,24 @@ function validateModel(model) {
 }
 
 /**
+ * Validate a usage bucket label (e.g. "Fable" on usageWeekModelLabel)
+ * @param {string} label
+ * @returns {{valid: boolean, error: string|null}}
+ */
+function validateUsageLabel(label) {
+  if (label === undefined || label === '') {
+    return { valid: true, error: null };
+  }
+  if (typeof label !== 'string') {
+    return { valid: false, error: 'usageWeekModelLabel must be a string' };
+  }
+  if (label.length > MODEL_MAX_LENGTH) {
+    return { valid: false, error: `usageWeekModelLabel exceeds ${MODEL_MAX_LENGTH} characters` };
+  }
+  return { valid: true, error: null };
+}
+
+/**
  * Validate terminal ID (iTerm2 session or Ghostty PID)
  * @param {string} terminalId
  * @returns {{valid: boolean, error: string|null}}
@@ -224,6 +242,17 @@ function validateStatusPayload(data) {
   const usageWeekResetsInResult = validateResetMinutes(data.usageWeekResetsIn, 'usageWeekResetsIn');
   if (!usageWeekResetsInResult.valid) return usageWeekResetsInResult;
 
+  const usageWeekModelResult = validateUsage(data.usageWeekModel, 'usageWeekModel');
+  if (!usageWeekModelResult.valid) return usageWeekModelResult;
+
+  const usageWeekModelResetsInResult = validateResetMinutes(
+    data.usageWeekModelResetsIn, 'usageWeekModelResetsIn'
+  );
+  if (!usageWeekModelResetsInResult.valid) return usageWeekModelResetsInResult;
+
+  const usageWeekModelLabelResult = validateUsageLabel(data.usageWeekModelLabel);
+  if (!usageWeekModelLabelResult.valid) return usageWeekModelLabelResult;
+
   const toolResult = validateTool(data.tool);
   if (!toolResult.valid) return toolResult;
 
@@ -243,6 +272,7 @@ module.exports = {
   validateMemory,
   validateUsage,
   validateResetMinutes,
+  validateUsageLabel,
   validateTool,
   validateModel,
   validateTerminalId,
