@@ -1,42 +1,53 @@
 /**
- * Monster state/theme definitions for the 3D engine (vibemon-engine-3d.js).
+ * VibeMon state/theme definitions for the 3D engine (vibemon-engine-3d.js).
  *
  * Pure data + math — no three.js import — so jest can load it with the same
  * vm-sandbox technique as tests/engine.test.js and guard the invariants:
  * every registry state has an animation, every move name is implemented,
  * every bundled character has a color theme.
  *
- * Pose values are sparse Euler rotations (radians) per joint, applied on top
- * of the rig's rest pose. Moves are named procedural oscillators the engine
- * implements (MOVE vocabulary below); they layer additive motion over the
- * blended pose each frame.
+ * The character is a digital vibe monster: a squishy horned creature with a
+ * spade tail and a "vibe flame" burning above its head. The flame is the
+ * session's energy made visible — each state sets a `vibe` level that
+ * drives the flame's size and flicker plus the tail sway. State motion is
+ * creature behavior (gazing around, pondering, circling, pulsing, coiling,
+ * popping up, twirling, sinking, shivering) — never human-tool mimicry.
+ *
+ * Pose values are sparse Euler rotations (radians) per joint, applied on
+ * top of the rig's rest pose. Moves are named procedural oscillators the
+ * engine implements (MOVE vocabulary below); they layer additive motion
+ * over the blended pose each frame.
  */
 
-// Joints the rig exposes for posing. The tail is always procedural (wave)
-// and is not posable per state.
+// Joints the rig exposes for posing. The vibe flame and tail also animate
+// continuously per state (vibe level) independent of posing.
 export const JOINTS = [
-  'root', 'torso', 'head',
-  'armL', 'armR', 'elbowL', 'elbowR',
-  'legL', 'legR'
+  'root', 'body',
+  'armL', 'armR',
+  'tail1', 'tail2',
+  'flame'
 ];
 
 // Procedural motion vocabulary. STATE_ANIMATIONS may only reference these;
 // the engine maps each name to an implementation.
 export const MOVES = [
-  'breathe',   // body scale swell
-  'bounce',    // springy landing bounce
-  'wave',      // raised forearm waving
-  'tilt',      // head tilting side to side
-  'nod',       // head nodding
-  'conduct',   // arm drawing circles, conductor-style
-  'typing',    // both forearms hammering fast, alternating
-  'squash',    // whole-body squash & stretch
-  'gather',    // arms sweeping in and out
-  'hop',       // repeated jumps in place
-  'tremble'    // high-frequency full-body shiver
+  'breathe',    // resting breathing swell
+  'lookAround', // slow curious gaze left and right
+  'ponder',     // tilting up and sideways, mulling something over
+  'orbitDrift', // drifting in a slow circle, surveying
+  'pulseFocus', // fast heartbeat pulse, energy gathering
+  'coil',       // rhythmic inward squeeze, tail curling in
+  'popUp',      // springing upward to get attention
+  'twirl',      // joyful full-body pirouette
+  'hopJoy',     // happy hopping in place
+  'wiggle',     // playful side-to-side wobble
+  'shiver',     // hackles-up high-frequency trembling
+  'swell',      // puffing up big
+  'sink',       // drooping low, settling down
+  'stretch'     // waking-up stretch, arms reaching
 ];
 
-// Eye rendering modes: 'open' shows pupils, 'closed' shuts the lids,
+// Eye rendering modes: 'open' shows the eyes, 'closed' shuts them to lines,
 // 'happy' swaps in the ^ ^ arcs.
 export const EYE_MODES = ['open', 'closed', 'happy'];
 
@@ -46,82 +57,82 @@ export const EYE_MODES = ['open', 'closed', 'happy'];
  *   eyeScale - relative eye size (wide-eyed alert vs normal)
  *   blink    - whether the periodic blink cycle runs
  *   speed    - global oscillator time scale for this state
- *   tailSpeed- tail wave speed multiplier
+ *   vibe     - energy level: vibe-flame size/flicker + tail sway speed
  *   pose     - sparse joint rotation targets (radians), blended smoothly
  *   moves    - MOVES entries layered on top
  * Unknown states fall back to `idle`.
  */
 export const STATE_ANIMATIONS = {
   start: {
-    eye: 'open', eyeScale: 1, blink: false, speed: 1.4, tailSpeed: 1.6,
-    pose: { armR: { z: -2.3 }, head: { z: -0.12 } },
-    moves: ['wave', 'bounce']
+    eye: 'open', eyeScale: 1, blink: false, speed: 1.3, vibe: 1.6,
+    pose: { armL: { z: 2.2 }, armR: { z: -2.2 } },
+    moves: ['stretch', 'wiggle']
   },
   idle: {
-    eye: 'open', eyeScale: 1, blink: true, speed: 1, tailSpeed: 1,
+    eye: 'open', eyeScale: 1, blink: true, speed: 1, vibe: 1,
     pose: {},
-    moves: ['breathe']
+    moves: ['breathe', 'lookAround']
   },
   thinking: {
-    eye: 'open', eyeScale: 1, blink: true, speed: 0.9, tailSpeed: 0.6,
-    pose: { head: { z: 0.16, x: 0.08 }, armR: { z: -1.7, x: -0.5 }, elbowR: { x: -1.9 } },
-    moves: ['tilt']
+    eye: 'open', eyeScale: 1, blink: true, speed: 0.9, vibe: 1.3,
+    pose: {},
+    moves: ['ponder']
   },
   planning: {
-    eye: 'open', eyeScale: 1, blink: true, speed: 1.1, tailSpeed: 0.9,
-    pose: { armR: { z: -1.3 }, elbowR: { x: -0.9 } },
-    moves: ['nod', 'conduct']
+    eye: 'open', eyeScale: 1, blink: true, speed: 1.1, vibe: 1.5,
+    pose: {},
+    moves: ['orbitDrift', 'lookAround']
   },
   working: {
-    eye: 'open', eyeScale: 1, blink: false, speed: 1.6, tailSpeed: 1.4,
-    pose: { torso: { x: 0.18 }, head: { x: 0.14 }, armL: { z: 0.5, x: -0.7 }, armR: { z: -0.5, x: -0.7 } },
-    moves: ['typing']
+    eye: 'open', eyeScale: 1, blink: false, speed: 1.5, vibe: 2.2,
+    pose: { body: { x: 0.1 } },
+    moves: ['pulseFocus']
   },
   packing: {
-    eye: 'open', eyeScale: 1, blink: true, speed: 1.1, tailSpeed: 0.8,
-    pose: { torso: { x: 0.12 } },
-    moves: ['squash', 'gather']
+    eye: 'open', eyeScale: 1, blink: true, speed: 1.1, vibe: 0.9,
+    pose: {},
+    moves: ['coil']
   },
   notification: {
-    eye: 'open', eyeScale: 1.1, blink: false, speed: 1.5, tailSpeed: 1.6,
-    pose: { armL: { z: 2.4 }, armR: { z: -2.4 } },
-    moves: ['hop', 'wave']
+    eye: 'open', eyeScale: 1.15, blink: false, speed: 1.5, vibe: 2,
+    pose: { armL: { z: 2.2 }, armR: { z: -2.2 } },
+    moves: ['popUp', 'wiggle']
   },
   done: {
-    eye: 'happy', eyeScale: 1, blink: false, speed: 1.3, tailSpeed: 1.8,
-    pose: { armL: { z: 2.5 }, armR: { z: -2.5 }, head: { x: -0.1 } },
-    moves: ['hop']
+    eye: 'happy', eyeScale: 1, blink: false, speed: 1.3, vibe: 2.4,
+    pose: { armL: { z: 2.5 }, armR: { z: -2.5 } },
+    moves: ['twirl', 'hopJoy']
   },
   sleep: {
-    eye: 'closed', eyeScale: 1, blink: false, speed: 0.35, tailSpeed: 0.25,
-    pose: { head: { x: 0.22 }, torso: { x: 0.1 }, armL: { z: 0.15 }, armR: { z: -0.15 } },
-    moves: ['breathe']
+    eye: 'closed', eyeScale: 1, blink: false, speed: 0.35, vibe: 0.25,
+    pose: { body: { x: 0.25 } },
+    moves: ['sink', 'breathe']
   },
   alert: {
-    eye: 'open', eyeScale: 1.3, blink: false, speed: 1.8, tailSpeed: 2.2,
-    pose: { armL: { z: 1.1 }, armR: { z: -1.1 }, head: { x: -0.08 } },
-    moves: ['tremble']
+    eye: 'open', eyeScale: 1.35, blink: false, speed: 1.9, vibe: 2.6,
+    pose: { armL: { z: 1.2 }, armR: { z: -1.2 } },
+    moves: ['shiver', 'swell']
   }
 };
 
 /**
- * Character color themes for the 3D pet: one chubby blob body, tinted per
- * character in soft pastel takes on each character's established identity
- * (vibemon purple, clawd orange, codex dark blue, kiro white, claw red,
- * daangni peach).
- *   body   - main fur color
- *   belly  - belly patch / hands / tail tip
- *   accent - inner ears
+ * Character color themes for the vibe monster, tinted per character after
+ * each character's established identity (vibemon purple, clawd orange,
+ * codex dark blue, kiro white, claw red, daangni peach).
+ *   body   - slime body color
+ *   belly  - belly patch / paws
+ *   accent - horns / spade tail tip
  *   eye    - eye / happy-arc / mouth color
  *   blush  - cheek patches
+ *   flame  - vibe flame glow color
  */
 export const CHARACTER_THEMES = {
-  vibemon: { body: '#B79CFA', belly: '#EFE9FF', accent: '#7C5CD6', eye: '#2B2140', blush: '#FFA7C4' },
-  clawd:   { body: '#EFA07F', belly: '#FBE3D4', accent: '#C96F4A', eye: '#3A2318', blush: '#FF9E80' },
-  codex:   { body: '#2C3E6B', belly: '#46598F', accent: '#6E8BFF', eye: '#EAF6FF', blush: '#6E8BFF' },
-  kiro:    { body: '#F7F7F8', belly: '#FFFFFF', accent: '#C9C9D4', eye: '#2A2A32', blush: '#FFC2CE' },
-  claw:    { body: '#E86A6A', belly: '#FFC9C9', accent: '#C24444', eye: '#331111', blush: '#FF9494' },
-  daangni: { body: '#F6D3BD', belly: '#FDEFE4', accent: '#46B5AB', eye: '#46352A', blush: '#F9A08C' }
+  vibemon: { body: '#8B7CF6', belly: '#EDE9FF', accent: '#C4B5FD', eye: '#241B3A', blush: '#FF9EC4', flame: '#7DF9FF' },
+  clawd:   { body: '#D97757', belly: '#F5C9B0', accent: '#A8442A', eye: '#2B1A12', blush: '#FF9E80', flame: '#FFC26B' },
+  codex:   { body: '#2C3E6B', belly: '#46598F', accent: '#6E8BFF', eye: '#EAF6FF', blush: '#6E8BFF', flame: '#9DB8FF' },
+  kiro:    { body: '#F4F4F5', belly: '#FFFFFF', accent: '#C9C9D4', eye: '#27272A', blush: '#FFC2CE', flame: '#A5E8FF' },
+  claw:    { body: '#DD5555', belly: '#FFC9C9', accent: '#C24444', eye: '#331111', blush: '#FF9494', flame: '#FFB4A0' },
+  daangni: { body: '#F2CAB2', belly: '#FDEFE4', accent: '#2AA198', eye: '#46352A', blush: '#F9A08C', flame: '#7FE3D8' }
 };
 
 export const DEFAULT_THEME = CHARACTER_THEMES.vibemon;
@@ -137,9 +148,10 @@ export function getCharacterTheme(name, registryEntry) {
     return {
       body: registryEntry.color,
       belly: '#FFFFFF',
-      accent: registryEntry.glassesColor || '#7C5CD6',
-      eye: registryEntry.eyeColor || '#2B2140',
-      blush: '#FFA7C4'
+      accent: registryEntry.glassesColor || '#C4B5FD',
+      eye: registryEntry.eyeColor || '#241B3A',
+      blush: '#FF9EC4',
+      flame: '#7DF9FF'
     };
   }
   return DEFAULT_THEME;

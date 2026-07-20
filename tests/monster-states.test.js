@@ -49,7 +49,7 @@ describe('state animation coverage', () => {
       expect(EYE_MODES).toContain(anim.eye);
       expect(typeof anim.blink).toBe('boolean');
       expect(anim.speed).toBeGreaterThan(0);
-      expect(anim.tailSpeed).toBeGreaterThan(0);
+      expect(anim.vibe).toBeGreaterThan(0);
       expect(anim.eyeScale).toBeGreaterThan(0);
       for (const move of anim.moves) {
         expect(MOVES).toContain(move);
@@ -72,7 +72,7 @@ describe('character themes', () => {
     for (const name of CHARACTER_NAMES) {
       const theme = CHARACTER_THEMES[name];
       expect(theme).toBeDefined();
-      for (const key of ['body', 'belly', 'accent', 'eye', 'blush']) {
+      for (const key of ['body', 'belly', 'accent', 'eye', 'blush', 'flame']) {
         expect(theme[key]).toMatch(HEX_COLOR);
       }
     }
