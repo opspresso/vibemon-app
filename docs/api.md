@@ -27,6 +27,9 @@ Default port: `19280`
 | `usageWeek` | - | Integer 0-100 (weekly plan-usage window) |
 | `usage5hResetsIn` | - | Non-negative integer (minutes until the 5-hour window resets) |
 | `usageWeekResetsIn` | - | Non-negative integer (minutes until the weekly window resets) |
+| `usageWeekModel` | - | Integer 0-100 (model-scoped weekly plan-usage window, e.g. the Fable bucket) |
+| `usageWeekModelResetsIn` | - | Non-negative integer (minutes until the model-scoped weekly window resets) |
+| `usageWeekModelLabel` | 64 chars | Display label for the model-scoped weekly window (e.g. `Fable`) |
 | `character` | - | `vibemon`, `clawd`, `codex`, `kiro`, `claw`, or `daangni` (unknown names fall back to `vibemon`) |
 | `terminalId` | 100 chars | Terminal session ID with prefix: `iterm2:w0t0p0:UUID` (from `ITERM_SESSION_ID`) or `ghostty:12345` (from `GHOSTTY_PID`) |
 
@@ -77,6 +80,9 @@ curl -X POST http://127.0.0.1:19280/status \
 | `usageWeek` | number | Weekly plan-usage window (0-100) |
 | `usage5hResetsIn` | number | Minutes until the 5-hour window resets |
 | `usageWeekResetsIn` | number | Minutes until the weekly window resets |
+| `usageWeekModel` | number | Model-scoped weekly plan-usage window (0-100), e.g. the Fable bucket |
+| `usageWeekModelResetsIn` | number | Minutes until the model-scoped weekly window resets |
+| `usageWeekModelLabel` | string | Display label for the model-scoped weekly window (e.g. `Fable`) |
 | `character` | string | `vibemon`, `clawd`, `codex`, `kiro`, `claw`, or `daangni` |
 | `terminalId` | string | Terminal ID for click-to-focus (e.g., `iterm2:w0t0p0:UUID` or `ghostty:12345`) |
 
@@ -97,8 +103,9 @@ Agent bridges usually set `character` automatically:
 > `skipped: true` is added when the update didn't change the visible window —
 > either because neither `state` nor the info fields (`tool`, `model`,
 > `memory`, `usage5h`, `usageWeek`, `usage5hResetsIn`, `usageWeekResetsIn`,
-> `character`) changed, or because another project currently holds focus (the
-> update is still recorded).
+> `usageWeekModel`, `usageWeekModelResetsIn`, `usageWeekModelLabel`,
+> `character`, `terminalId`) changed, or because another project currently
+> holds focus (the update is still recorded).
 
 ### GET /status
 
@@ -222,7 +229,7 @@ curl http://127.0.0.1:19280/dashboard-data
 ```json
 {
   "health": "ok",
-  "version": "2.1.0",
+  "version": "2.4.1",
   "focusedProject": "my-project",
   "characterLock": "auto",
   "projects": [

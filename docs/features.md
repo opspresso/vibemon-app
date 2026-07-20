@@ -34,9 +34,9 @@ VibeMon normalizes multiple agent ecosystems into one display model. The renderi
 | `claw` | Red | Antenna character | OpenClaw |
 | `daangni` | Peach/teal | Round face, fluffy top | Manual only (Character Lock) |
 
-All characters use **image-based rendering** (128x128 PNG, bundled with the app in `src/assets/characters/`). Character is **auto-selected by bridge**, not by the core display runtime. You can also force one with [Character Lock](#character-lock).
+All characters use **image-based rendering** (128x128 PNG). Images load remote-first from `static.vibemon.io`, with copies bundled in `src/assets/characters/` as the offline fallback. Character is **auto-selected by bridge**, not by the core display runtime. You can also force one with [Character Lock](#character-lock).
 
-Characters are defined in a single registry (`src/shared/data/characters.json`): display name, accent color (the eye/accent overlay drawn on the sprite — white for VibeMon, distinct from the "Color" appearance above), image file, and eye/effect coordinates (in canvas pixels on the 128x128 sprite, adjustable at 1px). The character window, tray icon (downscaled from the same PNG), menus, and validation all derive from it — adding a character is one PNG plus one registry entry.
+Characters are defined in a single registry canonically hosted in [vibemon-static](https://github.com/opspresso/vibemon-static) (served at `static.vibemon.io/data/characters.json`, with `src/shared/data/characters.json` bundled as the fallback and kept in sync via `npm run check:registry`): display name, accent color (the eye/accent overlay drawn on the sprite — white for VibeMon, distinct from the "Color" appearance above), image file, and eye/effect coordinates (in canvas pixels on the 128x128 sprite, adjustable at 1px). The character window, tray icon (downscaled from the same PNG), menus, and validation all derive from it — adding a character is one PNG plus one registry entry in vibemon-static.
 
 ### Character Lock
 
@@ -161,9 +161,9 @@ When running Claude Code in multiple terminal tabs, clicking the character windo
 
 ### Speech Bubble
 
-A small, transparent, click-through window that displays selected info fields (status, project name, model, memory, 5h usage, weekly usage) next to the character. Positioned automatically so it never overlaps the character window and stays on-screen, with an animated slide when it needs to move.
+A small, transparent, click-through window that displays selected info fields (status, project name, model, memory, 5h usage, weekly usage, model-scoped weekly usage — e.g. "Fable 12%", percentage only since its window resets with the weekly one) next to the character. Positioned automatically so it never overlaps the character window and stays on-screen, with an animated slide when it needs to move.
 
-- Toggled per field via the system tray menu (**Speech Bubble** submenu: Status / Project / Model / Memory / Usage 5h / Usage Week)
+- Toggled per field via the system tray menu (**Speech Bubble** submenu: Status / Project / Model / Memory / Usage 5h / Usage Week / Usage Model Week)
 - The status field shows state-based text (e.g. "Ready", "Thinking") and tool-based text while working (e.g. "Reading"), with animated loading dots during thinking/planning/working/packing — slower for thinking-style states
 
 ### Settings Window
@@ -186,13 +186,13 @@ Grouped to mirror the Settings window's tab order (VibeMon / Collector / AI Tool
 - Settings... (opens the Settings window)
 - **VibeMon** — Character Lock (Auto/VibeMon/Clawd/Codex/Kiro/Claw/Daangni), Always on Top, Speech Bubble field toggles, Open at Login toggle
 - **Collector** — WebSocket status (Connected/Disconnected), HTTP Server port display
-- **AI Tools** — AI Tool Hooks (per-tool install status for Claude Code/Codex CLI/Kiro IDE/OpenClaw, with one-click install), followed by Claude/Codex plan usage grouped per provider (5h and weekly %, each with a heat-colored bar icon and time-to-reset) — read from the shared usage cache independent of which project is focused; rows with no fresh data are omitted
+- **AI Tools** — AI Tool Hooks (per-tool install status for Claude Code/Codex CLI/Kiro IDE/OpenClaw, with one-click install), followed by Claude/Codex plan usage grouped per provider (5h and weekly %, each with a heat-colored bar icon and time-to-reset, plus a model-scoped weekly row shown as percentage only, e.g. "🎯 Fable 12%") — read from the shared usage cache independent of which project is focused; rows with no fresh data are omitted
 - **About** — opens the Settings window's About tab, followed by a version display or a one-click "Update to vX" / "Restart to install vX" item
 - Quit
 
 ## Rendering Engine
 
-The character is rendered by a bundled engine (`src/engine/vibemon-engine.js`): a 128x128 canvas drawing the character PNG, state-driven pixel-art eyes/effects, and the floating animation, over a fully transparent background. Character images live in `src/assets/characters/`. No network access is needed to render.
+The character is rendered by a bundled engine (`src/engine/vibemon-engine.js`): a 128x128 canvas drawing the character PNG, state-driven pixel-art eyes/effects, and the floating animation, over a fully transparent background. Character images load remote-first from `static.vibemon.io`, falling back to the bundled copies in `src/assets/characters/` — rendering works fully offline.
 
 ## Build
 
