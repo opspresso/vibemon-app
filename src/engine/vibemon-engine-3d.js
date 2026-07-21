@@ -65,13 +65,21 @@ const REST_POSE = {
   flame: { x: 0, y: 0, z: 0 }
 };
 
+// Smoothstep easing for moves that need an eased phase (e.g. twirl).
+function smoothstep(u) {
+  return u * u * (3 - 2 * u);
+}
+
 // Creature-behavior move implementations. Each mutates the rig's joints
-// additively after the blended pose has been applied. `t` is
+// additively after the blended pose has been applied — rotations/positions
+// add, scales multiply — so any combination of moves composes. `t` is
 // state-speed-scaled time in seconds.
 const MOVE_FNS = {
   breathe(t, joints) {
     const s = Math.sin(t * 2);
-    joints.body.scale.set(1 - s * 0.015, 1 + s * 0.03, 1 - s * 0.015);
+    joints.body.scale.x *= 1 - s * 0.015;
+    joints.body.scale.y *= 1 + s * 0.03;
+    joints.body.scale.z *= 1 - s * 0.015;
   },
   lookAround(t, joints) {
     joints.body.rotation.y += Math.sin(t * 0.7) * 0.28;
@@ -81,24 +89,40 @@ const MOVE_FNS = {
     joints.body.rotation.x += -0.1 + Math.sin(t * 0.9) * 0.05;
   },
   orbitDrift(t, joints) {
-    joints.root.position.x += Math.sin(t * 1.1) * 0.35;
-    joints.root.position.z += Math.cos(t * 1.1) * 0.25;
-    joints.body.rotation.y += Math.sin(t * 1.1) * 0.3;
+    const a = t * 0.9;
+    joints.root.position.x += Math.sin(a) * 0.5;
+    joints.root.position.z += Math.cos(a) * 0.35;
+    joints.body.rotation.y += Math.sin(a) * 0.35;
+    joints.body.rotation.z += Math.cos(a) * 0.08;
   },
   pulseFocus(t, joints) {
-    const p = Math.sin(t * 7) * 0.04;
-    joints.body.scale.set(1 + p, 1 + p, 1 + p);
+    const p = 1 + Math.sin(t * 7) * 0.04;
+    joints.body.scale.x *= p;
+    joints.body.scale.y *= p;
+    joints.body.scale.z *= p;
   },
   coil(t, joints) {
     const q = (Math.sin(t * 2.6) + 1) / 2;
-    joints.root.scale.set(1 + q * 0.06, 1 - q * 0.13, 1 + q * 0.06);
+    joints.root.scale.x *= 1 + q * 0.06;
+    joints.root.scale.y *= 1 - q * 0.13;
+    joints.root.scale.z *= 1 + q * 0.06;
+    joints.armL.rotation.z -= q * 0.5;
+    joints.armR.rotation.z += q * 0.5;
     joints.tail1.rotation.x += q * 0.6;
+    joints.tail2.rotation.x += q * 0.8;
   },
   popUp(t, joints) {
-    joints.root.position.y += Math.abs(Math.sin(t * 3.6)) * 0.4;
+    const hop = Math.abs(Math.sin(t * 3.6));
+    joints.root.position.y += hop * 0.4;
+    joints.body.scale.y *= 1 - (1 - hop) * 0.12;
+    joints.body.scale.x *= 1 + (1 - hop) * 0.08;
   },
   twirl(t, joints) {
-    joints.body.rotation.y += Math.sin(t * 2.6) * 1.1;
+    // One full eased pirouette per period, holding a beat between spins;
+    // the added 2π at the end of each spin wraps back to 0 seamlessly.
+    const u = (t % 2.4) / 2.4;
+    const e = u < 0.7 ? smoothstep(u / 0.7) : 1;
+    joints.body.rotation.y += e * Math.PI * 2;
   },
   hopJoy(t, joints) {
     joints.root.position.y += Math.abs(Math.sin(t * 3.2)) * 0.28;
@@ -112,16 +136,44 @@ const MOVE_FNS = {
   },
   swell(t, joints) {
     const s = 1 + (Math.sin(t * 2) + 1) * 0.05;
-    joints.body.scale.set(s, s, s);
+    joints.body.scale.x *= s;
+    joints.body.scale.y *= s;
+    joints.body.scale.z *= s;
   },
   sink(t, joints) {
     joints.root.position.y += -0.25 + Math.sin(t * 1.1) * 0.04;
   },
   stretch(t, joints) {
     const v = Math.sin(t * 2.2);
-    joints.body.scale.set(1 - v * 0.04, 1 + v * 0.1, 1 - v * 0.04);
+    joints.body.scale.x *= 1 - v * 0.04;
+    joints.body.scale.y *= 1 + v * 0.1;
+    joints.body.scale.z *= 1 - v * 0.04;
     joints.armL.rotation.z += Math.sin(t * 2.2) * 0.3;
     joints.armR.rotation.z -= Math.sin(t * 2.2) * 0.3;
+  },
+  wave(t, joints) {
+    joints.armR.rotation.z += Math.sin(t * 6) * 0.35;
+  },
+  tailTap(t, joints) {
+    joints.tail2.rotation.x += Math.max(0, Math.sin(t * 3.4)) * 0.5;
+  },
+  scan(t, joints) {
+    // Flattened sine: sweeps quickly through center and dwells at each end.
+    const s = Math.sin(t * 0.8);
+    joints.body.rotation.y += Math.sign(s) * Math.pow(Math.abs(s), 0.35) * 0.45;
+  },
+  bounceWork(t, joints) {
+    const hop = Math.abs(Math.sin(t * 5));
+    joints.root.position.y += hop * 0.16;
+    joints.body.scale.y *= 1 - (1 - hop) * 0.06;
+    joints.body.scale.x *= 1 + (1 - hop) * 0.04;
+  },
+  dartGlance(t, joints) {
+    // Steepened sine snaps the gaze from side to side, lingering at each.
+    joints.body.rotation.y += Math.tanh(Math.sin(t * 2.4) * 6) * 0.4;
+  },
+  nod(t, joints) {
+    joints.body.rotation.x += (Math.sin(t * 0.9) + 1) * 0.11;
   }
 };
 

@@ -10,8 +10,9 @@
  * spade tail and a "vibe flame" burning above its head. The flame is the
  * session's energy made visible — each state sets a `vibe` level that
  * drives the flame's size and flicker plus the tail sway. State motion is
- * creature behavior (gazing around, pondering, circling, pulsing, coiling,
- * popping up, twirling, sinking, shivering) — never human-tool mimicry.
+ * creature behavior (gazing around, waving, tail-tapping, scanning,
+ * circling, bouncing, pulsing, coiling, popping up, pirouetting, nodding
+ * off, sinking, shivering, darting glances) — never human-tool mimicry.
  *
  * Pose values are sparse Euler rotations (radians) per joint, applied on
  * top of the rig's rest pose. Moves are named procedural oscillators the
@@ -34,17 +35,23 @@ export const MOVES = [
   'breathe',    // resting breathing swell
   'lookAround', // slow curious gaze left and right
   'ponder',     // tilting up and sideways, mulling something over
-  'orbitDrift', // drifting in a slow circle, surveying
+  'orbitDrift', // drifting in a slow circle, leaning into the drift, surveying
   'pulseFocus', // fast heartbeat pulse, energy gathering
-  'coil',       // rhythmic inward squeeze, tail curling in
-  'popUp',      // springing upward to get attention
-  'twirl',      // joyful full-body pirouette
+  'coil',       // rhythmic inward squeeze, arms pulled in, tail curling in
+  'popUp',      // springing upward to get attention, squashing before each hop
+  'twirl',      // joyful full 360-degree pirouette with a beat between spins
   'hopJoy',     // happy hopping in place
   'wiggle',     // playful side-to-side wobble
   'shiver',     // hackles-up high-frequency trembling
   'swell',      // puffing up big
   'sink',       // drooping low, settling down
-  'stretch'     // waking-up stretch, arms reaching
+  'stretch',    // waking-up stretch, arms reaching
+  'wave',       // raised-paw greeting wave
+  'tailTap',    // tail tip tapping a thinking rhythm
+  'scan',       // deliberate sweep side to side, dwelling at each end
+  'bounceWork', // quick busy bounces with squash-and-stretch landings
+  'dartGlance', // sharp watchful glances snapping side to side
+  'nod'         // drowsy head slowly nodding off and drifting back up
 ];
 
 // Eye rendering modes: 'open' shows the eyes, 'closed' shuts them to lines,
@@ -63,55 +70,70 @@ export const EYE_MODES = ['open', 'closed', 'happy'];
  * Unknown states fall back to `idle`.
  */
 export const STATE_ANIMATIONS = {
+  // Waking up: a big stretch, then a one-paw greeting wave (asymmetric on
+  // purpose so it reads differently from notification's both-arms-up).
   start: {
     eye: 'open', eyeScale: 1, blink: false, speed: 1.3, vibe: 1.6,
-    pose: { armL: { z: 2.2 }, armR: { z: -2.2 } },
-    moves: ['stretch', 'wiggle']
+    pose: { armR: { z: -2.2 } },
+    moves: ['stretch', 'wave']
   },
+  // Loafing around: breathing, gazing about, idly tapping the tail tip.
   idle: {
     eye: 'open', eyeScale: 1, blink: true, speed: 1, vibe: 1,
     pose: {},
-    moves: ['breathe', 'lookAround']
+    moves: ['breathe', 'lookAround', 'tailTap']
   },
+  // Mulling it over: chin lifted, tilting side to side, tail tapping a
+  // thinking rhythm.
   thinking: {
     eye: 'open', eyeScale: 1, blink: true, speed: 0.9, vibe: 1.3,
-    pose: {},
-    moves: ['ponder']
+    pose: { body: { x: -0.12 } },
+    moves: ['ponder', 'tailTap']
   },
+  // Surveying the terrain: circling slowly while sweeping its gaze,
+  // dwelling at each end of the sweep.
   planning: {
     eye: 'open', eyeScale: 1, blink: true, speed: 1.1, vibe: 1.5,
     pose: {},
-    moves: ['orbitDrift', 'lookAround']
+    moves: ['orbitDrift', 'scan']
   },
+  // Head-down busy: leaning in, bouncing quickly with the effort, heart
+  // pounding.
   working: {
     eye: 'open', eyeScale: 1, blink: false, speed: 1.5, vibe: 2.2,
-    pose: { body: { x: 0.1 } },
-    moves: ['pulseFocus']
+    pose: { body: { x: 0.18 } },
+    moves: ['bounceWork', 'pulseFocus']
   },
+  // Compressing itself: arms hugged in, squeezing down rhythmically, tail
+  // curling tight.
   packing: {
     eye: 'open', eyeScale: 1, blink: true, speed: 1.1, vibe: 0.9,
-    pose: {},
+    pose: { armL: { z: 0.15 }, armR: { z: -0.15 } },
     moves: ['coil']
   },
+  // "Over here!": both arms up, springing off the ground, wobbling eagerly.
   notification: {
     eye: 'open', eyeScale: 1.15, blink: false, speed: 1.5, vibe: 2,
     pose: { armL: { z: 2.2 }, armR: { z: -2.2 } },
     moves: ['popUp', 'wiggle']
   },
+  // Celebrating: full pirouettes with happy hops, arms thrown up.
   done: {
     eye: 'happy', eyeScale: 1, blink: false, speed: 1.3, vibe: 2.4,
     pose: { armL: { z: 2.5 }, armR: { z: -2.5 } },
     moves: ['twirl', 'hopJoy']
   },
+  // Dozing: sunk low, head drooped, slow deep breaths, nodding off.
   sleep: {
     eye: 'closed', eyeScale: 1, blink: false, speed: 0.35, vibe: 0.25,
-    pose: { body: { x: 0.25 } },
-    moves: ['sink', 'breathe']
+    pose: { body: { x: 0.3 } },
+    moves: ['sink', 'breathe', 'nod']
   },
+  // Hackles up: puffed and trembling, snapping sharp glances side to side.
   alert: {
     eye: 'open', eyeScale: 1.35, blink: false, speed: 1.9, vibe: 2.6,
     pose: { armL: { z: 1.2 }, armR: { z: -1.2 } },
-    moves: ['shiver', 'swell']
+    moves: ['shiver', 'swell', 'dartGlance']
   }
 };
 
