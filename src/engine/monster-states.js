@@ -11,8 +11,9 @@
  * session's energy made visible — each state sets a `vibe` level that
  * drives the flame's size and flicker plus the tail sway. State motion is
  * creature behavior (gazing around, waving, tail-tapping, scanning,
- * circling, bouncing, pulsing, coiling, popping up, pirouetting, nodding
- * off, sinking, shivering, darting glances) — never human-tool mimicry.
+ * circling, pulsing, coiling, popping up, pirouetting, nodding off,
+ * sinking, shivering, darting glances) — except working, which mimes a
+ * furious typing frenzy.
  *
  * Pose values are sparse Euler rotations (radians) per joint, applied on
  * top of the rig's rest pose. Moves are named procedural oscillators the
@@ -49,7 +50,7 @@ export const MOVES = [
   'wave',       // raised-paw greeting wave
   'tailTap',    // tail tip tapping a thinking rhythm
   'scan',       // deliberate sweep side to side, dwelling at each end
-  'bounceWork', // quick busy bounces with squash-and-stretch landings
+  'typeKeys',   // paws raised forward, hammering away in an alternating typing blur
   'dartGlance', // sharp watchful glances snapping side to side
   'nod'         // drowsy head slowly nodding off and drifting back up
 ];
@@ -97,12 +98,12 @@ export const STATE_ANIMATIONS = {
     pose: {},
     moves: ['orbitDrift', 'scan']
   },
-  // Head-down busy: leaning in, bouncing quickly with the effort, heart
-  // pounding.
+  // Hammering away at the keys: hunched forward, paws typing in a blur,
+  // heart pounding.
   working: {
     eye: 'open', eyeScale: 1, blink: false, speed: 1.5, vibe: 2.2,
-    pose: { body: { x: 0.18 } },
-    moves: ['bounceWork', 'pulseFocus']
+    pose: { body: { x: 0.18 }, armL: { z: 0.1 }, armR: { z: -0.1 } },
+    moves: ['typeKeys', 'pulseFocus']
   },
   // Compressing itself: arms hugged in, squeezing down rhythmically, tail
   // curling tight.

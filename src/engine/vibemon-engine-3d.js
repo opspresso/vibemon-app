@@ -162,11 +162,11 @@ const MOVE_FNS = {
     const s = Math.sin(t * 0.8);
     joints.body.rotation.y += Math.sign(s) * Math.pow(Math.abs(s), 0.35) * 0.45;
   },
-  bounceWork(t, joints) {
-    const hop = Math.abs(Math.sin(t * 5));
-    joints.root.position.y += hop * 0.16;
-    joints.body.scale.y *= 1 - (1 - hop) * 0.06;
-    joints.body.scale.x *= 1 + (1 - hop) * 0.04;
+  typeKeys(t, joints) {
+    // Paws held up forward, alternating downward taps like typing.
+    joints.armL.rotation.x += -0.9 + Math.abs(Math.sin(t * 5)) * 0.6;
+    joints.armR.rotation.x += -0.9 + Math.abs(Math.cos(t * 5)) * 0.6;
+    joints.body.rotation.x += Math.sin(t * 10) * 0.02;
   },
   dartGlance(t, joints) {
     // Steepened sine snaps the gaze from side to side, lingering at each.
