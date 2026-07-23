@@ -141,7 +141,7 @@ export const STATE_ANIMATIONS = {
 /**
  * Character color themes for the vibe monster, tinted per character after
  * each character's established identity (vibemon purple, clawd orange,
- * codex dark blue, kiro white, claw red, daangni peach).
+ * codex light blue, kiro white, claw red, daangni peach).
  *   body   - slime body color
  *   belly  - belly patch / paws
  *   accent - horns / spade tail tip
@@ -152,7 +152,7 @@ export const STATE_ANIMATIONS = {
 export const CHARACTER_THEMES = {
   vibemon: { body: '#8B7CF6', belly: '#EDE9FF', accent: '#C4B5FD', eye: '#241B3A', blush: '#FF9EC4', flame: '#7DF9FF' },
   clawd:   { body: '#D97757', belly: '#F5C9B0', accent: '#A8442A', eye: '#2B1A12', blush: '#FF9E80', flame: '#FFC26B' },
-  codex:   { body: '#2C3E6B', belly: '#46598F', accent: '#6E8BFF', eye: '#EAF6FF', blush: '#6E8BFF', flame: '#9DB8FF' },
+  codex:   { body: '#4886FC', belly: '#8FB5FF', accent: '#1F63F1', eye: '#1C2745', blush: '#76A5FF', flame: '#9DB8FF' },
   kiro:    { body: '#F4F4F5', belly: '#FFFFFF', accent: '#C9C9D4', eye: '#27272A', blush: '#FFC2CE', flame: '#A5E8FF' },
   claw:    { body: '#DD5555', belly: '#FFC9C9', accent: '#C24444', eye: '#331111', blush: '#FF9494', flame: '#FFB4A0' },
   daangni: { body: '#F2CAB2', belly: '#FDEFE4', accent: '#2AA198', eye: '#46352A', blush: '#F9A08C', flame: '#7FE3D8' }
