@@ -202,6 +202,7 @@ class TrayManager {
     this.hookInstaller = null;
     this.updateChecker = null;
     this.settingsWindowManager = null;
+    this.showCharacterHandler = null;
   }
 
   /**
@@ -234,6 +235,16 @@ class TrayManager {
    */
   setSettingsWindowManager(settingsWindowManager) {
     this.settingsWindowManager = settingsWindowManager;
+  }
+
+  /**
+   * Set the handler that re-shows the character window after it closed
+   * (sleep close-timeout or a manual close). Wired by main.js, which owns
+   * the window/state/bubble orchestration.
+   * @param {() => void} handler
+   */
+  setShowCharacterHandler(handler) {
+    this.showCharacterHandler = handler;
   }
 
   /**
@@ -526,6 +537,14 @@ class TrayManager {
         enabled: false
       },
       { type: 'separator' },
+      // Re-open the character window after it closed (sleep close-timeout
+      // or a manual close), so it doesn't need a status update to come back.
+      {
+        label: 'Show Character',
+        click: () => {
+          if (this.showCharacterHandler) this.showCharacterHandler();
+        }
+      },
       ...(this.settingsWindowManager ? [{
         // Trailing dot mirrors the Settings window's AI Tools tab attention
         // dot: installed hook scripts drifted and need a reinstall.
@@ -533,7 +552,8 @@ class TrayManager {
           ? 'Settings... ●'
           : 'Settings...',
         click: () => this.settingsWindowManager.open()
-      }, { type: 'separator' }] : []),
+      }] : []),
+      { type: 'separator' },
       // VibeMon — mirrors the Settings window's VibeMon tab
       {
         label: 'Render Mode',

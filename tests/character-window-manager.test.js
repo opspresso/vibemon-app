@@ -388,6 +388,80 @@ describe('removeProject', () => {
   });
 });
 
+describe('restoreLastWindow', () => {
+  function makeMockWindow() {
+    return {
+      setBounds: jest.fn(),
+      isDestroyed: () => false,
+      setIgnoreMouseEvents: jest.fn(),
+      setWindowOpenHandler: jest.fn(),
+      loadFile: jest.fn(),
+      setVisibleOnAllWorkspaces: jest.fn(),
+      showInactive: jest.fn(),
+      setAlwaysOnTop: jest.fn(),
+      once: jest.fn(),
+      on: jest.fn(),
+      webContents: { isDestroyed: () => false, once: jest.fn(), on: jest.fn(), send: jest.fn() }
+    };
+  }
+
+  test('recreates the closed window from the last displayed state', () => {
+    const manager = new CharacterWindowManager();
+    manager.lastWindowState = { state: 'sleep', character: 'clawd', project: 'proj-a' };
+    manager.onStateUpdated = jest.fn();
+    const { BrowserWindow } = require('electron');
+    BrowserWindow.mockImplementationOnce(() => makeMockWindow());
+
+    const result = manager.restoreLastWindow();
+
+    expect(result.recreated).toBe(true);
+    expect(result.projectId).toBe('proj-a');
+    expect(result.stateData).toEqual({ state: 'sleep', character: 'clawd', project: 'proj-a' });
+    // The recreated window follows the remembered project, its state is
+    // re-recorded, and the speech bubble is refreshed via onStateUpdated.
+    expect(manager.getFocusedProjectId()).toBe('proj-a');
+    expect(manager.getRegisteredState('proj-a')).toEqual(result.stateData);
+    expect(manager.getState('proj-a')).toEqual(result.stateData);
+    expect(manager.onStateUpdated).toHaveBeenCalledWith('proj-a');
+  });
+
+  test('falls back to a default idle character when nothing was shown yet', () => {
+    const manager = new CharacterWindowManager();
+    const { BrowserWindow } = require('electron');
+    BrowserWindow.mockImplementationOnce(() => makeMockWindow());
+
+    const result = manager.restoreLastWindow();
+
+    expect(result.recreated).toBe(true);
+    expect(result.stateData).toEqual({ state: 'idle', character: 'vibemon', project: null });
+    expect(result.projectId).toBeNull();
+  });
+
+  test('the fallback honours the character lock', () => {
+    const manager = new CharacterWindowManager();
+    manager.setCharacterLock('kiro');
+    const { BrowserWindow } = require('electron');
+    BrowserWindow.mockImplementationOnce(() => makeMockWindow());
+
+    const result = manager.restoreLastWindow();
+
+    expect(result.stateData.character).toBe('kiro');
+  });
+
+  test('an open window is merely shown, not recreated', () => {
+    const manager = new CharacterWindowManager();
+    const window = { isDestroyed: () => false, showInactive: jest.fn() };
+    manager.entry = { window, state: { state: 'working', project: 'proj-b' }, projectId: 'proj-b' };
+
+    const result = manager.restoreLastWindow();
+
+    expect(result.recreated).toBe(false);
+    expect(result.projectId).toBe('proj-b');
+    expect(result.stateData).toEqual({ state: 'working', project: 'proj-b' });
+    expect(window.showInactive).toHaveBeenCalled();
+  });
+});
+
 describe('updateState change detection', () => {
   function managerWithWindow(projectId, state) {
     const manager = new CharacterWindowManager();

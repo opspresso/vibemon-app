@@ -234,6 +234,27 @@ function handleWsStatusDelete(projectId) {
   if (windowManager.getWindow(projectId)) windowManager.closeWindow(projectId);
 }
 
+/**
+ * Tray action "Show Character": reopen the character window — and its
+ * speech bubble — after they closed (the sleep close-timeout or a manual
+ * close / POST /close). restoreLastWindow recreates the window from the
+ * last displayed state (or a default) through the normal routing pipeline,
+ * which brings the bubble back via onStateUpdated; here we re-arm the
+ * project's state timers and refresh the tray.
+ */
+function showCharacterAgain() {
+  const restored = windowManager.restoreLastWindow();
+  if (!restored) return;
+
+  if (restored.stateData) {
+    stateManager.setupStateTimeout(restored.projectId, restored.stateData.state);
+  }
+  if (trayManager) {
+    trayManager.updateMenu();
+    trayManager.updateIcon();
+  }
+}
+
 // IPC handlers
 ipcMain.handle('get-version', () => {
   return app.getVersion();
@@ -424,6 +445,7 @@ app.whenReady().then(() => {
     }
   };
   trayManager.setSettingsWindowManager(settingsWindowManager);
+  trayManager.setShowCharacterHandler(showCharacterAgain);
 
   // Start HTTP server
   httpServer = new HttpServer(stateManager, windowManager, app);
