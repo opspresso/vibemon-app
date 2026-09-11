@@ -101,7 +101,7 @@ The `working` state's speech bubble shows fixed text based on the active tool:
 | `planning`, `thinking`, `working`, `packing`, `notification`, `alert` | 5 minutes | `idle` |
 | `idle` | 5 minutes | `sleep` |
 
-After 10 minutes in sleep state, the window automatically closes. It reappears on the next status update.
+After 10 minutes in sleep state, the window automatically closes. It reappears on the next status update — or on demand via the tray menu's **Show Character** action, which reopens the character (and its speech bubble) immediately.
 
 ## Animations
 
@@ -192,6 +192,7 @@ The account token is never returned to the settings renderer after it is saved; 
 
 Grouped to mirror the Settings window's tab order (VibeMon / Collector / AI Tools / About):
 
+- **Show Character** — reopens the character window and its speech bubble after they closed (the sleep close-timeout or a manual close / `POST /close`), recreating the last shown character/state instead of waiting for the next status update
 - Settings... (opens the Settings window)
 - **VibeMon** — Character Lock (Auto/VibeMon/Clawd/Codex/Kiro/Claw/Daangni), Always on Top, Speech Bubble field toggles, Open at Login toggle
 - **Collector** — WebSocket status (Connected/Disconnected), HTTP Server port display

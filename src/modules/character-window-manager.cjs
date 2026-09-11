@@ -22,6 +22,7 @@ const {
   ACTIVE_STATES,
   SPEECH_BUBBLE_FIELDS,
   CHARACTER_NAMES,
+  DEFAULT_CHARACTER,
   CHAR_Y_BASE,
   CHAR_SIZE,
   CHARACTER_SCALES,
@@ -108,6 +109,11 @@ class CharacterWindowManager {
     this.onAlwaysOnTopChanged = null;  // callback: (projectId) => void, fires after the always-on-top flag changes
     this.onWindowMoved = null;  // callback: (projectId) => void
     this.onDisplayModeChanged = null;  // callback: () => void, fires after speech bubble field toggles
+
+    // The last state the window displayed, kept after the window closes so
+    // the tray's "Show Character" action can reopen the same character
+    // (restoreLastWindow) instead of waiting for the next status update.
+    this.lastWindowState = null;
 
     // Persistent settings
     this.store = new Store({
@@ -866,6 +872,7 @@ class CharacterWindowManager {
     }
 
     this.entry.state = { ...newState };
+    this.lastWindowState = { ...newState };
     if (this.onStateUpdated) {
       this.onStateUpdated(projectId);
     }
@@ -925,6 +932,36 @@ class CharacterWindowManager {
       return true;
     }
     return false;
+  }
+
+  /**
+   * Re-show the character window after it closed — the sleep close-timeout
+   * or a manual close / POST /close. An open window is only brought to the
+   * front; a closed one is recreated from the last state it displayed
+   * (kept in lastWindowState), or a default idle state for the default
+   * character (or the Character Lock) with no project when nothing has been
+   * shown yet. Routing through routeStatusUpdate re-records the state and
+   * fires onStateUpdated, so the speech bubble follows the recreated window.
+   * @returns {{projectId: string|null, stateData: Object|null, recreated: boolean}}
+   */
+  restoreLastWindow() {
+    if (this.isWindowValid(this.entry)) {
+      this.entry.window.showInactive();
+      return { projectId: this.entry.projectId, stateData: this.entry.state, recreated: false };
+    }
+
+    const stateData = this.lastWindowState || {
+      state: 'idle',
+      character: this.characterLock !== 'auto' ? this.characterLock : DEFAULT_CHARACTER,
+      project: null
+    };
+
+    const routeResult = this.routeStatusUpdate(stateData.project, stateData);
+    return {
+      projectId: routeResult.stateData.project,
+      stateData: routeResult.stateData,
+      recreated: true
+    };
   }
 
   /**

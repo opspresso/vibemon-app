@@ -147,6 +147,32 @@ describe('TrayManager hook installer submenu', () => {
   });
 });
 
+describe('TrayManager show character menu item', () => {
+  test('shows a Show Character item that triggers the shared handler', () => {
+    const windowManager = makeWindowManager({ state: 'idle', character: 'clawd', project: 'proj-a' });
+    const tray = new TrayManager(windowManager, makeApp(), { setupStateTimeout: jest.fn() });
+    const handler = jest.fn();
+    tray.setShowCharacterHandler(handler);
+
+    const template = tray.buildMenuTemplate();
+    const item = template.find(i => i.label === 'Show Character');
+
+    expect(item).toBeDefined();
+    item.click();
+    expect(handler).toHaveBeenCalledTimes(1);
+  });
+
+  test('a missing handler leaves the item inert', () => {
+    const windowManager = makeWindowManager({ state: 'idle', character: 'clawd', project: 'proj-a' });
+    const tray = new TrayManager(windowManager, makeApp(), { setupStateTimeout: jest.fn() });
+
+    const item = tray.buildMenuTemplate().find(i => i.label === 'Show Character');
+
+    expect(item).toBeDefined();
+    expect(() => item.click()).not.toThrow();
+  });
+});
+
 describe('TrayManager status label', () => {
   test('shows the followed project and its state', () => {
     const windowManager = makeWindowManager({ state: 'working', character: 'clawd', project: 'proj-a' });
