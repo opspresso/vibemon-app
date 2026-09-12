@@ -9,6 +9,8 @@ const { spawn } = require('node:child_process');
 const { createInterface } = require('node:readline');
 const { CharacterWindowManager } = require('../../src/modules/character-window-manager.cjs');
 const { BubbleWindowManager } = require('../../src/modules/bubble-window-manager.cjs');
+const { DockMonitor } = require('../../src/modules/dock-monitor.cjs');
+const { dockCorner } = require('../../src/modules/dock-layout.cjs');
 const characters = require('../../src/shared/data/characters.json');
 const states = require('../../src/shared/data/states.json');
 const { CHARACTER_IMAGE_FETCH_TIMEOUT_MS } = require('../../src/shared/config.cjs');
@@ -113,10 +115,11 @@ async function nativeDragTest(mouse, win, point) {
   }, 'bubble follows the settled character');
 }
 
-async function verifyDockCorners(win, mode) {
-  const display = screen.getDisplayMatching(win.getBounds());
+async function verifyDockCorners(win, mode, live = null) {
+  const display = live?.display || screen.getDisplayMatching(win.getBounds());
   const b = display.bounds;
-  characterManager.dockMonitor = {
+  const source = live ? 'live-dock' : 'fixture-dock';
+  characterManager.dockMonitor = live?.monitor || {
     bounds: [{ x: b.x + Math.round(b.width * 0.3), y: b.y + b.height - 96, width: Math.round(b.width * 0.4), height: 92 }],
     refresh: () => Promise.resolve()
   };
@@ -150,9 +153,9 @@ async function verifyDockCorners(win, mode) {
     }
     const rendered = await bubble.webContents.executeJavaScript('(() => { const b = document.getElementById("bubble").getBoundingClientRect(); return { right: b.right, bottom: b.bottom, width: innerWidth, height: innerHeight }; })()');
     assert(rendered.right <= rendered.width && rendered.bottom <= rendered.height, 'scaled bubble content is not clipped');
-    fs.writeFileSync(path.join(output, `dock-${mode}-${side}-character.png`), (await win.webContents.capturePage()).toPNG());
-    fs.writeFileSync(path.join(output, `dock-${mode}-${side}-bubble.png`), (await bubble.webContents.capturePage()).toPNG());
-    results.push({ mode, dockCorner: side, fixtureDock: characterManager.dockMonitor.bounds[0], layout, rendered });
+    fs.writeFileSync(path.join(output, `${source}-${mode}-${side}-character.png`), (await win.webContents.capturePage()).toPNG());
+    fs.writeFileSync(path.join(output, `${source}-${mode}-${side}-bubble.png`), (await bubble.webContents.capturePage()).toPNG());
+    results.push({ mode, dockCorner: side, source, dock: characterManager.dockMonitor.bounds[0], layout, rendered });
   }
   characterManager.dockMonitor.bounds = [];
   characterManager.refreshDockLayout();
@@ -240,7 +243,20 @@ async function run() {
         const label = `${mode}-${scale}`;
         fs.writeFileSync(path.join(output, `${label}.png`), (await win.webContents.capturePage()).toPNG());
         results.push({ mode, scale, devicePixelRatio: await win.webContents.executeJavaScript('devicePixelRatio'), initial: start, nativeClicks: !!mouse });
-        if (process.platform === 'darwin' && scale === 100) await verifyDockCorners(win, mode);
+        if (process.platform === 'darwin' && scale === 100) {
+          await verifyDockCorners(win, mode);
+          const monitor = new DockMonitor();
+          await monitor.refresh();
+          const display = screen.getAllDisplays().find(item => monitor.bounds.some(dock =>
+            dockCorner(item, dock, { x: item.bounds.x, y: item.bounds.y + item.bounds.height - 138, width: 134, height: 138 })));
+          if (display) {
+            await verifyDockCorners(win, mode, { monitor, display });
+          } else {
+            assert(!app.commandLine.hasSwitch('require-dock'), 'a visible real Dock is required for live verification');
+            results.push({ mode, source: 'live-dock', skipped: 'No visible Dock rectangle available' });
+          }
+          monitor.cleanup();
+        }
         bubbleManager.cleanup();
         characterManager.cleanup();
         win.destroy();

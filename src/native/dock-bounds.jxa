@@ -1,8 +1,32 @@
 ObjC.import('CoreGraphics');
+ObjC.import('AppKit');
+ObjC.import('ApplicationServices');
+
+function readDockRect() {
+  // CoreDockGetRect is an undocumented, read-only HIServices function. New
+  // macOS releases can expose a full-display compositor surface through
+  // CGWindowList rather than the Dock's own rectangle. No AX or capture
+  // permission is requested here; retain the public API fallback below.
+  try {
+    ObjC.bindFunction('CoreDockGetRect', ['void', ['void *']]);
+    // CGRect contains four 64-bit CGFloat values on supported macOS CPUs.
+    var data = $.NSMutableData.dataWithLength(32);
+    $.CoreDockGetRect(data.mutableBytes);
+    var rect = $.NSValue.valueWithBytesObjCType(data.bytes, '{CGRect={CGPoint=dd}{CGSize=dd}}').rectValue;
+    var bounds = { x: rect.origin.x, y: rect.origin.y, width: rect.size.width, height: rect.size.height };
+    if (Object.keys(bounds).every(function (key) { return Number.isFinite(bounds[key]); }) &&
+        bounds.width > 0 && bounds.height > 0) return bounds;
+  } catch (_error) {
+    // A missing symbol or unsupported bridge leaves normal placement intact.
+  }
+  return null;
+}
 
 // Only geometry for visible Dock surfaces leaves this process. Window titles
 // and other applications' metadata are neither returned nor logged.
 function run() {
+  var dock = readDockRect();
+  if (dock) return JSON.stringify([dock]);
   var list = $.CGWindowListCopyWindowInfo($.kCGWindowListOptionOnScreenOnly, $.kCGNullWindowID);
   if (!list) return '[]';
   var windows = ObjC.deepUnwrap(ObjC.castRefToObject(list));

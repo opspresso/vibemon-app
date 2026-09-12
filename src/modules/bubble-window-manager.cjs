@@ -189,6 +189,8 @@ class BubbleWindowManager {
       x: 0,
       y: 0,
       frame: false,
+      // Allow the complete bubble to occupy a free corner in the Dock strip.
+      enableLargerThanScreen: process.platform === 'darwin',
       thickFrame: false,
       transparent: true,
       alwaysOnTop: startsOnTop,

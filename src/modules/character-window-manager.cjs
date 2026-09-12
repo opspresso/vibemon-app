@@ -807,6 +807,9 @@ class CharacterWindowManager {
       x: position.x,
       y: position.y,
       frame: false,
+      // AppKit otherwise pulls a short window above the Dock's reserved
+      // strip. Our own snap logic bounds this frameless overlay instead.
+      enableLargerThanScreen: process.platform === 'darwin',
       thickFrame: false,
       transparent: true,
       alwaysOnTop: this.alwaysOnTopMode !== 'disabled',

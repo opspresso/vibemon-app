@@ -170,7 +170,8 @@ describe('taskbar visibility', () => {
       manager.ensureWindow('test');
 
       expect(BrowserWindow).toHaveBeenLastCalledWith(expect.objectContaining({
-        skipTaskbar: platform === 'win32'
+        skipTaskbar: platform === 'win32',
+        enableLargerThanScreen: platform === 'darwin'
       }));
     } finally {
       Object.defineProperty(process, 'platform', originalPlatform);
