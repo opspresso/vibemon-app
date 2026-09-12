@@ -624,14 +624,14 @@ describe('HookInstaller', () => {
     test.each([
       undefined,
       { paths: [] },
-      { paths: 'not-an-array' },
-      { paths: [null, 123, '/unrelated/plugin'] }
-    ])('rejects an enabled OpenClaw entry without a usable load path: %j', load => {
+      { paths: ['/unrelated/plugin'] }
+    ])('recognizes the global OpenClaw plugin without an explicit load path: %j', load => {
       const tool = TOOLS.find(t => t.flag === '--openclaw');
       mockToolInstalled(tool, { config: JSON.stringify({ plugins: {
         entries: { 'vibemon-bridge': { enabled: true } }, load
       } }) });
-      expect(hookInstaller.getMissingTools().map(t => t.flag)).toContain('--openclaw');
+      expect(hookInstaller.refreshStatuses().find(t => t.flag === '--openclaw').hasHook).toBe(true);
+      expect(hookInstaller.getMissingTools().map(t => t.flag)).not.toContain('--openclaw');
     });
 
     test.each([
@@ -651,6 +651,27 @@ describe('HookInstaller', () => {
       config.plugins.enabled = false;
       mockToolInstalled(tool, { config: JSON.stringify(config) });
       expect(hookInstaller.refreshStatuses().find(t => t.flag === '--openclaw').hasHook).toBe(false);
+    });
+
+    test.each([
+      [{ deny: ['vibemon-bridge'] }, false],
+      [{ allow: ['another-plugin'] }, false],
+      [{ allow: ['vibemon-bridge'], deny: ['vibemon-bridge'] }, false],
+      [{ allow: ['vibemon-bridge'] }, true],
+      [{ allow: [], deny: ['another-plugin'] }, true]
+    ])('honors OpenClaw plugin policy %j', (policy, expected) => {
+      const tool = TOOLS.find(t => t.flag === '--openclaw');
+      const config = JSON.parse(registeredConfigFor(tool));
+      Object.assign(config.plugins, policy);
+      mockToolInstalled(tool, { config: JSON.stringify(config) });
+      expect(hookInstaller.refreshStatuses().find(t => t.flag === '--openclaw').hasHook).toBe(expected);
+    });
+
+    test('offers repair when the OpenClaw plugin manifest is missing', () => {
+      const tool = TOOLS.find(t => t.flag === '--openclaw');
+      const manifest = tool.files.find(file => file.remote.endsWith('.json')).local;
+      mockToolInstalled(tool, { missingFiles: [manifest] });
+      expect(hookInstaller.getMissingTools().map(t => t.flag)).toContain('--openclaw');
     });
   });
 

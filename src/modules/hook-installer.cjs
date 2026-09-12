@@ -218,10 +218,6 @@ function homePath(...segments) {
 function resolveToolHome(envName, defaultDir) {
   const configured = String(process.env[envName] || '').trim();
   if (!configured) return homePath(defaultDir);
-  return resolveConfigPath(configured);
-}
-
-function resolveConfigPath(configured) {
   if (configured === '~') return os.homedir();
   if (configured.startsWith('~/') || configured.startsWith('~\\')) {
     return path.join(os.homedir(), configured.slice(2));
@@ -230,16 +226,14 @@ function resolveConfigPath(configured) {
 }
 
 function isOpenClawRegistered(docs) {
-  const pluginDir = homePath('.openclaw', 'extensions', 'vibemon-bridge');
+  // The canonical install location is also an auto-discovered global root.
+  // load.paths records provenance, but is not required for discovery there.
+  if (!fs.existsSync(homePath('.openclaw', 'extensions', 'vibemon-bridge', 'openclaw.plugin.json'))) return false;
   return docs.some(doc => {
     const plugins = doc?.plugins;
     if (plugins?.enabled === false || plugins?.entries?.['vibemon-bridge']?.enabled !== true) return false;
-    const paths = plugins?.load?.paths;
-    return Array.isArray(paths) && paths.some(value => {
-      if (typeof value !== 'string' || !value.trim()) return false;
-      const resolved = resolveConfigPath(value.trim());
-      return resolved === pluginDir || resolved === path.join(pluginDir, 'index.mjs');
-    });
+    if (Array.isArray(plugins.deny) && plugins.deny.includes('vibemon-bridge')) return false;
+    return !Array.isArray(plugins.allow) || plugins.allow.length === 0 || plugins.allow.includes('vibemon-bridge');
   });
 }
 

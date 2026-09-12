@@ -227,7 +227,7 @@ Installs run unattended but not force-approved: the app passes a platform flag a
 
 Detection and hook paths honor `CLAUDE_CONFIG_DIR`, `CODEX_HOME`, `KIRO_HOME`, and `OPENCODE_CONFIG_DIR` (with the OpenCode XDG fallback described above). These variables must reach the Desktop App process. Kiro is detected through either `kiro` or `kiro-cli`.
 
-Registration checks inspect the command used on the current OS, including Codex's Windows override and the installer's quoted POSIX paths. OpenClaw requires both its enabled `vibemon-bridge` entry and its plugin directory/entry point in `plugins.load.paths`; globally disabled plugins do not count as installed. After an OpenClaw update, refresh its persisted plugin registry and restart the gateway as described in the [setup guide](https://github.com/opspresso/vibemon-docs#openclaw-configuration). The docs installer currently skips OpenClaw on Windows.
+Registration checks inspect the command used on the current OS, including Codex's Windows override and the installer's quoted POSIX paths. OpenClaw requires its script, manifest, and enabled `vibemon-bridge` entry. The installer records `plugins.load.paths`, and existing installations in the global extensions directory are also recognized without that entry. Global disable, deny entries, and a non-empty allowlist that excludes VibeMon prevent an installed status, matching [OpenClaw's plugin policy](https://docs.openclaw.ai/tools/plugin#configure-plugin-policy). After an OpenClaw update, refresh its persisted plugin registry and restart the gateway as described in the [setup guide](https://github.com/opspresso/vibemon-docs#openclaw-configuration). The docs installer currently skips OpenClaw on Windows.
 
 ```bash
 npm run build:mac     # macOS (DMG, ZIP)
