@@ -319,7 +319,7 @@ test('native frame size changes cannot inflate the configured sprite anchor', as
   }
 });
 
-describe.each([0.5, 1])('short bubbles on ordinary edges at scale %s', scale => {
+describe.each([0.3, 0.4, 0.5, 1])('short bubbles on ordinary edges at scale %s', scale => {
   test.each(['top', 'bottom'])('shares the character center when pinned to the %s edge', async edge => {
     const height = Math.round(138 * scale);
     const character = new BrowserWindow({ x: 500, y: edge === 'top' ? 16 : 1080 - 16 - height, width: Math.round(134 * scale), height });

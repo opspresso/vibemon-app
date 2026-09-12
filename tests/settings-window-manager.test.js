@@ -238,6 +238,12 @@ describe('setting mutations', () => {
     expect(deps.windowManager.setCharacterScale).toHaveBeenCalledTimes(1);
   });
 
+  test.each([30, 40])('settings accept the smaller %s%% character size', async scale => {
+    const { deps } = freshManager();
+    expect(await invoke('settings:set-character-scale', scale)).toBe(true);
+    expect(deps.windowManager.setCharacterScale).toHaveBeenCalledWith(scale);
+  });
+
   test('set-edge-margin accepts only listed margins', async () => {
     const { deps } = freshManager();
     expect(await invoke('settings:set-edge-margin', 16)).toBe(true);

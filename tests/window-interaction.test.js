@@ -50,6 +50,15 @@ test('WebGL is rendered before sampling its non-preserved drawing buffer', () =>
   expect(renderer.render.mock.invocationCallOrder[0]).toBeLessThan(context.drawImage.mock.invocationCallOrder[0]);
 });
 
+test('3D hit testing uses the transform updated by the render hook', () => {
+  const { createCharacterHitTest, context } = loadInteraction();
+  let rect = { left: 0, top: 0, right: 100, bottom: 100, width: 100, height: 100 };
+  const canvas = { width: 100, height: 100, getBoundingClientRect: () => rect };
+  const renderer = { domElement: canvas, render: () => { rect = { left: -50, top: -50, right: 150, bottom: 150, width: 200, height: 200 }; } };
+  expect(createCharacterHitTest({ renderer, scene: {}, camera: {} })(25, 25)).toBe(true);
+  expect(context.drawImage).toHaveBeenCalledWith(canvas, 37, 37, 1, 1, 0, 0, 1, 1);
+});
+
 test('rounded bubble corners and transparent tail corners pass through', () => {
   const { hitTestBubble } = loadInteraction();
   const bubble = {

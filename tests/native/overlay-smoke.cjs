@@ -238,6 +238,7 @@ async function verifyOrdinaryEdgeCenters(win, mode, scale) {
     characterManager.handleWindowMove();
     await bubbleManager.update('test', { state: { state: 'working' }, speechBubbleFields: { status: true } });
     const bubble = bubbleManager.bubbleWindows.get('test');
+    if (bubbleManager.lastSizes.get('test').height >= 138 * scale / 100) continue;
     await until(() => {
       const character = win.getBounds();
       const bounds = bubble.getBounds();
@@ -245,6 +246,56 @@ async function verifyOrdinaryEdgeCenters(win, mode, scale) {
     }, `${mode}/${scale} short bubble centered at the ${edge} edge`);
     results.push({ source: 'ordinary-edge-center', mode, scale, edge, character: win.getBounds(), bubble: bubble.getBounds() });
   }
+}
+
+function opaqueBounds(image) {
+  const { width, height } = image.getSize();
+  const pixels = image.toBitmap();
+  assert.equal(pixels.length, width * height * 4, 'pixel scan uses the capture dimensions');
+  let left = width, right = -1, top = height, bottom = -1;
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      if (pixels[(y * width + x) * 4 + 3] < 16) continue;
+      left = Math.min(left, x);
+      right = Math.max(right, x);
+      top = Math.min(top, y);
+      bottom = Math.max(bottom, y);
+    }
+  }
+  assert(right >= left && bottom >= top, '3D character renders visible pixels');
+  return { left, top, right, bottom, width: right - left + 1, height: bottom - top + 1, canvasWidth: width, canvasHeight: height };
+}
+
+async function verify3DFraming(win, scale) {
+  const padding = characterManager.getDisplayOptions().renderPadding3d;
+  win.webContents.send('state-update', { state: 'idle', character: 'clawd' });
+  await delay(300);
+  await win.webContents.executeJavaScript('document.querySelector(".vibemon-canvas-3d").style.transform = "none"');
+  await win.webContents.executeJavaScript('new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))');
+  const beforeImage = await win.webContents.capturePage();
+  const before = opaqueBounds(beforeImage);
+  await win.webContents.executeJavaScript('document.querySelector(".vibemon-canvas-3d").style.removeProperty("transform")');
+  await win.webContents.executeJavaScript('new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))');
+  const afterImage = await win.webContents.capturePage();
+  const after = opaqueBounds(afterImage);
+  fs.writeFileSync(path.join(output, '3d-framing-before.png'), beforeImage.toPNG());
+  fs.writeFileSync(path.join(output, '3d-framing-after.png'), afterImage.toPNG());
+  fs.writeFileSync(path.join(output, '3d-framing.json'), JSON.stringify({ padding, before, after }, null, 2));
+  assert(after.width > before.width * 1.15 && after.height > before.height * 1.15, '3D framing fills more of the same window');
+  const frames = [];
+  for (const state of Object.keys(states.states)) {
+    win.webContents.send('state-update', { state, character: 'clawd' });
+    for (let sample = 0; sample < 3; sample++) {
+      await delay(200);
+      const bounds = opaqueBounds(await win.webContents.capturePage());
+      assert(bounds.left > 0 && bounds.top > 0 && bounds.right < bounds.canvasWidth - 1 && bounds.bottom < bounds.canvasHeight - 1, `${state} animation stays clear of the viewport edges`);
+      const margin = Math.min(bounds.left, bounds.top, bounds.canvasWidth - 1 - bounds.right, bounds.canvasHeight - 1 - bounds.bottom);
+      assert(margin <= padding * bounds.canvasWidth / win.getBounds().width + 4, `${state} fills the viewport instead of reserving unused space`);
+      frames.push({ state, sample, bounds });
+    }
+  }
+  win.webContents.send('state-update', { state: 'working', character: 'clawd', project: 'test' });
+  results.push({ source: '3d-framing', scale, padding, before, after, frames });
 }
 
 function fullSizeWorkAreaPlacement(display) {
@@ -300,6 +351,15 @@ async function verifyDockSettings() {
     await openSettings();
     assert.equal(await readChoice(), choice, 'reopened settings reflect the saved choice');
   }
+  const scales = await settingsManager.window.webContents.executeJavaScript('Array.from(document.getElementById("character-scale").options, option => Number(option.value))');
+  assert(scales.includes(30) && scales.includes(40), 'settings offer 30% and 40%');
+  await settingsManager.window.webContents.executeJavaScript('(() => { const select = document.getElementById("character-scale"); select.value = "30"; select.dispatchEvent(new Event("change")); })()');
+  await until(() => characterManager.getCharacterScale() === 30 && characterManager.entry.window.getBounds().width === 40, '30% selection resizes the character');
+  const restoredSize = new CharacterWindowManager();
+  assert.equal(restoredSize.getCharacterScale(), 30, '30% size persists');
+  restoredSize.cleanup();
+  await settingsManager.window.webContents.executeJavaScript('(() => { const select = document.getElementById("character-scale"); select.value = "100"; select.dispatchEvent(new Event("change")); })()');
+  await until(() => characterManager.getCharacterScale() === 100 && characterManager.entry.window.getBounds().width === 134, 'size restores to 100%');
   await settingsManager.window.webContents.executeJavaScript('document.getElementById("dock-corner-size-row").scrollIntoView({ block: "center" })');
   fs.writeFileSync(path.join(output, 'dock-corner-settings.png'), (await settingsManager.window.webContents.capturePage()).toPNG());
   settingsManager.cleanup();
@@ -327,7 +387,7 @@ async function run() {
   const mouse = process.platform === 'win32' ? windowsMouse() : null;
   try {
     for (const mode of ['2d', '3d']) {
-      for (const scale of [50, 75, 100]) {
+      for (const scale of [30, 40, 50, 75, 100]) {
         characterManager = new CharacterWindowManager();
         characterManager.renderMode = mode;
         characterManager.characterScale = scale;
@@ -385,6 +445,7 @@ async function run() {
         fs.writeFileSync(path.join(output, `${label}.png`), (await win.webContents.capturePage()).toPNG());
         results.push({ mode, scale, devicePixelRatio: await win.webContents.executeJavaScript('devicePixelRatio'), initial: start, nativeClicks: !!mouse });
         if (process.platform === 'darwin') await verifyOrdinaryEdgeCenters(win, mode, scale);
+        if (mode === '3d' && (scale === 30 || scale === 100)) await verify3DFraming(win, scale);
         if (process.platform === 'darwin' && scale === 100) {
           await verifyDockCorners(win, mode);
           const fixtureDisplay = screen.getDisplayMatching(win.getBounds());

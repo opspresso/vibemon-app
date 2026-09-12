@@ -46,6 +46,9 @@ html, body {
   width: 100%;
   height: 100%;
   image-rendering: auto;
+  /* Each pose fills the viewport; the render hook keeps its geometry inside. */
+  transform: var(--vibemon-3d-transform, none);
+  transform-origin: top left;
 }
 
 .vibemon-display .vibemon-canvas {

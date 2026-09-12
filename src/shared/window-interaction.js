@@ -6,11 +6,11 @@ export function createCharacterHitTest(engine) {
   return (x, y) => {
     const canvas = engine.canvas || engine.renderer?.domElement;
     if (!canvas) return false;
+    // Rendering can update the adaptive 3D canvas transform. Read its bounds
+    // afterwards, while the WebGL drawing buffer is still available.
+    if (engine.renderer) engine.renderer.render(engine.scene, engine.camera);
     const rect = canvas.getBoundingClientRect();
     if (x < rect.left || y < rect.top || x >= rect.right || y >= rect.bottom || !rect.width || !rect.height) return false;
-    // WebGL clears its drawing buffer after compositing. Render the current
-    // scene synchronously before sampling, without advancing its animation.
-    if (engine.renderer) engine.renderer.render(engine.scene, engine.camera);
     context.clearRect(0, 0, 1, 1);
     context.drawImage(canvas,
       Math.floor((x - rect.left) * canvas.width / rect.width),

@@ -255,7 +255,7 @@ describe('default settings', () => {
     expect(manager.getCharacterScale()).toBe(100);
     expect(manager.getEdgeMargin()).toBe(0);
     expect(manager.getDevMode()).toBe(false);
-    expect(manager.getDisplayOptions()).toEqual({ characterScale: 100, devMode: false });
+    expect(manager.getDisplayOptions()).toEqual({ characterScale: 100, renderScale3d: 2, renderPadding3d: 2, devMode: false });
   });
 
   test('stored character size and edge margin outside the offered lists fall back', () => {
@@ -264,6 +264,15 @@ describe('default settings', () => {
 
     expect(manager.getCharacterScale()).toBe(100);
     expect(manager.getEdgeMargin()).toBe(0);
+  });
+
+  test.each([[30, 40, 41], [40, 54, 55]])('supports and restores %s%% character windows', (scale, width, height) => {
+    const manager = new CharacterWindowManager();
+    manager.setCharacterScale(scale);
+    expect(manager.windowSize()).toEqual({ width, height });
+    expect(manager.store.get('characterScale')).toBe(scale);
+    Store.__presetNextStore({ characterScale: scale });
+    expect(new CharacterWindowManager().getCharacterScale()).toBe(scale);
   });
 
   test('character size and edge margin setters reject values outside the offered lists', () => {
@@ -785,7 +794,7 @@ describe('window geometry (character size + edge margin)', () => {
     expect(window.setResizable).toHaveBeenNthCalledWith(2, false);
     // A resize fires no 'move' event, so the bubble is told to follow
     expect(manager.onWindowMoved).toHaveBeenCalledWith('a');
-    expect(window.webContents.send).toHaveBeenCalledWith('display-options', { characterScale: 50, devMode: false });
+    expect(window.webContents.send).toHaveBeenCalledWith('display-options', { characterScale: 50, renderScale3d: 2, renderPadding3d: 2, devMode: false });
   });
 
   test('resizing leaves a character parked away from every edge where it is', () => {
@@ -850,7 +859,7 @@ describe('window geometry (character size + edge margin)', () => {
     manager.setDevMode(true);
 
     expect(manager.getDevMode()).toBe(true);
-    expect(window.webContents.send).toHaveBeenCalledWith('display-options', { characterScale: 100, devMode: true });
+    expect(window.webContents.send).toHaveBeenCalledWith('display-options', { characterScale: 100, renderScale3d: 2, renderPadding3d: 2, devMode: true });
   });
 });
 

@@ -60,6 +60,12 @@ Characters are defined in a single registry canonically hosted in [vibemon-stati
 - `2d` (default): the pixel-art sprite described above
 - `3d`: a procedurally rendered pet (three.js) — no images are used. The rig is the same for every character; each one is tinted by its registry `theme` (`body`/`belly`/`accent`/`eye`/`blush`/`flame`), so Character Lock and per-project switching behave identically to 2D.
 
+**Settings → VibeMon → Character → Character Size** offers 100% through 30% in 10-point steps. The choice applies to both render modes and persists across restarts. The 3D canvas uses the largest uniform scale that fits each pose about the camera center, leaving a 2px margin. It recalculates before rendering each frame, including state transitions, and uses higher WebGL resolution for sharp enlargement. The 2D presentation is unchanged.
+
+| Previous 3D framing | Adaptive 3D framing |
+| --- | --- |
+| ![Previous 3D size](images/3d-size-before.png) | ![Larger 3D size](images/3d-size-after.png) |
+
 Both engines are vendored from vibemon-static (`src/engine/`); three.js ships locally in `src/vendor/` because the renderer CSP forbids runtime CDN imports.
 
 ### Character Lock

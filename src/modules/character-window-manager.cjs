@@ -27,6 +27,8 @@ const {
   CHAR_Y_BASE,
   CHAR_SIZE,
   CHARACTER_SCALES,
+  CHARACTER_3D_RENDER_SCALE,
+  CHARACTER_3D_PADDING,
   EDGE_MARGINS,
   FOCUS_HYSTERESIS_MS
 } = require('../shared/config.cjs');
@@ -313,10 +315,10 @@ class CharacterWindowManager {
   /**
    * Renderer-side display options — the character window scales itself with
    * CSS and tints its display area in dev mode.
-   * @returns {{characterScale: number, devMode: boolean}}
+   * @returns {{characterScale: number, renderScale3d: number, renderPadding3d: number, devMode: boolean}}
    */
   getDisplayOptions() {
-    return { characterScale: this.characterScale * (this.dockLayout?.scale || 1), devMode: this.devMode };
+    return { characterScale: this.characterScale * (this.dockLayout?.scale || 1), renderScale3d: CHARACTER_3D_RENDER_SCALE, renderPadding3d: CHARACTER_3D_PADDING, devMode: this.devMode };
   }
 
   isNearBottomCorner() {

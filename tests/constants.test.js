@@ -62,9 +62,10 @@ describe('Constants', () => {
       expect(constants.CHAR_SIZE).toBeGreaterThan(0);
     });
 
-    test('CHARACTER_SCALES offers 100% down to 50%, largest first', () => {
+    test('CHARACTER_SCALES offers 100% down to 30%, largest first', () => {
       expect(constants.CHARACTER_SCALES[0]).toBe(100);
-      expect(constants.CHARACTER_SCALES[constants.CHARACTER_SCALES.length - 1]).toBe(50);
+      expect(constants.CHARACTER_SCALES[constants.CHARACTER_SCALES.length - 1]).toBe(30);
+      expect(constants.CHARACTER_SCALES).toContain(40);
       expect([...constants.CHARACTER_SCALES].sort((a, b) => b - a)).toEqual(constants.CHARACTER_SCALES);
     });
 

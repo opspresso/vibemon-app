@@ -1,4 +1,5 @@
 import { installWindowInteraction, createCharacterHitTest } from './shared/window-interaction.js';
+import { install3DFraming } from './shared/3d-framing.js';
 
 // VibeMon engine instance (2D pixel-art or 3D pet, chosen by the persisted
 // render mode — see init())
@@ -8,6 +9,7 @@ let vibeMonEngine = null;
 let cleanupInteraction = null;
 let cleanupStateListener = null;
 let cleanupDisplayOptionsListener = null;
+let cleanupFraming = null;
 
 // Interaction override: while the character is held (pointer down) or
 // dragged, it shows the 'start' greeting expression, restoring the last
@@ -68,6 +70,9 @@ async function init() {
       defaultCharacter,
       states
     });
+    await vibeMonEngine.init();
+    vibeMonEngine.renderer.setPixelRatio((window.devicePixelRatio || 1) * displayOptions.renderScale3d);
+    cleanupFraming = install3DFraming(vibeMonEngine, container, THREE, displayOptions.renderPadding3d);
   } else {
     // 2D pixel-art engine: character images are remote-first
     // (static.vibemon.io), with the bundled asset as offline fallback —
@@ -100,7 +105,6 @@ async function init() {
       }
     }
   }
-  if (renderMode === '3d') await vibeMonEngine.init();
 
   // Initial render and start animation
   vibeMonEngine.render();
@@ -135,6 +139,8 @@ async function init() {
 
 // Cleanup on unload
 function cleanup() {
+  cleanupFraming?.();
+  cleanupFraming = null;
   cleanupInteraction?.();
   cleanupInteraction = null;
   if (vibeMonEngine) {
