@@ -134,10 +134,14 @@ async function verifyDockCorners(win, mode, live = null) {
   for (const { side, autoScale } of ['left', 'right'].flatMap(side => [false, true].map(autoScale => ({ side, autoScale })))) {
     characterManager.dockLayout = null;
     characterManager.dockAutoScale = autoScale;
+    characterManager.sendDisplayOptions();
     win.setResizable(true);
     characterManager.positionWindow(win, side === 'left' ? b.x : b.x + b.width - 134, b.y + b.height - 138);
     win.setResizable(false);
     characterManager.refreshDockLayout();
+    // Complete the simulated drop through endUserDrag's settling path,
+    // including the work-area fallback when no Dock layout fits.
+    characterManager.handleWindowMove();
     await bubbleManager.update('test', content);
     const bubble = bubbleManager.bubbleWindows.get('test');
     if (!autoScale && !characterManager.dockLayout) {
@@ -150,6 +154,8 @@ async function verifyDockCorners(win, mode, live = null) {
       const stackedFits = Math.max(134, natural.width) <= corner.area.width && 138 + 4 + natural.height <= corner.area.height;
       assert(!besideFits && !stackedFits, 'only fall back when both full-size arrangements lack space');
       await until(() => fullSizeWorkAreaPlacement(display), 'full-size overlays return to the work area without overlap');
+      const renderedScale = await win.webContents.executeJavaScript('Number(document.getElementById("vibemon-display").style.getPropertyValue("--vibemon-scale"))');
+      assert.equal(renderedScale, 1, 'the renderer also returns to its configured size');
       results.push({ mode, dockCorner: side, autoScale, source, fallback: 'work-area', character: win.getBounds(), bubble: bubble.getBounds() });
       continue;
     }
@@ -336,7 +342,7 @@ async function run() {
             display: fixtureDisplay,
             source: 'narrow-fixture-dock',
             monitor: {
-              bounds: [{ x: fixtureBounds.x + 80, y: fixtureBounds.y + fixtureBounds.height - 96, width: fixtureBounds.width - 160, height: 92 }],
+              bounds: [{ x: fixtureBounds.x + 35, y: fixtureBounds.y + fixtureBounds.height - 96, width: fixtureBounds.width - 70, height: 92 }],
               refresh: () => Promise.resolve()
             }
           });
