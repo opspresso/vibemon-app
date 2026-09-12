@@ -1,0 +1,15 @@
+ObjC.import('CoreGraphics');
+
+// Only geometry for visible Dock surfaces leaves this process. Window titles
+// and other applications' metadata are neither returned nor logged.
+function run() {
+  var list = $.CGWindowListCopyWindowInfo($.kCGWindowListOptionOnScreenOnly, $.kCGNullWindowID);
+  if (!list) return '[]';
+  var windows = ObjC.deepUnwrap(ObjC.castRefToObject(list));
+  return JSON.stringify(windows.filter(function (window) {
+    return window.kCGWindowOwnerName === 'Dock' && window.kCGWindowLayer === 20;
+  }).map(function (window) {
+    var bounds = window.kCGWindowBounds;
+    return { x: bounds.X, y: bounds.Y, width: bounds.Width, height: bounds.Height };
+  }));
+}

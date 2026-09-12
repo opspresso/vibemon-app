@@ -273,6 +273,31 @@ describe('bubble movement ordering', () => {
     }
     expect(bubble.getBounds()).toEqual({ x: 649, y: 249, width: 146, height: 52 });
   });
+
+  test('Dock fitting scales rendered content and keeps its natural measurement for restoration', async () => {
+    const { manager, bubble } = setup();
+    const render = jest.spyOn(bubble.webContents, 'executeJavaScript');
+    let dock = { scale: 0.5, bubble: { x: 72, y: 1054, width: 73, height: 26, tailSide: 'left', tailOffset: 20 } };
+    manager.getDockLayout = () => dock;
+    manager.reposition('a');
+    await flush();
+    expect(bubble.getBounds()).toEqual({ x: 72, y: 1054, width: 73, height: 26 });
+    expect(render).toHaveBeenLastCalledWith(expect.stringContaining(', 0.5)'));
+    expect(manager.lastSizes.get('a')).toEqual({ width: 146, height: 52 });
+    dock = null;
+    manager.computePlacement = jest.fn().mockResolvedValue({ x: 400, y: 500, tailSide: 'bottom', tailOffset: 40 });
+    manager.reposition('a');
+    await flush();
+    expect(bubble.getBounds()).toEqual({ x: 400, y: 500, width: 146, height: 52 });
+    expect(render).toHaveBeenLastCalledWith(expect.stringContaining(', 1)'));
+  });
+
+  test('hiding a bubble releases its share of the Dock corner', () => {
+    const { manager } = setup();
+    manager.setBubbleSize = jest.fn();
+    manager.hide('a');
+    expect(manager.setBubbleSize).toHaveBeenCalledWith(null);
+  });
 });
 
 test('native frame size changes cannot inflate the configured sprite anchor', async () => {

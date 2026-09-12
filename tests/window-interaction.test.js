@@ -63,6 +63,16 @@ test('rounded bubble corners and transparent tail corners pass through', () => {
   expect(hitTestBubble(bubble, 150, 20)).toBe(false);
 });
 
+test('bubble corner hit testing follows its Dock scale', () => {
+  const { hitTestBubble } = loadInteraction();
+  const bubble = {
+    offsetWidth: 100,
+    getBoundingClientRect: () => ({ left: 0, top: 0, right: 50, bottom: 25, width: 50, height: 25 })
+  };
+  expect(hitTestBubble(bubble, 2, 2)).toBe(true);
+  expect(hitTestBubble(bubble, 0, 0)).toBe(false);
+});
+
 test('forwarded mousemove enables only visible pixels; drag capture survives transparent pixels', () => {
   const { installWindowInteraction, events, api, document } = loadInteraction();
   const cleanup = installWindowInteraction({ hitTest: x => x >= 20 });

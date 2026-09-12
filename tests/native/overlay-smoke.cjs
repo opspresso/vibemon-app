@@ -113,6 +113,55 @@ async function nativeDragTest(mouse, win, point) {
   }, 'bubble follows the settled character');
 }
 
+async function verifyDockCorners(win, mode) {
+  const display = screen.getDisplayMatching(win.getBounds());
+  const b = display.bounds;
+  characterManager.dockMonitor = {
+    bounds: [{ x: b.x + Math.round(b.width * 0.3), y: b.y + b.height - 96, width: Math.round(b.width * 0.4), height: 92 }],
+    refresh: () => Promise.resolve()
+  };
+  bubbleManager.getDockLayout = () => characterManager.dockLayout;
+  bubbleManager.setBubbleSize = size => characterManager.setBubbleSize(size);
+  const content = {
+    state: { state: 'working', project: 'Dock corner verification', model: 'Example model', memory: 42, usage5h: 18, usageWeek: 36 },
+    speechBubbleFields: { status: true, project: true, model: true, memory: true, usage5h: true, usageWeek: true }
+  };
+  for (const side of ['left', 'right']) {
+    characterManager.dockLayout = null;
+    win.setResizable(true);
+    characterManager.positionWindow(win, side === 'left' ? b.x : b.x + b.width - 134, b.y + b.height - 138);
+    win.setResizable(false);
+    characterManager.refreshDockLayout();
+    await bubbleManager.update('test', content);
+    const bubble = bubbleManager.bubbleWindows.get('test');
+    await until(() => {
+      const expected = characterManager.dockLayout?.bubble;
+      if (!expected) return false;
+      const actual = bubble.getBounds();
+      return ['x', 'y', 'width', 'height'].every(key => actual[key] === expected[key]);
+    }, `${mode} ${side} native Dock corner geometry`);
+    const layout = characterManager.dockLayout;
+    assert.deepEqual(win.getBounds(), layout.character);
+    for (const overlay of [win, bubble]) {
+      const rect = overlay.getBounds();
+      assert(rect.x >= layout.area.x && rect.y >= layout.area.y);
+      assert(rect.x + rect.width <= layout.area.x + layout.area.width);
+      assert(rect.y + rect.height <= layout.area.y + layout.area.height);
+    }
+    const rendered = await bubble.webContents.executeJavaScript('(() => { const b = document.getElementById("bubble").getBoundingClientRect(); return { right: b.right, bottom: b.bottom, width: innerWidth, height: innerHeight }; })()');
+    assert(rendered.right <= rendered.width && rendered.bottom <= rendered.height, 'scaled bubble content is not clipped');
+    fs.writeFileSync(path.join(output, `dock-${mode}-${side}-character.png`), (await win.webContents.capturePage()).toPNG());
+    fs.writeFileSync(path.join(output, `dock-${mode}-${side}-bubble.png`), (await bubble.webContents.capturePage()).toPNG());
+    results.push({ mode, dockCorner: side, fixtureDock: characterManager.dockMonitor.bounds[0], layout, rendered });
+  }
+  characterManager.dockMonitor.bounds = [];
+  characterManager.refreshDockLayout();
+  bubbleManager.reposition('test');
+  await until(() => bubbleManager.bubbleWindows.get('test').getBounds().width === bubbleManager.lastSizes.get('test').width, 'bubble returns to natural size');
+  assert.equal(win.getBounds().width, 134);
+  assert.equal(characterManager.getDisplayOptions().characterScale, 100);
+}
+
 async function run() {
   await app.whenReady();
   // Keep the remote-first image/CORS path deterministic without depending on CDN availability.
@@ -191,6 +240,7 @@ async function run() {
         const label = `${mode}-${scale}`;
         fs.writeFileSync(path.join(output, `${label}.png`), (await win.webContents.capturePage()).toPNG());
         results.push({ mode, scale, devicePixelRatio: await win.webContents.executeJavaScript('devicePixelRatio'), initial: start, nativeClicks: !!mouse });
+        if (process.platform === 'darwin' && scale === 100) await verifyDockCorners(win, mode);
         bubbleManager.cleanup();
         characterManager.cleanup();
         win.destroy();

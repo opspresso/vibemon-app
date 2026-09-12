@@ -22,7 +22,8 @@ export function createCharacterHitTest(engine) {
 
 export function hitTestBubble(bubble, x, y) {
   const rect = bubble.getBoundingClientRect();
-  const radius = Math.min(10, rect.width / 2, rect.height / 2);
+  const scale = bubble.offsetWidth ? rect.width / bubble.offsetWidth : 1;
+  const radius = Math.min(10 * scale, rect.width / 2, rect.height / 2);
   if (x >= rect.left && x < rect.right && y >= rect.top && y < rect.bottom) {
     const cx = Math.max(rect.left + radius, Math.min(rect.right - radius, x));
     const cy = Math.max(rect.top + radius, Math.min(rect.bottom - radius, y));

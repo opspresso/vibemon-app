@@ -153,6 +153,7 @@ The app shows exactly one character window plus its following speech bubble:
 - **System Tray**: Quick access from menubar/taskbar
 - **Draggable**: Move the character anywhere on screen
 - **Snap to corner**: Can be dragged past the screen edge mid-drag; once you let go, it's clamped back on-screen, snapping flush to a corner within a 30px threshold
+- **macOS Dock corners**: When macOS exposes a usable visible Dock rectangle, dropping the character at a bottom corner fits the character and speech bubble together into the free space beside a bottom Dock, or below a side Dock. Both scale to fit, including the bubble's tail, while respecting Edge Margin. Dragging away restores Character Size and the bubble's natural size. Dock geometry is refreshed while a character rests in a bottom corner; unavailable or hidden Dock geometry uses normal work-area placement.
 - **Position survives lock/sleep**: When macOS moves the window itself — screen lock, system sleep, or a display detaching — that move is not saved, and the window returns to its remembered position once its display is back
 - **Remembered position**: The window spawns at the position it was last dragged to
 - **Click to focus terminal**: Click the character to switch to iTerm2/Ghostty tab (macOS only)
