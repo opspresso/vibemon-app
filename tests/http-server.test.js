@@ -95,6 +95,34 @@ describe('HttpServer request boundaries', () => {
     expect(windowManager.sendToWindow).toHaveBeenCalled();
   });
 
+  test.each(['start', 'thinking', 'planning', 'working', 'notification', 'packing', 'done'])(
+    'accepts an OpenCode %s payload through validation and character fallback', async state => {
+      const { StateManager } = require('../src/modules/state-manager.cjs');
+      const { CHARACTER_NAMES, DEFAULT_CHARACTER } = require('../src/shared/characters.cjs');
+      const normalizer = new StateManager();
+      const { server, stateManager, windowManager } = createServer();
+      stateManager.validateStateData.mockImplementation(data => normalizer.validateStateData(data));
+      const res = response();
+      const payload = {
+        state, project: 'opencode-project', character: 'opencode',
+        tool: state === 'working' ? 'bash' : '', model: 'test-model', memory: 0, terminalId: ''
+      };
+
+      await server.handleRequest(request('POST', '/status', {
+        headers: { 'content-type': 'application/json' }, body: payload
+      }), res);
+
+      const rendered = {
+        ...payload, character: CHARACTER_NAMES.includes('opencode') ? 'opencode' : DEFAULT_CHARACTER
+      };
+      expect(res.statusCode).toBe(200);
+      expect(windowManager.routeStatusUpdate).toHaveBeenCalledWith('opencode-project', rendered);
+      expect(windowManager.sendToWindow).toHaveBeenCalledWith('opencode-project', 'state-update', rendered);
+      expect(stateManager.setupStateTimeout).toHaveBeenCalledWith('opencode-project', state);
+      expect(rendered).not.toHaveProperty('usage5h');
+    }
+  );
+
   test('serves health and rejects unknown routes', async () => {
     const { server } = createServer();
     const health = response();

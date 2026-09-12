@@ -116,7 +116,10 @@ function mockToolMissing(tool) {
 // A config in the shape each installer writes, registering the hook.
 function registeredConfigFor(tool) {
   if (tool.flag === '--openclaw') {
-    return JSON.stringify({ plugins: { entries: { 'vibemon-bridge': { enabled: true } } } });
+    return JSON.stringify({ plugins: {
+      load: { paths: [path.dirname(tool.hookFile)] },
+      entries: { 'vibemon-bridge': { enabled: true } }
+    } });
   }
   if (tool.flag === '--kiro') {
     return JSON.stringify({
@@ -541,6 +544,35 @@ describe('HookInstaller', () => {
       expect(status.brokenPath).toBe('/gone/hooks/vibemon.py');
     });
 
+    test.each([
+      ["python3 '/custom config/hooks/vibemon.py'", '/custom config/hooks/vibemon.py'],
+      ["python3 '/custom'\"'\"'s config/hooks/vibemon.py'", "/custom's config/hooks/vibemon.py"]
+    ])('detects missing POSIX paths in %s', (command, expected) => {
+      mockClaudeRegisteredWith(command);
+      expect(hookInstaller.refreshStatuses().find(t => t.flag === claude.flag).brokenPath).toBe(expected);
+    });
+
+    test('accepts an existing single-quoted POSIX hook path with spaces', () => {
+      const script = '/custom config/hooks/vibemon.py';
+      mockClaudeRegisteredWith(`python3 '${script}'`);
+      const exists = fs.existsSync.getMockImplementation();
+      fs.existsSync.mockImplementation(p => p === script || exists(p));
+      expect(hookInstaller.refreshStatuses().find(t => t.flag === claude.flag).broken).toBe(false);
+    });
+
+    test.each(['darwin', 'win32'])('inspects only the effective Codex command on %s', platform => {
+      const loaded = loadInstallerFor({ platform });
+      const tool = loaded.TOOLS.find(t => t.flag === '--codex');
+      const good = `python3 "${tool.hookFile}"`;
+      const bad = 'python3 /gone/vibemon.py';
+      mockToolInstalled(tool, { config: JSON.stringify({ hooks: { Stop: [{ hooks: [{
+        command: platform === 'win32' ? bad : good,
+        commandWindows: platform === 'win32' ? good : bad
+      }] }] } }) });
+      const status = new loaded.HookInstaller().getCachedStatuses().find(t => t.flag === '--codex');
+      expect(status).toMatchObject({ hasHook: true, broken: false });
+    });
+
     // The POSIX form has nothing absolute in it, so there is nothing to verify
     // and it must never be reported as broken.
     test('leaves a PATH name and a tilde path alone', () => {
@@ -571,6 +603,38 @@ describe('HookInstaller', () => {
 
       const status = hookInstaller.refreshStatuses().find(t => t.flag === openclaw.flag);
       expect(status.hasHook).toBe(false);
+    });
+
+    test.each([
+      undefined,
+      { paths: [] },
+      { paths: 'not-an-array' },
+      { paths: [null, 123, '/unrelated/plugin'] }
+    ])('rejects an enabled OpenClaw entry without a usable load path: %j', load => {
+      const tool = TOOLS.find(t => t.flag === '--openclaw');
+      mockToolInstalled(tool, { config: JSON.stringify({ plugins: {
+        entries: { 'vibemon-bridge': { enabled: true } }, load
+      } }) });
+      expect(hookInstaller.getMissingTools().map(t => t.flag)).toContain('--openclaw');
+    });
+
+    test.each([
+      '~/.openclaw/extensions/vibemon-bridge',
+      '~/.openclaw/extensions/vibemon-bridge/index.mjs'
+    ])('accepts the OpenClaw load path %s', pluginPath => {
+      const tool = TOOLS.find(t => t.flag === '--openclaw');
+      mockToolInstalled(tool, { config: JSON.stringify({ plugins: {
+        entries: { 'vibemon-bridge': { enabled: true } }, load: { paths: [pluginPath] }
+      } }) });
+      expect(hookInstaller.refreshStatuses().find(t => t.flag === '--openclaw').hasHook).toBe(true);
+    });
+
+    test('does not report installed when OpenClaw plugins are globally disabled', () => {
+      const tool = TOOLS.find(t => t.flag === '--openclaw');
+      const config = JSON.parse(registeredConfigFor(tool));
+      config.plugins.enabled = false;
+      mockToolInstalled(tool, { config: JSON.stringify(config) });
+      expect(hookInstaller.refreshStatuses().find(t => t.flag === '--openclaw').hasHook).toBe(false);
     });
   });
 

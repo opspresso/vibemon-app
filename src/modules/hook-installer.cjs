@@ -98,8 +98,8 @@ function readJson(filePath) {
 /**
  * Every {command, args} pair anywhere in a parsed config document.
  *
- * Walked generically rather than per-tool because the four configs put their
- * commands in four different places (Claude's hooks map and statusLine,
+ * Walked generically rather than per-tool because the configs put their
+ * commands in different places (Claude's hooks map and statusLine,
  * Codex's hooks map plus its commandWindows override, and Kiro's v1 hook
  * action blocks) and only agree on the key names.
  * @param {any} node
@@ -112,11 +112,10 @@ function collectCommands(node, out = []) {
     return out;
   }
   if (!node || typeof node !== 'object') return out;
-  if (typeof node.command === 'string') {
-    out.push({ command: node.command, args: Array.isArray(node.args) ? node.args : [] });
-  }
-  if (typeof node.commandWindows === 'string') {
-    out.push({ command: node.commandWindows, args: [] });
+  const windowsOverride = IS_WINDOWS && typeof node.commandWindows === 'string';
+  const command = windowsOverride ? node.commandWindows : node.command;
+  if (typeof command === 'string') {
+    out.push({ command, args: !windowsOverride && Array.isArray(node.args) ? node.args : [] });
   }
   for (const value of Object.values(node)) collectCommands(value, out);
   return out;
@@ -127,14 +126,14 @@ function isVibemonEntry({ command, args }) {
 }
 
 /**
- * Split a shell-form command into tokens, honouring double quotes and the
+ * Split installer shell commands, honoring POSIX single/double quotes and the
  * PowerShell call operator install.py emits for a quoted interpreter path.
  * @param {string} command
  * @returns {string[]}
  */
 function tokenizeCommand(command) {
-  const tokens = command.trim().replace(/^&\s+/, '').match(/"[^"]*"|\S+/g) || [];
-  return tokens.map(token => token.replace(/^"|"$/g, ''));
+  const tokens = command.trim().replace(/^&\s+/, '').match(/(?:"[^"]*"|'[^']*'|[^\s"'])+/g) || [];
+  return tokens.map(token => token.replace(/"([^"]*)"|'([^']*)'/g, (_match, double, single) => double ?? single));
 }
 
 // Only absolute paths get checked. A bare `python3` is resolved through PATH
@@ -219,11 +218,29 @@ function homePath(...segments) {
 function resolveToolHome(envName, defaultDir) {
   const configured = String(process.env[envName] || '').trim();
   if (!configured) return homePath(defaultDir);
+  return resolveConfigPath(configured);
+}
+
+function resolveConfigPath(configured) {
   if (configured === '~') return os.homedir();
   if (configured.startsWith('~/') || configured.startsWith('~\\')) {
     return path.join(os.homedir(), configured.slice(2));
   }
   return path.resolve(configured);
+}
+
+function isOpenClawRegistered(docs) {
+  const pluginDir = homePath('.openclaw', 'extensions', 'vibemon-bridge');
+  return docs.some(doc => {
+    const plugins = doc?.plugins;
+    if (plugins?.enabled === false || plugins?.entries?.['vibemon-bridge']?.enabled !== true) return false;
+    const paths = plugins?.load?.paths;
+    return Array.isArray(paths) && paths.some(value => {
+      if (typeof value !== 'string' || !value.trim()) return false;
+      const resolved = resolveConfigPath(value.trim());
+      return resolved === pluginDir || resolved === path.join(pluginDir, 'index.mjs');
+    });
+  });
 }
 
 function resolveOpenCodeHome() {
@@ -344,10 +361,8 @@ const TOOLS = [
     hookFile: homePath('.openclaw', 'extensions', 'vibemon-bridge', 'index.mjs'),
     configPaths: [homePath('.openclaw', 'openclaw.json')],
     // No command to inspect: the bridge is a Node plugin OpenClaw loads
-    // itself, so registration means the entry exists and is enabled.
-    isRegistered: docs => docs.some(
-      doc => doc?.plugins?.entries?.['vibemon-bridge']?.enabled === true
-    ),
+    // itself. The docs installer both enables it and registers its load path.
+    isRegistered: isOpenClawRegistered,
     files: [
       { local: homePath('.openclaw', 'extensions', 'vibemon-bridge', 'index.mjs'), remote: 'openclaw/extensions/index.mjs' },
       { local: homePath('.openclaw', 'extensions', 'vibemon-bridge', 'openclaw.plugin.json'), remote: 'openclaw/extensions/openclaw.plugin.json' }
