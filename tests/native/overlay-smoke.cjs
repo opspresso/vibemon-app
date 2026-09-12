@@ -120,7 +120,7 @@ async function nativeDragTest(mouse, win, point) {
 async function verifyDockCorners(win, mode, live = null) {
   const display = live?.display || screen.getDisplayMatching(win.getBounds());
   const b = display.bounds;
-  const source = live ? 'live-dock' : 'fixture-dock';
+  const source = live?.source || (live ? 'live-dock' : 'fixture-dock');
   characterManager.dockMonitor = live?.monitor || {
     bounds: [{ x: b.x + Math.round(b.width * 0.3), y: b.y + b.height - 96, width: Math.round(b.width * 0.4), height: 92 }],
     refresh: () => Promise.resolve()
@@ -140,6 +140,19 @@ async function verifyDockCorners(win, mode, live = null) {
     characterManager.refreshDockLayout();
     await bubbleManager.update('test', content);
     const bubble = bubbleManager.bubbleWindows.get('test');
+    if (!autoScale && !characterManager.dockLayout) {
+      const corner = dockCorner(display, characterManager.dockMonitor.bounds[0], {
+        x: side === 'left' ? b.x : b.x + b.width - 134, y: b.y + b.height - 138, width: 134, height: 138
+      }, 0, false);
+      assert(corner, 'the full-size fallback still has a visible Dock');
+      const natural = bubbleManager.lastSizes.get('test');
+      const besideFits = 134 + 4 + natural.width <= corner.area.width && Math.max(138, natural.height) <= corner.area.height;
+      const stackedFits = Math.max(134, natural.width) <= corner.area.width && 138 + 4 + natural.height <= corner.area.height;
+      assert(!besideFits && !stackedFits, 'only fall back when both full-size arrangements lack space');
+      await until(() => fullSizeWorkAreaPlacement(display), 'full-size overlays return to the work area without overlap');
+      results.push({ mode, dockCorner: side, autoScale, source, fallback: 'work-area', character: win.getBounds(), bubble: bubble.getBounds() });
+      continue;
+    }
     await until(() => {
       const expected = characterManager.dockLayout?.bubble;
       if (!expected) return false;
@@ -168,7 +181,7 @@ async function verifyDockCorners(win, mode, live = null) {
     fs.writeFileSync(path.join(output, `${label}-bubble.png`), (await bubble.webContents.capturePage()).toPNG());
     results.push({ mode, dockCorner: side, autoScale, source, dock: characterManager.dockMonitor.bounds[0], layout, rendered });
   }
-  if (live && mode === '2d') await verifyDockSettings();
+  if (source === 'live-dock' && mode === '2d') await verifyDockSettings();
   characterManager.setDockAutoScale(false);
   characterManager.dockMonitor.bounds = [];
   characterManager.refreshDockLayout();
@@ -176,6 +189,19 @@ async function verifyDockCorners(win, mode, live = null) {
   await until(() => bubbleManager.bubbleWindows.get('test').getBounds().width === bubbleManager.lastSizes.get('test').width, 'bubble returns to natural size');
   assert.equal(win.getBounds().width, 134);
   assert.equal(characterManager.getDisplayOptions().characterScale, 100);
+}
+
+function fullSizeWorkAreaPlacement(display) {
+  if (characterManager.dockLayout || characterManager.getDisplayOptions().characterScale !== 100) return false;
+  const character = characterManager.entry.window.getBounds();
+  const bubble = bubbleManager.bubbleWindows.get('test').getBounds();
+  const natural = bubbleManager.lastSizes.get('test');
+  if (character.width !== 134 || character.height !== 138 || bubble.width !== natural.width || bubble.height !== natural.height) return false;
+  const area = display.workArea;
+  const inside = rect => rect.x >= area.x && rect.y >= area.y && rect.x + rect.width <= area.x + area.width && rect.y + rect.height <= area.y + area.height;
+  const separated = character.x + character.width <= bubble.x || bubble.x + bubble.width <= character.x ||
+    character.y + character.height <= bubble.y || bubble.y + bubble.height <= character.y;
+  return inside(character) && inside(bubble) && separated;
 }
 
 async function verifyDockSettings() {
@@ -201,7 +227,9 @@ async function verifyDockSettings() {
     await settingsManager.window.webContents.executeJavaScript(`(() => { const select = document.getElementById('dock-corner-size'); select.value = '${choice}'; select.dispatchEvent(new Event('change')); })()`);
     await until(() => {
       const layout = characterManager.dockLayout;
-      if (!layout?.bubble || characterManager.getDockAutoScale() !== (choice === 'shrink')) return false;
+      if (characterManager.getDockAutoScale() !== (choice === 'shrink')) return false;
+      if (!layout) return choice === 'keep' && fullSizeWorkAreaPlacement(screen.getDisplayMatching(characterManager.entry.window.getBounds()));
+      if (!layout.bubble) return false;
       if (choice === 'keep' && layout.scale !== 1) return false;
       const character = characterManager.entry.window.getBounds();
       const bubble = bubbleManager.bubbleWindows.get('test').getBounds();
@@ -302,6 +330,16 @@ async function run() {
         results.push({ mode, scale, devicePixelRatio: await win.webContents.executeJavaScript('devicePixelRatio'), initial: start, nativeClicks: !!mouse });
         if (process.platform === 'darwin' && scale === 100) {
           await verifyDockCorners(win, mode);
+          const fixtureDisplay = screen.getDisplayMatching(win.getBounds());
+          const fixtureBounds = fixtureDisplay.bounds;
+          await verifyDockCorners(win, mode, {
+            display: fixtureDisplay,
+            source: 'narrow-fixture-dock',
+            monitor: {
+              bounds: [{ x: fixtureBounds.x + 80, y: fixtureBounds.y + fixtureBounds.height - 96, width: fixtureBounds.width - 160, height: 92 }],
+              refresh: () => Promise.resolve()
+            }
+          });
           const monitor = new DockMonitor();
           await monitor.refresh();
           const display = screen.getAllDisplays().find(item => monitor.bounds.some(dock =>
