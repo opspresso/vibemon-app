@@ -83,7 +83,7 @@ curl -X POST http://127.0.0.1:19280/status \
 | `usageWeekModel` | number | Model-scoped weekly plan-usage window (0-100), e.g. the Fable bucket |
 | `usageWeekModelResetsIn` | number | Minutes until the model-scoped weekly window resets |
 | `usageWeekModelLabel` | string | Display label for the model-scoped weekly window (e.g. `Fable`) |
-| `character` | string | `vibemon`, `clawd`, `codex`, `kiro`, `claw`, or `daangni` |
+| `character` | string | Character name. Registered names: `vibemon`, `clawd`, `codex`, `kiro`, `claw`, `daangni`. Unregistered names (including `opencode`) are accepted and normalized to `vibemon`; they are not Character Lock options. |
 | `terminalId` | string | Terminal ID for click-to-focus (e.g., `iterm2:w0t0p0:UUID` or `ghostty:12345`) |
 
 > An unrecognized `state` value is rejected with a `400` error.
