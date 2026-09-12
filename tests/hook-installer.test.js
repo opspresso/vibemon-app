@@ -33,6 +33,37 @@ const {
 
 const realCrypto = jest.requireActual('crypto');
 const sha256 = (data) => realCrypto.createHash('sha256').update(data).digest('hex');
+const path = require('path');
+const os = require('os');
+
+function loadInstallerFor({ platform = 'darwin', env = {} } = {}) {
+  const originalPlatform = Object.getOwnPropertyDescriptor(process, 'platform');
+  const keys = ['OPENCODE_CONFIG_DIR', 'XDG_CONFIG_HOME'];
+  const previous = Object.fromEntries(keys.map(key => [key, process.env[key]]));
+  try {
+    Object.defineProperty(process, 'platform', { value: platform, configurable: true });
+    for (const key of keys) {
+      if (env[key] === undefined) delete process.env[key];
+      else process.env[key] = env[key];
+    }
+    let loaded;
+    jest.isolateModules(() => { loaded = require('../src/modules/hook-installer.cjs'); });
+    return loaded;
+  } finally {
+    Object.defineProperty(process, 'platform', originalPlatform);
+    for (const key of keys) {
+      if (previous[key] === undefined) delete process.env[key];
+      else process.env[key] = previous[key];
+    }
+  }
+}
+
+function openCodeSource({ python = 'python3', script } = {}) {
+  return 'const OPENCODE_HOME = path.join(os.homedir(), ".config", "opencode");\n'
+    + (script ? `const HOOK_SCRIPT = path.join(${JSON.stringify(script)});\n`
+      : 'const HOOK_SCRIPT = path.join(OPENCODE_HOME, "hooks", "vibemon.py");\n')
+    + `const PYTHON = ${JSON.stringify(python)};\n`;
+}
 
 test('installer integrity verification rejects a mismatched digest', () => {
   expect(verifyInstallerScript('print(1)', '0'.repeat(64))).toBe(false);
@@ -305,6 +336,116 @@ describe('HookInstaller', () => {
       const status = hookInstaller.getCachedStatuses().find(t => t.flag === target.flag);
       expect(status.present).toBe(true);
       expect(status.hasHook).toBe(false);
+    });
+  });
+
+  describe('OpenCode integration', () => {
+    function setup(options, { source = openCodeSource(), missingFiles = [], extraPaths = [] } = {}) {
+      const loaded = loadInstallerFor(options);
+      const tool = loaded.TOOLS.find(t => t.flag === '--opencode');
+      const files = new Map(tool.files.map(file => [file.local,
+        file.remote.endsWith('.js') ? source : 'adapter-bytes']));
+      for (const file of missingFiles) files.delete(path.join(tool.homeDir, file));
+      fs.existsSync.mockImplementation(p => p === tool.homeDir || files.has(p) || extraPaths.includes(p));
+      fs.readFileSync.mockImplementation(p => {
+        if (!files.has(p)) throw new Error('ENOENT');
+        return files.get(p);
+      });
+      return { installer: new loaded.HookInstaller(), tool };
+    }
+
+    test.each([
+      [{}, path.join(os.homedir(), '.config', 'opencode')],
+      [{ OPENCODE_CONFIG_DIR: ' ', XDG_CONFIG_HOME: ' ' }, path.join(os.homedir(), '.config', 'opencode')],
+      [{ OPENCODE_CONFIG_DIR: './custom opencode' }, path.resolve('custom opencode')],
+      [{ OPENCODE_CONFIG_DIR: '~/custom opencode' }, path.join(os.homedir(), 'custom opencode')],
+      [{ XDG_CONFIG_HOME: '~/xdg config' }, path.join(os.homedir(), 'xdg config', 'opencode')],
+      [{ XDG_CONFIG_HOME: './xdg' }, path.resolve('xdg', 'opencode')],
+      [{ OPENCODE_CONFIG_DIR: '/custom/opencode', XDG_CONFIG_HOME: '/ignored' }, '/custom/opencode']
+    ])('resolves config paths from %j', (env, expected) => {
+      const { tool } = setup({ env });
+      expect(tool.homeDir).toBe(expected);
+      expect(tool.hookFile).toBe(path.join(expected, 'hooks', 'vibemon.py'));
+      expect(tool.files.map(file => file.local)).toContain(path.join(expected, 'plugins', 'vibemon.js'));
+    });
+
+    test('detects the CLI even when the config directory has not been created', () => {
+      const { TOOLS: tools, HookInstaller: Installer } = loadInstallerFor();
+      presentCommands = new Set(['opencode']);
+      const installer = new Installer();
+      expect(installer.getMissingTools().map(tool => tool.flag)).toEqual(['--opencode']);
+      expect(tools.find(tool => tool.flag === '--opencode').command).toBe('opencode');
+    });
+
+    test('recognizes an auto-discovered plugin without a JSON config or CLI on PATH', () => {
+      const { installer } = setup();
+      expect(installer.getCachedStatuses().find(tool => tool.flag === '--opencode')).toMatchObject({
+        present: true, hasHook: true, broken: false, changed: false
+      });
+      expect(installer.getMissingTools()).toEqual([]);
+    });
+
+    test.each(['plugins/vibemon.js', 'hooks/vibemon.py'])(
+      'offers installation when %s is missing, even without a manifest', missing => {
+        const { installer } = setup({}, { missingFiles: [missing] });
+        expect(installer.getMissingTools().map(tool => tool.flag)).toEqual(['--opencode']);
+      }
+    );
+
+    test.each(['opencode/plugin/vibemon.js', 'opencode/hooks/vibemon.py'])(
+      'detects published changes to %s', remote => {
+        const { installer } = setup();
+        installer.manifest = { files: { [remote]: sha256('updated-source') } };
+        const status = installer.refreshStatuses().find(tool => tool.flag === '--opencode');
+        expect(status.changed).toBe(true);
+        expect(installer.hasChanges()).toBe(true);
+      }
+    );
+
+    test.each(['darwin', 'win32'])(
+      'tracks plugin updates after installer path adaptation on %s', platform => {
+        const env = { OPENCODE_CONFIG_DIR: path.join(os.homedir(), 'custom "config"') };
+        const script = path.join(env.OPENCODE_CONFIG_DIR, 'hooks', 'vibemon.py');
+        const python = platform === 'win32' ? 'C:/Program Files/Python/python.exe' : 'python3';
+        const { installer } = setup({ platform, env }, {
+          source: openCodeSource({ script, python }), extraPaths: [python]
+        });
+        installer.manifest = { files: {
+          'opencode/plugin/vibemon.js': sha256(openCodeSource()),
+          'opencode/hooks/vibemon.py': sha256('adapter-bytes')
+        } };
+        expect(installer.refreshStatuses().find(tool => tool.flag === '--opencode')).toMatchObject({
+          hasHook: true, broken: false, changed: false
+        });
+        installer.manifest.files['opencode/plugin/vibemon.js'] = sha256(openCodeSource() + '// update\n');
+        expect(installer.refreshStatuses().find(tool => tool.flag === '--opencode').changed).toBe(true);
+      }
+    );
+
+    test('reports a Windows interpreter that moved after installation', () => {
+      const python = 'C:/Program Files/Python312/python.exe';
+      const { installer } = setup({ platform: 'win32' }, { source: openCodeSource({ python }) });
+      expect(installer.getCachedStatuses().find(tool => tool.flag === '--opencode')).toMatchObject({
+        hasHook: true, broken: true, brokenPath: python
+      });
+    });
+
+    test('does not normalize an adapter path pointing to a different config directory', () => {
+      const script = '/old config/hooks/vibemon.py';
+      const { installer } = setup({}, { source: openCodeSource({ script }) });
+      installer.manifest = { files: { 'opencode/plugin/vibemon.js': sha256(openCodeSource()) } };
+      expect(installer.refreshStatuses().find(tool => tool.flag === '--opencode')).toMatchObject({
+        hasHook: true, broken: true, brokenPath: script, changed: true
+      });
+    });
+
+    test('passes the OpenCode flag to the verified installer', async () => {
+      const { installer } = setup();
+      mockSuccessfulInstall();
+      const results = await installer.installByFlag('--opencode', null);
+      expect(results).toHaveLength(1);
+      expect(results[0].result.ok).toBe(true);
+      expect(spawn).toHaveBeenCalledWith('python3', ['-', '--opencode'], expect.any(Object));
     });
   });
 

@@ -2,7 +2,7 @@
  * AI tool hook installer for Vibe Monitor
  *
  * Detects locally installed AI CLI tools (Claude Code, Codex CLI, Kiro IDE,
- * OpenClaw) that are missing the VibeMon hook files, and — after explicit
+ * OpenClaw, OpenCode) that are missing the VibeMon hook files, and — after explicit
  * user confirmation — runs the official docs.vibemon.io/install.py installer
  * to set them up. The script is downloaded over HTTPS and piped to
  * `python3 -` via stdin instead of a `curl | python3` shell pipe, so
@@ -70,11 +70,13 @@ function verifyInstallerScript(script, expectedHash) {
 /**
  * sha256 of a local file's bytes, or null when it can't be read.
  * @param {string} filePath
+ * @param {function(string): string} [normalize] - Undo known installer adaptations
  * @returns {string|null}
  */
-function fileSha256(filePath) {
+function fileSha256(filePath, normalize) {
   try {
-    return crypto.createHash('sha256').update(fs.readFileSync(filePath)).digest('hex');
+    const bytes = fs.readFileSync(filePath);
+    return crypto.createHash('sha256').update(normalize ? normalize(bytes.toString('utf8')) : bytes).digest('hex');
   } catch {
     return null;
   }
@@ -166,6 +168,7 @@ function brokenPathIn(entry) {
  * @returns {{registered: boolean, brokenPath: string|null}}
  */
 function inspectRegistration(tool) {
+  if (tool.inspectRegistration) return tool.inspectRegistration();
   const docs = (tool.configPaths || []).map(readJson).filter(Boolean);
   if (tool.isRegistered) {
     return { registered: tool.isRegistered(docs), brokenPath: null };
@@ -223,9 +226,52 @@ function resolveToolHome(envName, defaultDir) {
   return path.resolve(configured);
 }
 
+function resolveOpenCodeHome() {
+  if (String(process.env.OPENCODE_CONFIG_DIR || '').trim()) {
+    return resolveToolHome('OPENCODE_CONFIG_DIR', '.config/opencode');
+  }
+  return path.join(resolveToolHome('XDG_CONFIG_HOME', '.config'), 'opencode');
+}
+
+// Read only the JSON string literals install.py writes. Never evaluate a
+// locally installed plugin to inspect its interpreter or adapter paths.
+function openCodePluginPaths(source) {
+  const python = source.match(/^const PYTHON = ("(?:\\.|[^"\\])*");$/m);
+  const script = source.match(/^const HOOK_SCRIPT = path\.join\(("(?:\\.|[^"\\])*")\);$/m);
+  return {
+    python: python ? JSON.parse(python[1]) : null,
+    script: script ? JSON.parse(script[1]) : null
+  };
+}
+
+function inspectOpenCodePlugin() {
+  try {
+    const source = fs.readFileSync(OPENCODE_PLUGIN, 'utf8');
+    const paths = Object.values(openCodePluginPaths(source));
+    const brokenPath = paths.find(value => value && ABSOLUTE_PATH_RE.test(value) && !fs.existsSync(value)) || null;
+    return { registered: true, brokenPath };
+  } catch {
+    return { registered: false, brokenPath: null };
+  }
+}
+
+function normalizeOpenCodePlugin(source) {
+  const { python, script } = openCodePluginPaths(source);
+  // Restore only install.py's known adaptations before comparing the source
+  // checksum. All other plugin changes still trigger an update on every OS.
+  if (python && ABSOLUTE_PATH_RE.test(python)) {
+    source = source.replace(/^const PYTHON = .*;$/m, 'const PYTHON = "python3";');
+  }
+  if (script && path.normalize(script) === path.normalize(OPENCODE_HOOK)) {
+    source = source.replace(/^const HOOK_SCRIPT = .*;$/m, 'const HOOK_SCRIPT = path.join(OPENCODE_HOME, "hooks", "vibemon.py");');
+  }
+  return source;
+}
+
 // Per tool, `files` lists every file install.py copies verbatim (local
 // install path ↔ path under docs.vibemon.io), used to detect drift against
-// the published manifest.json. Merged config files (settings.json,
+// the published manifest.json. OpenCode's plugin supplies a normalizer for
+// its installer-adapted path literals. Merged config files (settings.json,
 // hooks.json, ...) and platform-adapted configs are excluded — their installed
 // form never matches the source hash. The `sharedAssets` entry covers the
 // shared ~/.vibemon
@@ -242,6 +288,9 @@ const CLAUDE_HOME = resolveToolHome('CLAUDE_CONFIG_DIR', '.claude');
 const CODEX_HOME = resolveToolHome('CODEX_HOME', '.codex');
 const KIRO_HOME = resolveToolHome('KIRO_HOME', '.kiro');
 const KIRO_CONFIG_IS_ADAPTED = IS_WINDOWS || KIRO_HOME !== homePath('.kiro');
+const OPENCODE_HOME = resolveOpenCodeHome();
+const OPENCODE_HOOK = path.join(OPENCODE_HOME, 'hooks', 'vibemon.py');
+const OPENCODE_PLUGIN = path.join(OPENCODE_HOME, 'plugins', 'vibemon.js');
 
 const TOOLS = [
   {
@@ -302,6 +351,19 @@ const TOOLS = [
     files: [
       { local: homePath('.openclaw', 'extensions', 'vibemon-bridge', 'index.mjs'), remote: 'openclaw/extensions/index.mjs' },
       { local: homePath('.openclaw', 'extensions', 'vibemon-bridge', 'openclaw.plugin.json'), remote: 'openclaw/extensions/openclaw.plugin.json' }
+    ]
+  },
+  {
+    name: 'OpenCode',
+    flag: '--opencode',
+    command: 'opencode',
+    homeDir: OPENCODE_HOME,
+    hookFile: OPENCODE_HOOK,
+    // OpenCode discovers plugins at startup; there is no JSON registration.
+    inspectRegistration: inspectOpenCodePlugin,
+    files: [
+      { local: OPENCODE_HOOK, remote: 'opencode/hooks/vibemon.py' },
+      { local: OPENCODE_PLUGIN, remote: 'opencode/plugin/vibemon.js', normalize: normalizeOpenCodePlugin }
     ]
   },
   {
@@ -406,10 +468,10 @@ class HookInstaller {
    */
   isChanged(tool) {
     if (!this.manifest) return false;
-    return tool.files.some(({ local, remote }) => {
+    return tool.files.some(({ local, remote, normalize }) => {
       const expected = this.manifest.files[remote];
       if (!expected) return false;
-      return fileSha256(local) !== expected;
+      return fileSha256(local, normalize) !== expected;
     });
   }
 
