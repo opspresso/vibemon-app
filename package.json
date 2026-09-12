@@ -1,6 +1,6 @@
 {
   "name": "vibemon",
-  "version": "2.7.7",
+  "version": "2.8.0",
   "description": "AI assistant status monitor",
   "engines": {
     "node": "24.x"
@@ -30,7 +30,10 @@
   "keywords": [
     "vibemon",
     "claude-code",
+    "codex",
     "kiro",
+    "openclaw",
+    "opencode",
     "ai-assistant",
     "status-monitor",
     "electron",

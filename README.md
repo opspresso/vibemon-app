@@ -18,6 +18,7 @@ Desktop (Electron) app for VibeMon. For the ESP32 hardware display, see [vibemon
 | **[Codex](https://openai.com/codex)** | OpenAI's AI coding agent |
 | **[Kiro](https://kiro.dev/)** | AWS's AI coding assistant |
 | **[OpenClaw](https://openclaw.ai/)** | Open-source computer use agent |
+| **[OpenCode](https://opencode.ai/)** | Open-source AI coding agent for the terminal |
 
 ## Agent Integration Model
 
@@ -29,6 +30,7 @@ VibeMon does not talk to agent runtimes directly. Each supported agent is bridge
 | Codex | Native hooks + `codex exec --json` | Broad | Interactive hooks cover shell, file edits, MCP, and other local function tools |
 | Kiro | Native hooks | Broad | Good tool-level hooks with MCP-aware tool names |
 | OpenClaw | Plugin bridge | Plugin-dependent | Uses plugin SDK hooks rather than the simpler internal hook system |
+| OpenCode | Plugin + Python adapter | Broad | Session, tool, permission, and compaction events; no usage metrics |
 
 ### Support Quality
 
@@ -36,6 +38,7 @@ VibeMon does not talk to agent runtimes directly. Each supported agent is bridge
 - **Codex**: Strong native lifecycle and tool coverage in interactive sessions. `codex exec --json` remains useful for CI and batch automation.
 - **Kiro**: Clean hook model for prompt, tool, and stop events. Practical fit for real-time monitoring.
 - **OpenClaw**: Best supported through plugins. Internal hooks are session/message oriented, so plugin SDK integration is the right path for VibeMon.
+- **OpenCode**: Its auto-discovered plugin sends events through a Python adapter and the shared VibeMon transport. Restart OpenCode after installing or updating the plugin.
 
 ## What It Monitors
 
@@ -66,9 +69,9 @@ That's it! The app launches in the system tray and listens on `http://127.0.0.1:
 
 `vibemon --version` prints the installed version, `vibemon --help` prints usage — both exit without launching the app.
 
-Open **Settings > AI Tools** from the tray menu and click **Install** for Claude Code, Codex CLI, Kiro IDE, or OpenClaw — this sets up the hooks and collector config for you, no separate installer needed. See [Settings Window](docs/features.md#settings-window) for details.
+Open **Settings > AI Tools** from the tray menu and click **Install** for Claude Code, Codex CLI, Kiro IDE, OpenClaw, or OpenCode — this sets up the hooks and collector config for you, no separate installer needed. OpenClaw installation is currently unsupported on Windows. See [Settings Window](docs/features.md#settings-window) for details.
 
-Tool detection and hook paths honor `CLAUDE_CONFIG_DIR`, `CODEX_HOME`, and `KIRO_HOME`. Kiro is detected through either `kiro` or `kiro-cli`.
+Tool detection and hook paths honor `CLAUDE_CONFIG_DIR`, `CODEX_HOME`, `KIRO_HOME`, and `OPENCODE_CONFIG_DIR`. OpenCode defaults to `$XDG_CONFIG_HOME/opencode`, falling back to `~/.config/opencode`. Kiro is detected through either `kiro` or `kiro-cli`. Environment overrides must be available to the Desktop App process as well as the tool.
 
 ## Development
 
@@ -112,6 +115,8 @@ See [Features](docs/features.md) for animations, working state text, and more.
 | `kiro` | White | Kiro |
 | `claw` | Red | OpenClaw |
 | `daangni` | Peach/teal | Manual only (Character Lock) |
+
+OpenCode sends `character: "opencode"`. The current canonical registry has no dedicated OpenCode character, so its status displays as `vibemon`. Character Lock can select any registered character.
 
 > The **Color** column is each character's overall look. This is distinct from the per-character `color` in the registry, which sets the eye/accent overlay drawn on the sprite — white for VibeMon, whose face is white.
 
