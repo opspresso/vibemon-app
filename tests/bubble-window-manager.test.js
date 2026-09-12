@@ -319,6 +319,23 @@ test('native frame size changes cannot inflate the configured sprite anchor', as
   }
 });
 
+describe.each([0.5, 1])('short bubbles on ordinary edges at scale %s', scale => {
+  test.each(['top', 'bottom'])('shares the character center when pinned to the %s edge', async edge => {
+    const height = Math.round(138 * scale);
+    const character = new BrowserWindow({ x: 500, y: edge === 'top' ? 16 : 1080 - 16 - height, width: Math.round(134 * scale), height });
+    const manager = new BubbleWindowManager(() => character, () => 16, () => scale);
+    const chain = {};
+    for (const name of ['force', 'stop', 'tick', 'id', 'distance', 'strength']) chain[name] = () => chain;
+    manager.getD3Force = async () => ({
+      forceSimulation: () => chain, forceCollide: () => chain, forceLink: () => chain,
+      forceX: () => chain, forceY: () => chain
+    });
+    const placement = await manager.computePlacement(character, { width: 146, height: 35 });
+    expect(Math.abs(placement.y + 35 / 2 - (character.getBounds().y + 69 * scale))).toBeLessThanOrEqual(0.5);
+    expect(['left', 'right']).toContain(placement.tailSide);
+  });
+});
+
 test('transparent overlay construction disables the Windows thick frame', async () => {
   const manager = freshManager();
   const pending = manager.ensureBubbleWindow('a');

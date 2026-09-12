@@ -22,6 +22,7 @@ test.each(['left', 'right'])('fits both complete overlays beside the bottom Dock
   within(layout.character, corner.area);
   within(layout.bubble, corner.area);
   expect(layout.character.y + layout.character.height).toBe(900);
+  expect(layout.bubble.y + layout.bubble.height).toBe(900);
   if (side === 'left') {
     expect(layout.character.x).toBe(0);
     expect(layout.character.x + layout.character.width).toBeLessThan(layout.bubble.x);
@@ -109,4 +110,19 @@ test('keep-size mode does not silently shrink overlays when neither arrangement 
   const corner = dockCorner(display, { ...dock, x: 85, width: 1270 }, { x: 0, y: 762, ...character }, 0, false);
   expect(fitDockLayout(corner, character, { width: 260, height: 185 }, false)).toBeNull();
   expect(fitDockLayout(corner, character, { width: 260, height: 185 }, true).scale).toBeLessThan(1);
+});
+
+describe.each([false, true])('short Dock bubbles with autoScale=%s', autoScale => {
+  test.each(['left', 'right'])('vertically centers a shorter bubble at the %s bottom corner', side => {
+    const corner = dockCorner(display, dock, { x: side === 'left' ? 0 : 1306, y: 762, ...character }, 8, autoScale);
+    const layout = fitDockLayout(corner, character, { width: 146, height: 51 }, autoScale);
+    expect(layout.axis).toBe('horizontal');
+    const charCenter = layout.character.y + layout.character.height / 2;
+    const bubbleCenter = layout.bubble.y + layout.bubble.height / 2;
+    expect(Math.abs(charCenter - bubbleCenter)).toBeLessThanOrEqual(0.5);
+    expect(layout.character.y + layout.character.height).toBe(892);
+    expect(layout.bubble.y + layout.bubble.height).toBeLessThan(892);
+    within(layout.bubble, corner.area);
+    expect(layout.bubble.tailSide).toBe(side);
+  });
 });

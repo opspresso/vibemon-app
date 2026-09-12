@@ -91,11 +91,14 @@ function fitDockLayout(corner, character, bubble = null, autoScale = true) {
   };
   if (!bubble) return { ...corner, axis, scale, character: charBounds, bubble: null };
   const bubbleSize = size(bubble);
+  // Match ordinary top/bottom edge placement: a shorter bubble beside the
+  // character shares its vertical center. Taller bubbles stay inside the area.
+  const centeredY = charBounds.y + Math.round((charSize.height - bubbleSize.height) / 2);
   const bubbleBounds = {
     x: horizontal
       ? (side === 'left' ? charBounds.x + charSize.width + gap : charBounds.x - gap - bubbleSize.width)
       : (side === 'left' ? area.x : area.x + area.width - bubbleSize.width),
-    y: horizontal ? area.y + area.height - bubbleSize.height : charBounds.y - gap - bubbleSize.height,
+    y: horizontal ? Math.min(centeredY, area.y + area.height - bubbleSize.height) : charBounds.y - gap - bubbleSize.height,
     ...bubbleSize
   };
   const tailSide = horizontal ? (side === 'left' ? 'left' : 'right') : 'bottom';

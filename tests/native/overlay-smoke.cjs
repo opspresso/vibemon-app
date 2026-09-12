@@ -186,6 +186,21 @@ async function verifyDockCorners(win, mode, live = null) {
     fs.writeFileSync(path.join(output, `${label}-character.png`), (await win.webContents.capturePage()).toPNG());
     fs.writeFileSync(path.join(output, `${label}-bubble.png`), (await bubble.webContents.capturePage()).toPNG());
     results.push({ mode, dockCorner: side, autoScale, source, dock: characterManager.dockMonitor.bounds[0], layout, rendered });
+    await bubbleManager.update('test', { state: { state: 'working' }, speechBubbleFields: { status: true } });
+    await until(() => {
+      const expected = characterManager.dockLayout?.bubble;
+      const actual = bubble.getBounds();
+      return expected && ['x', 'y', 'width', 'height'].every(key => actual[key] === expected[key]);
+    }, 'short Dock bubble settles');
+    if (characterManager.dockLayout.axis === 'horizontal') {
+      const characterBounds = win.getBounds();
+      const bubbleBounds = bubble.getBounds();
+      assert(bubbleManager.lastSizes.get('test').height < characterManager.configuredWindowSize().height, 'short bubble test exercises unequal natural heights');
+      assert(Math.abs(bubbleBounds.y + bubbleBounds.height / 2 - (characterBounds.y + characterBounds.height / 2)) <= 0.5, 'short Dock bubble shares the character center');
+      assert.equal(characterBounds.y + characterBounds.height, characterManager.dockLayout.area.y + characterManager.dockLayout.area.height);
+      results.push({ source: 'short-bubble-center', mode, dockCorner: side, autoScale, context: source, character: characterBounds, bubble: bubbleBounds });
+      if (source === 'live-dock' && mode === '2d' && side === 'left' && !autoScale) await captureOverlayPair(win, bubble);
+    }
   }
   if (source === 'live-dock' && mode === '2d') await verifyDockSettings();
   characterManager.setDockAutoScale(false);
@@ -195,6 +210,41 @@ async function verifyDockCorners(win, mode, live = null) {
   await until(() => bubbleManager.bubbleWindows.get('test').getBounds().width === bubbleManager.lastSizes.get('test').width, 'bubble returns to natural size');
   assert.equal(win.getBounds().width, 134);
   assert.equal(characterManager.getDisplayOptions().characterScale, 100);
+}
+
+async function captureOverlayPair(character, bubble) {
+  const charBounds = character.getBounds();
+  const bubbleBounds = bubble.getBounds();
+  const left = Math.min(charBounds.x, bubbleBounds.x);
+  const top = Math.min(charBounds.y, bubbleBounds.y);
+  const width = Math.max(charBounds.x + charBounds.width, bubbleBounds.x + bubbleBounds.width) - left;
+  const height = Math.max(charBounds.y + charBounds.height, bubbleBounds.y + bubbleBounds.height) - top;
+  const images = [];
+  for (const win of [character, bubble]) {
+    const bounds = win.getBounds();
+    const capture = await win.webContents.capturePage();
+    images.push(`<img src="${capture.toDataURL()}" style="position:absolute;left:${bounds.x - left}px;top:${bounds.y - top}px;width:${bounds.width}px;height:${bounds.height}px">`);
+  }
+  const preview = new BrowserWindow({ width, height, show: false, frame: false, webPreferences: { sandbox: true } });
+  await preview.loadURL('data:text/html,' + encodeURIComponent(`<body style="margin:0;background:#152033">${images.join('')}</body>`));
+  fs.writeFileSync(path.join(output, 'dock-short-bubble-center.png'), (await preview.webContents.capturePage()).toPNG());
+  preview.destroy();
+}
+
+async function verifyOrdinaryEdgeCenters(win, mode, scale) {
+  const area = screen.getDisplayMatching(win.getBounds()).workArea;
+  for (const edge of ['top', 'bottom']) {
+    characterManager.positionWindow(win, area.x + Math.round(area.width / 2), edge === 'top' ? area.y : area.y + area.height - characterManager.windowSize().height);
+    characterManager.handleWindowMove();
+    await bubbleManager.update('test', { state: { state: 'working' }, speechBubbleFields: { status: true } });
+    const bubble = bubbleManager.bubbleWindows.get('test');
+    await until(() => {
+      const character = win.getBounds();
+      const bounds = bubble.getBounds();
+      return bounds.height < character.height && Math.abs(bounds.y + bounds.height / 2 - (character.y + 69 * scale / 100)) <= 0.5;
+    }, `${mode}/${scale} short bubble centered at the ${edge} edge`);
+    results.push({ source: 'ordinary-edge-center', mode, scale, edge, character: win.getBounds(), bubble: bubble.getBounds() });
+  }
 }
 
 function fullSizeWorkAreaPlacement(display) {
@@ -334,6 +384,7 @@ async function run() {
         const label = `${mode}-${scale}`;
         fs.writeFileSync(path.join(output, `${label}.png`), (await win.webContents.capturePage()).toPNG());
         results.push({ mode, scale, devicePixelRatio: await win.webContents.executeJavaScript('devicePixelRatio'), initial: start, nativeClicks: !!mouse });
+        if (process.platform === 'darwin') await verifyOrdinaryEdgeCenters(win, mode, scale);
         if (process.platform === 'darwin' && scale === 100) {
           await verifyDockCorners(win, mode);
           const fixtureDisplay = screen.getDisplayMatching(win.getBounds());
