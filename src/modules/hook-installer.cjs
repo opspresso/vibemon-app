@@ -261,6 +261,17 @@ function openCodePluginPaths(source) {
   };
 }
 
+function isOpenCodeHookPath(script) {
+  if (path.normalize(script) === path.normalize(OPENCODE_HOOK)) return true;
+  // Path.resolve() in install.py also resolves symlinks (e.g. /tmp on macOS).
+  // Compare the existing files so those paths do not look like plugin drift.
+  try {
+    return fs.realpathSync(script) === fs.realpathSync(OPENCODE_HOOK);
+  } catch {
+    return false;
+  }
+}
+
 function inspectOpenCodePlugin() {
   try {
     const source = fs.readFileSync(OPENCODE_PLUGIN, 'utf8');
@@ -279,7 +290,7 @@ function normalizeOpenCodePlugin(source) {
   if (python && ABSOLUTE_PATH_RE.test(python)) {
     source = source.replace(/^const PYTHON = .*;$/m, 'const PYTHON = "python3";');
   }
-  if (script && path.normalize(script) === path.normalize(OPENCODE_HOOK)) {
+  if (script && isOpenCodeHookPath(script)) {
     source = source.replace(/^const HOOK_SCRIPT = .*;$/m, 'const HOOK_SCRIPT = path.join(OPENCODE_HOME, "hooks", "vibemon.py");');
   }
   return source;

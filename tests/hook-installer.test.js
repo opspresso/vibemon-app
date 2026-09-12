@@ -198,6 +198,7 @@ describe('HookInstaller', () => {
 
   beforeEach(() => {
     fs.existsSync.mockReset().mockReturnValue(false);
+    fs.realpathSync.mockReset().mockImplementation(() => { throw new Error('ENOENT'); });
     pythonAvailable = true;
     presentCommands = new Set();
     spawnSync.mockReset();
@@ -364,7 +365,7 @@ describe('HookInstaller', () => {
       [{ OPENCODE_CONFIG_DIR: '~/custom opencode' }, path.join(os.homedir(), 'custom opencode')],
       [{ XDG_CONFIG_HOME: '~/xdg config' }, path.join(os.homedir(), 'xdg config', 'opencode')],
       [{ XDG_CONFIG_HOME: './xdg' }, path.resolve('xdg', 'opencode')],
-      [{ OPENCODE_CONFIG_DIR: '/custom/opencode', XDG_CONFIG_HOME: '/ignored' }, '/custom/opencode']
+      [{ OPENCODE_CONFIG_DIR: '/custom/opencode', XDG_CONFIG_HOME: '/ignored' }, path.resolve('/custom/opencode')]
     ])('resolves config paths from %j', (env, expected) => {
       const { tool } = setup({ env });
       expect(tool.homeDir).toBe(expected);
@@ -439,6 +440,21 @@ describe('HookInstaller', () => {
       installer.manifest = { files: { 'opencode/plugin/vibemon.js': sha256(openCodeSource()) } };
       expect(installer.refreshStatuses().find(tool => tool.flag === '--opencode')).toMatchObject({
         hasHook: true, broken: true, brokenPath: script, changed: true
+      });
+    });
+
+    test('matches installer paths resolved through a config-directory symlink', () => {
+      const script = path.resolve('/canonical config/hooks/vibemon.py');
+      const { installer, tool } = setup({ env: { OPENCODE_CONFIG_DIR: '/linked config' } }, {
+        source: openCodeSource({ script }), extraPaths: [script]
+      });
+      fs.realpathSync.mockImplementation(p => {
+        if (p === script || p === tool.hookFile) return script;
+        throw new Error('ENOENT');
+      });
+      installer.manifest = { files: { 'opencode/plugin/vibemon.js': sha256(openCodeSource()) } };
+      expect(installer.refreshStatuses().find(t => t.flag === '--opencode')).toMatchObject({
+        hasHook: true, changed: false, broken: false
       });
     });
 
