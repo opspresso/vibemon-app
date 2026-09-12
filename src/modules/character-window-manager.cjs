@@ -430,6 +430,16 @@ class CharacterWindowManager {
       : (this.windowPosition ? { ...this.windowPosition, ...previous.size } : null);
     if (!origin) return;
 
+    // A closed window's saved Dock position is pinned to the physical
+    // corner, not the work-area edge. Refit it using its previous bounds.
+    if (!isOpen) {
+      const dock = this.layoutForBounds(origin);
+      if (dock) {
+        this.saveWindowPosition({ x: dock.character.x, y: dock.character.y });
+        return;
+      }
+    }
+
     const { workArea } = screen.getDisplayMatching(origin);
     const before = this.marginArea(workArea, previous.edgeMargin, previous.size);
     const after = this.marginArea(workArea, this.edgeMargin, size);
@@ -771,9 +781,29 @@ class CharacterWindowManager {
 
       if (!this.isWindowValid(this.entry) || !this.windowPosition) return;
 
-      if (this.layoutForBounds({ ...this.windowPosition, ...this.windowSize() })) {
-        this.applyDockLayout({ ...this.windowPosition, ...this.windowSize() });
+      if (this.dockLayout) {
+        // Keep the original display/corner through sleep, even if displays
+        // change coordinates. A missing Dock must still clear its old scale.
+        const display = screen.getAllDisplays().find(item => item.id === this.dockLayout.displayId);
+        if (!display) return;
+        const size = this.windowSize();
+        const { bounds } = display;
+        this.applyDockLayout({
+          x: this.dockLayout.side === 'left' ? bounds.x + this.edgeMargin : bounds.x + bounds.width - this.edgeMargin - size.width,
+          y: bounds.y + bounds.height - this.edgeMargin - size.height,
+          ...size
+        });
         return;
+      }
+
+      if (this.dockMonitor) {
+        const available = screen.getAllDisplays().some(({ bounds }) => bounds &&
+          this.windowPosition.x >= bounds.x && this.windowPosition.x < bounds.x + bounds.width &&
+          this.windowPosition.y >= bounds.y && this.windowPosition.y < bounds.y + bounds.height);
+        // Do not use nearest-display Dock snapping while the saved display
+        // is absent: that would overwrite the position we are waiting for.
+        if (!available) return;
+        if (this.applyDockLayout({ ...this.windowPosition, ...this.windowSize() })) return;
       }
 
       const target = this.clampPositionToScreen(this.windowPosition);
@@ -895,6 +925,8 @@ class CharacterWindowManager {
         this.snapTimer = null;
       }
       this.clearUserDrag();
+      this.dockLayout = null;
+      this.bubbleSize = null;
       this.entry = null;
 
       if (this.onWindowClosed) {

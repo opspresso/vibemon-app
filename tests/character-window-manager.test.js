@@ -106,6 +106,63 @@ describe('Dock corner geometry', () => {
     expect(bounds).toEqual(saved);
   });
 
+  test('clears a stale Dock scale when the Dock disappears during sleep', () => {
+    manager.refreshDockLayout();
+    manager.suspendPositionTracking();
+    monitor.bounds = [];
+    bounds = { ...bounds, x: 200, y: 200 };
+    manager.restoreWindowPosition();
+    jest.advanceTimersByTime(1000);
+    expect(manager.dockLayout).toBeNull();
+    expect(bounds).toEqual({ x: 0, y: 706, width: 134, height: 138 });
+    expect(manager.getDisplayOptions().characterScale).toBe(100);
+  });
+
+  test('waits for the original Dock display, even if another screen occupies its coordinates', () => {
+    manager.refreshDockLayout();
+    const saved = { ...manager.windowPosition };
+    manager.suspendPositionTracking();
+    bounds = { ...bounds, x: 200, y: 200 };
+    window.setBounds.mockClear();
+    screen.getAllDisplays.mockReturnValue([{ ...display, id: 2 }]);
+    manager.restoreWindowPosition();
+    jest.advanceTimersByTime(1000);
+    expect(window.setBounds).not.toHaveBeenCalled();
+    expect(manager.windowPosition).toEqual(saved);
+
+    const reattached = { ...display, bounds: { ...display.bounds, x: 1440 }, workArea: { ...display.workArea, x: 1440 } };
+    screen.getAllDisplays.mockReturnValue([{ ...display, id: 2 }, reattached]);
+    monitor.bounds = [{ x: 1840, y: 844, width: 640, height: 52 }];
+    manager.restoreWindowPosition();
+    jest.advanceTimersByTime(1000);
+    expect(bounds.x).toBe(1440);
+    expect(bounds.y + bounds.height).toBe(900);
+  });
+
+  test('does not snap an unavailable saved display onto the nearest screen Dock', () => {
+    manager.saveWindowPosition({ x: 2500, y: 1800 });
+    manager.suspendPositionTracking();
+    window.setBounds.mockClear();
+    manager.restoreWindowPosition();
+    jest.advanceTimersByTime(1000);
+    expect(window.setBounds).not.toHaveBeenCalled();
+    expect(manager.windowPosition).toEqual({ x: 2500, y: 1800 });
+  });
+
+  test('closing a docked window releases its geometry before changing the saved size', () => {
+    manager.setDockAutoScale(false);
+    manager.entry = null;
+    Object.assign(window, { loadFile: jest.fn(), setIgnoreMouseEvents: jest.fn(), setVisibleOnAllWorkspaces: jest.fn() });
+    require('electron').BrowserWindow.mockImplementationOnce(() => window);
+    manager.ensureWindow('dock');
+    window.emit('closed');
+    expect(manager.dockLayout).toBeNull();
+    manager.setCharacterScale(30);
+    expect(manager.windowSize()).toEqual({ width: 40, height: 41 });
+    const restored = manager.layoutForBounds({ ...manager.windowPosition, ...manager.windowSize() });
+    expect(restored.character.y + restored.character.height).toBe(900);
+  });
+
   test('does not mistake a saved small right-corner window for the next monitor', () => {
     const adjacent = { id: 2, bounds: { x: 1440, y: 0, width: 1440, height: 900 }, workArea: { x: 1440, y: 0, width: 1440, height: 900 } };
     screen.getAllDisplays.mockReturnValue([display, adjacent]);
