@@ -10,11 +10,13 @@ VibeMon normalizes multiple agent ecosystems into one display model. The renderi
 | Codex | Native hooks and non-interactive JSON output | Interactive lifecycle and local tool hooks, `codex exec --json` for automation | High | Hosted tools such as WebSearch do not pass through local tool hooks |
 | Kiro | Native hooks | Prompt, tool, and stop hooks | High | Fewer lifecycle events than Claude Code |
 | OpenClaw | Plugin bridge | Plugin SDK hooks | Medium to high | Internal hooks are not enough by themselves for full tool-loop visibility |
+| OpenCode | Plugin + Python adapter | Session, chat, tool, permission, and compaction events | High | No context or plan-usage metrics; uses the default character until registered in vibemon-static |
 
 ### Bridge Types
 
 - **Native hook bridge**: Claude Code, Codex, and Kiro expose hook events that VibeMon can translate directly into `start`, `thinking`, `working`, `notification`, `packing`, and `done`.
 - **Plugin bridge**: OpenClaw support is intentionally plugin-based. Its simpler internal hooks are session and message oriented, so VibeMon uses plugin SDK lifecycle hooks for better timing.
+- **Plugin + adapter bridge**: OpenCode auto-loads `plugins/vibemon.js`, which passes events to `hooks/vibemon.py` and the shared `~/.vibemon/vibemon_core.py` transport. The Desktop App receives the same status payload as the other tools.
 
 ### Agent-Specific Notes
 
@@ -22,6 +24,17 @@ VibeMon normalizes multiple agent ecosystems into one display model. The renderi
 - **Codex**: Strong interactive lifecycle and local tool coverage. VibeMon's `PreToolUse` and `PostToolUse` hooks observe shell commands, `apply_patch`, MCP tools, and other local function tools; `codex exec --json` remains useful for CI or batch jobs.
 - **Kiro**: Strong tool-level support with explicit `PreToolUse` and `PostToolUse`, plus namespaced MCP tool names.
 - **OpenClaw**: Strongest when treated as a plugin platform. The VibeMon bridge should continue to use plugin hooks instead of depending on the lighter internal hook system.
+- **OpenCode**: Session creation, prompts, tool execution, permission requests, compaction, and completion map to the existing states. Plan-agent activity uses `planning`; known child sessions are suppressed by the bridge. The adapter sends `memory: 0` and no plan-usage fields. See the [bridge event mappings](https://github.com/opspresso/vibemon-docs#opencode) for details.
+
+### OpenCode Setup
+
+In **Settings > AI Tools**, click **Install** for OpenCode, then restart OpenCode. The [official plugin loader](https://opencode.ai/docs/plugins/) discovers local plugins at startup; no `opencode.json` registration is required.
+
+The installer places `plugins/vibemon.js` and `hooks/vibemon.py` under `OPENCODE_CONFIG_DIR`, or `$XDG_CONFIG_HOME/opencode` (default `~/.config/opencode`). Both files must be present for the app to report the integration as installed. Transmission settings come from the shared `~/.vibemon/config.json`.
+
+On Windows, the installer pins the Python interpreter in the plugin; custom config directories also receive an absolute adapter path. The app normalizes these known path adaptations when checking the published plugin checksum, so updates remain detectable. A missing pinned interpreter or stale adapter reference is shown as **Needs repair**; use **Reinstall**, then restart OpenCode. Missing installation files restore the **Install** action.
+
+![OpenCode installed in Settings > AI Tools](images/opencode-settings.png)
 
 ## Characters
 
@@ -33,6 +46,8 @@ VibeMon normalizes multiple agent ecosystems into one display model. The renderi
 | `kiro` | White | Ghost character | Kiro |
 | `claw` | Red | Antenna character | OpenClaw |
 | `daangni` | Peach/teal | Round face, fluffy top | Manual only (Character Lock) |
+
+OpenCode reports `character: "opencode"`, which currently falls back to `vibemon` because the canonical registry does not contain that name. Its states, project, tool, and model remain visible. A dedicated character must be added to `vibemon-static` and synced here before it can be bundled or offered in Character Lock.
 
 In **2D** (default) all characters use **image-based rendering** (128x128 PNG). Images load remote-first from `static.vibemon.io`, with copies bundled in `src/assets/characters/` as the offline fallback. Character is **auto-selected by bridge**, not by the core display runtime. You can also force one with [Character Lock](#character-lock).
 
@@ -181,7 +196,7 @@ A dedicated settings window (tray menu → **Settings...**) with four tabs in a 
 
 - **VibeMon** — Character Lock, Always on Top mode, Speech Bubble field toggles, Open at Login
 - **Collector** — how AI tool session status gets delivered here, locally or via the cloud relay: WebSocket connection status + account token (also writes the collector's `vibemon_token` into `~/.vibemon/config.json`), plus Config (HTTP URLs, Serial Port, VibeMon URL, Debug Logging, Auto-launch Desktop App) read and written directly by the app — no python installer needed
-- **AI Tools** — per-tool hook install status for Claude Code / Codex CLI / Kiro IDE / OpenClaw, with one-click Install (Reinstall for already-installed tools) and a Refresh action
+- **AI Tools** — per-tool hook install status for Claude Code / Codex CLI / Kiro IDE / OpenClaw / OpenCode, with one-click Install (Reinstall for already-installed tools) and a Refresh action
 - **About** — app version, Check for Updates with one-click download/install, and Docs / GitHub Releases links
 
 Changes apply immediately through the same code paths as the tray menu, and the window re-syncs when refocused so tray-made changes are reflected.
@@ -196,7 +211,7 @@ Grouped to mirror the Settings window's tab order (VibeMon / Collector / AI Tool
 - Settings... (opens the Settings window)
 - **VibeMon** — Character Lock (Auto/VibeMon/Clawd/Codex/Kiro/Claw/Daangni), Always on Top, Speech Bubble field toggles, Open at Login toggle
 - **Collector** — WebSocket status (Connected/Disconnected), HTTP Server port display
-- **AI Tools** — AI Tool Hooks (per-tool install status for Claude Code/Codex CLI/Kiro IDE/OpenClaw, with one-click install), followed by Claude/Codex plan usage grouped per provider (5h, weekly, and model-scoped weekly %, each with a heat-colored bar icon and its own time-to-reset) — read from the shared usage cache independent of which project is focused; rows with no fresh data are omitted
+- **AI Tools** — AI Tool Hooks (per-tool install status for Claude Code/Codex CLI/Kiro IDE/OpenClaw/OpenCode, with one-click install), followed by Claude/Codex plan usage grouped per provider (5h, weekly, and model-scoped weekly %, each with a heat-colored bar icon and its own time-to-reset) — read from the shared usage cache independent of which project is focused; rows with no fresh data are omitted
 - **About** — opens the Settings window's About tab, followed by a version display or a one-click "Update to vX" / "Restart to install vX" item
 - Quit
 
@@ -210,7 +225,9 @@ Hook installation verifies the downloaded installer against the `installer` SHA-
 
 Installs run unattended but not force-approved: the app passes a platform flag and never `--yes`. VibeMon's own hook scripts are upgraded in place (so Reinstall still repairs drift), while settings you own — most visibly an existing Claude Code `statusLine` — are left as they are. Run install.py yourself with `--yes` to have those replaced too. When a run fails, the installer's own reason (a failed integrity check, a file it couldn't write) is shown with the exit code instead of the bare code.
 
-Detection and hook paths honor `CLAUDE_CONFIG_DIR`, `CODEX_HOME`, and `KIRO_HOME`. Kiro is detected through either `kiro` or `kiro-cli`.
+Detection and hook paths honor `CLAUDE_CONFIG_DIR`, `CODEX_HOME`, `KIRO_HOME`, and `OPENCODE_CONFIG_DIR` (with the OpenCode XDG fallback described above). These variables must reach the Desktop App process. Kiro is detected through either `kiro` or `kiro-cli`.
+
+Registration checks inspect the command used on the current OS, including Codex's Windows override and the installer's quoted POSIX paths. OpenClaw requires both its enabled `vibemon-bridge` entry and its plugin directory/entry point in `plugins.load.paths`; globally disabled plugins do not count as installed. After an OpenClaw update, refresh its persisted plugin registry and restart the gateway as described in the [setup guide](https://github.com/opspresso/vibemon-docs#openclaw-configuration). The docs installer currently skips OpenClaw on Windows.
 
 ```bash
 npm run build:mac     # macOS (DMG, ZIP)

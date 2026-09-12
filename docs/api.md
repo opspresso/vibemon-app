@@ -89,11 +89,15 @@ curl -X POST http://127.0.0.1:19280/status \
 > An unrecognized `state` value is rejected with a `400` error.
 
 Agent bridges usually set `character` automatically:
+
 - `clawd` for Claude Code
 - `codex` for Codex CLI
 - `kiro` for Kiro
 - `claw` for OpenClaw
+- `opencode` for OpenCode (currently rendered as `vibemon` because `opencode` is absent from the canonical character registry)
 - bridges without their own character fall back to `vibemon`
+
+Unknown character names are accepted and normalized to `vibemon`; they do not reject the status update or become Character Lock options. OpenCode uses the same `POST /status` endpoint and cloud relay payload as the other bridges. Its adapter sends `memory: 0` and omits plan-usage fields because it does not collect usage metrics.
 
 **Response:**
 ```json
