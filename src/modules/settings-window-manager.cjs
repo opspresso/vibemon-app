@@ -91,6 +91,8 @@ class SettingsWindowManager {
       alwaysOnTopMode: this.windowManager.getAlwaysOnTopMode(),
       speechBubbleFields: this.windowManager.getSpeechBubbleFields(),
       characterScale: this.windowManager.getCharacterScale(),
+      dockAutoScale: this.windowManager.getDockAutoScale(),
+      supportsDockCorners: process.platform === 'darwin',
       edgeMargin: this.windowManager.getEdgeMargin(),
       devMode: this.windowManager.getDevMode(),
       openAtLogin: this.app.getLoginItemSettings().openAtLogin,
@@ -152,6 +154,13 @@ class SettingsWindowManager {
     ipcMain.handle('settings:set-edge-margin', (_event, margin) => {
       if (!EDGE_MARGINS.includes(margin)) return false;
       this.windowManager.setEdgeMargin(margin);
+      this.notifyChanged();
+      return true;
+    });
+
+    ipcMain.handle('settings:set-dock-auto-scale', (_event, enabled) => {
+      if (typeof enabled !== 'boolean') return false;
+      this.windowManager.setDockAutoScale(enabled);
       this.notifyChanged();
       return true;
     });

@@ -19,6 +19,8 @@
   body {
     padding: 6px;
     user-select: none;
+    width: max-content;
+    transform-origin: top left;
   }
 
   /* Matches the desktop character window's WINDOW_WIDTH (constants.json)
@@ -78,7 +80,8 @@
     // the main process from the bubble's final position relative to the
     // character (see modules/bubble-window-manager.cjs). bgColor is the
     // current state's hex color.
-    window.__setBubbleContent = function (fields, tailOffset, tailSide, bgColor) {
+    window.__setBubbleContent = function (fields, tailOffset, tailSide, bgColor, scale) {
+      if (typeof scale === 'number') document.body.style.transform = `scale(${scale})`;
       const bubble = document.getElementById('bubble');
       renderBubble(bubble, fields, tailSide, bgColor);
 

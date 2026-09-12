@@ -71,6 +71,8 @@ function makeDeps() {
       setSpeechBubbleField: jest.fn(),
       getCharacterScale: jest.fn(() => 100),
       setCharacterScale: jest.fn(),
+      getDockAutoScale: jest.fn(() => false),
+      setDockAutoScale: jest.fn(),
       getEdgeMargin: jest.fn(() => 0),
       setEdgeMargin: jest.fn(),
       getDevMode: jest.fn(() => false),
@@ -160,6 +162,8 @@ describe('settings:get-all', () => {
     const snap = await invoke('settings:get-all');
 
     expect(snap.characterScale).toBe(100);
+    expect(snap.dockAutoScale).toBe(false);
+    expect(snap.supportsDockCorners).toBe(process.platform === 'darwin');
     expect(snap.edgeMargin).toBe(0);
     expect(snap.devMode).toBe(false);
     expect(snap.options.characterScales).toEqual(CHARACTER_SCALES);
@@ -234,12 +238,32 @@ describe('setting mutations', () => {
     expect(deps.windowManager.setCharacterScale).toHaveBeenCalledTimes(1);
   });
 
+  test.each([30, 40])('settings accept the smaller %s%% character size', async scale => {
+    const { deps } = freshManager();
+    expect(await invoke('settings:set-character-scale', scale)).toBe(true);
+    expect(deps.windowManager.setCharacterScale).toHaveBeenCalledWith(scale);
+  });
+
   test('set-edge-margin accepts only listed margins', async () => {
     const { deps } = freshManager();
     expect(await invoke('settings:set-edge-margin', 16)).toBe(true);
     expect(deps.windowManager.setEdgeMargin).toHaveBeenCalledWith(16);
     expect(await invoke('settings:set-edge-margin', 999)).toBe(false);
     expect(deps.windowManager.setEdgeMargin).toHaveBeenCalledTimes(1);
+  });
+
+  test('Dock auto scaling accepts boolean choices and notifies settings listeners', async () => {
+    const { manager, deps } = freshManager();
+    manager.onSettingsChanged = jest.fn();
+    expect(await invoke('settings:set-dock-auto-scale', true)).toBe(true);
+    expect(deps.windowManager.setDockAutoScale).toHaveBeenLastCalledWith(true);
+    expect(await invoke('settings:set-dock-auto-scale', false)).toBe(true);
+    expect(deps.windowManager.setDockAutoScale).toHaveBeenLastCalledWith(false);
+    for (const invalid of ['false', 'true', 0, 1, null, undefined]) {
+      expect(await invoke('settings:set-dock-auto-scale', invalid)).toBe(false);
+    }
+    expect(manager.onSettingsChanged).toHaveBeenCalledTimes(2);
+    expect(deps.windowManager.setDockAutoScale).toHaveBeenCalledTimes(2);
   });
 
   test('set-dev-mode coerces enabled to a boolean', async () => {

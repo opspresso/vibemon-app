@@ -142,10 +142,12 @@ class BubbleWindowManager {
    *   pinned-edge check and is the bubble's own minimum distance from an edge
    * @param {() => number} [getCharacterScale] - the renderer's configured scale
    */
-  constructor(getCharacterWindow, getEdgeMargin = () => 0, getCharacterScale = () => 1) {
+  constructor(getCharacterWindow, getEdgeMargin = () => 0, getCharacterScale = () => 1, dock = {}) {
     this.getCharacterWindow = getCharacterWindow;
     this.getEdgeMargin = getEdgeMargin;
     this.getCharacterScale = getCharacterScale;
+    this.getDockLayout = dock.getLayout || (() => null);
+    this.setBubbleSize = dock.setBubbleSize || (() => {});
     this.bubbleWindows = new Map(); // Map<projectId, BrowserWindow>
     this.lastSizes = new Map(); // Map<projectId, {width, height}>
     this.lastFields = new Map(); // Map<projectId, Object> — needed so reposition() can re-render the tail
@@ -187,6 +189,8 @@ class BubbleWindowManager {
       x: 0,
       y: 0,
       frame: false,
+      // Allow the complete bubble to occupy a free corner in the Dock strip.
+      enableLargerThanScreen: process.platform === 'darwin',
       thickFrame: false,
       transparent: true,
       alwaysOnTop: startsOnTop,
@@ -316,6 +320,7 @@ class BubbleWindowManager {
     this.lastSizes.set(projectId, size);
     this.lastFields.set(projectId, fields);
     this.lastBgColors.set(projectId, bgColor);
+    this.setBubbleSize(size);
 
     const placement = await this.computePlacement(this.getCharacterWindow(projectId), size);
     if (!isCurrent()) return;
@@ -324,10 +329,10 @@ class BubbleWindowManager {
       return;
     }
 
-    win.setResizable(true);
-    win.setBounds({ x: placement.x, y: placement.y, width: size.width, height: size.height });
-    win.setResizable(false);
-    win.setBounds({ x: placement.x, y: placement.y, width: size.width, height: size.height });
+    await this.execInBubble(win,
+      `window.__setBubbleContent(${JSON.stringify(fields)}, ${placement.tailOffset}, ${JSON.stringify(placement.tailSide)}, ${JSON.stringify(bgColor)}, ${placement.scale || 1})`);
+    if (!isCurrent() || !this.isWindowValid(win) || !this.isWindowValid(this.getCharacterWindow(projectId))) return;
+    this.applyPlacement(win, placement, size);
     this.syncAlwaysOnTop(projectId);
     if (!win.isVisible()) win.showInactive();
     this.reposition(projectId);
@@ -360,15 +365,27 @@ class BubbleWindowManager {
 
       await this.execInBubble(
         win,
-        `window.__setBubbleContent(${JSON.stringify(fields)}, ${placement.tailOffset}, ${JSON.stringify(placement.tailSide)}, ${JSON.stringify(bgColor)})`
+        `window.__setBubbleContent(${JSON.stringify(fields)}, ${placement.tailOffset}, ${JSON.stringify(placement.tailSide)}, ${JSON.stringify(bgColor)}, ${placement.scale || 1})`
       );
       if (!this.isWindowValid(win) || !this.isWindowValid(this.getCharacterWindow(projectId))) return;
 
       if (!isCurrent()) return;
       // Follow directly: restarting easing on every move leaves the bubble behind.
       // setPosition round-trips rounded native sizes and grows at fractional DPI.
-      win.setBounds({ x: placement.x, y: placement.y, width: size.width, height: size.height });
+      this.applyPlacement(win, placement, size);
     }).catch((err) => console.error('Bubble reposition failed:', err));
+  }
+
+  applyPlacement(win, placement, size) {
+    const bounds = { x: placement.x, y: placement.y, width: placement.width || size.width, height: placement.height || size.height };
+    const current = win.getBounds();
+    const resized = current.width !== bounds.width || current.height !== bounds.height;
+    if (resized) win.setResizable(true);
+    win.setBounds(bounds);
+    if (resized) {
+      win.setResizable(false);
+      win.setBounds(bounds);
+    }
   }
 
   /**
@@ -380,6 +397,8 @@ class BubbleWindowManager {
    * @returns {Promise<{x: number, y: number, tailOffset: number, tailSide: string}|null>}
    */
   async computePlacement(charWindow, size) {
+    const dock = this.getDockLayout();
+    if (dock?.bubble) return { ...dock.bubble, scale: dock.scale };
     const { forceSimulation, forceCollide, forceLink, forceX, forceY } = await this.getD3Force();
     if (!this.isWindowValid(charWindow)) return null;
 
@@ -537,6 +556,7 @@ class BubbleWindowManager {
     this.placementRequests.delete(projectId);
     const win = this.bubbleWindows.get(projectId);
     if (this.isWindowValid(win) && win.isVisible()) win.hide();
+    this.setBubbleSize(null);
   }
 
   /**
@@ -551,6 +571,7 @@ class BubbleWindowManager {
     this.lastSizes.delete(projectId);
     this.lastFields.delete(projectId);
     this.lastBgColors.delete(projectId);
+    this.setBubbleSize(null);
   }
 
   /**

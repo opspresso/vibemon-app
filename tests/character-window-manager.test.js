@@ -1,5 +1,193 @@
 jest.mock('../src/modules/window-pointer.cjs', () => ({ trackWindowPointer: jest.fn() }));
 
+describe('Dock corner geometry', () => {
+  let manager;
+  let monitor;
+  let window;
+  let bounds;
+  const display = { id: 1, bounds: { x: 0, y: 0, width: 1440, height: 900 }, workArea: { x: 0, y: 30, width: 1440, height: 814 } };
+  const { screen } = require('electron');
+
+  beforeEach(() => {
+    jest.useFakeTimers();
+    screen.getAllDisplays.mockReturnValue([display]);
+    screen.getDisplayMatching.mockReturnValue(display);
+    monitor = { bounds: [{ x: 400, y: 844, width: 640, height: 52 }], refresh: jest.fn(() => Promise.resolve()) };
+    manager = new CharacterWindowManager({ dockMonitor: monitor });
+    manager.setDockAutoScale(true);
+    const { EventEmitter } = require('events');
+    window = new EventEmitter();
+    bounds = { x: 0, y: 706, width: 134, height: 138 };
+    Object.assign(window, {
+      getBounds: () => ({ ...bounds }),
+      getPosition: () => [bounds.x, bounds.y],
+      setBounds: jest.fn(value => { bounds = { ...value }; }),
+      setResizable: jest.fn(),
+      isDestroyed: () => false,
+      webContents: { send: jest.fn(), isDestroyed: () => false }
+    });
+    manager.entry = { window, projectId: 'dock', state: null };
+    manager.onWindowMoved = jest.fn();
+  });
+  afterEach(() => {
+    manager.cleanup();
+    jest.useRealTimers();
+    screen.getAllDisplays.mockReturnValue([{ workArea: { x: 0, y: 0, width: 1920, height: 1080 } }]);
+    screen.getDisplayMatching.mockReturnValue({ workArea: { x: 0, y: 0, width: 1920, height: 1080 } });
+  });
+
+  test('snaps after release and keeps the configured size separate from the fitted scale', () => {
+    manager.handleWindowMove();
+    jest.advanceTimersByTime(150);
+    expect(bounds.y + bounds.height).toBe(900);
+    expect(bounds.x).toBe(0);
+    expect(manager.getCharacterScale()).toBe(100);
+    expect(manager.getDisplayOptions().characterScale).toBeLessThan(100);
+    expect(manager.windowPosition).toEqual({ x: bounds.x, y: bounds.y });
+    manager.setBubbleSize({ width: 220, height: 185 });
+    expect(manager.dockLayout.bubble.y + manager.dockLayout.bubble.height).toBe(900);
+    expect(bounds.width).toBeLessThan(50);
+  });
+
+  test('refits on content and settings changes without overwriting the preferred scale', () => {
+    manager.refreshDockLayout();
+    manager.setBubbleSize({ width: 220, height: 185 });
+    manager.setCharacterScale(80);
+    manager.setEdgeMargin(8);
+    expect(manager.getCharacterScale()).toBe(80);
+    expect(manager.store.get('characterScale')).toBe(80);
+    expect(bounds.x).toBe(8);
+    expect(bounds.y + bounds.height).toBe(892);
+    manager.setBubbleSize(null);
+    expect(manager.dockLayout.bubble).toBeNull();
+  });
+
+  test('restores both the window and renderer scale when dragged away', () => {
+    manager.refreshDockLayout();
+    screen.getCursorScreenPoint.mockReturnValue({ x: 20, y: 870 });
+    manager.beginUserDrag();
+    expect(manager.dockLayout).not.toBeNull();
+    screen.getCursorScreenPoint.mockReturnValue({ x: 400, y: 400 });
+    manager.moveUserDrag();
+    expect(manager.dockLayout).toBeNull();
+    expect(bounds.width).toBe(134);
+    expect(bounds.height).toBe(138);
+    expect(manager.getDisplayOptions().characterScale).toBe(100);
+    manager.endUserDrag();
+    jest.advanceTimersByTime(150);
+    expect(manager.dockLayout).toBeNull();
+  });
+
+  test('losing or hiding the Dock returns the character to the work area', () => {
+    manager.refreshDockLayout();
+    monitor.bounds = [];
+    manager.refreshDockLayout();
+    expect(manager.dockLayout).toBeNull();
+    expect(bounds).toMatchObject({ x: 0, y: 706, width: 134, height: 138 });
+  });
+
+  test('ignores monitor updates while dragging or position tracking is suspended', () => {
+    manager.dragOrigin = { winX: 0, winY: 706, cursorX: 20, cursorY: 800 };
+    manager.refreshDockLayout();
+    expect(manager.dockLayout).toBeNull();
+    manager.clearUserDrag();
+    manager.suspendPositionTracking();
+    manager.refreshDockLayout();
+    expect(manager.dockLayout).toBeNull();
+  });
+
+  test('restores a Dock position after macOS moves the window during sleep', () => {
+    manager.refreshDockLayout();
+    const saved = { ...bounds };
+    manager.suspendPositionTracking();
+    bounds = { x: 200, y: 200, width: saved.width, height: saved.height };
+    manager.restoreWindowPosition();
+    jest.advanceTimersByTime(1000);
+    expect(bounds).toEqual(saved);
+  });
+
+  test('clears a stale Dock scale when the Dock disappears during sleep', () => {
+    manager.refreshDockLayout();
+    manager.suspendPositionTracking();
+    monitor.bounds = [];
+    bounds = { ...bounds, x: 200, y: 200 };
+    manager.restoreWindowPosition();
+    jest.advanceTimersByTime(1000);
+    expect(manager.dockLayout).toBeNull();
+    expect(bounds).toEqual({ x: 0, y: 706, width: 134, height: 138 });
+    expect(manager.getDisplayOptions().characterScale).toBe(100);
+  });
+
+  test('waits for the original Dock display, even if another screen occupies its coordinates', () => {
+    manager.refreshDockLayout();
+    const saved = { ...manager.windowPosition };
+    manager.suspendPositionTracking();
+    bounds = { ...bounds, x: 200, y: 200 };
+    window.setBounds.mockClear();
+    screen.getAllDisplays.mockReturnValue([{ ...display, id: 2 }]);
+    manager.restoreWindowPosition();
+    jest.advanceTimersByTime(1000);
+    expect(window.setBounds).not.toHaveBeenCalled();
+    expect(manager.windowPosition).toEqual(saved);
+
+    const reattached = { ...display, bounds: { ...display.bounds, x: 1440 }, workArea: { ...display.workArea, x: 1440 } };
+    screen.getAllDisplays.mockReturnValue([{ ...display, id: 2 }, reattached]);
+    monitor.bounds = [{ x: 1840, y: 844, width: 640, height: 52 }];
+    manager.restoreWindowPosition();
+    jest.advanceTimersByTime(1000);
+    expect(bounds.x).toBe(1440);
+    expect(bounds.y + bounds.height).toBe(900);
+  });
+
+  test('does not snap an unavailable saved display onto the nearest screen Dock', () => {
+    manager.saveWindowPosition({ x: 2500, y: 1800 });
+    manager.suspendPositionTracking();
+    window.setBounds.mockClear();
+    manager.restoreWindowPosition();
+    jest.advanceTimersByTime(1000);
+    expect(window.setBounds).not.toHaveBeenCalled();
+    expect(manager.windowPosition).toEqual({ x: 2500, y: 1800 });
+  });
+
+  test('closing a docked window releases its geometry before changing the saved size', () => {
+    manager.setDockAutoScale(false);
+    manager.entry = null;
+    Object.assign(window, { loadFile: jest.fn(), setIgnoreMouseEvents: jest.fn(), setVisibleOnAllWorkspaces: jest.fn() });
+    require('electron').BrowserWindow.mockImplementationOnce(() => window);
+    manager.ensureWindow('dock');
+    window.emit('closed');
+    expect(manager.dockLayout).toBeNull();
+    manager.setCharacterScale(30);
+    expect(manager.windowSize()).toEqual({ width: 40, height: 41 });
+    const restored = manager.layoutForBounds({ ...manager.windowPosition, ...manager.windowSize() });
+    expect(restored.character.y + restored.character.height).toBe(900);
+  });
+
+  test('does not mistake a saved small right-corner window for the next monitor', () => {
+    const adjacent = { id: 2, bounds: { x: 1440, y: 0, width: 1440, height: 900 }, workArea: { x: 1440, y: 0, width: 1440, height: 900 } };
+    screen.getAllDisplays.mockReturnValue([display, adjacent]);
+    screen.getDisplayMatching.mockReturnValue(adjacent);
+    const layout = manager.layoutForBounds({ x: 1400, y: 860, width: 134, height: 138 });
+    expect(layout.displayId).toBe(1);
+    expect(layout.character.x + layout.character.width).toBe(1440);
+  });
+
+  test('switching to keep size restores both overlays while keeping the physical corner', () => {
+    manager.setBubbleSize({ width: 280, height: 185 });
+    expect(manager.dockLayout.scale).toBeLessThan(1);
+    manager.setDockAutoScale(false);
+    expect(manager.store.get('dockAutoScale')).toBe(false);
+    expect(bounds).toEqual({ x: 0, y: 762, width: 134, height: 138 });
+    expect(manager.dockLayout.bubble).toMatchObject({ width: 280, height: 185 });
+    expect(manager.dockLayout.bubble.y + manager.dockLayout.bubble.height).toBeLessThan(bounds.y);
+    expect(manager.getDisplayOptions().characterScale).toBe(100);
+    manager.setDockAutoScale(true);
+    expect(manager.store.get('dockAutoScale')).toBe(true);
+    expect(manager.dockLayout.scale).toBeLessThan(1);
+    expect(bounds.y + bounds.height).toBe(900);
+  });
+});
+
 /**
  * Tests for character-window-manager.cjs
  * Scoped to plain state/bookkeeping logic that doesn't require real windows.
@@ -55,7 +243,8 @@ describe('taskbar visibility', () => {
       manager.ensureWindow('test');
 
       expect(BrowserWindow).toHaveBeenLastCalledWith(expect.objectContaining({
-        skipTaskbar: platform === 'win32'
+        skipTaskbar: platform === 'win32',
+        enableLargerThanScreen: platform === 'darwin'
       }));
     } finally {
       Object.defineProperty(process, 'platform', originalPlatform);
@@ -64,6 +253,20 @@ describe('taskbar visibility', () => {
 });
 
 describe('default settings', () => {
+  test.each([undefined, false, 'true', 1, null])('Dock auto scaling is off for missing or invalid stored values: %s', value => {
+    Store.__presetNextStore(value === undefined ? {} : { dockAutoScale: value });
+    expect(new CharacterWindowManager().getDockAutoScale()).toBe(false);
+  });
+
+  test('restores an explicitly enabled Dock auto scale setting and rejects invalid changes', () => {
+    Store.__presetNextStore({ dockAutoScale: true });
+    const manager = new CharacterWindowManager();
+    expect(manager.getDockAutoScale()).toBe(true);
+    manager.setDockAutoScale('false');
+    expect(manager.getDockAutoScale()).toBe(true);
+    manager.setDockAutoScale(false);
+    expect(manager.store.get('dockAutoScale')).toBe(false);
+  });
   test('a fresh install defaults to all always-on-top, auto character lock, no saved position', () => {
     const manager = new CharacterWindowManager();
 
@@ -109,7 +312,7 @@ describe('default settings', () => {
     expect(manager.getCharacterScale()).toBe(100);
     expect(manager.getEdgeMargin()).toBe(0);
     expect(manager.getDevMode()).toBe(false);
-    expect(manager.getDisplayOptions()).toEqual({ characterScale: 100, devMode: false });
+    expect(manager.getDisplayOptions()).toEqual({ characterScale: 100, renderScale3d: 2, renderPadding3d: 2, devMode: false });
   });
 
   test('stored character size and edge margin outside the offered lists fall back', () => {
@@ -118,6 +321,15 @@ describe('default settings', () => {
 
     expect(manager.getCharacterScale()).toBe(100);
     expect(manager.getEdgeMargin()).toBe(0);
+  });
+
+  test.each([[30, 40, 41], [40, 54, 55]])('supports and restores %s%% character windows', (scale, width, height) => {
+    const manager = new CharacterWindowManager();
+    manager.setCharacterScale(scale);
+    expect(manager.windowSize()).toEqual({ width, height });
+    expect(manager.store.get('characterScale')).toBe(scale);
+    Store.__presetNextStore({ characterScale: scale });
+    expect(new CharacterWindowManager().getCharacterScale()).toBe(scale);
   });
 
   test('character size and edge margin setters reject values outside the offered lists', () => {
@@ -639,7 +851,7 @@ describe('window geometry (character size + edge margin)', () => {
     expect(window.setResizable).toHaveBeenNthCalledWith(2, false);
     // A resize fires no 'move' event, so the bubble is told to follow
     expect(manager.onWindowMoved).toHaveBeenCalledWith('a');
-    expect(window.webContents.send).toHaveBeenCalledWith('display-options', { characterScale: 50, devMode: false });
+    expect(window.webContents.send).toHaveBeenCalledWith('display-options', { characterScale: 50, renderScale3d: 2, renderPadding3d: 2, devMode: false });
   });
 
   test('resizing leaves a character parked away from every edge where it is', () => {
@@ -704,7 +916,7 @@ describe('window geometry (character size + edge margin)', () => {
     manager.setDevMode(true);
 
     expect(manager.getDevMode()).toBe(true);
-    expect(window.webContents.send).toHaveBeenCalledWith('display-options', { characterScale: 100, devMode: true });
+    expect(window.webContents.send).toHaveBeenCalledWith('display-options', { characterScale: 100, renderScale3d: 2, renderPadding3d: 2, devMode: true });
   });
 });
 

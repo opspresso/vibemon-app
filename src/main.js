@@ -21,6 +21,7 @@ const { exec } = require('child_process');
 const { StateManager } = require('./modules/state-manager.cjs');
 const { CharacterWindowManager } = require('./modules/character-window-manager.cjs');
 const { BubbleWindowManager } = require('./modules/bubble-window-manager.cjs');
+const { DockMonitor } = require('./modules/dock-monitor.cjs');
 const { TrayManager } = require('./modules/tray-manager.cjs');
 const { HttpServer } = require('./modules/http-server.cjs');
 const { WsClient } = require('./modules/ws-client.cjs');
@@ -49,12 +50,15 @@ if (!gotTheLock) {
 
 // Initialize managers
 const stateManager = new StateManager();
-const windowManager = new CharacterWindowManager();
+const dockMonitor = new DockMonitor();
+const windowManager = new CharacterWindowManager({ dockMonitor: process.platform === 'darwin' ? dockMonitor : null });
 const bubbleWindowManager = new BubbleWindowManager(
   (projectId) => windowManager.getWindow(projectId),
   () => windowManager.getEdgeMargin(),
-  () => windowManager.getDisplayOptions().characterScale / 100
+  () => windowManager.getDisplayOptions().characterScale / 100,
+  { getLayout: () => windowManager.dockLayout, setBubbleSize: size => windowManager.setBubbleSize(size) }
 );
+dockMonitor.onChange = () => windowManager.refreshDockLayout();
 const hookInstaller = new HookInstaller();
 const vibemonConfigManager = new VibemonConfigManager();
 const updateChecker = new UpdateChecker();
@@ -559,16 +563,21 @@ app.whenReady().then(() => {
   // the window is put back at its saved position once displays are back.
   powerMonitor.on('lock-screen', () => windowManager.suspendPositionTracking());
   powerMonitor.on('suspend', () => windowManager.suspendPositionTracking());
-  powerMonitor.on('unlock-screen', () => windowManager.restoreWindowPosition());
-  powerMonitor.on('resume', () => windowManager.restoreWindowPosition());
+  const restoreOverlayPosition = () => dockMonitor.refresh().then(() => windowManager.restoreWindowPosition());
+  powerMonitor.on('unlock-screen', restoreOverlayPosition);
+  powerMonitor.on('resume', restoreOverlayPosition);
   screen.on('display-added', () => {
     windowManager.suspendPositionTracking();
-    windowManager.restoreWindowPosition();
+    restoreOverlayPosition();
   });
   screen.on('display-removed', () => {
     windowManager.suspendPositionTracking();
-    windowManager.restoreWindowPosition();
+    restoreOverlayPosition();
   });
+  screen.on('display-metrics-changed', () => {
+    dockMonitor.refresh().then(() => windowManager.refreshDockLayout());
+  });
+  dockMonitor.start(() => windowManager.isNearBottomCorner());
 
   app.on('activate', () => {
     windowManager.showActiveWindow();
@@ -581,6 +590,7 @@ app.on('window-all-closed', () => {
 });
 
 app.on('before-quit', () => {
+  dockMonitor.cleanup();
   if (hookCheckTimer) {
     clearInterval(hookCheckTimer);
     hookCheckTimer = null;

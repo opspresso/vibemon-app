@@ -7,6 +7,7 @@ contextBridge.exposeInMainWorld('settingsAPI', {
   setAlwaysOnTopMode: (mode) => ipcRenderer.invoke('settings:set-always-on-top-mode', mode),
   setSpeechBubbleField: (field, enabled) => ipcRenderer.invoke('settings:set-speech-bubble-field', field, enabled),
   setCharacterScale: (scale) => ipcRenderer.invoke('settings:set-character-scale', scale),
+  setDockAutoScale: (enabled) => ipcRenderer.invoke('settings:set-dock-auto-scale', enabled),
   setEdgeMargin: (margin) => ipcRenderer.invoke('settings:set-edge-margin', margin),
   setDevMode: (enabled) => ipcRenderer.invoke('settings:set-dev-mode', enabled),
   setOpenAtLogin: (enabled) => ipcRenderer.invoke('settings:set-open-at-login', enabled),

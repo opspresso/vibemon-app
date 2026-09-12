@@ -25,29 +25,40 @@ function loadInteraction() {
   return { ...sandbox.result, context, api, events, document };
 }
 
-test.each([0.5, 0.75, 1, 1.25, 1.5, 2])('alpha hit testing respects CSS scale and backing resolution: %s', (scale) => {
-  const { createCharacterHitTest, context } = loadInteraction();
-  const canvas = {
-    width: 256, height: 256,
-    getBoundingClientRect: () => ({ left: 3, top: 5, right: 3 + 128 * scale, bottom: 5 + 128 * scale, width: 128 * scale, height: 128 * scale })
-  };
-  const hit = createCharacterHitTest({ canvas });
-  expect(hit(2, 5)).toBe(false);
-  expect(hit(3 + 128 * scale, 5)).toBe(false);
-  expect(hit(3 + 64 * scale, 5 + 64 * scale)).toBe(true);
-  expect(context.drawImage).toHaveBeenLastCalledWith(canvas, 128, 128, 1, 1, 0, 0, 1, 1);
-  context.getImageData.mockReturnValue({ data: [0, 0, 0, 0] });
-  expect(hit(3 + 64 * scale, 5 + 64 * scale)).toBe(false);
-});
+describe('createCharacterHitTest', () => {
+  test.each([0.5, 0.75, 1, 1.25, 1.5, 2])('alpha hit testing respects CSS scale and backing resolution: %s', (scale) => {
+    const { createCharacterHitTest, context } = loadInteraction();
+    const canvas = {
+      width: 256, height: 256,
+      getBoundingClientRect: () => ({ left: 3, top: 5, right: 3 + 128 * scale, bottom: 5 + 128 * scale, width: 128 * scale, height: 128 * scale })
+    };
+    const hit = createCharacterHitTest({ canvas });
+    expect(hit(2, 5)).toBe(false);
+    expect(hit(3 + 128 * scale, 5)).toBe(false);
+    expect(hit(3 + 64 * scale, 5 + 64 * scale)).toBe(true);
+    expect(context.drawImage).toHaveBeenLastCalledWith(canvas, 128, 128, 1, 1, 0, 0, 1, 1);
+    context.getImageData.mockReturnValue({ data: [0, 0, 0, 0] });
+    expect(hit(3 + 64 * scale, 5 + 64 * scale)).toBe(false);
+  });
 
-test('WebGL is rendered before sampling its non-preserved drawing buffer', () => {
-  const { createCharacterHitTest, context } = loadInteraction();
-  const renderer = {
-    domElement: { width: 100, height: 100, getBoundingClientRect: () => ({ left: 0, top: 0, right: 100, bottom: 100, width: 100, height: 100 }) },
-    render: jest.fn()
-  };
-  expect(createCharacterHitTest({ renderer, scene: {}, camera: {} })(50, 50)).toBe(true);
-  expect(renderer.render.mock.invocationCallOrder[0]).toBeLessThan(context.drawImage.mock.invocationCallOrder[0]);
+  test('WebGL is rendered before sampling its non-preserved drawing buffer', () => {
+    const { createCharacterHitTest, context } = loadInteraction();
+    const renderer = {
+      domElement: { width: 100, height: 100, getBoundingClientRect: () => ({ left: 0, top: 0, right: 100, bottom: 100, width: 100, height: 100 }) },
+      render: jest.fn()
+    };
+    expect(createCharacterHitTest({ renderer, scene: {}, camera: {} })(50, 50)).toBe(true);
+    expect(renderer.render.mock.invocationCallOrder[0]).toBeLessThan(context.drawImage.mock.invocationCallOrder[0]);
+  });
+
+  test('3D hit testing uses the transform updated by the render hook', () => {
+    const { createCharacterHitTest, context } = loadInteraction();
+    let rect = { left: 0, top: 0, right: 100, bottom: 100, width: 100, height: 100 };
+    const canvas = { width: 100, height: 100, getBoundingClientRect: () => rect };
+    const renderer = { domElement: canvas, render: () => { rect = { left: -50, top: -50, right: 150, bottom: 150, width: 200, height: 200 }; } };
+    expect(createCharacterHitTest({ renderer, scene: {}, camera: {} })(25, 25)).toBe(true);
+    expect(context.drawImage).toHaveBeenCalledWith(canvas, 37, 37, 1, 1, 0, 0, 1, 1);
+  });
 });
 
 test('rounded bubble corners and transparent tail corners pass through', () => {
@@ -61,6 +72,16 @@ test('rounded bubble corners and transparent tail corners pass through', () => {
   expect(hitTestBubble(bubble, 73, 50)).toBe(true);
   expect(hitTestBubble(bubble, 68, 50)).toBe(false);
   expect(hitTestBubble(bubble, 150, 20)).toBe(false);
+});
+
+test('bubble corner hit testing follows its Dock scale', () => {
+  const { hitTestBubble } = loadInteraction();
+  const bubble = {
+    offsetWidth: 100,
+    getBoundingClientRect: () => ({ left: 0, top: 0, right: 50, bottom: 25, width: 50, height: 25 })
+  };
+  expect(hitTestBubble(bubble, 2, 2)).toBe(true);
+  expect(hitTestBubble(bubble, 0, 0)).toBe(false);
 });
 
 test('forwarded mousemove enables only visible pixels; drag capture survives transparent pixels', () => {

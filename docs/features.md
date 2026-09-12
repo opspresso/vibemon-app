@@ -60,6 +60,12 @@ Characters are defined in a single registry canonically hosted in [vibemon-stati
 - `2d` (default): the pixel-art sprite described above
 - `3d`: a procedurally rendered pet (three.js) — no images are used. The rig is the same for every character; each one is tinted by its registry `theme` (`body`/`belly`/`accent`/`eye`/`blush`/`flame`), so Character Lock and per-project switching behave identically to 2D.
 
+**Settings → VibeMon → Character → Character Size** offers 100% through 30% in 10-point steps. The choice applies to both render modes and persists across restarts. The 3D canvas uses the largest uniform scale that fits each pose about the camera center, leaving a 2px margin. It recalculates before rendering each frame, including state transitions, and uses higher WebGL resolution for sharp enlargement. The 2D presentation is unchanged.
+
+| Previous 3D framing | Adaptive 3D framing |
+| --- | --- |
+| ![Previous 3D size](images/3d-size-before.png) | ![Larger 3D size](images/3d-size-after.png) |
+
 Both engines are vendored from vibemon-static (`src/engine/`); three.js ships locally in `src/vendor/` because the renderer CSP forbids runtime CDN imports.
 
 ### Character Lock
@@ -141,8 +147,13 @@ The app shows exactly one character window plus its following speech bubble:
 - Can be dragged past the screen edge while the drag is in progress; once you let go, it's clamped back fully on-screen.
 - Reappears at the same spot you last left it, across restarts.
 - The speech bubble follows the character everywhere:
-  - If the character is pinned to the top or bottom edge, the bubble moves beside it
+  - If the character is pinned to the top or bottom edge, the bubble moves beside it; a shorter bubble shares the character's vertical center, including at Dock corners
   - If the character is pinned to the left or right edge, the bubble moves above or below it
+
+  Short bubble at a bottom corner, composed from native window captures at their measured positions:
+
+  ![Short bubble centered vertically beside the character](images/dock-bubble-center.png)
+
 - Shows just the character sprite on a transparent background — status text and metrics live in the speech bubble.
 
 ## Desktop App Features
@@ -153,6 +164,18 @@ The app shows exactly one character window plus its following speech bubble:
 - **System Tray**: Quick access from menubar/taskbar
 - **Draggable**: Move the character anywhere on screen
 - **Snap to corner**: Can be dragged past the screen edge mid-drag; once you let go, it's clamped back on-screen, snapping flush to a corner within a 30px threshold
+- **macOS Dock corners**: Dropping the character at a bottom corner uses the free space beside a bottom Dock, or below a side Dock, while respecting Edge Margin. **Settings → VibeMon → Window → Dock Corner Size** chooses the behavior and saves it across restarts. **Keep current size** is the default: both overlays retain their sizes and sit beside or above each other in the available space. If neither arrangement fits, normal work-area placement preserves their sizes. **Auto shrink** scales both overlays, including the bubble's tail, to fit the Dock's narrow strip; dragging away restores Character Size and the bubble's natural size. Changing the setting immediately updates a parked character. Dock geometry is refreshed while a character rests in a bottom corner; unavailable or hidden Dock geometry uses normal work-area placement.
+
+  Dock geometry uses the read-only, undocumented macOS `CoreDockGetRect` function, with a public `CGWindowListCopyWindowInfo` fallback. Neither Accessibility nor Screen Recording permission is requested. A future macOS release may remove or change the private function; unusable geometry preserves normal work-area snapping. `pnpm test:overlays --require-dock` requires detection of a real visible Dock in addition to the deterministic fixture checks.
+
+  ![Dock Corner Size defaults to Keep current size](images/dock-corner-settings.png)
+
+  Native window captures with **Auto shrink** enabled and an 801 × 56-point Dock (Retina 2×):
+
+  | Bottom-left (2D) | Bottom-right (3D) |
+  | --- | --- |
+  | ![Character](images/dock-left-character.png) ![Bubble](images/dock-left-bubble.png) | ![Bubble](images/dock-right-bubble.png) ![Character](images/dock-right-character.png) |
+
 - **Position survives lock/sleep**: When macOS moves the window itself — screen lock, system sleep, or a display detaching — that move is not saved, and the window returns to its remembered position once its display is back
 - **Remembered position**: The window spawns at the position it was last dragged to
 - **Click to focus terminal**: Click the character to switch to iTerm2/Ghostty tab (macOS only)

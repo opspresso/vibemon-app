@@ -11,6 +11,7 @@
 const { BrowserWindow, screen } = require('electron');
 const path = require('path');
 const { trackWindowPointer } = require('./window-pointer.cjs');
+const { dockCorner, fitDockLayout } = require('./dock-layout.cjs');
 const Store = require('electron-store');
 const {
   WINDOW_WIDTH,
@@ -26,6 +27,8 @@ const {
   CHAR_Y_BASE,
   CHAR_SIZE,
   CHARACTER_SCALES,
+  CHARACTER_3D_RENDER_SCALE,
+  CHARACTER_3D_PADDING,
   EDGE_MARGINS,
   FOCUS_HYSTERESIS_MS
 } = require('../shared/config.cjs');
@@ -85,7 +88,11 @@ const ALWAYS_ON_TOP_LEVEL = process.platform === 'darwin' ? 'floating' : 'screen
 const WINDOW_HEIGHT = CHAR_Y_BASE + CHAR_SIZE + 5;
 
 class CharacterWindowManager {
-  constructor() {
+  constructor({ dockMonitor = null } = {}) {
+    this.dockMonitor = dockMonitor;
+    this.dockLayout = null;
+    this.bubbleSize = null;
+    this.applyingDockLayout = false;
     // The one character window: { window, state, projectId } or null.
     // projectId is mutable — the window is retargeted when focus moves to
     // another project instead of being destroyed and recreated.
@@ -123,6 +130,7 @@ class CharacterWindowManager {
         characterLock: 'auto',  // 'auto' or a CHARACTER_NAMES entry
         renderMode: '2d',  // '2d' (pixel-art sprite) or '3d' (three.js pet)
         characterScale: 100,  // percent, a CHARACTER_SCALES entry
+        dockAutoScale: false,  // shrink both overlays to the Dock strip only when enabled
         edgeMargin: 0,  // px kept between the window and the work area's edges, an EDGE_MARGINS entry
         devMode: false,  // tint the character area so its bounds are visible
         windowPosition: null  // {x, y} - last dragged position, restored on next creation
@@ -159,6 +167,7 @@ class CharacterWindowManager {
     // flush-to-the-edge defaults rather than sizing the window from it.
     const storedScale = this.store.get('characterScale');
     this.characterScale = CHARACTER_SCALES.includes(storedScale) ? storedScale : 100;
+    this.dockAutoScale = this.store.get('dockAutoScale') === true;
 
     const storedEdgeMargin = this.store.get('edgeMargin');
     this.edgeMargin = EDGE_MARGINS.includes(storedEdgeMargin) ? storedEdgeMargin : 0;
@@ -261,6 +270,14 @@ class CharacterWindowManager {
    * @returns {{width: number, height: number}}
    */
   windowSize() {
+    if (this.dockLayout) {
+      const { width, height } = this.dockLayout.character;
+      return { width, height };
+    }
+    return this.configuredWindowSize();
+  }
+
+  configuredWindowSize() {
     const scale = this.characterScale / 100;
     return {
       width: Math.round(WINDOW_WIDTH * scale),
@@ -298,10 +315,87 @@ class CharacterWindowManager {
   /**
    * Renderer-side display options — the character window scales itself with
    * CSS and tints its display area in dev mode.
-   * @returns {{characterScale: number, devMode: boolean}}
+   * @returns {{characterScale: number, renderScale3d: number, renderPadding3d: number, devMode: boolean}}
    */
   getDisplayOptions() {
-    return { characterScale: this.characterScale, devMode: this.devMode };
+    return { characterScale: this.characterScale * (this.dockLayout?.scale || 1), renderScale3d: CHARACTER_3D_RENDER_SCALE, renderPadding3d: CHARACTER_3D_PADDING, devMode: this.devMode };
+  }
+
+  isNearBottomCorner() {
+    if (!this.dockMonitor || !this.isWindowValid(this.entry) || this.positionTrackingSuspended || this.dragOrigin) return false;
+    const bounds = this.entry.window.getBounds();
+    const { workArea } = screen.getDisplayMatching(bounds);
+    return bounds.y + bounds.height >= workArea.y + workArea.height - this.edgeMargin - SNAP_THRESHOLD &&
+      (bounds.x <= workArea.x + this.edgeMargin + SNAP_THRESHOLD ||
+       bounds.x + bounds.width >= workArea.x + workArea.width - this.edgeMargin - SNAP_THRESHOLD);
+  }
+
+  setBubbleSize(size) {
+    if (JSON.stringify(size) === JSON.stringify(this.bubbleSize)) return;
+    this.bubbleSize = size;
+    this.refreshDockLayout();
+  }
+
+  displayForBounds(bounds) {
+    // A restored shrunken window can have its top-left only a few points
+    // from the display edge. Matching a full-size rectangle there would
+    // incorrectly choose the adjacent monitor.
+    return screen.getAllDisplays().find(item => item.bounds &&
+      bounds.x >= item.bounds.x && bounds.x < item.bounds.x + item.bounds.width &&
+      bounds.y >= item.bounds.y && bounds.y < item.bounds.y + item.bounds.height) || screen.getDisplayMatching(bounds);
+  }
+
+  layoutForBounds(bounds) {
+    if (!this.dockMonitor) return null;
+    const display = this.displayForBounds(bounds);
+    const corner = this.dockMonitor.bounds.map(dock => dockCorner(display, dock, bounds, this.edgeMargin, this.dockAutoScale)).find(Boolean);
+    return fitDockLayout(corner, this.configuredWindowSize(), this.bubbleSize, this.dockAutoScale);
+  }
+
+  getDockAutoScale() {
+    return this.dockAutoScale;
+  }
+
+  setDockAutoScale(enabled) {
+    if (typeof enabled !== 'boolean' || enabled === this.dockAutoScale) return;
+    this.dockAutoScale = enabled;
+    this.store.set('dockAutoScale', enabled);
+    this.refreshDockLayout();
+  }
+
+  refreshDockLayout() {
+    if (!this.isWindowValid(this.entry) || this.positionTrackingSuspended || this.dragOrigin) return;
+    this.applyDockLayout(this.entry.window.getBounds());
+  }
+
+  applyDockLayout(bounds) {
+    if (!this.dockMonitor || !this.isWindowValid(this.entry)) return false;
+    const previous = this.dockLayout;
+    const next = this.layoutForBounds(bounds);
+    if (!next && !previous) return false;
+    this.dockLayout = next;
+    const target = next?.character || {
+      ...this.clampPositionToScreen(bounds), ...this.configuredWindowSize()
+    };
+    const current = this.entry.window.getBounds();
+    const changed = JSON.stringify(previous) !== JSON.stringify(next) ||
+      ['x', 'y', 'width', 'height'].some(key => target[key] !== current[key]);
+    if (changed) {
+      this.applyingDockLayout = true;
+      try {
+        const { window } = this.entry;
+        window.setResizable(true);
+        window.setBounds(target);
+        window.setResizable(false);
+        this.positionWindow(window, target.x, target.y);
+        this.sendDisplayOptions();
+      } finally {
+        this.applyingDockLayout = false;
+      }
+      this.onWindowMoved?.(this.entry.projectId);
+    }
+    this.saveWindowPosition({ x: target.x, y: target.y });
+    return true;
   }
 
   /**
@@ -328,12 +422,23 @@ class CharacterWindowManager {
    *   - the geometry in effect before the change
    */
   applyWindowGeometry(previous) {
+    if (this.dockLayout && this.isWindowValid(this.entry) && this.applyDockLayout(this.entry.window.getBounds())) return;
     const size = this.windowSize();
     const isOpen = this.isWindowValid(this.entry);
     const origin = isOpen
       ? this.entry.window.getBounds()
       : (this.windowPosition ? { ...this.windowPosition, ...previous.size } : null);
     if (!origin) return;
+
+    // A closed window's saved Dock position is pinned to the physical
+    // corner, not the work-area edge. Refit it using its previous bounds.
+    if (!isOpen) {
+      const dock = this.layoutForBounds(origin);
+      if (dock) {
+        this.saveWindowPosition({ x: dock.character.x, y: dock.character.y });
+        return;
+      }
+    }
 
     const { workArea } = screen.getDisplayMatching(origin);
     const before = this.marginArea(workArea, previous.edgeMargin, previous.size);
@@ -495,7 +600,10 @@ class CharacterWindowManager {
    */
   clampPositionToScreen(position) {
     const { width, height } = this.windowSize();
-    const display = screen.getDisplayMatching({ x: position.x, y: position.y, width, height });
+    const dock = this.layoutForBounds({ ...position, width, height });
+    if (dock) return { x: dock.character.x, y: dock.character.y };
+    const bounds = { x: position.x, y: position.y, width, height };
+    const display = this.dockMonitor ? this.displayForBounds(bounds) : screen.getDisplayMatching(bounds);
     const area = this.marginArea(display.workArea);
     const x = Math.min(Math.max(position.x, area.x), area.x + area.width - width);
     const y = Math.min(Math.max(position.y, area.y), area.y + area.height - height);
@@ -521,7 +629,7 @@ class CharacterWindowManager {
    * edge margin, so the window keeps that gap however it is dragged.
    */
   handleWindowMove() {
-    if (!this.entry || this.positionTrackingSuspended || this.dragOrigin) return;
+    if (!this.entry || this.positionTrackingSuspended || this.dragOrigin || this.applyingDockLayout) return;
     const entry = this.entry;
 
     if (this.snapTimer) {
@@ -533,6 +641,7 @@ class CharacterWindowManager {
       if (!this.isWindowValid(entry)) return;
 
       const bounds = entry.window.getBounds();
+      if (this.applyDockLayout(bounds)) return;
       const display = screen.getDisplayMatching(bounds);
       const area = this.marginArea(display.workArea);
 
@@ -559,6 +668,7 @@ class CharacterWindowManager {
       }
 
       this.saveWindowPosition({ x: newX, y: newY });
+      if (this.isNearBottomCorner()) this.dockMonitor.refresh();
     }, SNAP_DEBOUNCE_MS);
   }
 
@@ -619,6 +729,14 @@ class CharacterWindowManager {
     if (sourceWindow !== this.dragWindow) return;
     if (!this.dragOrigin || !this.isWindowValid(this.entry) || this.positionTrackingSuspended) return;
     const cursor = screen.getCursorScreenPoint();
+    if (this.dockLayout && (cursor.x !== this.dragOrigin.cursorX || cursor.y !== this.dragOrigin.cursorY)) {
+      this.dockLayout = null;
+      const window = this.entry.window;
+      window.setResizable(true);
+      this.positionWindow(window, this.dragOrigin.winX, this.dragOrigin.winY);
+      window.setResizable(false);
+      this.sendDisplayOptions();
+    }
     this.positionWindow(
       this.entry.window,
       this.dragOrigin.winX + (cursor.x - this.dragOrigin.cursorX),
@@ -663,6 +781,31 @@ class CharacterWindowManager {
 
       if (!this.isWindowValid(this.entry) || !this.windowPosition) return;
 
+      if (this.dockLayout) {
+        // Keep the original display/corner through sleep, even if displays
+        // change coordinates. A missing Dock must still clear its old scale.
+        const display = screen.getAllDisplays().find(item => item.id === this.dockLayout.displayId);
+        if (!display) return;
+        const size = this.windowSize();
+        const { bounds } = display;
+        this.applyDockLayout({
+          x: this.dockLayout.side === 'left' ? bounds.x + this.edgeMargin : bounds.x + bounds.width - this.edgeMargin - size.width,
+          y: bounds.y + bounds.height - this.edgeMargin - size.height,
+          ...size
+        });
+        return;
+      }
+
+      if (this.dockMonitor) {
+        const available = screen.getAllDisplays().some(({ bounds }) => bounds &&
+          this.windowPosition.x >= bounds.x && this.windowPosition.x < bounds.x + bounds.width &&
+          this.windowPosition.y >= bounds.y && this.windowPosition.y < bounds.y + bounds.height);
+        // Do not use nearest-display Dock snapping while the saved display
+        // is absent: that would overwrite the position we are waiting for.
+        if (!available) return;
+        if (this.applyDockLayout({ ...this.windowPosition, ...this.windowSize() })) return;
+      }
+
       const target = this.clampPositionToScreen(this.windowPosition);
       const displayAvailable = target.x === this.windowPosition.x && target.y === this.windowPosition.y;
       if (!displayAvailable) return;
@@ -697,6 +840,7 @@ class CharacterWindowManager {
       return { window: this.entry.window, switchedProject };
     }
 
+    this.dockLayout = this.windowPosition ? this.layoutForBounds({ ...this.windowPosition, ...this.configuredWindowSize() }) : null;
     const position = this.windowPosition
       ? this.clampPositionToScreen(this.windowPosition)
       : this.defaultPosition();
@@ -708,6 +852,9 @@ class CharacterWindowManager {
       x: position.x,
       y: position.y,
       frame: false,
+      // AppKit otherwise pulls a short window above the Dock's reserved
+      // strip. Our own snap logic bounds this frameless overlay instead.
+      enableLargerThanScreen: process.platform === 'darwin',
       thickFrame: false,
       transparent: true,
       alwaysOnTop: this.alwaysOnTopMode !== 'disabled',
@@ -756,6 +903,11 @@ class CharacterWindowManager {
       window.setAlwaysOnTop(this.shouldBeAlwaysOnTop(currentState), ALWAYS_ON_TOP_LEVEL);
 
       window.showInactive();
+      if (this.dockMonitor && this.isNearBottomCorner()) {
+        this.dockMonitor.refresh().then(() => {
+          if (this.entry === entry) this.refreshDockLayout();
+        });
+      }
 
       // Send initial state if available
       if (entry.state) {
@@ -773,6 +925,8 @@ class CharacterWindowManager {
         this.snapTimer = null;
       }
       this.clearUserDrag();
+      this.dockLayout = null;
+      this.bubbleSize = null;
       this.entry = null;
 
       if (this.onWindowClosed) {
@@ -781,6 +935,7 @@ class CharacterWindowManager {
     });
 
     window.on('move', () => {
+      if (this.applyingDockLayout) return;
       // Notify immediately (not debounced) so the speech bubble window can
       // follow along live while this window is being dragged.
       if (this.onWindowMoved) {
