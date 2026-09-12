@@ -10,6 +10,7 @@ const { createInterface } = require('node:readline');
 const { CharacterWindowManager } = require('../../src/modules/character-window-manager.cjs');
 const { BubbleWindowManager } = require('../../src/modules/bubble-window-manager.cjs');
 const { DockMonitor } = require('../../src/modules/dock-monitor.cjs');
+const { SettingsWindowManager } = require('../../src/modules/settings-window-manager.cjs');
 const { dockCorner } = require('../../src/modules/dock-layout.cjs');
 const characters = require('../../src/shared/data/characters.json');
 const states = require('../../src/shared/data/states.json');
@@ -22,6 +23,7 @@ app.on('window-all-closed', () => {});
 
 let characterManager;
 let bubbleManager;
+let settingsManager;
 let focused = 0;
 const ignored = new Map();
 const errors = [];
@@ -129,8 +131,9 @@ async function verifyDockCorners(win, mode, live = null) {
     state: { state: 'working', project: 'Dock corner verification', model: 'Example model', memory: 42, usage5h: 18, usageWeek: 36 },
     speechBubbleFields: { status: true, project: true, model: true, memory: true, usage5h: true, usageWeek: true }
   };
-  for (const side of ['left', 'right']) {
+  for (const { side, autoScale } of ['left', 'right'].flatMap(side => [false, true].map(autoScale => ({ side, autoScale })))) {
     characterManager.dockLayout = null;
+    characterManager.dockAutoScale = autoScale;
     win.setResizable(true);
     characterManager.positionWindow(win, side === 'left' ? b.x : b.x + b.width - 134, b.y + b.height - 138);
     win.setResizable(false);
@@ -144,6 +147,13 @@ async function verifyDockCorners(win, mode, live = null) {
       return ['x', 'y', 'width', 'height'].every(key => actual[key] === expected[key]);
     }, `${mode} ${side} native Dock corner geometry`);
     const layout = characterManager.dockLayout;
+    if (!autoScale) {
+      assert.equal(layout.scale, 1);
+      assert.equal(win.getBounds().width, 134);
+      assert.equal(bubble.getBounds().width, bubbleManager.lastSizes.get('test').width);
+    } else {
+      assert(layout.scale > 0 && layout.scale <= 1);
+    }
     assert.deepEqual(win.getBounds(), layout.character);
     for (const overlay of [win, bubble]) {
       const rect = overlay.getBounds();
@@ -153,16 +163,63 @@ async function verifyDockCorners(win, mode, live = null) {
     }
     const rendered = await bubble.webContents.executeJavaScript('(() => { const b = document.getElementById("bubble").getBoundingClientRect(); return { right: b.right, bottom: b.bottom, width: innerWidth, height: innerHeight }; })()');
     assert(rendered.right <= rendered.width && rendered.bottom <= rendered.height, 'scaled bubble content is not clipped');
-    fs.writeFileSync(path.join(output, `${source}-${mode}-${side}-character.png`), (await win.webContents.capturePage()).toPNG());
-    fs.writeFileSync(path.join(output, `${source}-${mode}-${side}-bubble.png`), (await bubble.webContents.capturePage()).toPNG());
-    results.push({ mode, dockCorner: side, source, dock: characterManager.dockMonitor.bounds[0], layout, rendered });
+    const label = `${source}-${mode}-${side}-${autoScale ? 'shrink' : 'keep'}`;
+    fs.writeFileSync(path.join(output, `${label}-character.png`), (await win.webContents.capturePage()).toPNG());
+    fs.writeFileSync(path.join(output, `${label}-bubble.png`), (await bubble.webContents.capturePage()).toPNG());
+    results.push({ mode, dockCorner: side, autoScale, source, dock: characterManager.dockMonitor.bounds[0], layout, rendered });
   }
+  if (live && mode === '2d') await verifyDockSettings();
+  characterManager.setDockAutoScale(false);
   characterManager.dockMonitor.bounds = [];
   characterManager.refreshDockLayout();
   bubbleManager.reposition('test');
   await until(() => bubbleManager.bubbleWindows.get('test').getBounds().width === bubbleManager.lastSizes.get('test').width, 'bubble returns to natural size');
   assert.equal(win.getBounds().width, 134);
   assert.equal(characterManager.getDisplayOptions().characterScale, 100);
+}
+
+async function verifyDockSettings() {
+  characterManager.setDockAutoScale(false);
+  settingsManager = new SettingsWindowManager({
+    windowManager: characterManager,
+    app,
+    hookInstaller: { getCachedStatuses: () => [] },
+    vibemonConfigManager: { read: () => ({ http_urls: [] }), getStatus: () => ({ exists: false, hasDesktopUrl: false }) },
+    updateChecker: { getState: () => ({ status: null, version: null }) }
+  });
+  async function openSettings() {
+    settingsManager.open();
+    await until(() => {
+      if (settingsManager.window.webContents.isLoading()) return false;
+      return settingsManager.window.webContents.executeJavaScript('document.getElementById("dock-corner-size").options.length === 2');
+    }, 'Dock size settings rendered');
+  }
+  await openSettings();
+  const readChoice = () => settingsManager.window.webContents.executeJavaScript('document.getElementById("dock-corner-size").value');
+  assert.equal(await readChoice(), 'keep');
+  for (const choice of ['shrink', 'keep']) {
+    await settingsManager.window.webContents.executeJavaScript(`(() => { const select = document.getElementById('dock-corner-size'); select.value = '${choice}'; select.dispatchEvent(new Event('change')); })()`);
+    await until(() => {
+      const layout = characterManager.dockLayout;
+      if (!layout?.bubble || characterManager.getDockAutoScale() !== (choice === 'shrink')) return false;
+      if (choice === 'keep' && layout.scale !== 1) return false;
+      const character = characterManager.entry.window.getBounds();
+      const bubble = bubbleManager.bubbleWindows.get('test').getBounds();
+      return ['x', 'y', 'width', 'height'].every(key => character[key] === layout.character[key] && bubble[key] === layout.bubble[key]);
+    }, 'setting reaches both live overlay windows');
+    const restored = new CharacterWindowManager();
+    assert.equal(restored.getDockAutoScale(), choice === 'shrink', 'Dock size preference survives manager recreation');
+    restored.cleanup();
+    const closed = new Promise(resolve => settingsManager.window.once('closed', resolve));
+    settingsManager.cleanup();
+    await closed;
+    await openSettings();
+    assert.equal(await readChoice(), choice, 'reopened settings reflect the saved choice');
+  }
+  await settingsManager.window.webContents.executeJavaScript('document.getElementById("dock-corner-size-row").scrollIntoView({ block: "center" })');
+  fs.writeFileSync(path.join(output, 'dock-corner-settings.png'), (await settingsManager.window.webContents.capturePage()).toPNG());
+  settingsManager.cleanup();
+  results.push({ source: 'dock-settings', defaultChoice: 'keep', verifiedChoices: ['shrink', 'keep'], persisted: true });
 }
 
 async function run() {

@@ -128,6 +128,7 @@ class CharacterWindowManager {
         characterLock: 'auto',  // 'auto' or a CHARACTER_NAMES entry
         renderMode: '2d',  // '2d' (pixel-art sprite) or '3d' (three.js pet)
         characterScale: 100,  // percent, a CHARACTER_SCALES entry
+        dockAutoScale: false,  // shrink both overlays to the Dock strip only when enabled
         edgeMargin: 0,  // px kept between the window and the work area's edges, an EDGE_MARGINS entry
         devMode: false,  // tint the character area so its bounds are visible
         windowPosition: null  // {x, y} - last dragged position, restored on next creation
@@ -164,6 +165,7 @@ class CharacterWindowManager {
     // flush-to-the-edge defaults rather than sizing the window from it.
     const storedScale = this.store.get('characterScale');
     this.characterScale = CHARACTER_SCALES.includes(storedScale) ? storedScale : 100;
+    this.dockAutoScale = this.store.get('dockAutoScale') === true;
 
     const storedEdgeMargin = this.store.get('edgeMargin');
     this.edgeMargin = EDGE_MARGINS.includes(storedEdgeMargin) ? storedEdgeMargin : 0;
@@ -344,8 +346,19 @@ class CharacterWindowManager {
   layoutForBounds(bounds) {
     if (!this.dockMonitor) return null;
     const display = this.displayForBounds(bounds);
-    const corner = this.dockMonitor.bounds.map(dock => dockCorner(display, dock, bounds, this.edgeMargin)).find(Boolean);
-    return fitDockLayout(corner, this.configuredWindowSize(), this.bubbleSize);
+    const corner = this.dockMonitor.bounds.map(dock => dockCorner(display, dock, bounds, this.edgeMargin, this.dockAutoScale)).find(Boolean);
+    return fitDockLayout(corner, this.configuredWindowSize(), this.bubbleSize, this.dockAutoScale);
+  }
+
+  getDockAutoScale() {
+    return this.dockAutoScale;
+  }
+
+  setDockAutoScale(enabled) {
+    if (typeof enabled !== 'boolean' || enabled === this.dockAutoScale) return;
+    this.dockAutoScale = enabled;
+    this.store.set('dockAutoScale', enabled);
+    this.refreshDockLayout();
   }
 
   refreshDockLayout() {

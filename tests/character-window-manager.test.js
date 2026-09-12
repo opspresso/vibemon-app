@@ -14,6 +14,7 @@ describe('Dock corner geometry', () => {
     screen.getDisplayMatching.mockReturnValue(display);
     monitor = { bounds: [{ x: 400, y: 844, width: 640, height: 52 }], refresh: jest.fn(() => Promise.resolve()) };
     manager = new CharacterWindowManager({ dockMonitor: monitor });
+    manager.setDockAutoScale(true);
     const { EventEmitter } = require('events');
     window = new EventEmitter();
     bounds = { x: 0, y: 706, width: 134, height: 138 };
@@ -113,6 +114,21 @@ describe('Dock corner geometry', () => {
     expect(layout.displayId).toBe(1);
     expect(layout.character.x + layout.character.width).toBe(1440);
   });
+
+  test('switching to keep size restores both overlays while keeping the physical corner', () => {
+    manager.setBubbleSize({ width: 280, height: 185 });
+    expect(manager.dockLayout.scale).toBeLessThan(1);
+    manager.setDockAutoScale(false);
+    expect(manager.store.get('dockAutoScale')).toBe(false);
+    expect(bounds).toEqual({ x: 0, y: 762, width: 134, height: 138 });
+    expect(manager.dockLayout.bubble).toMatchObject({ width: 280, height: 185 });
+    expect(manager.dockLayout.bubble.y + manager.dockLayout.bubble.height).toBeLessThan(bounds.y);
+    expect(manager.getDisplayOptions().characterScale).toBe(100);
+    manager.setDockAutoScale(true);
+    expect(manager.store.get('dockAutoScale')).toBe(true);
+    expect(manager.dockLayout.scale).toBeLessThan(1);
+    expect(bounds.y + bounds.height).toBe(900);
+  });
 });
 
 /**
@@ -180,6 +196,20 @@ describe('taskbar visibility', () => {
 });
 
 describe('default settings', () => {
+  test.each([undefined, false, 'true', 1, null])('Dock auto scaling is off for missing or invalid stored values: %s', value => {
+    Store.__presetNextStore(value === undefined ? {} : { dockAutoScale: value });
+    expect(new CharacterWindowManager().getDockAutoScale()).toBe(false);
+  });
+
+  test('restores an explicitly enabled Dock auto scale setting and rejects invalid changes', () => {
+    Store.__presetNextStore({ dockAutoScale: true });
+    const manager = new CharacterWindowManager();
+    expect(manager.getDockAutoScale()).toBe(true);
+    manager.setDockAutoScale('false');
+    expect(manager.getDockAutoScale()).toBe(true);
+    manager.setDockAutoScale(false);
+    expect(manager.store.get('dockAutoScale')).toBe(false);
+  });
   test('a fresh install defaults to all always-on-top, auto character lock, no saved position', () => {
     const manager = new CharacterWindowManager();
 

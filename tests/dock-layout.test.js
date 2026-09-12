@@ -80,3 +80,33 @@ test('leaves ordinary positions and corners without usable space unchanged', () 
   expect(dockCorner(display, dock, { x: 600, y: 762, ...character })).toBeNull();
   expect(dockCorner(display, dock, { x: 0, y: 762, ...character }, 32)).toBeNull();
 });
+
+test.each(['left', 'right'])('keep-size mode uses the free column at the %s screen corner', side => {
+  const corner = dockCorner(display, dock, { x: side === 'left' ? 0 : 1306, y: 762, ...character }, 8, false);
+  const bubble = { width: 260, height: 185 };
+  const layout = fitDockLayout(corner, character, bubble, false);
+  expect(layout.scale).toBe(1);
+  expect(layout.character).toMatchObject(character);
+  expect(layout.bubble).toMatchObject(bubble);
+  expect(layout.character.y + layout.character.height).toBe(892);
+  within(layout.character, corner.area);
+  within(layout.bubble, corner.area);
+  expect(layout.axis).toBe('vertical');
+  expect(layout.bubble.y + layout.bubble.height).toBeLessThan(layout.character.y);
+});
+
+test('keep-size mode uses the free row beneath a side Dock', () => {
+  const sideDisplay = { ...display, workArea: { x: 60, y: 30, width: 1380, height: 870 } };
+  const corner = dockCorner(sideDisplay, { x: 4, y: 250, width: 52, height: 400 }, { x: 60, y: 762, ...character }, 0, false);
+  const layout = fitDockLayout(corner, character, { width: 200, height: 185 }, false);
+  expect(layout.scale).toBe(1);
+  expect(layout.axis).toBe('horizontal');
+  within(layout.character, corner.area);
+  within(layout.bubble, corner.area);
+});
+
+test('keep-size mode does not silently shrink overlays when neither arrangement fits', () => {
+  const corner = dockCorner(display, { ...dock, x: 85, width: 1270 }, { x: 0, y: 762, ...character }, 0, false);
+  expect(fitDockLayout(corner, character, { width: 260, height: 185 }, false)).toBeNull();
+  expect(fitDockLayout(corner, character, { width: 260, height: 185 }, true).scale).toBeLessThan(1);
+});

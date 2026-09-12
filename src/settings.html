@@ -89,6 +89,7 @@
       min-height: 44px;
     }
     .row:last-child { border-bottom: none; }
+    .row[hidden] { display: none; }
     .row-actions { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
     .row-text label { display: block; font-weight: 500; }
     .row-text .hint { color: var(--muted-foreground); font-size: 11.5px; margin-top: 2px; }
@@ -238,6 +239,13 @@
               <p class="hint">Gap the character keeps from the screen's edges when it snaps to one</p>
             </div>
             <select id="edge-margin"></select>
+          </div>
+          <div class="row" id="dock-corner-size-row" hidden>
+            <div class="row-text">
+              <label for="dock-corner-size">Dock Corner Size</label>
+              <p class="hint">Keep the current size, or shrink the character and bubble to fit the Dock's height or width</p>
+            </div>
+            <select id="dock-corner-size"></select>
           </div>
           <div class="row">
             <div class="row-text">
@@ -451,6 +459,8 @@
         s.options.edgeMargins.map((margin) => [margin, margin + ' px']),
         s.edgeMargin
       );
+      $('dock-corner-size-row').hidden = !s.supportsDockCorners;
+      fillSelect($('dock-corner-size'), [['keep', 'Keep current size'], ['shrink', 'Auto shrink']], s.dockAutoScale ? 'shrink' : 'keep');
 
       const fieldsBox = $('speech-bubble-fields');
       fieldsBox.innerHTML = '';
@@ -741,6 +751,9 @@
     });
     $('edge-margin').addEventListener('change', async (e) => {
       await window.settingsAPI.setEdgeMargin(Number(e.target.value));
+    });
+    $('dock-corner-size').addEventListener('change', async (e) => {
+      await window.settingsAPI.setDockAutoScale(e.target.value === 'shrink');
     });
     $('dev-mode').addEventListener('change', async (e) => {
       await window.settingsAPI.setDevMode(e.target.checked);

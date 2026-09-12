@@ -153,11 +153,13 @@ The app shows exactly one character window plus its following speech bubble:
 - **System Tray**: Quick access from menubar/taskbar
 - **Draggable**: Move the character anywhere on screen
 - **Snap to corner**: Can be dragged past the screen edge mid-drag; once you let go, it's clamped back on-screen, snapping flush to a corner within a 30px threshold
-- **macOS Dock corners**: When macOS exposes a usable visible Dock rectangle, dropping the character at a bottom corner fits the character and speech bubble together into the free space beside a bottom Dock, or below a side Dock. Both scale to fit, including the bubble's tail, while respecting Edge Margin. Dragging away restores Character Size and the bubble's natural size. Dock geometry is refreshed while a character rests in a bottom corner; unavailable or hidden Dock geometry uses normal work-area placement.
+- **macOS Dock corners**: Dropping the character at a bottom corner uses the free space beside a bottom Dock, or below a side Dock, while respecting Edge Margin. **Settings → VibeMon → Window → Dock Corner Size** chooses the behavior and saves it across restarts. **Keep current size** is the default: both overlays retain their sizes and sit beside or above each other in the available space. If neither arrangement fits, normal work-area placement preserves their sizes. **Auto shrink** scales both overlays, including the bubble's tail, to fit the Dock's narrow strip; dragging away restores Character Size and the bubble's natural size. Changing the setting immediately updates a parked character. Dock geometry is refreshed while a character rests in a bottom corner; unavailable or hidden Dock geometry uses normal work-area placement.
 
   Dock geometry uses the read-only, undocumented macOS `CoreDockGetRect` function, with a public `CGWindowListCopyWindowInfo` fallback. Neither Accessibility nor Screen Recording permission is requested. A future macOS release may remove or change the private function; unusable geometry preserves normal work-area snapping. `pnpm test:overlays --require-dock` requires detection of a real visible Dock in addition to the deterministic fixture checks.
 
-  Native window captures with an 801 × 56-point Dock (Retina 2×):
+  ![Dock Corner Size defaults to Keep current size](images/dock-corner-settings.png)
+
+  Native window captures with **Auto shrink** enabled and an 801 × 56-point Dock (Retina 2×):
 
   | Bottom-left (2D) | Bottom-right (3D) |
   | --- | --- |
