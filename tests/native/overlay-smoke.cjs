@@ -12,6 +12,7 @@ const { BubbleWindowManager } = require('../../src/modules/bubble-window-manager
 const { DockMonitor } = require('../../src/modules/dock-monitor.cjs');
 const { SettingsWindowManager } = require('../../src/modules/settings-window-manager.cjs');
 const { dockCorner } = require('../../src/modules/dock-layout.cjs');
+const { getDockCandidates } = require('./dock-candidates.cjs');
 const characters = require('../../src/shared/data/characters.json');
 const states = require('../../src/shared/data/states.json');
 const { CHARACTER_IMAGE_FETCH_TIMEOUT_MS } = require('../../src/shared/config.cjs');
@@ -131,7 +132,10 @@ async function verifyDockCorners(win, mode, live = null) {
     state: { state: 'working', project: 'Dock corner verification', model: 'Example model', memory: 42, usage5h: 18, usageWeek: 36 },
     speechBubbleFields: { status: true, project: true, model: true, memory: true, usage5h: true, usageWeek: true }
   };
-  for (const { side, autoScale } of ['left', 'right'].flatMap(side => [false, true].map(autoScale => ({ side, autoScale })))) {
+  const candidates = live?.candidates || getDockCandidates(display, characterManager.dockMonitor.bounds, { width: 134, height: 138 });
+  if (source === 'fixture-dock' || source === 'narrow-fixture-dock') assert.deepEqual(candidates.map(candidate => candidate.side), ['left', 'right']);
+  if (live?.expectedSides) assert.deepEqual(candidates.map(candidate => candidate.side), live.expectedSides);
+  for (const { side, autoScale } of candidates.flatMap(({ side }) => [false, true].map(autoScale => ({ side, autoScale })))) {
     characterManager.dockLayout = null;
     characterManager.dockAutoScale = autoScale;
     characterManager.sendDisplayOptions();
@@ -458,12 +462,23 @@ async function run() {
               refresh: () => Promise.resolve()
             }
           });
+          for (const side of ['left', 'right']) {
+            await verifyDockCorners(win, mode, {
+              display: fixtureDisplay,
+              source: `side-fixture-${side}`,
+              expectedSides: [side],
+              monitor: {
+                bounds: [{ x: side === 'left' ? fixtureBounds.x + 4 : fixtureBounds.x + fixtureBounds.width - 56, y: fixtureBounds.y + 80, width: 52, height: Math.round(fixtureBounds.height / 2) }],
+                refresh: () => Promise.resolve()
+              }
+            });
+          }
           const monitor = new DockMonitor();
           await monitor.refresh();
-          const display = screen.getAllDisplays().find(item => monitor.bounds.some(dock =>
-            dockCorner(item, dock, { x: item.bounds.x, y: item.bounds.y + item.bounds.height - 138, width: 134, height: 138 })));
-          if (display) {
-            await verifyDockCorners(win, mode, { monitor, display });
+          const live = screen.getAllDisplays().map(display => ({ display, candidates: getDockCandidates(display, monitor.bounds, { width: 134, height: 138 }) }))
+            .find(candidate => candidate.candidates.length > 0);
+          if (live) {
+            await verifyDockCorners(win, mode, { monitor, ...live });
           } else {
             assert(!app.commandLine.hasSwitch('require-dock'), 'a visible real Dock is required for live verification');
             results.push({ mode, source: 'live-dock', skipped: 'No visible Dock rectangle available' });
