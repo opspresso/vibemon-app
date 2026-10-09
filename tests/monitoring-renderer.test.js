@@ -20,7 +20,8 @@ test('renders custom range, unit, message and negative trend without fixed CPU a
   const snapshot = { url: 'https://web.example', status: 'connected', catalog: [source], sources: [source], accountCatalog: [], accounts: [], selectedSources: null, selectedAccounts: null, selectedMetrics: Object.keys(catalog), metrics: catalog, trendRefreshMs: 60000 };
   const elements = new Map();
   const document = { hidden: false, activeElement: null, getElementById: id => { if (!elements.has(id)) elements.set(id, new Element(id === 'trend-metric' ? 'select' : 'div')); return elements.get(id); }, createElement: tag => new Element(tag), createElementNS: (_ns, tag) => new Element(tag), createTextNode: textContent => ({ textContent }), addEventListener() {} };
-  const api = { onChange() {}, snapshot: async () => ({ ok: true, value: snapshot }), trend: async () => ({ ok: true, value: [{ timestamp: new Date().toISOString(), average: { temperature: -12 } }] }) };
+  const response = { points: [{ timestamp: new Date().toISOString(), average: { temperature: -12 } }], displayMetrics: source.displayMetrics };
+  const api = { onChange() {}, snapshot: async () => ({ ok: true, value: snapshot }), trend: async () => ({ ok: true, value: response }) };
   vm.runInNewContext(fs.readFileSync(require.resolve('../src/monitoring/renderer.js'), 'utf8'), { window: { monitoring: api, addEventListener() {} }, document, console, setInterval: jest.fn(), clearInterval: jest.fn(), Date });
   await new Promise(setImmediate);
   const nodes = descendants(elements.get('cards'));
@@ -34,4 +35,12 @@ test('renders custom range, unit, message and negative trend without fixed CPU a
   const chart = descendants(elements.get('chart'));
   expect(chart.some(node => node.textContent === '-40°C')).toBe(true);
   expect(chart.find(node => node.tag === 'circle').attributes.cy).toBeCloseTo(116);
+  // Re-registering an ID can change meaning; history must use its own returned definition.
+  response.displayMetrics = displayMetrics({ ...source, metricDefinitions: { temperature: { label: 'Voltage', unit: 'V', display: 'gauge', min: -20, max: 20 } } });
+  nodes.find(node => node.tag === 'button').listeners.click();
+  await new Promise(setImmediate);
+  const changed = descendants(elements.get('chart'));
+  expect(changed.some(node => node.textContent === '-20V')).toBe(true);
+  expect(changed.some(node => node.textContent === '-40°C')).toBe(false);
+  expect(changed.find(node => node.tag === 'circle').attributes.cy).toBeCloseTo(164);
 });

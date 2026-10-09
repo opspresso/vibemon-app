@@ -4,9 +4,11 @@ Open **Monitoring…** from the tray menu. Enter the Web origin and a generated 
 
 The read token is encrypted with Electron `safeStorage`, backed by the operating system keychain or secret service. No plaintext read token is returned to the renderer or written to preferences. Linux `basic_text` storage is rejected. Unlock or configure your OS secure storage if the app cannot save the token. To remove it, select **Disconnect**.
 
-Select the sources and metrics to display under **Connection and display settings**. **Discover sources** refreshes the available source list. Latest state is polled every 30 seconds, restricted to the selected sources. **View recent hour** loads minute aggregates and refreshes them every minute until the panel closes. No trend requests run while the panel is closed or the window is hidden.
+Select the resources, accounts, and metrics under **Connection and display settings**, then select **Apply display selection**. **Discover resources and accounts** refreshes the available list. Latest state is polled every 30 seconds, restricted to the selection. **View recent hour** loads minute aggregates and refreshes them every minute until the panel closes. No trend requests run while the panel is closed or the window is hidden.
 
 Host cards display CPU, memory, GPU, and temperature. Spark uses **Unified memory**. Cluster cards display CPU, memory, ready/total nodes, and unhealthy pods. Agent cards preserve character and state information; fresh selected agent observations also enter the existing character-window routing path under cloud-specific IDs, keeping local hook projects separate.
+
+Custom resource cards display the sender's resource type, short status message, metric labels, and units. Gauges use the declared minimum and maximum; number charts support signed values and automatic ranges. Define a database, queue, sensor, or any other type at the Web site's `/resources/new` page, then send real observations using the generated contract. No App code change is needed for a new type. After the first observation, discover and select the resource and its metrics. Custom metric choices are scoped to the source, so equal keys on different resources stay independent. A status-only resource has no numeric trend button.
 
 - **Unavailable**: metric not supported, absent, or failed; it is never substituted with zero.
 - **Stale**: no accepted server receipt for 120 seconds; values are the last known observation.
@@ -29,7 +31,7 @@ The existing localhost hook endpoint and character/bubble behavior remain availa
 
 ## Multiple resources and accounts
 
-Resources and provider accounts have separate selectors. Choose any combination of Kubernetes clusters, Spark hosts, Claude accounts, and Codex accounts. A provider account card lists its project states and shows the latest observation's usage. Its recent-hour view aggregates that account's summaries; percentages are averaged, not summed.
+Resources and provider accounts have separate selectors. Choose any combination of custom resources, Kubernetes clusters, Spark hosts, Claude accounts, and Codex accounts. A provider account card lists its project states and shows the latest observation's usage. Its recent-hour view aggregates that account's summaries; percentages are averaged, not summed.
 
 The same project name can appear under several accounts. Selection and trend requests use provider/account keys and source IDs, never the project label. Configure account identity in the hook launch environment with `VIBEMON_ACCOUNT_ID` and `VIBEMON_ACCOUNT_NAME`; use `CLAUDE_CONFIG_DIR` or `CODEX_HOME` for the matching login. See the Web repository's monitoring API contract for provider-specific overrides.
 

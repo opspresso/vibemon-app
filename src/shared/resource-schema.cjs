@@ -73,11 +73,4 @@ function metricCatalog(sources) {
   }
   return result;
 }
-function chartBounds(definition, values) {
-  if (definition.display === 'gauge') return { min: definition.min, max: definition.max };
-  const numbers = values.filter(value => typeof value === 'number' && Number.isFinite(value));
-  const min = Math.min(0, ...numbers);
-  const max = Math.max(0, ...numbers);
-  return { min, max: max === min ? min + 1 : max };
-}
-module.exports = { MAX_METRICS, MAX_VALUE, BUILTIN_METRICS, validText, validMetricKey, validateDefinitions, validateValues, sameMeaning, canExtendDefinitions, definitionsFor, selectionKey, metricCatalog, chartBounds };
+module.exports = { MAX_METRICS, MAX_VALUE, BUILTIN_METRICS, validText, validMetricKey, validateDefinitions, validateValues, sameMeaning, canExtendDefinitions, definitionsFor, selectionKey, metricCatalog };

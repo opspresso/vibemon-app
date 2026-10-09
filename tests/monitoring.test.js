@@ -187,7 +187,9 @@ describe('custom resource definitions', () => {
     const item = custom('sensor', '°C');
     const point = { timestamp: '2026-10-09T00:00:00Z', samples: 1, expiresAt: 2000000000, average: { value: -20 }, maximum: { value: -15 } };
     fetchImpl.mockResolvedValue(okResponse({ points: [point], metricDefinitions: item.metricDefinitions }));
-    expect((await client.trend('sensor'))[0].average.value).toBe(-20);
+    const trend = await client.trend('sensor');
+    expect(trend.points[0].average.value).toBe(-20);
+    expect(trend.displayMetrics[0]).toMatchObject({ key: 'value', unit: '°C', min: -100, max: 500, selectionKey: 'resource:sensor:value' });
     expect(validateTrend([{ ...point, average: { value: null }, maximum: { value: null } }], item.metricDefinitions)[0].average.value).toBeNull();
     expect(() => validateTrend([{ ...point, maximum: { value: -30 } }], item.metricDefinitions)).toThrow();
   });

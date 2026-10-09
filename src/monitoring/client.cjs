@@ -141,7 +141,11 @@ class MonitoringClient extends EventEmitter {
     if (!(account ? validAccountId(sourceId) : validId(sourceId))) throw new Error('Invalid source ID');
     const data = await this.request(`/api/v1/${account ? 'accounts' : 'sources'}/${encodeURIComponent(sourceId)}/trend?hours=1`);
     const definitions = data.metricDefinitions === undefined ? METRICS : validateDefinitions(data.metricDefinitions);
-    return validateTrend(data.points, definitions);
+    const points = validateTrend(data.points, definitions);
+    const metrics = data.metricDefinitions === undefined
+      ? Object.entries(definitions).map(([key, definition]) => ({ ...definition, key, selectionKey: key }))
+      : displayMetrics({ sourceId, kind: 'resource', metricDefinitions: definitions });
+    return { points, displayMetrics: metrics };
   }
   start() {
     if (this.timer) return;

@@ -105,7 +105,7 @@ function drawTrend() {
   const points = trendPoints.map(point => ({ time: Date.parse(point.timestamp), value: point.average?.[key] })).filter(point => Number.isFinite(point.time) && point.time >= start && point.time <= now);
   const values = points.filter(point => typeof point.value === 'number' && Number.isFinite(point.value));
   const metric = selectedTrend.displayMetrics.find(item => item.key === key);
-  if (!metric) return;
+  if (!metric) { $('trend-state').textContent = 'No selected metric is available in this history response.'; return; }
   const minimum = metric.display === 'gauge' ? metric.min : Math.min(0, ...values.map(point => point.value));
   const top = metric.display === 'gauge' ? metric.max : Math.max(0, ...values.map(point => point.value));
   const maximum = top === minimum ? minimum + 1 : top;
@@ -127,9 +127,16 @@ async function refreshTrend() {
   if (!selectedTrend || document.hidden) return;
   const generation = ++trendGeneration;
   try {
-    const points = await call('trend', { id: selectedTrend.sourceId, kind: selectedTrend.isAccount ? 'account' : 'source' });
+    const result = await call('trend', { id: selectedTrend.sourceId, kind: selectedTrend.isAccount ? 'account' : 'source' });
     if (generation !== trendGeneration) return;
-    trendPoints = points; drawTrend();
+    const choice = $('trend-metric').value;
+    selectedTrend = { ...selectedTrend, displayMetrics: result.displayMetrics };
+    $('trend-metric').replaceChildren();
+    for (const metric of visibleMetrics(selectedTrend)) {
+      const option = node('option', metric.label); option.value = metric.key; $('trend-metric').append(option);
+    }
+    if (visibleMetrics(selectedTrend).some(metric => metric.key === choice)) $('trend-metric').value = choice;
+    trendPoints = result.points; drawTrend();
   } catch (error) { if (generation === trendGeneration) $('trend-state').textContent = error.message; }
 }
 function openTrend(source) {
