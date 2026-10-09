@@ -116,3 +116,11 @@ describe('findPython', () => {
     expect(findPython()).toEqual({ command: 'python3', prefixArgs: [] });
   });
 });
+
+test('terminates an interpreter that never responds', () => {
+  const { probePython } = loadFor('darwin');
+  spawnSync.mockImplementation(jest.requireActual('child_process').spawnSync);
+  const started = Date.now();
+  expect(probePython({ command: process.execPath, prefixArgs: ['-e', 'setInterval(() => {}, 1000)', '--'] })).toBe(false);
+  expect(Date.now() - started).toBeLessThan(4000);
+});

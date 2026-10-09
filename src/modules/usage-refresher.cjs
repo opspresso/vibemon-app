@@ -18,7 +18,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { spawn } = require('child_process');
-const { USAGE_REFRESH_MAX_AGE_SECONDS } = require('../shared/config.cjs');
+const { USAGE_REFRESH_MAX_AGE_SECONDS, USAGE_REFRESH_TIMEOUT_MS } = require('../shared/config.cjs');
 const { findPython, SPAWN_DEFAULTS } = require('./python-runtime.cjs');
 const { getUsageCachePath, providerCacheKey, expandHome } = require('./usage-cache-reader.cjs');
 
@@ -69,9 +69,9 @@ class UsageRefresher {
 
   /**
    * Run usage.py to refresh the shared usage cache. Resolves with
-   * { ok, reason?, code?, stderr?, error? }; never rejects — a stale cache
+   * { ok, reason?, code? }; never rejects — a stale cache
    * is harmless and the next scheduled run retries.
-   * @returns {Promise<{ok: boolean, reason?: string, code?: number, stderr?: string, error?: string}>}
+   * @returns {Promise<{ok: boolean, reason?: string, code?: number}>}
    */
   refresh() {
     if (this.inFlight) {
@@ -93,7 +93,17 @@ class UsageRefresher {
         '--max-age',
         String(maxAgeSeconds)
       ];
-      const child = spawn(python.command, args, {
+      let settled = false;
+      let timer;
+      const finish = (result) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        this.inFlight = false;
+        resolve(result);
+      };
+      let child;
+      try { child = spawn(python.command, args, {
         ...SPAWN_DEFAULTS,
         // Launched from Finder/Dock the app's cwd is `/`, which the spawned
         // `claude` CLI would treat as its workspace — its file enumeration
@@ -101,28 +111,23 @@ class UsageRefresher {
         // ...) and macOS attributes that to this app as a folder-access
         // permission prompt. Pin the workspace to a harmless directory.
         cwd: path.dirname(USAGE_SCRIPT_PATH),
-        stdio: ['ignore', 'ignore', 'pipe'],
+        stdio: ['ignore', 'ignore', 'ignore'],
         env: buildEnv()
-      });
-      let stderr = '';
-      child.stderr.on('data', (chunk) => { stderr += chunk; });
-      child.on('error', (err) => {
-        this.inFlight = false;
-        console.warn('[UsageRefresher] failed to spawn usage.py:', err.message);
-        resolve({ ok: false, reason: 'spawn-error', error: err.message });
-      });
-      child.on('close', (code) => {
-        this.inFlight = false;
-        if (code !== 0) {
-          console.warn(`[UsageRefresher] usage.py exited with ${code}:`, stderr.trim());
-        }
-        resolve({
-          ok: code === 0,
-          reason: code === 0 ? null : 'exit-code',
-          code,
-          stderr
-        });
-      });
+      }); } catch {
+        finish({ ok: false, reason: 'spawn-error' });
+        return;
+      }
+      timer = setTimeout(() => {
+        child.kill('SIGKILL');
+        finish({ ok: false, reason: 'timeout' });
+      }, USAGE_REFRESH_TIMEOUT_MS);
+      timer.unref();
+      child.on('error', () => finish({ ok: false, reason: 'spawn-error' }));
+      child.on('close', (code) => finish({
+        ok: code === 0,
+        reason: code === 0 ? null : 'exit-code',
+        code
+      }));
     });
   }
 }

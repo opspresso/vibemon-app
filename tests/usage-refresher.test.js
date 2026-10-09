@@ -9,7 +9,8 @@ const path = require('path');
 jest.mock('fs');
 jest.mock('child_process');
 jest.mock('../src/shared/config.cjs', () => ({
-  USAGE_REFRESH_MAX_AGE_SECONDS: 90
+  USAGE_REFRESH_MAX_AGE_SECONDS: 90,
+  USAGE_REFRESH_TIMEOUT_MS: 60000
 }));
 
 const fs = require('fs');
@@ -26,6 +27,7 @@ function mockPythonPresent() {
 function mockSpawnedChild() {
   const child = new EventEmitter();
   child.stderr = new EventEmitter();
+  child.kill = jest.fn();
   spawn.mockReturnValue(child);
   return child;
 }
@@ -183,17 +185,37 @@ describe('UsageRefresher', () => {
     child.emit('error', new Error('ENOENT'));
     const result = await promise;
 
-    expect(result).toEqual({ ok: false, reason: 'spawn-error', error: 'ENOENT' });
+    expect(result).toEqual({ ok: false, reason: 'spawn-error' });
   });
 
-  test('captures stderr from a failed run', async () => {
+  test('terminates a stalled refresh and allows the next scheduled run', async () => {
+    jest.useFakeTimers();
+    try {
+      const child = mockSpawnedChild();
+      const first = refresher.refresh();
+      jest.advanceTimersByTime(60000);
+      expect(child.kill).toHaveBeenCalledWith('SIGKILL');
+      expect(await first).toMatchObject({ ok: false, reason: 'timeout' });
+      const next = mockSpawnedChild();
+      const second = refresher.refresh();
+      child.emit('close', 1);
+      expect(await refresher.refresh()).toEqual({ ok: false, reason: 'in-flight' });
+      next.emit('close', 0);
+      expect(await second).toMatchObject({ ok: true });
+    } finally { jest.useRealTimers(); }
+  });
+
+  test('does not capture or log provider diagnostics', async () => {
     const child = mockSpawnedChild();
-
-    const promise = refresher.refresh();
-    child.stderr.emit('data', 'claude CLI not found in PATH');
-    child.emit('close', 1);
-    const result = await promise;
-
-    expect(result.stderr).toBe('claude CLI not found in PATH');
+    const warning = jest.spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      const pending = refresher.refresh();
+      child.stderr.emit('data', 'private-provider-response');
+      child.emit('close', 1);
+      const result = await pending;
+      expect(result).not.toHaveProperty('stderr');
+      expect(spawn.mock.calls[0][2].stdio).toEqual(['ignore', 'ignore', 'ignore']);
+      expect(JSON.stringify(warning.mock.calls)).not.toContain('private-provider-response');
+    } finally { warning.mockRestore(); }
   });
 });

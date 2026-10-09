@@ -7,6 +7,7 @@
  */
 
 const { spawnSync } = require('child_process');
+const { PYTHON_PROBE_TIMEOUT_MS } = require('../shared/constants.cjs');
 
 const IS_WINDOWS = process.platform === 'win32';
 
@@ -57,7 +58,10 @@ function probePython(candidate) {
   try {
     result = spawnSync(candidate.command, [...candidate.prefixArgs, ...PROBE_ARGS], {
       ...SPAWN_DEFAULTS,
-      encoding: 'utf8'
+      encoding: 'utf8',
+      timeout: PYTHON_PROBE_TIMEOUT_MS,
+      killSignal: 'SIGKILL',
+      maxBuffer: 1024
     });
   } catch {
     return false;
