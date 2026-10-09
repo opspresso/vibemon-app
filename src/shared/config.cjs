@@ -15,7 +15,7 @@ const states = require('./states.cjs');
 const DOCS_BASE_URL = process.env.VIBEMON_DOCS_URL || 'https://vibemon.io/install';
 // Optional strict pin for custom installer deployments. Normally null: the
 // installer hash comes from the published manifest.json, so install.py
-// updates ship with a docs deploy alone (no app release needed).
+// updates ship with a Web deployment alone (no app release needed).
 const INSTALLER_SHA256 = process.env.VIBEMON_INSTALLER_SHA256 || null;
 
 // =============================================================================

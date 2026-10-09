@@ -24,7 +24,7 @@ VibeMon normalizes multiple agent ecosystems into one display model. The renderi
 - **Codex**: Strong interactive lifecycle and local tool coverage. VibeMon's `PreToolUse` and `PostToolUse` hooks observe shell commands, `apply_patch`, MCP tools, and other local function tools; `codex exec --json` remains useful for CI or batch jobs.
 - **Kiro**: Strong tool-level support with explicit `PreToolUse` and `PostToolUse`, plus namespaced MCP tool names.
 - **OpenClaw**: Strongest when treated as a plugin platform. The VibeMon bridge should continue to use plugin hooks instead of depending on the lighter internal hook system.
-- **OpenCode**: Session creation, prompts, tool execution, permission requests, compaction, and completion map to the existing states. Plan-agent activity uses `planning`; known child sessions are suppressed by the bridge. The adapter sends `memory: 0` and no plan-usage fields. See the [bridge event mappings](https://github.com/opspresso/vibemon-docs#opencode) for details.
+- **OpenCode**: Session creation, prompts, tool execution, permission requests, compaction, and completion map to the existing states. Plan-agent activity uses `planning`; known child sessions are suppressed by the bridge. The adapter omits context and plan-usage fields when no measurement is available. See the [bridge event mappings](https://github.com/opspresso/vibemon-web/blob/main/docs/HOOKS.md#opencode) for details.
 
 ### OpenCode Setup
 
@@ -244,7 +244,7 @@ The character is rendered by a bundled engine (`src/engine/vibemon-engine.js`): 
 
 ## Build
 
-Hook installation verifies the downloaded installer against the `installer` SHA-256 published in the same origin's `manifest.json` (fetched fresh at install time), so install.py updates ship with a vibemon-docs deploy alone — no app release needed. install.py then re-checks every file it downloads against that same manifest before writing it, so install.py and manifest.json have to go out in the same deploy. Custom installer deployments can pin a specific hash via `VIBEMON_INSTALLER_SHA256` together with `VIBEMON_DOCS_URL`; the pin takes precedence over the manifest. `VIBEMON_DOCS_URL` only redirects where install.py itself is fetched from — the installer always pulls the files it installs, and the manifest it checks them against, from `vibemon.io/install`.
+Hook installation verifies the downloaded installer against the `installer` SHA-256 published in the same origin's `manifest.json` (fetched fresh at install time), so install.py updates ship with a Web deployment alone — no app release needed. install.py then re-checks every file it downloads against that same manifest before writing it, so install.py and manifest.json have to go out in the same deploy. Custom installer deployments can pin a specific hash via `VIBEMON_INSTALLER_SHA256` together with `VIBEMON_DOCS_URL`; the pin takes precedence over the manifest. `VIBEMON_DOCS_URL` only redirects where install.py itself is fetched from — the installer always pulls the files it installs, and the manifest it checks them against, from `vibemon.io/install`.
 
 Installs run unattended but not force-approved: the app passes a platform flag and never `--yes`. VibeMon's own hook scripts are upgraded in place (so Reinstall still repairs drift), while settings you own — most visibly an existing Claude Code `statusLine` — are left as they are. Run install.py yourself with `--yes` to have those replaced too. When a run fails, the installer's own reason (a failed integrity check, a file it couldn't write) is shown with the exit code instead of the bare code.
 
@@ -253,8 +253,8 @@ Detection and hook paths honor `CLAUDE_CONFIG_DIR`, `CODEX_HOME`, `KIRO_HOME`, a
 Registration checks inspect the command used on the current OS, including Codex's Windows override and the installer's quoted POSIX paths. OpenClaw requires its script, manifest, and enabled `vibemon-bridge` entry. The installer records `plugins.load.paths`, and existing installations in the global extensions directory are also recognized without that entry. Global disable, deny entries, and a non-empty allowlist that excludes VibeMon prevent an installed status, matching [OpenClaw's plugin policy](https://docs.openclaw.ai/tools/plugin#configure-plugin-policy). After an OpenClaw update, refresh its persisted plugin registry and restart the gateway as described in the [setup guide](https://github.com/opspresso/vibemon-web/blob/main/docs/HOOKS.md#openclaw-configuration). The docs installer currently skips OpenClaw on Windows.
 
 ```bash
-npm run build:mac     # macOS (DMG, ZIP)
-npm run build:win     # Windows (NSIS, Portable)
-npm run build:linux   # Linux (AppImage, DEB)
-npm run build:all     # All platforms
+pnpm build:mac     # macOS (DMG, ZIP)
+pnpm build:win     # Windows (NSIS, Portable)
+pnpm build:linux   # Linux (AppImage, DEB)
+pnpm build:all     # All platforms
 ```
