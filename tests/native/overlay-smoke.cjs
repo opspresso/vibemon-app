@@ -15,7 +15,7 @@ const { dockCorner } = require('../../src/modules/dock-layout.cjs');
 const { getDockCandidates } = require('./dock-candidates.cjs');
 const characters = require('../../src/shared/data/characters.json');
 const states = require('../../src/shared/data/states.json');
-const { CHARACTER_IMAGE_FETCH_TIMEOUT_MS } = require('../../src/shared/config.cjs');
+const { CHARACTER_IMAGE_FETCH_TIMEOUT_MS, STATIC_BASE_URL } = require('../../src/shared/config.cjs');
 const root = path.resolve(__dirname, '../..');
 const output = path.join(root, 'out', 'overlay-tests', process.platform, app.commandLine.getSwitchValue('force-device-scale-factor') || 'native');
 fs.mkdirSync(output, { recursive: true });
@@ -39,7 +39,7 @@ async function until(check, label) {
   throw new Error(`Timed out: ${label}`);
 }
 
-ipcMain.handle('get-character-registry', () => ({ ...characters, staticBaseUrl: 'https://static.vibemon.io', imageFetchTimeoutMs: CHARACTER_IMAGE_FETCH_TIMEOUT_MS }));
+ipcMain.handle('get-character-registry', () => ({ ...characters, staticBaseUrl: STATIC_BASE_URL, imageFetchTimeoutMs: CHARACTER_IMAGE_FETCH_TIMEOUT_MS }));
 ipcMain.handle('get-state-registry', () => states);
 ipcMain.handle('get-render-mode', () => characterManager.getRenderMode());
 ipcMain.handle('get-display-options', () => characterManager.getDisplayOptions());
