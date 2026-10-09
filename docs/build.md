@@ -14,3 +14,5 @@ Build scripts pass `--publish never`. For unsigned local macOS verification, set
 Desktop packages bundle Electron, so it belongs in development dependencies. The npm launcher needs Electron installed alongside the JavaScript app. `pnpm prepare:npm` creates a separate `dist/npm` package whose production dependencies include the same Electron version range. The npm publication workflow publishes from that directory after validation. Do not publish the root development manifest directly.
 
 `dist/` contains generated artifacts and is not committed. `prepare:npm` replaces only its own `dist/npm` staging directory; it does not remove desktop build output.
+
+Desktop packaging uses an explicit allowlist: `src/`, application icons, `LICENSE`, and package metadata, plus production dependencies assembled by electron-builder. Development configuration, environment files, tests, coverage, and maintenance scripts are excluded. With the same Electron 43.7.9 dependency lock, this reduced the application ASAR from 8,708,272 to 5,979,179 bytes during verification. This is a package-size comparison, not a startup-time benchmark.

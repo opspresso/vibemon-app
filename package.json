@@ -49,19 +49,18 @@
     "url": "https://github.com/opspresso/vibemon-app/issues"
   },
   "dependencies": {
-    "canvas": "^3.2.1",
+    "canvas": "^3.2.3",
     "d3-force": "^3.0.0",
-    "dotenv": "^17.2.3",
+    "dotenv": "^17.4.2",
     "electron-store": "^8.2.0",
-    "electron-updater": "^6.8.9",
-    "ws": "^8.19.0"
+    "electron-updater": "^6.8.9"
   },
   "devDependencies": {
-    "electron-builder": "^26.8.1",
-    "eslint": "^9.0.0",
+    "electron": "^43.7.9",
+    "electron-builder": "^26.15.3",
+    "eslint": "^9.39.5",
     "jest": "^29.7.0",
-    "three": "^0.185.1",
-    "electron": "^43.1.0"
+    "three": "^0.185.1"
   },
   "files": [
     "README.md",
@@ -73,10 +72,10 @@
     "appId": "com.opspresso.vibemon",
     "productName": "VibeMon",
     "files": [
-      "**/*",
-      "!docs/**",
-      "!images/**",
-      "!CLAUDE.md"
+      "src/**",
+      "assets/icon*",
+      "LICENSE",
+      "package.json"
     ],
     "mac": {
       "category": "public.app-category.developer-tools",
@@ -133,8 +132,8 @@
     ]
   },
   "overrides": {
-    "js-yaml@^3.0.0": "3.15.1",
-    "js-yaml@^4.0.0": "4.3.1"
+    "js-yaml@^3.0.0": "^3.15.2",
+    "js-yaml@^4.0.0": "^4.3.2"
   },
   "packageManager": "pnpm@12.10.1"
 }
