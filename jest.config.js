@@ -11,6 +11,7 @@ module.exports = {
   ],
   collectCoverageFrom: [
     'src/modules/**/*.{js,cjs}',
+    'src/monitoring/**/*.cjs',
     'src/shared/**/*.{js,cjs}',
     '!**/node_modules/**'
   ],

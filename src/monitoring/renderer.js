@@ -112,7 +112,7 @@ function drawTrend() {
     previous = point.time;
   }
   chart.append(svg('path', { d: path }));
-  $('trend-state').textContent = values.length ? `${values.length} recorded minutes` : 'No supported samples for this metric in the last hour.';
+  $('trend-state').textContent = values.length ? `${values.length} recorded ${values.length === 1 ? 'minute' : 'minutes'}` : 'No supported samples for this metric in the last hour.';
 }
 async function refreshTrend() {
   if (!selectedTrend || document.hidden) return;

@@ -1263,7 +1263,7 @@ class CharacterWindowManager {
    * window when the update's project is (or becomes) the focused one.
    * Always records the incoming state in stateRegistry first, so state
    * survives even while another project holds focus.
-   * Shared by the HTTP POST /status and WebSocket status-update paths.
+   * Shared by the HTTP POST /status and cloud status-update paths.
    * @param {string} projectId
    * @param {Object} stateData - validated/normalized state data
    * @param {{preserveFocus?: boolean}} [options] - preserveFocus records the
@@ -1293,7 +1293,7 @@ class CharacterWindowManager {
     }
 
     // terminalId only arrives via local HTTP — the cloud API neither stores
-    // nor rebroadcasts it — so a WebSocket echo of a locally-posted status
+    // nor rebroadcasts it — so a remote copy of a locally-posted status
     // would otherwise wipe the terminal reference and break click-to-focus.
     // Keep the project's last known terminalId when an update omits it.
     if (stateData.terminalId === undefined) {

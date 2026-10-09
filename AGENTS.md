@@ -6,7 +6,7 @@ VibeMon is an Electron desktop application. The main process starts in `src/main
 
 ## Architecture & Data Flow
 
-HTTP and WebSocket updates converge at `routeStatusUpdate()` and flow through `CharacterWindowManager` to one retargetable character window and speech bubble. Preserve this ingress and focus-selection behavior. State and character registries *and* the rendering modules are canonical in `vibemon-web/public/static/`; update them there, then sync the copies with `pnpm check:registry -- --fix`. Keep timeouts and sizes in `src/shared/data/constants.json` (`_MS` for milliseconds). The renderer CSP requires local Three.js files; do not use runtime CDN imports — `src/renderer.js` passes the vendored three.js namespace to the 3D engine as `options.THREE`.
+Local HTTP and scoped cloud polling updates converge at `routeStatusUpdate()` and flow through `CharacterWindowManager` to one retargetable character window and speech bubble. Preserve this ingress and focus-selection behavior. State and character registries *and* the rendering modules are canonical in `vibemon-web/public/static/`; update them there, then sync the copies with `pnpm check:registry -- --fix`. Keep timeouts and sizes in `src/shared/data/constants.json` (`_MS` for milliseconds). The renderer CSP requires local Three.js files; do not use runtime CDN imports — `src/renderer.js` passes the vendored three.js namespace to the 3D engine as `options.THREE`.
 
 ## Build, Test, and Development Commands
 

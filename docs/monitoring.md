@@ -34,3 +34,5 @@ Resources and provider accounts have separate selectors. Choose any combination 
 The same project name can appear under several accounts. Selection and trend requests use provider/account keys and source IDs, never the project label. Configure account identity in the hook launch environment with `VIBEMON_ACCOUNT_ID` and `VIBEMON_ACCOUNT_NAME`; use `CLAUDE_CONFIG_DIR` or `CODEX_HOME` for the matching login. See the Web repository's monitoring API contract for provider-specific overrides.
 
 ![Two independently selected fixture accounts](images/monitoring-accounts.png)
+
+Remote status reception uses the HTTPS monitoring client. The former App WebSocket client and `VIBEMON_WS_URL` / `VIBEMON_WS_TOKEN` settings are removed. Configure the Web origin and a generated read token in Monitoring. Local HTTP hooks are unchanged. Read credentials are never reused for hook installation or copied into `~/.vibemon/config.json`.

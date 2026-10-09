@@ -822,7 +822,7 @@ class HookInstaller {
    * Detect missing tools and, if any, ask the user for confirmation before
    * installing hooks for them. No-op when nothing is missing or an install
    * is already in progress.
-   * @param {string|null} token - VibeMon account token (shared with the WebSocket client)
+   * @param {string|null} token - Optional hook write token; never use the cloud read token
    */
   async checkAndPrompt(token) {
     if (this.isRunning) {

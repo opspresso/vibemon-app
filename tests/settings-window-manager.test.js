@@ -148,12 +148,12 @@ describe('settings:get-all', () => {
     for (const c of before.options.characters) {
       expect(typeof c.displayName).toBe('string');
     }
-    // No wsClient yet: safe defaults
-    expect(before.ws).toEqual({ status: 'not-configured', tokenConfigured: false });
+    // No monitoringClient yet: safe defaults
+    expect(before.cloud).toEqual({ status: 'not-configured', tokenConfigured: false });
 
-    manager.setWsClient({ getStatus: () => 'connected', getToken: () => 'tok' });
+    manager.setMonitoringClient({ getStatus: () => 'connected', hasToken: () => true });
     const after = await invoke('settings:get-all');
-    expect(after.ws).toEqual({ status: 'connected', tokenConfigured: true });
+    expect(after.cloud).toEqual({ status: 'connected', tokenConfigured: true });
   });
 
   test('carries the character size, edge margin and dev mode plus their option lists', async () => {
@@ -216,16 +216,13 @@ describe('setting mutations', () => {
     expect(await invoke('settings:set-speech-bubble-field', 'nope', true)).toBe(false);
   });
 
-  test('set-token trims and forwards to wsClient and the vibemon config; rejects without one', async () => {
+  test('opens cloud configuration without copying read credentials to hook config', async () => {
     const { manager, deps } = freshManager();
-    expect(await invoke('settings:set-token', ' tok ')).toBe(false);
-
-    const wsClient = { setToken: jest.fn(), getStatus: () => 'connected', getToken: () => '' };
-    manager.setWsClient(wsClient);
-    expect(await invoke('settings:set-token', ' tok ')).toBe(true);
-    expect(wsClient.setToken).toHaveBeenCalledWith('tok');
-    expect(deps.vibemonConfigManager.write).toHaveBeenCalledWith({ vibemon_token: 'tok' });
-    expect(await invoke('settings:set-token', 123)).toBe(false);
+    const openMonitoring = jest.fn();
+    manager.setMonitoringClient({ getStatus: () => 'connected', hasToken: () => true }, openMonitoring);
+    expect(await invoke('settings:open-monitoring')).toBe(true);
+    expect(openMonitoring).toHaveBeenCalled();
+    expect(deps.vibemonConfigManager.write).not.toHaveBeenCalled();
   });
 
   test('set-character-scale accepts only listed percentages', async () => {
@@ -282,13 +279,13 @@ describe('setting mutations', () => {
 });
 
 describe('AI tool hooks', () => {
-  test('install-hook passes the wsClient token and returns refreshed statuses', async () => {
+  test('install-hook keeps the read credential separate from hook configuration', async () => {
     const { manager, deps } = freshManager();
-    manager.setWsClient({ getToken: () => 'tok', getStatus: () => 'connected' });
+    manager.setMonitoringClient({ hasToken: () => true, getStatus: () => 'connected' });
 
     const result = await invoke('settings:install-hook', '--claude');
 
-    expect(deps.hookInstaller.installByFlag).toHaveBeenCalledWith('--claude', 'tok', { showSummary: false });
+    expect(deps.hookInstaller.installByFlag).toHaveBeenCalledWith('--claude', null, { showSummary: false });
     expect(result[0]).not.toHaveProperty('hookFile');
   });
 
@@ -347,18 +344,18 @@ describe('AI tool hooks', () => {
 });
 
 describe('VibeMon Config', () => {
-  test('repair-vibemon-config passes the wsClient token and returns the refreshed config+status', async () => {
+  test('repair-vibemon-config preserves the existing hook credential', async () => {
     const { manager, deps } = freshManager();
-    manager.setWsClient({ getToken: () => 'tok', getStatus: () => 'connected' });
+    manager.setMonitoringClient({ hasToken: () => true, getStatus: () => 'connected' });
     deps.vibemonConfigManager.getStatus.mockReturnValue({ exists: true, hasDesktopUrl: true });
 
     const result = await invoke('settings:repair-vibemon-config');
 
-    expect(deps.vibemonConfigManager.ensureDesktopUrl).toHaveBeenCalledWith('tok');
+    expect(deps.vibemonConfigManager.ensureDesktopUrl).toHaveBeenCalledWith(null);
     expect(result.status).toEqual({ exists: true, hasDesktopUrl: true });
   });
 
-  test('repair-vibemon-config works without a wsClient configured', async () => {
+  test('repair-vibemon-config works without a monitoringClient configured', async () => {
     const { deps } = freshManager();
 
     await invoke('settings:repair-vibemon-config');

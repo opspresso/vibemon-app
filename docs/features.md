@@ -218,13 +218,13 @@ A small, transparent, click-through window that displays selected info fields (s
 A dedicated settings window (tray menu → **Settings...**) with four tabs in a sidebar:
 
 - **VibeMon** — Character Lock, Always on Top mode, Speech Bubble field toggles, Open at Login
-- **Collector** — how AI tool session status gets delivered here, locally or via the cloud relay: WebSocket connection status + account token (also writes the collector's `vibemon_token` into `~/.vibemon/config.json`), plus Config (HTTP URLs, Serial Port, VibeMon URL, Debug Logging, Auto-launch Desktop App) read and written directly by the app — no python installer needed
+- **Collector** — how AI tool session status gets delivered here, locally or via the cloud relay: HTTPS connection status and a link to the Monitoring window; its read token is separate from the hook write token, plus Config (HTTP URLs, Serial Port, VibeMon URL, Debug Logging, Auto-launch Desktop App) read and written directly by the app — no python installer needed
 - **AI Tools** — per-tool hook install status for Claude Code / Codex CLI / Kiro IDE / OpenClaw / OpenCode, with one-click Install (Reinstall for already-installed tools) and a Refresh action
 - **About** — app version, Check for Updates with one-click download/install, and Docs / GitHub Releases links
 
 Changes apply immediately through the same code paths as the tray menu, and the window re-syncs when refocused so tray-made changes are reflected.
 
-The account token is never returned to the settings renderer after it is saved; the UI only receives whether a token is configured. WebSocket authentication sends the token both as a connection URL query parameter (required by the deployed relay, which authorizes at the HTTP upgrade) and in a protocol auth message after connecting.
+The read token is encrypted by OS secure storage and is never returned to a renderer. HTTPS requests use the Authorization header. Hook installation preserves the existing write token in hook configuration and never copies the read token.
 
 ### System Tray Menu
 
@@ -233,7 +233,7 @@ Grouped to mirror the Settings window's tab order (VibeMon / Collector / AI Tool
 - **Show Character** — reopens the character window and its speech bubble after they closed (the sleep close-timeout or a manual close / `POST /close`), recreating the last shown character/state instead of waiting for the next status update
 - Settings... (opens the Settings window)
 - **VibeMon** — Character Lock (Auto/VibeMon/Clawd/Codex/Kiro/Claw/Daangni), Always on Top, Speech Bubble field toggles, Open at Login toggle
-- **Collector** — WebSocket status (Connected/Disconnected), HTTP Server port display
+- **Collector** — Cloud connection status, HTTP Server port display
 - **AI Tools** — AI Tool Hooks (per-tool install status for Claude Code/Codex CLI/Kiro IDE/OpenClaw/OpenCode, with one-click install), followed by Claude/Codex plan usage grouped per provider (5h, weekly, and model-scoped weekly %, each with a heat-colored bar icon and its own time-to-reset) — read from the shared usage cache independent of which project is focused; rows with no fresh data are omitted
 - **About** — opens the Settings window's About tab, followed by a version display or a one-click "Update to vX" / "Restart to install vX" item
 - Quit

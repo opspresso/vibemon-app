@@ -2,6 +2,13 @@ const { MonitoringClient } = require('../src/monitoring/client.cjs');
 const { CredentialStore } = require('../src/monitoring/credential-store.cjs');
 const { validateSources, webOrigin } = require('../src/monitoring/domain.cjs');
 const rawToken = 'vm_' + '1'.repeat(60);
+function okResponse(value) {
+  return { ok: true, body: { getReader: () => {
+    let sent = false;
+    return { read: async () => sent ? { done: true } : (sent = true, { done: false, value: Buffer.from(JSON.stringify(value)) }), cancel: jest.fn(), releaseLock: jest.fn() };
+  } } };
+}
+
 function store(initial = {}) {
   const values = new Map(Object.entries(initial));
   return { get: key => values.get(key), set: (key, value) => values.set(key, value), delete: key => values.delete(key), values };
@@ -12,7 +19,7 @@ function fixture(now = 1000000) {
   const secrets = store();
   let value = rawToken;
   const credentials = { has: () => Boolean(value), get: () => value, set: token => { value = token; }, clear: () => { value = null; } };
-  const fetchImpl = jest.fn().mockResolvedValue({ ok: true, text: async () => JSON.stringify({ sources: [source(now)] }) });
+  const fetchImpl = jest.fn().mockResolvedValue(okResponse({ sources: [source(now)] }));
   return { client: new MonitoringClient({ preferences, credentials, fetchImpl, now: () => now }), preferences, secrets, fetchImpl };
 }
 
@@ -53,7 +60,7 @@ describe('cloud monitoring', () => {
     fetchImpl.mockRejectedValueOnce(new Error('Offline'));
     await client.poll();
     expect(client.snapshot().sources[0]).toMatchObject({ stale: true, metrics: { cpuPercent: 35, gpuPercent: null } });
-    fetchImpl.mockResolvedValue({ ok: true, text: async () => JSON.stringify({ sources: [source(now)] }) });
+    fetchImpl.mockResolvedValue(okResponse({ sources: [source(now)] }));
     await client.poll(); expect(client.snapshot().sources[0].stale).toBe(false);
   });
   test('late responses cannot restore data after disconnect', async () => {
@@ -61,12 +68,12 @@ describe('cloud monitoring', () => {
     let resolve;
     fetchImpl.mockReturnValue(new Promise(done => { resolve = done; }));
     const pending = client.poll(); await client.disconnect();
-    resolve({ ok: true, text: async () => JSON.stringify({ sources: [source(1000000)] }) });
+    resolve(okResponse({ sources: [source(1000000)] }));
     await pending; expect(client.snapshot().sources).toEqual([]); expect(client.snapshot().tokenConfigured).toBe(false);
   });
   test('only requests a trend on demand and validates IDs', async () => {
     const { client, fetchImpl } = fixture();
-    fetchImpl.mockResolvedValue({ ok: true, text: async () => JSON.stringify({ points: [] }) });
+    fetchImpl.mockResolvedValue(okResponse({ points: [] }));
     await client.trend('spark'); expect(fetchImpl.mock.calls[0][0]).toBe('https://web.example/api/v1/sources/spark/trend?hours=1');
     await expect(client.trend('../other')).rejects.toThrow('Invalid source ID');
   });
@@ -103,18 +110,35 @@ describe('multiple accounts and resources', () => {
     for (const provider of ['claude', 'codex']) for (const id of ['work', 'personal']) {
       sources.push({ ...source(1000000), sourceId: `${provider}-${id}`, kind: 'agent', metrics: { contextPercent: id === 'work' ? 20 : 70 }, account: { provider, id, displayName: `${provider} ${id}` }, agent: { state: 'working', character: provider === 'claude' ? 'clawd' : 'codex', project: 'same-project' } });
     }
-    fetchImpl.mockResolvedValue({ ok: true, text: async () => JSON.stringify({ sources }) });
+    fetchImpl.mockResolvedValue(okResponse({ sources }));
     await client.poll(true);
     expect(client.snapshot().accounts).toHaveLength(4);
     expect(client.snapshot().accounts.find(account => account.accountId === 'codex:work').latest.metrics.contextPercent).toBe(20);
     expect(client.snapshot().accounts.find(account => account.accountId === 'codex:personal').latest.metrics.contextPercent).toBe(70);
     await client.select({ sources: ['spark'], accounts: ['codex:work', 'claude:personal'], metrics: ['cpuPercent', 'usageWeekPercent'] });
     expect(fetchImpl.mock.calls.at(-1)[0]).toBe('https://web.example/api/v1/sources?ids=spark&accounts=codex%3Awork%2Cclaude%3Apersonal');
-    fetchImpl.mockResolvedValue({ ok: true, text: async () => JSON.stringify({ points: [] }) });
+    fetchImpl.mockResolvedValue(okResponse({ points: [] }));
     await client.trend({ kind: 'account', id: 'codex:work' });
     expect(fetchImpl.mock.calls.at(-1)[0]).toBe('https://web.example/api/v1/accounts/codex%3Awork/trend?hours=1');
     const calls = fetchImpl.mock.calls.length;
     await client.select({ sources: [], accounts: [], metrics: [] });
     expect(fetchImpl).toHaveBeenCalledTimes(calls);
+  });
+});
+
+
+describe('bounded response reading', () => {
+  const { readJsonResponse } = require('../src/monitoring/response.cjs');
+  test('cancels oversized bodies before buffering the rest', async () => {
+    const reader = { read: jest.fn().mockResolvedValue({ done: false, value: Buffer.alloc(8) }), cancel: jest.fn(), releaseLock: jest.fn() };
+    await expect(readJsonResponse({ body: { getReader: () => reader } }, 10)).rejects.toThrow('size limit');
+    expect(reader.read).toHaveBeenCalledTimes(2);
+    expect(reader.cancel).toHaveBeenCalled();
+    expect(reader.releaseLock).toHaveBeenCalled();
+  });
+  test('does not expose an invalid response body in error messages', async () => {
+    let sent = false;
+    const reader = { read: async () => sent ? { done: true } : (sent = true, { done: false, value: Buffer.from('fixture-sensitive-text') }), releaseLock: jest.fn() };
+    await expect(readJsonResponse({ body: { getReader: () => reader } }, 100)).rejects.toThrow('Invalid JSON from Web');
   });
 });

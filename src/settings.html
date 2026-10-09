@@ -149,8 +149,6 @@
     }
     .badge.ok { color: var(--success); }
     .badge.warn { color: var(--destructive); }
-    .token-row { display: flex; gap: 6px; align-items: center; }
-    .token-row input { width: 200px; }
     .url-list { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
     .url-chip {
       display: flex;
@@ -289,27 +287,8 @@
           (HTTP/serial) or remotely via the cloud relay.
         </p>
 
-        <h2>WebSocket</h2>
-        <div class="rows">
-          <div class="row">
-            <div class="row-text">
-              <label>Connection</label>
-              <p class="hint">Relay server for statuses from remote machines</p>
-            </div>
-            <span id="ws-status" class="badge">-</span>
-          </div>
-          <div class="row">
-            <div class="row-text">
-              <label for="ws-token">Token</label>
-              <p class="hint">Account token — also configures the collector's ~/.vibemon/config.json</p>
-            </div>
-            <div class="token-row">
-              <input type="password" id="ws-token" placeholder="Enter a new token">
-              <button class="action" id="token-save">Save</button>
-              <button class="action danger" id="token-clear">Clear</button>
-            </div>
-          </div>
-        </div>
+        <h2>Cloud monitoring</h2>
+        <div class="rows"><div class="row"><div class="row-text"><label>Read connection</label><p class="hint">Choose resources and provider accounts. Read tokens stay in OS secure storage.</p></div><span id="cloud-status" class="badge">-</span><button class="action" id="open-monitoring">Open Monitoring</button></div></div>
 
         <div class="section-head">
           <h2>Config</h2>
@@ -481,19 +460,26 @@
       $('open-at-login').checked = !!s.openAtLogin;
       $('dev-mode').checked = !!s.devMode;
 
-      const wsBadge = $('ws-status');
+      renderCloudState(s.cloud);
+    }
+
+    function renderCloudState(cloud) {
+      const cloudBadge = $('cloud-status');
       const labels = {
         connected: ['● Connected', 'ok'],
         connecting: ['○ Connecting…', ''],
-        disconnected: ['○ Disconnected', 'warn'],
+        'connection-error': ['○ Connection error', 'warn'],
+        'token-expired': ['○ Token expired or revoked', 'warn'],
+        'permission-denied': ['○ Read permission required', 'warn'],
+        'secure-storage-unavailable': ['○ Unlock secure storage', 'warn'],
         'not-configured': ['○ Not configured', '']
       };
-      const [text, cls] = labels[s.ws.status] || labels['not-configured'];
-      wsBadge.textContent = text;
-      wsBadge.className = 'badge' + (cls ? ' ' + cls : '');
+      const [text, cls] = labels[cloud.status] || labels['not-configured'];
+      cloudBadge.textContent = text;
+      cloudBadge.className = 'badge' + (cls ? ' ' + cls : '');
 
-      $('ws-token').placeholder = s.ws.tokenConfigured ? 'Token configured' : 'Enter a new token';
     }
+    window.settingsAPI.onCloudState(renderCloudState);
 
     function buildHookRow(tool) {
       const row = document.createElement('div');
@@ -761,15 +747,7 @@
     $('open-at-login').addEventListener('change', async (e) => {
       await window.settingsAPI.setOpenAtLogin(e.target.checked);
     });
-    $('token-save').addEventListener('click', async () => {
-      await window.settingsAPI.setToken($('ws-token').value);
-      loadAll();
-    });
-    $('token-clear').addEventListener('click', async () => {
-      $('ws-token').value = '';
-      await window.settingsAPI.setToken('');
-      loadAll();
-    });
+    $('open-monitoring').addEventListener('click', () => window.settingsAPI.openMonitoring());
     $('hooks-reset-prompts').addEventListener('click', async () => {
       const btn = $('hooks-reset-prompts');
       btn.disabled = true;

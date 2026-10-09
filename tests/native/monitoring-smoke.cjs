@@ -21,7 +21,7 @@ app.whenReady().then(async () => {
   const credentials = new CredentialStore(preferences, safeStorage);
   assert.ok(credentials.available(), 'OS secure storage must be available');
   const client = new MonitoringClient({ preferences, credentials, allowLocalHttp: true });
-  const snapshot = await client.configure({ url: 'http://127.0.0.1:3180', token: fixture.readToken });
+  const snapshot = await client.configure({ url: process.env.VIBEMON_TEST_ORIGIN || 'http://127.0.0.1:3180', token: fixture.readToken });
   assert.equal(snapshot.status, 'connected');
   assert.ok(snapshot.sources.some(source => source.sourceId === 'spark-0702'));
   assert.ok(!fs.readFileSync(preferences.path, 'utf8').includes(fixture.readToken));
@@ -48,10 +48,24 @@ app.whenReady().then(async () => {
     const names = await view.window.webContents.executeJavaScript('[...document.querySelectorAll(".card h2")].map(element => element.textContent).sort()');
     assert.deepEqual(names, ['Fixture claude personal', 'Fixture codex work']);
     await view.window.webContents.executeJavaScript('window.scrollTo(0, 0);');
+    await view.window.webContents.executeJavaScript('new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))');
+    await delay(150);
     fs.writeFileSync(path.join(__dirname, '..', '..', 'docs', 'images', 'monitoring-accounts.png'), (await view.window.webContents.capturePage()).toPNG());
     await view.window.webContents.executeJavaScript('document.querySelector(".card button").click();');
     await until(() => view.window.webContents.executeJavaScript('document.querySelectorAll("#chart circle").length > 0'));
     console.log('PASS native account selection: two same-project provider accounts and account trend');
+  }
+  if (snapshot.sources.some(source => source.sourceId === 'k8s-live')) {
+    await view.window.webContents.executeJavaScript('document.getElementById("close-trend").click();');
+    await client.select({ sources: ['spark-0702', 'k8s-live'], accounts: [], metrics: ['cpuPercent', 'memoryPercent', 'gpuPercent', 'gpuTemperatureC', 'nodesReady', 'nodesTotal', 'podsUnhealthy'] });
+    await until(() => view.window.webContents.executeJavaScript('document.querySelectorAll(".card").length === 2'));
+    const text = await view.window.webContents.executeJavaScript('document.getElementById("cards").textContent');
+    assert.ok(text.includes('Ready nodes')); assert.ok(text.includes('Unified memory'));
+    await view.window.webContents.executeJavaScript('window.scrollTo(0, 0);');
+    await view.window.webContents.executeJavaScript('new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))');
+    await delay(150);
+    fs.writeFileSync(path.join(__dirname, '..', '..', 'docs', 'images', 'monitoring-resources.png'), (await view.window.webContents.capturePage()).toPNG());
+    console.log('PASS native resource selection: real Spark and Kubernetes summaries');
   }
   view.cleanup(); client.stop(); credentials.clear();
   app.quit();

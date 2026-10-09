@@ -11,7 +11,12 @@ contextBridge.exposeInMainWorld('settingsAPI', {
   setEdgeMargin: (margin) => ipcRenderer.invoke('settings:set-edge-margin', margin),
   setDevMode: (enabled) => ipcRenderer.invoke('settings:set-dev-mode', enabled),
   setOpenAtLogin: (enabled) => ipcRenderer.invoke('settings:set-open-at-login', enabled),
-  setToken: (token) => ipcRenderer.invoke('settings:set-token', token),
+  onCloudState: callback => {
+    const handler = (_event, state) => callback(state);
+    ipcRenderer.on('settings:cloud-state', handler);
+    return () => ipcRenderer.removeListener('settings:cloud-state', handler);
+  },
+  openMonitoring: () => ipcRenderer.invoke('settings:open-monitoring'),
   refreshHookStatuses: () => ipcRenderer.invoke('settings:refresh-hook-statuses'),
   resetHookPrompts: () => ipcRenderer.invoke('settings:reset-hook-prompts'),
   installHook: (flag) => ipcRenderer.invoke('settings:install-hook', flag),

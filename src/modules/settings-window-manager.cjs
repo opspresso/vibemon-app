@@ -30,7 +30,7 @@ class SettingsWindowManager {
     this.hookInstaller = hookInstaller;
     this.vibemonConfigManager = vibemonConfigManager;
     this.updateChecker = updateChecker;
-    this.wsClient = null;
+    this.monitoringClient = null;
     // Set by main.js to refresh the tray icon/menu after a settings change.
     this.onSettingsChanged = null;
     this.window = null;
@@ -39,11 +39,21 @@ class SettingsWindowManager {
   }
 
   /**
-   * Set WebSocket client reference (created after app ready, like the tray's)
-   * @param {WsClient} wsClient
+   * Set HTTPS monitoring client reference (created after app ready, like the tray's)
+   * @param {MonitoringClient} monitoringClient
    */
-  setWsClient(wsClient) {
-    this.wsClient = wsClient;
+  setMonitoringClient(monitoringClient, openMonitoring) {
+    this.openMonitoring = openMonitoring;
+    this.monitoringClient = monitoringClient;
+  }
+
+  notifyCloudStateChanged() {
+    if (this.window && !this.window.isDestroyed()) {
+      this.window.webContents.send('settings:cloud-state', {
+        status: this.monitoringClient?.getStatus() || 'not-configured',
+        tokenConfigured: Boolean(this.monitoringClient?.hasToken())
+      });
+    }
   }
 
   notifyChanged() {
@@ -96,9 +106,9 @@ class SettingsWindowManager {
       edgeMargin: this.windowManager.getEdgeMargin(),
       devMode: this.windowManager.getDevMode(),
       openAtLogin: this.app.getLoginItemSettings().openAtLogin,
-      ws: {
-        status: this.wsClient ? this.wsClient.getStatus() : 'not-configured',
-        tokenConfigured: Boolean(this.wsClient && this.wsClient.getToken())
+      cloud: {
+        status: this.monitoringClient ? this.monitoringClient.getStatus() : 'not-configured',
+        tokenConfigured: Boolean(this.monitoringClient && this.monitoringClient.hasToken())
       },
       hooks: this.toHookView(this.hookInstaller.getCachedStatuses()),
       vibemonConfig: this.getVibemonConfigView(),
@@ -177,14 +187,7 @@ class SettingsWindowManager {
       return true;
     });
 
-    ipcMain.handle('settings:set-token', (_event, token) => {
-      if (typeof token !== 'string' || !this.wsClient) return false;
-      const trimmed = token.trim();
-      this.wsClient.setToken(trimmed);
-      this.vibemonConfigManager.write({ vibemon_token: trimmed });
-      this.notifyChanged();
-      return true;
-    });
+    ipcMain.handle('settings:open-monitoring', () => { this.openMonitoring?.(); return true; });
 
     ipcMain.handle('settings:reset-hook-prompts', () => {
       this.hookInstaller.clearDismissed();
@@ -201,10 +204,9 @@ class SettingsWindowManager {
     });
 
     ipcMain.handle('settings:install-hook', async (_event, flag) => {
-      const token = this.wsClient ? this.wsClient.getToken() : null;
       // No result dialog — the Settings window already shows the outcome
       // inline via the row's badge/button state.
-      const results = await this.hookInstaller.installByFlag(flag, token, { showSummary: false });
+      const results = await this.hookInstaller.installByFlag(flag, null, { showSummary: false });
       this.notifyChanged();
       const failure = results.find(r => !r.result.ok);
       if (failure || results.length === 0) {
@@ -216,8 +218,7 @@ class SettingsWindowManager {
     });
 
     ipcMain.handle('settings:repair-vibemon-config', () => {
-      const token = this.wsClient ? this.wsClient.getToken() : null;
-      this.vibemonConfigManager.ensureDesktopUrl(token);
+      this.vibemonConfigManager.ensureDesktopUrl(null);
       this.notifyChanged();
       return this.getVibemonConfigView();
     });

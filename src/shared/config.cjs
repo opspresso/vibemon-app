@@ -10,12 +10,6 @@ const characters = require('./characters.cjs');
 const states = require('./states.cjs');
 
 // =============================================================================
-// WebSocket Configuration (from environment variables)
-// =============================================================================
-const WS_URL = process.env.VIBEMON_WS_URL || 'wss://ws.vibemon.io';
-const WS_TOKEN = process.env.VIBEMON_WS_TOKEN || null;
-
-// =============================================================================
 // Hook Installer Configuration (from environment variables)
 // =============================================================================
 const DOCS_BASE_URL = process.env.VIBEMON_DOCS_URL || 'https://vibemon.io/install';
@@ -41,10 +35,6 @@ module.exports = {
   // STATE_CONFIG, VALID_STATES, ACTIVE_STATES, LOADING_STATES,
   // STATE_COLORS, STATE_TEXTS
   ...states,
-
-  // WebSocket
-  WS_URL,
-  WS_TOKEN,
 
   // Hook Installer
   DOCS_BASE_URL,

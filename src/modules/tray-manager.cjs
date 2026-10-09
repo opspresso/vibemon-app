@@ -193,12 +193,12 @@ async function createTrayIcon(state, character = DEFAULT_CHARACTER, showBadge = 
 }
 
 class TrayManager {
-  constructor(windowManager, app, stateManager, wsClient = null) {
+  constructor(windowManager, app, stateManager, monitoringClient = null) {
     this.tray = null;
     this.windowManager = windowManager;
     this.app = app;
     this.stateManager = stateManager;
-    this.wsClient = wsClient;
+    this.monitoringClient = monitoringClient;
     this.hookInstaller = null;
     this.updateChecker = null;
     this.settingsWindowManager = null;
@@ -206,11 +206,11 @@ class TrayManager {
   }
 
   /**
-   * Set WebSocket client reference (can be set after construction)
-   * @param {WsClient} wsClient
+   * Set HTTPS monitoring client reference (can be set after construction)
+   * @param {MonitoringClient} monitoringClient
    */
-  setWsClient(wsClient) {
-    this.wsClient = wsClient;
+  setMonitoringClient(monitoringClient) {
+    this.monitoringClient = monitoringClient;
   }
 
   /**
@@ -419,44 +419,15 @@ class TrayManager {
     return items;
   }
 
-  buildWebSocketStatusMenu() {
-    if (!this.wsClient) {
-      return [];
-    }
-
-    const status = this.wsClient.getStatus();
-    let statusLabel;
-    let statusIcon;
-
-    switch (status) {
-      case 'connected':
-        statusIcon = '●';
-        statusLabel = 'WebSocket: Connected';
-        break;
-      case 'connecting':
-        statusIcon = '○';
-        statusLabel = 'WebSocket: Connecting...';
-        break;
-      case 'disconnected': {
-        statusIcon = '○';
-        const lastError = this.wsClient.getLastError();
-        statusLabel = lastError
-          ? `WebSocket: Disconnected (${lastError})`
-          : 'WebSocket: Disconnected';
-        break;
-      }
-      case 'not-configured':
-      default:
-        statusIcon = '○';
-        statusLabel = 'WebSocket: Not configured';
-    }
-
-    return [
-      {
-        label: `${statusIcon} ${statusLabel}`,
-        enabled: false
-      }
-    ];
+  buildCloudStatusMenu() {
+    if (!this.monitoringClient) return [];
+    const status = this.monitoringClient.getStatus();
+    const labels = {
+      connected: 'Connected', connecting: 'Connecting…', 'not-configured': 'Not configured',
+      'token-expired': 'Token expired or revoked', 'permission-denied': 'Read permission required',
+      'connection-error': 'Connection error', 'secure-storage-unavailable': 'Unlock OS secure storage'
+    };
+    return [{ label: `Cloud: ${labels[status] || 'Connection error'}`, click: () => this.openMonitoring?.() }];
   }
 
   /**
@@ -475,8 +446,7 @@ class TrayManager {
         return { label: `${tool.name}: Not detected`, enabled: false };
       }
       const install = () => {
-        const token = this.wsClient ? this.wsClient.getToken() : null;
-        this.hookInstaller.installByFlag(tool.flag, token).then(() => {
+        this.hookInstaller.installByFlag(tool.flag, null).then(() => {
           this.updateMenu();
           this.updateIcon();
         });
@@ -585,7 +555,7 @@ class TrayManager {
       },
       { type: 'separator' },
       // Collector — mirrors the Settings window's Collector tab
-      ...this.buildWebSocketStatusMenu(),
+      ...this.buildCloudStatusMenu(),
       {
         label: `HTTP Server: localhost:${HTTP_PORT}`,
         enabled: false

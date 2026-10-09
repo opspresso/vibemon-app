@@ -1,6 +1,7 @@
+const { readJsonResponse } = require('./response.cjs');
 const { EventEmitter } = require('events');
-const { METRICS, validId, validAccountId, groupAccounts, webOrigin, validateSources } = require('./domain.cjs');
-const { CLOUD_POLL_MS, CLOUD_REQUEST_TIMEOUT_MS, CLOUD_STALE_MS, CLOUD_TREND_MS } = require('../shared/constants.cjs');
+const { METRICS, validId, validAccountId, accountId, groupAccounts, webOrigin, validateSources } = require('./domain.cjs');
+const { CLOUD_POLL_MS, CLOUD_REQUEST_TIMEOUT_MS, CLOUD_STALE_MS, CLOUD_TREND_MS, CLOUD_MAX_RESPONSE_BYTES } = require('../shared/constants.cjs');
 
 class MonitoringClient extends EventEmitter {
   constructor({ preferences, credentials, fetchImpl = fetch, allowLocalHttp = false, now = Date.now }) {
@@ -18,20 +19,22 @@ class MonitoringClient extends EventEmitter {
     this.inflight = null;
     this.timer = null;
   }
+  getStatus() { return this.status; }
+  hasToken() { return this.credentials.has(); }
   snapshot() {
+    const selectedSources = this.preferences.get('selectedSources') ?? null;
+    const selectedAccounts = this.preferences.get('selectedAccounts') ?? null;
+    const selected = this.sources.filter(source => source.kind === 'agent'
+      ? selectedAccounts === null || selectedAccounts.includes(accountId(source.account))
+      : selectedSources === null || selectedSources.includes(source.sourceId));
+    const sources = selected.map(source => ({ ...source, stale: source.stale || this.now() - Date.parse(source.receivedAt) >= CLOUD_STALE_MS }));
     return {
       url: this.preferences.get('url') || 'https://vibemon.io',
-      tokenConfigured: this.credentials.has(),
-      status: this.status,
-      selectedSources: this.preferences.get('selectedSources') ?? null,
-      selectedAccounts: this.preferences.get('selectedAccounts') ?? null,
-      accountCatalog: this.accountCatalog,
-      accounts: groupAccounts(this.sources.map(source => ({ ...source, stale: source.stale || this.now() - Date.parse(source.receivedAt) >= CLOUD_STALE_MS }))),
+      tokenConfigured: this.credentials.has(), status: this.status,
+      selectedSources, selectedAccounts, accountCatalog: this.accountCatalog,
+      accounts: groupAccounts(sources),
       selectedMetrics: this.preferences.get('selectedMetrics') ?? Object.keys(METRICS),
-      metrics: METRICS,
-      trendRefreshMs: CLOUD_TREND_MS,
-      catalog: this.catalog,
-      sources: this.sources.map(source => ({ ...source, stale: source.stale || this.now() - Date.parse(source.receivedAt) >= CLOUD_STALE_MS }))
+      metrics: METRICS, trendRefreshMs: CLOUD_TREND_MS, catalog: this.catalog, sources
     };
   }
   async configure({ url, token }) {
@@ -45,6 +48,7 @@ class MonitoringClient extends EventEmitter {
     this.catalog = [];
     this.accountCatalog = [];
     this.status = 'connecting';
+    this.emit('sources', []);
     if (this.inflight) await this.inflight;
     return this.poll(true);
   }
@@ -55,6 +59,7 @@ class MonitoringClient extends EventEmitter {
     this.catalog = [];
     this.accountCatalog = [];
     this.status = 'not-configured';
+    this.emit('sources', []);
     this.emit('change', this.snapshot());
     return this.snapshot();
   }
@@ -77,9 +82,7 @@ class MonitoringClient extends EventEmitter {
       signal: AbortSignal.timeout(CLOUD_REQUEST_TIMEOUT_MS)
     });
     if (!response.ok) throw Object.assign(new Error('Web request failed'), { code: response.status === 401 ? 'token-expired' : response.status === 403 ? 'permission-denied' : 'connection-error' });
-    const text = await response.text();
-    if (text.length > 1024 * 1024) throw new Error('Web response is too large');
-    return JSON.parse(text);
+    return readJsonResponse(response, CLOUD_MAX_RESPONSE_BYTES);
   }
   poll(discover = false) {
     if (this.inflight) return this.inflight;
@@ -97,6 +100,7 @@ class MonitoringClient extends EventEmitter {
       if (!discover && !all && ids.length === 0 && accountIds.length === 0) {
         this.sources = [];
         this.status = this.credentials.has() ? 'connected' : 'not-configured';
+        this.emit('sources', []);
       } else {
         const parts = [];
         if (ids.length) parts.push(`ids=${encodeURIComponent(ids.join(','))}`);
