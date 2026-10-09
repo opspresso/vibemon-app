@@ -169,10 +169,9 @@ windowManager.onWindowClosed = (projectId) => {
  * Handle status update from cloud
  * Reuses the same logic as HTTP POST /status
  * @param {Object} data - status payload
- * @param {{auto?: boolean}} [meta] - auto:true marks a clock-driven
- *   transition from the server's state-transition Lambda; like local state
- *   timeouts it must not move focus to (or open a window for) a background
- *   project.
+ * @param {{auto?: boolean, sourceId?: string}} [meta] - Preserve focus when
+ *   another project is already shown. sourceId separates cloud identities
+ *   from local project labels.
  */
 function handleCloudStatusUpdate(data, meta = {}) {
   // Validate payload
@@ -227,7 +226,7 @@ function handleCloudStatusUpdate(data, meta = {}) {
 }
 
 /**
- * Handle project deletion from cloud ({type: 'delete', data: {project}}).
+ * Remove a deleted, deselected, or disconnected cloud source.
  * Closes the window when it follows the deleted project; windowManager
  * .onWindowClosed cascades into stateManager.cleanupProject and tray
  * refresh, so no extra bookkeeping is needed here. No-op when the window
@@ -238,7 +237,7 @@ function removeCloudProject(projectId) {
     return;
   }
   stateManager.cleanupProject(projectId);
-  windowManager.removeProject(projectId);
+  windowManager.removeProject(projectId, { forgetLastState: true });
   if (windowManager.getWindow(projectId)) windowManager.closeWindow(projectId);
 }
 

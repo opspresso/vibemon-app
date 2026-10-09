@@ -121,6 +121,7 @@ class CharacterWindowManager {
     // the tray's "Show Character" action can reopen the same character
     // (restoreLastWindow) instead of waiting for the next status update.
     this.lastWindowState = null;
+    this.lastWindowProjectId = null;
 
     // Persistent settings
     this.store = new Store({
@@ -1007,6 +1008,7 @@ class CharacterWindowManager {
     // Check if info fields changed (tool, model, memory, usage, character,
     // terminalId — a stale terminalId would break click-to-focus)
     const infoChanged = !stateChanged && (
+      oldState.project !== newState.project ||
       oldState.tool !== newState.tool ||
       oldState.model !== newState.model ||
       oldState.memory !== newState.memory ||
@@ -1028,6 +1030,7 @@ class CharacterWindowManager {
 
     this.entry.state = { ...newState };
     this.lastWindowState = { ...newState };
+    this.lastWindowProjectId = projectId;
     if (this.onStateUpdated) {
       this.onStateUpdated(projectId);
     }
@@ -1111,9 +1114,10 @@ class CharacterWindowManager {
       project: null
     };
 
-    const routeResult = this.routeStatusUpdate(stateData.project, stateData);
+    const projectId = this.lastWindowProjectId ?? stateData.project;
+    const routeResult = this.routeStatusUpdate(projectId, stateData);
     return {
-      projectId: routeResult.stateData.project,
+      projectId,
       stateData: routeResult.stateData,
       recreated: true
     };
@@ -1186,19 +1190,19 @@ class CharacterWindowManager {
    * @returns {Object.<string, Object>}
    */
   getRegisteredStates() {
-    const result = {};
-    for (const [projectId, state] of this.stateRegistry) {
-      result[projectId] = state;
-    }
-    return result;
+    return Object.fromEntries(this.stateRegistry);
   }
 
   /**
-   * Remove every in-memory reference to a tracked project.
+   * Remove registry state and optionally forget the restorable display snapshot.
    * @param {string} projectId
    * @returns {boolean} whether the project was registered
    */
-  removeProject(projectId) {
+  removeProject(projectId, { forgetLastState = false } = {}) {
+    if (forgetLastState && this.lastWindowProjectId === projectId) {
+      this.lastWindowState = null;
+      this.lastWindowProjectId = null;
+    }
     const removed = this.stateRegistry.delete(projectId);
     if (this.focusedProjectId === projectId) {
       this.focusedProjectId = null;
@@ -1371,7 +1375,7 @@ class CharacterWindowManager {
    * @param {'active-only'|'all'|'disabled'} mode
    */
   setAlwaysOnTopMode(mode) {
-    if (!ALWAYS_ON_TOP_MODES[mode]) return;
+    if (!Object.hasOwn(ALWAYS_ON_TOP_MODES, mode)) return;
 
     this.alwaysOnTopMode = mode;
     this.store.set('alwaysOnTopMode', mode);
