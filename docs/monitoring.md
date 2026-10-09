@@ -10,6 +10,8 @@ Host cards display CPU, memory, GPU, and temperature. Spark uses **Unified memor
 
 Custom resource cards display the sender's resource type, short status message, metric labels, and units. Gauges use the declared minimum and maximum; number charts support signed values and automatic ranges. Define a database, queue, sensor, or any other type at the Web site's `/resources/new` page, then send real observations using the generated contract. No App code change is needed for a new type. After the first observation, discover and select the resource and its metrics. Custom metric choices are scoped to the source, so equal keys on different resources stay independent. A status-only resource has no numeric trend button.
 
+Use **Edit metrics** on the Web dashboard to edit an existing resource, including Spark and Kubernetes presets. Saved labels, display ranges and metric order apply to Desktop on its next poll and survive new collector observations. Existing preset selections are preserved when edited definitions first appear. Values outside an edited gauge range remain measured values; new keys or units stay unavailable until matching collector definitions arrive.
+
 - **Unavailable**: metric not supported, absent, or failed; it is never substituted with zero.
 - **Stale**: no accepted server receipt for 120 seconds; values are the last known observation.
 - **Token expired or revoked**: supply a current read token.
@@ -31,9 +33,9 @@ The existing localhost hook endpoint and character/bubble behavior remain availa
 
 ## Multiple resources and accounts
 
-Resources and provider accounts have separate selectors. Choose any combination of custom resources, Kubernetes clusters, Spark hosts, Claude accounts, and Codex accounts. A provider account card lists its project states and shows the latest observation's usage. Its recent-hour view aggregates that account's summaries; percentages are averaged, not summed.
+Resources and provider accounts have separate selectors. Choose any combination of custom resources, Kubernetes clusters, Spark hosts, and coding accounts. Codex, Claude, Kiro and other agent types can each have several account IDs. Selection controls and cards group them by provider and show the account ID explicitly. A provider account card lists its project states and shows the latest observation's usage. Its recent-hour view aggregates that account's summaries; percentages are averaged, not summed.
 
-The same project name can appear under several accounts. Selection and trend requests use provider/account keys and source IDs, never the project label. Configure account identity in the hook launch environment with `VIBEMON_ACCOUNT_ID` and `VIBEMON_ACCOUNT_NAME`; use `CLAUDE_CONFIG_DIR` or `CODEX_HOME` for the matching login. See the Web repository's monitoring API contract for provider-specific overrides.
+The same project name can appear under several accounts. Selection and trend requests use provider/account keys and source IDs, never the project label. The Web site's `/coding-accounts/new` page generates launch settings, including `VIBEMON_KIRO_ACCOUNT_ID` / `_NAME` for Kiro. Use each tool's matching signed-in environment; identity metadata does not switch logins. Unsupported usage remains unavailable. See the Web repository's monitoring API contract for provider-specific overrides.
 
 ![Two independently selected fixture accounts](images/monitoring-accounts.png)
 
