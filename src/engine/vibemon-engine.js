@@ -7,9 +7,8 @@
  * background stays fully transparent — state color and status/metric text
  * live in the speech bubble module (vibemon-bubble.js), not here.
  *
- * This file is the source of truth. vibemon-app and vibemon vendor a copy
- * at build time (see each repo's check-registry script). No page on this
- * site imports it at runtime.
+ * Web imports this canonical module directly. The desktop App vendors the
+ * pinned revision through its check-registry script.
  *
  * Character definitions (colors, eye/effect coordinates, image files) and
  * state definitions (eyeType/effect per state) come from the shared
@@ -395,7 +394,7 @@ export class VibeMonEngine {
 
   render() {
     if (!this.characterRenderer) return;
-    const state = this.states[this.currentState] || this.states.idle || { eyeType: 'normal', effect: 'none' };
+    const state = Object.hasOwn(this.states, this.currentState) ? this.states[this.currentState] : this.states.idle || { eyeType: 'normal', effect: 'none' };
     const char = this.characters[this.currentCharacter] || this.characters[this.defaultCharacter];
     // Idle blink: needsAnimationRedraw triggers a redraw at BLINK_START_FRAME
     // (closed eyes for one 100ms frame) and at BLINK_END_FRAME (open again).
@@ -452,6 +451,10 @@ export class VibeMonEngine {
 
   cleanup() {
     this.stopAnimation();
+    this.canvas?.remove();
+    this.canvas = null;
+    this.ctx = null;
+    this.characterRenderer = null;
   }
 }
 
