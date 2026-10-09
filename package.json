@@ -23,7 +23,8 @@
     "test:overlays": "electron tests/native/overlay-smoke.cjs",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
-    "check:registry": "node scripts/check-registry.mjs"
+    "check:registry": "node scripts/check-registry.mjs",
+    "prepare:npm": "node scripts/prepare-npm.mjs"
   },
   "author": "nalbam",
   "license": "MIT",
@@ -51,7 +52,6 @@
     "canvas": "^3.2.1",
     "d3-force": "^3.0.0",
     "dotenv": "^17.2.3",
-    "electron": "^43.1.0",
     "electron-store": "^8.2.0",
     "electron-updater": "^6.8.9",
     "ws": "^8.19.0"
@@ -60,7 +60,8 @@
     "electron-builder": "^26.8.1",
     "eslint": "^9.0.0",
     "jest": "^29.7.0",
-    "three": "^0.185.1"
+    "three": "^0.185.1",
+    "electron": "^43.1.0"
   },
   "files": [
     "README.md",
@@ -134,5 +135,6 @@
   "overrides": {
     "js-yaml@^3.0.0": "3.15.1",
     "js-yaml@^4.0.0": "4.3.1"
-  }
+  },
+  "packageManager": "pnpm@12.10.1"
 }
