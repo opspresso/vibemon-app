@@ -676,6 +676,29 @@ describe('HookInstaller', () => {
   });
 
   describe('downloadScript', () => {
+    test('refuses to download an executable without its integrity reference', async () => {
+      await expect(hookInstaller.downloadScript()).rejects.toEqual({ reason: 'integrity-reference-missing' });
+      expect(https.get).not.toHaveBeenCalled();
+    });
+
+    test('destroys a stalled request and reports the timeout', async () => {
+      const req = new EventEmitter();
+      req.destroy = jest.fn(error => req.emit('error', error));
+      https.get.mockReturnValue(req);
+      const pending = hookInstaller.downloadScript(sha256('print(1)'));
+      req.emit('timeout');
+      await expect(pending).rejects.toMatchObject({ reason: 'network-error', error: 'Download timed out' });
+      expect(req.destroy).toHaveBeenCalled();
+    });
+
+    test('rejects an interrupted response before executing a partial script', async () => {
+      const res = new EventEmitter(); res.statusCode = 200; res.setEncoding = jest.fn();
+      https.get.mockImplementation((_url, _options, ready) => { ready(res); return new EventEmitter(); });
+      const pending = hookInstaller.downloadScript(sha256('print(1)'));
+      res.emit('data', 'print('); res.emit('aborted');
+      await expect(pending).rejects.toMatchObject({ reason: 'network-error' });
+    });
+
     test('resolves the script body on a 200 response', async () => {
       const fakeRes = new EventEmitter();
       fakeRes.statusCode = 200;
@@ -686,7 +709,7 @@ describe('HookInstaller', () => {
         return new EventEmitter();
       });
 
-      const promise = hookInstaller.downloadScript();
+      const promise = hookInstaller.downloadScript(sha256('print(1)'));
       fakeRes.emit('data', 'print(1)');
       fakeRes.emit('end');
 
@@ -702,14 +725,14 @@ describe('HookInstaller', () => {
         return new EventEmitter();
       });
 
-      await expect(hookInstaller.downloadScript()).rejects.toEqual({ reason: 'download-failed', statusCode: 500 });
+      await expect(hookInstaller.downloadScript(sha256('print(1)'))).rejects.toEqual({ reason: 'download-failed', statusCode: 500 });
     });
 
     test('rejects with network-error when the request errors out', async () => {
       const fakeReq = new EventEmitter();
       https.get.mockImplementation(() => fakeReq);
 
-      const promise = hookInstaller.downloadScript();
+      const promise = hookInstaller.downloadScript(sha256('print(1)'));
       fakeReq.emit('error', new Error('boom'));
 
       await expect(promise).rejects.toEqual({ reason: 'network-error', error: 'boom' });
@@ -725,7 +748,7 @@ describe('HookInstaller', () => {
         return new EventEmitter();
       });
 
-      const promise = hookInstaller.downloadScript();
+      const promise = hookInstaller.downloadScript(sha256('print(1)'));
       fakeRes.emit('data', 'x'.repeat(1024 * 1024 + 1));
 
       await expect(promise).rejects.toEqual({ reason: 'download-too-large' });

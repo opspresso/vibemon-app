@@ -24,8 +24,7 @@ const { findPython, SPAWN_DEFAULTS, IS_WINDOWS } = require('./python-runtime.cjs
 const DOCS_BASE = DOCS_BASE_URL.replace(/\/+$/, '');
 const SETUP_GUIDE_URL = `${DOCS_BASE}/setup.md`;
 
-// install.py is a few KB; this just bounds worst-case memory if the
-// response is ever unexpectedly large.
+// Bound the installer and manifest before buffering their full contents.
 const MAX_SCRIPT_SIZE = 1024 * 1024;
 
 // install.py's own output is bounded (it caps each file diff at 50 lines),
@@ -62,7 +61,7 @@ function scriptErrorDetail({ stdout = '', stderr = '' }) {
 }
 
 function verifyInstallerScript(script, expectedHash) {
-  if (!expectedHash) return true;
+  if (typeof expectedHash !== 'string' || !/^[0-9a-f]{64}$/.test(expectedHash)) return false;
   const actualHash = crypto.createHash('sha256').update(script, 'utf8').digest('hex');
   return actualHash === expectedHash;
 }
@@ -600,40 +599,43 @@ class HookInstaller {
     );
   }
 
-  /**
-   * Download install.py over HTTPS and verify it against expectedHash.
-   * @param {string} [expectedHash] - sha256 the script must match (from
-   *   resolveInstallerHash()); when omitted, verification is skipped
-   * @returns {Promise<string>} script source
-   */
-  downloadScript(expectedHash) {
+  /** Download bounded text and settle stalled or interrupted requests. */
+  downloadText(relativePath) {
     return new Promise((resolve, reject) => {
-      const req = https.get(`${DOCS_BASE}/install.py`, { timeout: 30000 }, (res) => {
+      const req = https.get(`${DOCS_BASE}/${relativePath}`, { timeout: 30000 }, res => {
         if (res.statusCode !== 200) {
           res.resume();
           reject({ reason: 'download-failed', statusCode: res.statusCode });
           return;
         }
-
-        let script = '';
+        let text = '';
+        let bytes = 0;
+        let failed = false;
         res.setEncoding('utf8');
-        res.on('data', (chunk) => {
-          script += chunk;
-          if (script.length > MAX_SCRIPT_SIZE) {
+        res.on('data', chunk => {
+          if (failed) return;
+          bytes += Buffer.byteLength(chunk, 'utf8');
+          if (bytes > MAX_SCRIPT_SIZE) {
+            failed = true;
             res.destroy();
             reject({ reason: 'download-too-large' });
-          }
+          } else text += chunk;
         });
-        res.on('end', () => {
-          if (!verifyInstallerScript(script, expectedHash)) {
-            reject({ reason: 'integrity-check-failed' });
-            return;
-          }
-          resolve(script);
-        });
+        res.on('error', () => reject({ reason: 'network-error', error: 'Download stream failed' }));
+        res.on('aborted', () => reject({ reason: 'network-error', error: 'Download interrupted' }));
+        res.on('end', () => { if (!failed) resolve(text); });
       });
-      req.on('error', (err) => reject({ reason: 'network-error', error: err.message }));
+      req.on('timeout', () => req.destroy(new Error('Download timed out')));
+      req.on('error', error => reject({ reason: 'network-error', error: error.message }));
     });
+  }
+
+  /** Download install.py only with a valid integrity reference. */
+  async downloadScript(expectedHash) {
+    if (typeof expectedHash !== 'string' || !/^[0-9a-f]{64}$/.test(expectedHash)) throw { reason: 'integrity-reference-missing' };
+    const script = await this.downloadText('install.py');
+    if (!verifyInstallerScript(script, expectedHash)) throw { reason: 'integrity-check-failed' };
+    return script;
   }
 
   /**
@@ -662,41 +664,13 @@ class HookInstaller {
    * install.py copies verbatim), published next to install.py.
    * @returns {Promise<{files: Object<string, string>}>}
    */
-  downloadManifest() {
-    return new Promise((resolve, reject) => {
-      const req = https.get(`${DOCS_BASE}/manifest.json`, { timeout: 30000 }, (res) => {
-        if (res.statusCode !== 200) {
-          res.resume();
-          reject({ reason: 'download-failed', statusCode: res.statusCode });
-          return;
-        }
-
-        let body = '';
-        res.setEncoding('utf8');
-        res.on('data', (chunk) => {
-          body += chunk;
-          if (body.length > MAX_SCRIPT_SIZE) {
-            res.destroy();
-            reject({ reason: 'download-too-large' });
-          }
-        });
-        res.on('end', () => {
-          let manifest;
-          try {
-            manifest = JSON.parse(body);
-          } catch {
-            reject({ reason: 'invalid-manifest' });
-            return;
-          }
-          if (!isValidManifest(manifest)) {
-            reject({ reason: 'invalid-manifest' });
-            return;
-          }
-          resolve(manifest);
-        });
-      });
-      req.on('error', (err) => reject({ reason: 'network-error', error: err.message }));
-    });
+  async downloadManifest() {
+    const body = await this.downloadText('manifest.json');
+    let manifest;
+    try { manifest = JSON.parse(body); }
+    catch { throw { reason: 'invalid-manifest' }; }
+    if (!isValidManifest(manifest)) throw { reason: 'invalid-manifest' };
+    return manifest;
   }
 
   /**
