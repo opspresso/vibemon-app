@@ -5,7 +5,7 @@
  * (src/engine/, src/bubble/) match the canonical copies in the
  * vibemon-web repository.
  *
- * By default the canonical files are fetched from GitHub (main branch). Set
+ * By default files are fetched from the pinned Web commit. Set
  * VIBEMON_WEB_DIR to a local vibemon-web checkout to compare offline.
  * Pass --fix to overwrite the bundled copies with the canonical ones.
  *
@@ -14,6 +14,7 @@
  */
 
 import { createHash } from 'node:crypto';
+import { execFileSync } from 'node:child_process';
 import { readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import process from 'node:process';
@@ -22,7 +23,7 @@ import { fileURLToPath } from 'node:url';
 const revision = JSON.parse(await readFile(new URL('../web-assets.json', import.meta.url), 'utf8')).revision;
 if (!/^[a-f0-9]{40}$/.test(revision)) throw new Error('web-assets.json requires a pinned commit SHA');
 const CANONICAL_BASE_URL =
-  `https://raw.githubusercontent.com/opspresso/vibemon-web/${revision}/public/static`;
+  `https://api.github.com/repos/opspresso/vibemon-web/contents/public/static`;
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const DATA_DIR = path.join(ROOT, 'src', 'shared', 'data');
 const ASSETS_DIR = path.join(ROOT, 'src', 'assets', 'characters');
@@ -34,9 +35,15 @@ const FIX = process.argv.includes('--fix');
 async function loadCanonical(relPath) {
   const staticDir = process.env.VIBEMON_WEB_DIR;
   if (staticDir) {
-    return readFile(path.join(staticDir, 'public', 'static', relPath));
+    return execFileSync('git', ['-C', staticDir, 'show', `${revision}:public/static/${relPath}`]);
   }
-  const res = await fetch(`${CANONICAL_BASE_URL}/${relPath}`);
+  const token = process.env.VIBEMON_WEB_READ_TOKEN;
+  if (!token) throw new Error('Set VIBEMON_WEB_DIR for an offline pinned checkout, or VIBEMON_WEB_READ_TOKEN with read-only contents access to private opspresso/vibemon-web');
+  const res = await fetch(`${CANONICAL_BASE_URL}/${relPath}?ref=${revision}`, {
+    headers: { Accept: 'application/vnd.github.raw+json', Authorization: `Bearer ${token}` },
+    redirect: 'error',
+    signal: AbortSignal.timeout(15000)
+  });
   if (!res.ok) {
     throw new Error(`Failed to fetch canonical ${relPath}: HTTP ${res.status}`);
   }

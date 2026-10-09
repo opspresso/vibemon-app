@@ -4,6 +4,7 @@ on:
   push:
     branches: [main]
     paths:
+      - 'web-assets.json'
       - 'src/shared/data/**'
       - 'src/engine/**'
       - 'src/bubble/**'
@@ -12,6 +13,7 @@ on:
       - '.github/workflows/registry-drift.yml'
   pull_request:
     paths:
+      - 'web-assets.json'
       - 'src/shared/data/**'
       - 'src/engine/**'
       - 'src/bubble/**'
@@ -37,4 +39,6 @@ jobs:
 
       # No dependency install: the script only uses node built-ins and fetch.
       - name: Compare bundled fallbacks with vibemon-web canonical
+        env:
+          VIBEMON_WEB_READ_TOKEN: ${{ secrets.VIBEMON_WEB_READ_TOKEN }}
         run: node scripts/check-registry.mjs

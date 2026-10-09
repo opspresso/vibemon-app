@@ -16,3 +16,17 @@ Desktop packages bundle Electron, so it belongs in development dependencies. The
 `dist/` contains generated artifacts and is not committed. `prepare:npm` replaces only its own `dist/npm` staging directory; it does not remove desktop build output.
 
 Desktop packaging uses an explicit allowlist: `src/`, application icons, `LICENSE`, and package metadata, plus production dependencies assembled by electron-builder. Development configuration, environment files, tests, coverage, and maintenance scripts are excluded. With the same Electron 43.7.9 dependency lock, this reduced the application ASAR from 8,708,272 to 5,979,179 bytes during verification. This is a package-size comparison, not a startup-time benchmark.
+
+## Canonical assets and CI access
+
+`web-assets.json` pins the Web source commit. Verify that exact revision locally:
+
+```sh
+VIBEMON_WEB_DIR=../vibemon-web pnpm check:registry
+```
+
+The checkout must contain the pinned commit; its working-tree files are not used. Advance `web-assets.json` to a committed Web revision and run the same command with `-- --fix` when updating assets.
+
+Web is private. For remote checks, set `VIBEMON_WEB_READ_TOKEN` to a credential with read-only `contents` access to `opspresso/vibemon-web`. Configure the same name as an App repository Actions secret. Do not reuse or publish a developer's broad CLI token. The checker uses authenticated GitHub content requests, rejects redirects, and fails explicitly when access is missing.
+
+Native build, npm publication, and overlay workflows use the pinned pnpm version and frozen lockfile. Signing/notarization and publication require their existing platform secrets; local validation does not exercise them.

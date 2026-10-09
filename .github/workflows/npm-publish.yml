@@ -5,6 +5,9 @@ on:
     tags:
       - 'v*'
 
+permissions:
+  contents: read
+
 jobs:
   publish:
     runs-on: ubuntu-latest
@@ -24,8 +27,9 @@ jobs:
         run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
 
       - name: Update package.json version
-        run: |
-          npm version ${{ steps.version.outputs.VERSION }} --no-git-tag-version --allow-same-version
+        env:
+          RELEASE_VERSION: ${{ steps.version.outputs.VERSION }}
+        run: npm version "$RELEASE_VERSION" --no-git-tag-version --allow-same-version
 
       - uses: pnpm/action-setup@v4
         with:
@@ -35,6 +39,8 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Validate
+        env:
+          VIBEMON_WEB_READ_TOKEN: ${{ secrets.VIBEMON_WEB_READ_TOKEN }}
         run: |
           pnpm lint
           pnpm exec jest --coverage --runInBand

@@ -18,7 +18,7 @@ Use pnpm:
 - `pnpm test` runs the Jest suite once; `pnpm test:watch` reruns affected tests during development.
 - `pnpm test:coverage` writes coverage reports to `coverage/`.
 - `pnpm build` creates platform packages without publishing. Use `pnpm build:mac`, `pnpm build:win`, or `pnpm build:linux` for a specific target.
-- `pnpm check:registry` compares the bundled registry data, character art, and vendored rendering modules against `vibemon-web` (`-- --fix` overwrites the local copies; `VIBEMON_WEB_DIR=../vibemon-web` compares against a local checkout instead of the GitHub commit pinned in `web-assets.json`).
+- `pnpm check:registry` compares the bundled registry data, character art, and vendored rendering modules against `vibemon-web` (`-- --fix` overwrites the local copies; `VIBEMON_WEB_DIR=../vibemon-web` reads the pinned commit from a local checkout instead of GitHub; private remote access uses `VIBEMON_WEB_READ_TOKEN`).
 
 ## Coding Style & Naming Conventions
 

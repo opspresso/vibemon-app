@@ -14,6 +14,8 @@ For the ESP32 hardware display, see [vibemon-esp32](https://github.com/opspresso
 
 ## Guides
 
+- [Build and packaging](build.md) - Pinned dependencies, canonical assets, and CI access.
+
 - **[Features](features.md)** - States, animations, character window behavior
 - **[HTTP API Reference](api.md)** - Complete API documentation for all endpoints
 
