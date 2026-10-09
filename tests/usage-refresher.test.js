@@ -82,6 +82,26 @@ describe('UsageRefresher', () => {
     expect(args.slice(-3)).toEqual([USAGE_SCRIPT_PATH, '--max-age', '0']);
   });
 
+  test('checks the selected Codex profile and passes resolved paths to the subprocess', async () => {
+    const previous = { ...process.env };
+    try {
+      process.env.CODEX_HOME = '~/codex-work';
+      process.env.VIBEMON_ACCOUNT_ID = 'work';
+      delete process.env.VIBEMON_CODEX_ACCOUNT_ID;
+      process.env.VIBEMON_CACHE_PATH = '~/cache-work/projects.json';
+      fs.statSync.mockReturnValue({ mtimeMs: 200000 });
+      fs.readFileSync.mockReturnValue(JSON.stringify({ 'codex:work': { updated_at: 100 } }));
+      const child = mockSpawnedChild();
+      const pending = refresher.refresh();
+      child.emit('close', 0);
+      await pending;
+      expect(fs.statSync).toHaveBeenCalledWith(path.join(os.homedir(), 'codex-work', 'auth.json'));
+      expect(spawn.mock.calls[0][1].slice(-1)).toEqual(['0']);
+      expect(spawn.mock.calls[0][2].env.CODEX_HOME).toBe(path.join(os.homedir(), 'codex-work'));
+      expect(spawn.mock.calls[0][2].env.VIBEMON_CACHE_PATH).toBe(path.join(os.homedir(), 'cache-work', 'projects.json'));
+    } finally { process.env = previous; }
+  });
+
   test('skips without spawning when no working Python 3 is found', async () => {
     spawnSync.mockReturnValue({ status: 9009, stdout: '' });
 

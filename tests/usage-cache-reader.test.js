@@ -232,3 +232,23 @@ describe('formatResetIn', () => {
     expect(formatResetIn(500, now)).toBe('0m');
   });
 });
+
+
+describe('profile isolation', () => {
+  const original = { ...process.env };
+  afterEach(() => { process.env = { ...original }; });
+  test('environment cache path wins over config and named accounts never borrow default data', () => {
+    process.env.VIBEMON_CACHE_PATH = '~/separate/projects.json';
+    process.env.VIBEMON_ACCOUNT_ID = 'work';
+    delete process.env.VIBEMON_CLAUDE_ACCOUNT_ID;
+    delete process.env.VIBEMON_CODEX_ACCOUNT_ID;
+    const target = path.join(os.homedir(), 'separate', 'usage.json');
+    fs.readFileSync.mockImplementation(file => {
+      if (file === target) return JSON.stringify({ claude: { updated_at: 1000, session: { pct: 90 } }, 'claude:work': { updated_at: 1000, session: { pct: 20 } }, codex: { updated_at: 1000, session: { pct: 80 } } });
+      throw new Error('Unexpected cache location');
+    });
+    expect(getUsageCachePath()).toBe(target);
+    expect(getUsageSnapshot(1000000).claude.session.pct).toBe(20);
+    expect(getUsageSnapshot(1000000).codex.session).toBeNull();
+  });
+});
