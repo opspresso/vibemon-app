@@ -160,3 +160,35 @@ describe('validated renderer data', () => {
     expect(() => validateTrend([point, point])).toThrow();
   });
 });
+
+describe('custom resource definitions', () => {
+  const { selectionKey } = require('../src/shared/resource-schema.cjs');
+  const custom = (id, unit = 'ms') => ({ ...source(1000000), sourceId: id, kind: 'resource', resourceType: 'Any service', displayName: id, statusMessage: 'Serving requests', metricDefinitions: { value: { label: 'Measurement', unit, display: 'gauge', min: -100, max: 500 } }, metrics: { value: -20 } });
+  test('validates arbitrary resource metadata and preserves negative values', () => {
+    expect(validateSources([custom('service')])[0]).toMatchObject({ resourceType: 'Any service', statusMessage: 'Serving requests', metrics: { value: -20 } });
+    for (const changes of [{ resourceType: '' }, { metrics: { value: -101 } }, { metricDefinitions: { constructor: { label: 'Bad', unit: '', display: 'number' } } }]) expect(() => validateSources([{ ...custom('service'), ...changes }])).toThrow();
+  });
+  test('discovers custom fields and selects equal keys independently per resource', async () => {
+    const { client, fetchImpl } = fixture();
+    const one = custom('database', 'ms'), two = custom('sensor', '°C');
+    fetchImpl.mockResolvedValue(okResponse({ sources: [one, two] }));
+    await client.poll(true);
+    const first = selectionKey(one, 'value'), second = selectionKey(two, 'value');
+    expect(client.snapshot().selectedMetrics).toEqual(expect.arrayContaining([first, second]));
+    expect(client.snapshot().metrics[first].unit).toBe('ms');
+    expect(client.snapshot().metrics[second].unit).toBe('°C');
+    await client.select({ sources: ['database'], metrics: [first] });
+    expect(client.snapshot().selectedMetrics).toEqual([first]);
+    expect(client.snapshot().sources[0].displayMetrics[0]).toMatchObject({ key: 'value', selectionKey: first, min: -100, max: 500 });
+    await expect(client.select({ sources: ['database'], metrics: ['resource:unknown:value'] })).rejects.toThrow('Invalid metric selection');
+  });
+  test('validates custom trend values using the returned schema and keeps null gaps', async () => {
+    const { client, fetchImpl } = fixture();
+    const item = custom('sensor', '°C');
+    const point = { timestamp: '2026-10-09T00:00:00Z', samples: 1, expiresAt: 2000000000, average: { value: -20 }, maximum: { value: -15 } };
+    fetchImpl.mockResolvedValue(okResponse({ points: [point], metricDefinitions: item.metricDefinitions }));
+    expect((await client.trend('sensor'))[0].average.value).toBe(-20);
+    expect(validateTrend([{ ...point, average: { value: null }, maximum: { value: null } }], item.metricDefinitions)[0].average.value).toBeNull();
+    expect(() => validateTrend([{ ...point, maximum: { value: -30 } }], item.metricDefinitions)).toThrow();
+  });
+});

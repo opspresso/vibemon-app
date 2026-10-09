@@ -86,6 +86,7 @@ const canonicalCharacters = JSON.parse((await loadCanonical('data/characters.jso
 const imageFiles = Object.values(canonicalCharacters.characters).map((c) => c.image);
 
 const checks = [
+  compare('js/resource-schema.cjs', path.join(ROOT, 'src', 'shared', 'resource-schema.cjs'), false),
   compare('data/states.json', path.join(DATA_DIR, 'states.json'), true),
   compare('data/characters.json', path.join(DATA_DIR, 'characters.json'), true),
   compare('js/vibemon-engine.js', path.join(ENGINE_DIR, 'vibemon-engine.js'), false),

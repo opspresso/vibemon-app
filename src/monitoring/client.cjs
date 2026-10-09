@@ -1,6 +1,6 @@
 const { readJsonResponse } = require('../shared/json-response.cjs');
 const { EventEmitter } = require('events');
-const { METRICS, validId, validAccountId, accountId, groupAccounts, webOrigin, validateSources, validateTrend } = require('./domain.cjs');
+const { METRICS, validId, validAccountId, accountId, groupAccounts, webOrigin, validateSources, validateTrend, validateDefinitions, displayMetrics, metricCatalog } = require('./domain.cjs');
 const { CLOUD_POLL_MS, CLOUD_REQUEST_TIMEOUT_MS, CLOUD_STALE_MS, CLOUD_TREND_MS, CLOUD_MAX_RESPONSE_BYTES } = require('../shared/constants.cjs');
 
 class MonitoringClient extends EventEmitter {
@@ -27,14 +27,15 @@ class MonitoringClient extends EventEmitter {
     const selected = this.sources.filter(source => source.kind === 'agent'
       ? selectedAccounts === null || selectedAccounts.includes(accountId(source.account))
       : selectedSources === null || selectedSources.includes(source.sourceId));
-    const sources = selected.map(source => ({ ...source, stale: source.stale || this.now() - Date.parse(source.receivedAt) >= CLOUD_STALE_MS }));
+    const sources = selected.map(source => ({ ...source, displayMetrics: displayMetrics(source), stale: source.stale || this.now() - Date.parse(source.receivedAt) >= CLOUD_STALE_MS }));
+    const catalogMetrics = metricCatalog(this.catalog);
     return {
       url: this.preferences.get('url') || 'https://vibemon.io',
       tokenConfigured: this.credentials.has(), status: this.status,
       selectedSources, selectedAccounts, accountCatalog: this.accountCatalog,
       accounts: groupAccounts(sources),
-      selectedMetrics: this.preferences.get('selectedMetrics') ?? Object.keys(METRICS),
-      metrics: METRICS, trendRefreshMs: CLOUD_TREND_MS, catalog: this.catalog, sources
+      selectedMetrics: this.preferences.get('selectedMetrics') ?? Object.keys(catalogMetrics),
+      metrics: catalogMetrics, trendRefreshMs: CLOUD_TREND_MS, catalog: this.catalog, sources
     };
   }
   async configure({ url, token }) {
@@ -66,7 +67,8 @@ class MonitoringClient extends EventEmitter {
   async select({ sources, accounts = null, metrics }) {
     if (accounts !== null && (!Array.isArray(accounts) || accounts.length > 100 || !accounts.every(validAccountId))) throw new Error('Invalid account selection');
     if (sources !== null && (!Array.isArray(sources) || sources.length > 100 || !sources.every(validId))) throw new Error('Invalid source selection');
-    if (!Array.isArray(metrics) || metrics.some(key => !Object.hasOwn(METRICS, key))) throw new Error('Invalid metric selection');
+    const available = metricCatalog(this.catalog);
+    if (!Array.isArray(metrics) || metrics.length > 4096 || metrics.some(key => typeof key !== 'string' || !Object.hasOwn(available, key))) throw new Error('Invalid metric selection');
     this.preferences.set('selectedAccounts', accounts === null ? null : [...new Set(accounts)]);
     this.preferences.set('selectedSources', sources === null ? null : [...new Set(sources)]);
     this.preferences.set('selectedMetrics', [...new Set(metrics)]);
@@ -111,8 +113,12 @@ class MonitoringClient extends EventEmitter {
         if (generation === this.generation) {
           this.sources = sources;
           if (discover || all) {
-            this.catalog = sources.map(({ sourceId, displayName, kind }) => ({ sourceId, displayName, kind }));
+            this.catalog = sources.map(source => this.catalogEntry(source));
             this.accountCatalog = groupAccounts(sources).map(({ accountId, displayName, provider }) => ({ accountId, displayName, provider }));
+          }
+          if (!discover && !all) {
+            const updates = new Map(sources.map(source => [source.sourceId, this.catalogEntry(source)]));
+            this.catalog = this.catalog.map(source => updates.get(source.sourceId) || source);
           }
           this.status = 'connected';
           this.emit('sources', this.snapshot().sources);
@@ -125,12 +131,17 @@ class MonitoringClient extends EventEmitter {
     }
     return this.snapshot();
   }
+  catalogEntry(source) {
+    return { sourceId: source.sourceId, displayName: source.displayName, kind: source.kind,
+      ...(source.kind === 'resource' ? { resourceType: source.resourceType, metricDefinitions: source.metricDefinitions } : {}) };
+  }
   async trend(target) {
     const sourceId = typeof target === 'string' ? target : target?.id;
     const account = typeof target === 'object' && target?.kind === 'account';
     if (!(account ? validAccountId(sourceId) : validId(sourceId))) throw new Error('Invalid source ID');
     const data = await this.request(`/api/v1/${account ? 'accounts' : 'sources'}/${encodeURIComponent(sourceId)}/trend?hours=1`);
-    return validateTrend(data.points);
+    const definitions = data.metricDefinitions === undefined ? METRICS : validateDefinitions(data.metricDefinitions);
+    return validateTrend(data.points, definitions);
   }
   start() {
     if (this.timer) return;

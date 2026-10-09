@@ -10,6 +10,7 @@ const descriptions = {
   'secure-storage-unavailable': 'Unlock the operating system secure storage'
 };
 let snapshot = null;
+let selectedMetricIds = new Set();
 let selectedTrend = null;
 let trendPoints = [];
 let trendTimer = null;
@@ -37,17 +38,13 @@ function checkboxes(container, options, selected) {
     const field = node('label'); field.append(input, document.createTextNode(label)); container.append(field);
   }
 }
-function visibleMetricKeys(source) {
-  return snapshot.selectedMetrics.filter(key => {
-    const agentMetric = ['contextPercent', 'usageSessionPercent', 'usageWeekPercent'].includes(key);
-    if ((source.kind === 'agent') !== agentMetric) return false;
-    if (source.kind === 'host' && ['nodesReady', 'nodesTotal', 'podsUnhealthy'].includes(key)) return false;
-    if (source.kind === 'cluster' && ['gpuPercent', 'gpuTemperatureC'].includes(key)) return false;
-    return true;
-  });
+const preciseNumber = value => Number.isInteger(value) ? String(value) : String(Number(value.toPrecision(6)));
+function visibleMetrics(source) {
+  return source.displayMetrics.filter(metric => selectedMetricIds.has(metric.selectionKey));
 }
 function render(data) {
   snapshot = data;
+  selectedMetricIds = new Set(data.selectedMetrics);
   $('connection').textContent = descriptions[data.status] || data.status;
   if (document.activeElement !== $('web-url')) $('web-url').value = data.url;
   if (!choicesDirty) {
@@ -72,23 +69,26 @@ function render(data) {
       heading.append(image);
     }
     heading.append(node('h2', source.displayName)); card.append(heading);
+    if (source.resourceType) card.append(node('p', source.resourceType, 'muted'));
+    if (source.statusMessage) card.append(node('p', source.statusMessage));
     if (source.isAccount) {
       const members = node('ul', undefined, 'muted');
       for (const member of source.accountMembers) members.append(node('li', `${member.agent.project} · ${member.stale ? 'stale' : member.agent.state}`));
       card.append(members);
     }
     card.append(node('span', source.stale ? 'Stale — last received state' : source.agent?.state || source.health, `badge ${source.stale ? 'stale' : source.health}`));
-    for (const key of visibleMetricKeys(source)) {
-      const value = source.metrics[key];
-      const metric = data.metrics[key];
+    for (const metric of visibleMetrics(source)) {
+      const value = source.metrics[metric.key];
       const row = node('div', undefined, 'gauge'); const label = node('div', undefined, 'gauge-label');
-      label.append(node('span', key === 'memoryPercent' && source.memoryType === 'unified' ? 'Unified memory' : metric.label), node('strong', value === null ? 'Unavailable' : `${Number(value.toFixed(1))}${metric.unit}`));
+      label.append(node('span', metric.label), node('strong', value === null ? 'Unavailable' : `${source.kind === 'resource' ? preciseNumber(value) : Number(value.toFixed(1))}${metric.unit}`));
       row.append(label);
-      if (value !== null && metric.unit === '%') { const gauge = node('progress'); gauge.max = 100; gauge.value = value; gauge.setAttribute('aria-label', metric.label); row.append(gauge); }
+      if (value !== null && metric.display === 'gauge') { const gauge = node('progress'); gauge.max = metric.max - metric.min; gauge.value = value - metric.min; gauge.setAttribute('aria-label', metric.label); gauge.setAttribute('aria-valuetext', `${value}${metric.unit}`); row.append(gauge); }
       card.append(row);
     }
     const received = node('time', `Received ${new Date(source.receivedAt).toLocaleTimeString()}`); received.dateTime = source.receivedAt; card.append(received);
-    const button = node('button', 'View recent hour', 'secondary'); button.addEventListener('click', () => openTrend(source)); card.append(button);
+    if (source.displayMetrics.length) {
+      const button = node('button', 'View recent hour', 'secondary'); button.addEventListener('click', () => openTrend(source)); card.append(button);
+    }
     $('cards').append(card);
   }
 }
@@ -104,16 +104,20 @@ function drawTrend() {
   const now = Date.now(); const start = now - 3600000;
   const points = trendPoints.map(point => ({ time: Date.parse(point.timestamp), value: point.average?.[key] })).filter(point => Number.isFinite(point.time) && point.time >= start && point.time <= now);
   const values = points.filter(point => typeof point.value === 'number' && Number.isFinite(point.value));
-  const maximum = key.endsWith('Percent') ? 100 : Math.max(1, ...values.map(point => point.value));
+  const metric = selectedTrend.displayMetrics.find(item => item.key === key);
+  if (!metric) return;
+  const minimum = metric.display === 'gauge' ? metric.min : Math.min(0, ...values.map(point => point.value));
+  const top = metric.display === 'gauge' ? metric.max : Math.max(0, ...values.map(point => point.value));
+  const maximum = top === minimum ? minimum + 1 : top;
   chart.append(svg('line', { x1: 45, y1: 200, x2: 880, y2: 200 }));
-  chart.append(svg('text', { x: 0, y: 20 }, `${maximum.toFixed(0)}${snapshot.metrics[key]?.unit || ''}`), svg('text', { x: 15, y: 200 }, '0'));
+  chart.append(svg('text', { x: 0, y: 20 }, `${preciseNumber(maximum)}${metric.unit}`), svg('text', { x: 0, y: 200 }, `${preciseNumber(minimum)}${metric.unit}`));
   for (const [minutes, x] of [[60, 45], [30, 450], [0, 845]]) chart.append(svg('text', { x, y: 225 }, minutes ? `−${minutes} min` : 'Now'));
   let path = ''; let previous = null;
   for (const point of points) {
     if (typeof point.value !== 'number' || !Number.isFinite(point.value)) { previous = null; continue; }
-    const x = 45 + (point.time - start) / 3600000 * 835; const y = 200 - point.value / maximum * 180;
+    const x = 45 + (point.time - start) / 3600000 * 835; const y = 200 - (point.value - minimum) / (maximum - minimum) * 180;
     path += `${previous !== null && point.time - previous <= 90000 ? 'L' : 'M'}${x.toFixed(2)},${y.toFixed(2)} `;
-    const circle = svg('circle', { cx: x, cy: y, r: 3 }); circle.append(svg('title', {}, `${new Date(point.time).toLocaleTimeString()}: ${point.value.toFixed(1)}`)); chart.append(circle);
+    const circle = svg('circle', { cx: x, cy: y, r: 3 }); circle.append(svg('title', {}, `${new Date(point.time).toLocaleTimeString()}: ${preciseNumber(point.value)}${metric.unit}`)); chart.append(circle);
     previous = point.time;
   }
   chart.append(svg('path', { d: path }));
@@ -135,8 +139,8 @@ function openTrend(source) {
   $('chart').replaceChildren();
   $('trend').hidden = false; $('trend-title').textContent = `${source.displayName} · recent hour`;
   $('trend-metric').replaceChildren();
-  for (const key of visibleMetricKeys(source)) {
-    const metric = snapshot.metrics[key]; const option = node('option', metric.label); option.value = key; $('trend-metric').append(option);
+  for (const metric of visibleMetrics(source)) {
+    const option = node('option', metric.label); option.value = metric.key; $('trend-metric').append(option);
   }
   if (!$('trend-metric').options.length) { $('trend-state').textContent = 'Select at least one metric in display settings.'; return; }
   refreshTrend();

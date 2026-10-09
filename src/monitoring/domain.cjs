@@ -1,16 +1,5 @@
 const { URL } = require('node:url');
-const METRICS = Object.freeze({
-  cpuPercent: { label: 'CPU', unit: '%' },
-  memoryPercent: { label: 'RAM', unit: '%' },
-  gpuPercent: { label: 'GPU', unit: '%' },
-  gpuTemperatureC: { label: 'GPU temperature', unit: '°C' },
-  nodesReady: { label: 'Ready nodes', unit: '' },
-  nodesTotal: { label: 'Total nodes', unit: '' },
-  podsUnhealthy: { label: 'Unhealthy pods', unit: '' },
-  contextPercent: { label: 'Agent context', unit: '%' },
-  usageSessionPercent: { label: 'Session usage', unit: '%' },
-  usageWeekPercent: { label: 'Weekly usage', unit: '%' }
-});
+const { BUILTIN_METRICS: METRICS, validateDefinitions, validateValues, validText, definitionsFor, selectionKey, metricCatalog } = require('../shared/resource-schema.cjs');
 const validId = id => typeof id === 'string' && /^[a-zA-Z0-9][a-zA-Z0-9_.:-]{0,127}$/.test(id);
 function webOrigin(value, allowLocalHttp = false) {
   const url = new URL(value);
@@ -20,22 +9,24 @@ function webOrigin(value, allowLocalHttp = false) {
   }
   return url.origin;
 }
-function metrics(value) {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Invalid metric response');
-  return Object.fromEntries(Object.keys(METRICS).map(key => {
-    const number = value[key] ?? null;
-    const limit = key.endsWith('Percent') ? 100 : key === 'gpuTemperatureC' ? 150 : 1000000;
-    if (number !== null && (typeof number !== 'number' || !Number.isFinite(number) || number < 0 || number > limit)) throw new Error('Invalid metric response');
-    return [key, number];
-  }));
+function metrics(value, definitions = METRICS) {
+  return validateValues(value, definitions);
+}
+function displayMetrics(source) {
+  return Object.entries(definitionsFor(source)).map(([key, definition]) => ({ ...definition, key, selectionKey: selectionKey(source, key) }));
 }
 function validTime(value) { return typeof value === 'string' && Number.isFinite(Date.parse(value)); }
 function validateSources(value) {
   if (!Array.isArray(value) || value.length > 1000) throw new Error('Invalid source response');
   const ids = new Set();
   return value.map(source => {
-    if (!source || !validId(source.sourceId) || ids.has(source.sourceId) || !['agent', 'host', 'cluster'].includes(source.kind) || typeof source.displayName !== 'string' || !source.displayName.trim() || source.displayName.length > 128 || !validTime(source.receivedAt) || !validTime(source.observedAt) || !['ok', 'warning', 'error', 'unknown'].includes(source.health) || typeof source.stale !== 'boolean' || (source.memoryType != null && !['ram', 'unified'].includes(source.memoryType))) throw new Error('Invalid source response');
+    if (!source || !validId(source.sourceId) || ids.has(source.sourceId) || !['agent', 'host', 'cluster', 'resource'].includes(source.kind) || typeof source.displayName !== 'string' || !source.displayName.trim() || source.displayName.length > 128 || !validTime(source.receivedAt) || !validTime(source.observedAt) || !['ok', 'warning', 'error', 'unknown'].includes(source.health) || typeof source.stale !== 'boolean' || (source.memoryType != null && !['ram', 'unified'].includes(source.memoryType))) throw new Error('Invalid source response');
     ids.add(source.sourceId);
+    let resource = {};
+    if (source.kind === 'resource') {
+      if (!validText(source.resourceType, 64) || (source.statusMessage !== undefined && !validText(source.statusMessage, 160, true)) || source.agent != null || source.account != null) throw new Error('Invalid custom resource response');
+      resource = { resourceType: source.resourceType, metricDefinitions: validateDefinitions(source.metricDefinitions), ...(source.statusMessage === undefined ? {} : { statusMessage: source.statusMessage }) };
+    }
     let agent = null;
     let account = null;
     if (source.kind === 'agent') {
@@ -54,22 +45,22 @@ function validateSources(value) {
       }
       account = { id: source.account.id, provider: source.account.provider, displayName: source.account.displayName };
     }
-    return { sourceId: source.sourceId, kind: source.kind, displayName: source.displayName, receivedAt: source.receivedAt, observedAt: source.observedAt, health: source.health, stale: source.stale, memoryType: source.memoryType ?? null, metrics: metrics(source.metrics), agent, account };
+    return { sourceId: source.sourceId, kind: source.kind, displayName: source.displayName, receivedAt: source.receivedAt, observedAt: source.observedAt, health: source.health, stale: source.stale, memoryType: source.memoryType ?? null, metrics: metrics(source.metrics, resource.metricDefinitions), agent, account, ...resource };
   });
 }
-function validateTrend(value) {
+function validateTrend(value, definitions = METRICS) {
   if (!Array.isArray(value) || value.length > 61) throw new Error('Invalid trend response');
   let previous = -Infinity;
   return value.map(point => {
     if (!point || !validTime(point.timestamp) || Date.parse(point.timestamp) <= previous || !Number.isSafeInteger(point.samples) || point.samples < 1 || !Number.isFinite(point.expiresAt) || point.expiresAt < 0) throw new Error('Invalid trend response');
     previous = Date.parse(point.timestamp);
-    const average = metrics(point.average);
-    const maximum = metrics(point.maximum);
-    for (const key of Object.keys(METRICS)) if ((average[key] === null) !== (maximum[key] === null) || (average[key] !== null && maximum[key] < average[key])) throw new Error('Invalid trend response');
+    const average = metrics(point.average, definitions);
+    const maximum = metrics(point.maximum, definitions);
+    for (const key of Object.keys(definitions)) if ((average[key] === null) !== (maximum[key] === null) || (average[key] !== null && maximum[key] < average[key])) throw new Error('Invalid trend response');
     return { timestamp: point.timestamp, samples: point.samples, expiresAt: point.expiresAt, average, maximum };
   });
 }
-module.exports = { METRICS, validId, webOrigin, validateSources, validateTrend };
+module.exports = { METRICS, validId, webOrigin, validateSources, validateTrend, validateDefinitions, displayMetrics, metricCatalog };
 
 function accountId(account) { return `${account.provider}:${account.id}`; }
 function validAccountId(value) {

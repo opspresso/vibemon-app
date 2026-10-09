@@ -22,7 +22,7 @@ Use pnpm:
 
 ## Coding Style & Naming Conventions
 
-Follow `eslint.config.js`: two-space indentation, single quotes, semicolons, no trailing commas, and an ending newline. Use `camelCase` for variables and functions, `PascalCase` for classes, and kebab-case filenames such as `state-manager.cjs`. Preserve module boundaries: main-process modules use CommonJS (`.cjs`), while renderer and engine code may use ES modules. Do not edit files under `src/vendor/`. `src/engine/`, `src/bubble/`, `src/shared/data/{states,characters}.json`, and `src/assets/characters/` are verbatim copies of `vibemon-web`: change them there and re-sync, never in place — CI compares them against the canonical copies.
+Follow `eslint.config.js`: two-space indentation, single quotes, semicolons, no trailing commas, and an ending newline. Use `camelCase` for variables and functions, `PascalCase` for classes, and kebab-case filenames such as `state-manager.cjs`. Preserve module boundaries: main-process modules use CommonJS (`.cjs`), while renderer and engine code may use ES modules. Do not edit files under `src/vendor/`. `src/shared/resource-schema.cjs`, `src/engine/`, `src/bubble/`, `src/shared/data/{states,characters}.json`, and `src/assets/characters/` are verbatim copies of `vibemon-web`: change them there and re-sync, never in place — CI compares them against the canonical copies.
 
 ## Testing Guidelines
 
