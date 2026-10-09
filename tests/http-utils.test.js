@@ -318,3 +318,24 @@ describe('parseJsonBody', () => {
     jest.useRealTimers();
   });
 });
+
+
+test.each(['null', '[]', '1', 'true', '"text"'])('rejects non-object request body %s at the shared boundary', async body => {
+  const request = createMockRequest();
+  const pending = parseJsonBody(request, 1024);
+  request.emit('data', Buffer.from(body));
+  request.emit('end');
+  expect(await pending).toEqual({ data: null, error: 'Payload must be a JSON object', statusCode: 400 });
+});
+
+test('malformed request text never enters diagnostic logs', async () => {
+  const output = jest.spyOn(console, 'error').mockImplementation(() => {});
+  try {
+    const request = createMockRequest();
+    const pending = parseJsonBody(request, 1024);
+    request.emit('data', Buffer.from('fixture-private-input'));
+    request.emit('end');
+    expect((await pending).statusCode).toBe(400);
+    expect(JSON.stringify(output.mock.calls)).not.toContain('fixture-private-input');
+  } finally { output.mockRestore(); }
+});

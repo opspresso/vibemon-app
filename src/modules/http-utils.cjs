@@ -94,9 +94,12 @@ function parseJsonBody(req, maxSize, timeout = REQUEST_TIMEOUT_MS) {
       try {
         const body = chunks.length > 0 ? Buffer.concat(chunks).toString('utf-8') : '{}';
         const data = JSON.parse(body);
+        if (!data || typeof data !== 'object' || Array.isArray(data)) {
+          resolve({ data: null, error: 'Payload must be a JSON object', statusCode: 400 });
+          return;
+        }
         resolve({ data, error: null, statusCode: null });
-      } catch (e) {
-        console.error('JSON parse error:', e.message);
+      } catch {
         resolve({ data: null, error: 'Invalid JSON', statusCode: 400 });
       }
     });
