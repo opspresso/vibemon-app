@@ -394,6 +394,7 @@ const TOOLS = [
     sharedAssets: true,
     files: [
       { local: homePath('.vibemon', 'usage.py'), remote: 'vibemon/usage.py' },
+      { local: homePath('.vibemon', 'account_context.py'), remote: 'vibemon/account_context.py' },
       { local: homePath('.vibemon', 'usage_cache.py'), remote: 'vibemon/usage_cache.py' },
       { local: homePath('.vibemon', 'vibemon_core.py'), remote: 'vibemon/vibemon_core.py' }
     ]

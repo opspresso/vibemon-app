@@ -25,6 +25,7 @@ app.whenReady().then(async () => {
   assert.equal(snapshot.status, 'connected');
   assert.ok(snapshot.sources.some(source => source.sourceId === 'spark-0702'));
   assert.ok(!fs.readFileSync(preferences.path, 'utf8').includes(fixture.readToken));
+  await client.select({ sources: ['spark-0702'], accounts: [], metrics: ['cpuPercent', 'memoryPercent', 'gpuPercent', 'gpuTemperatureC'] });
   const view = new MonitoringWindow(client);
   view.open();
   await until(() => view.window.webContents.executeJavaScript('document.querySelectorAll(".card").length > 0'));
@@ -40,6 +41,18 @@ app.whenReady().then(async () => {
   const destination = path.join(__dirname, '..', '..', 'docs', 'images', 'monitoring-spark-trend.png');
   fs.writeFileSync(destination, image.toPNG());
   console.log('PASS native monitoring:', JSON.stringify(result));
+  if (snapshot.accounts.some(account => account.accountId === 'codex:work')) {
+    await view.window.webContents.executeJavaScript('document.getElementById("close-trend").click();');
+    await client.select({ sources: [], accounts: ['codex:work', 'claude:personal'], metrics: ['contextPercent', 'usageSessionPercent', 'usageWeekPercent'] });
+    await until(() => view.window.webContents.executeJavaScript('document.querySelectorAll(".card").length === 2'));
+    const names = await view.window.webContents.executeJavaScript('[...document.querySelectorAll(".card h2")].map(element => element.textContent).sort()');
+    assert.deepEqual(names, ['Fixture claude personal', 'Fixture codex work']);
+    await view.window.webContents.executeJavaScript('window.scrollTo(0, 0);');
+    fs.writeFileSync(path.join(__dirname, '..', '..', 'docs', 'images', 'monitoring-accounts.png'), (await view.window.webContents.capturePage()).toPNG());
+    await view.window.webContents.executeJavaScript('document.querySelector(".card button").click();');
+    await until(() => view.window.webContents.executeJavaScript('document.querySelectorAll("#chart circle").length > 0'));
+    console.log('PASS native account selection: two same-project provider accounts and account trend');
+  }
   view.cleanup(); client.stop(); credentials.clear();
   app.quit();
 }).catch(error => { console.error(error.name, error.message); app.exit(1); });

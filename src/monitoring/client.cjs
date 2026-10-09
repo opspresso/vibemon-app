@@ -1,5 +1,5 @@
 const { EventEmitter } = require('events');
-const { METRICS, validId, webOrigin, validateSources } = require('./domain.cjs');
+const { METRICS, validId, validAccountId, groupAccounts, webOrigin, validateSources } = require('./domain.cjs');
 const { CLOUD_POLL_MS, CLOUD_REQUEST_TIMEOUT_MS, CLOUD_STALE_MS, CLOUD_TREND_MS } = require('../shared/constants.cjs');
 
 class MonitoringClient extends EventEmitter {
@@ -12,6 +12,7 @@ class MonitoringClient extends EventEmitter {
     this.now = now;
     this.sources = [];
     this.catalog = [];
+    this.accountCatalog = [];
     this.status = 'not-configured';
     this.generation = 0;
     this.inflight = null;
@@ -23,6 +24,9 @@ class MonitoringClient extends EventEmitter {
       tokenConfigured: this.credentials.has(),
       status: this.status,
       selectedSources: this.preferences.get('selectedSources') ?? null,
+      selectedAccounts: this.preferences.get('selectedAccounts') ?? null,
+      accountCatalog: this.accountCatalog,
+      accounts: groupAccounts(this.sources.map(source => ({ ...source, stale: source.stale || this.now() - Date.parse(source.receivedAt) >= CLOUD_STALE_MS }))),
       selectedMetrics: this.preferences.get('selectedMetrics') ?? Object.keys(METRICS),
       metrics: METRICS,
       trendRefreshMs: CLOUD_TREND_MS,
@@ -39,6 +43,7 @@ class MonitoringClient extends EventEmitter {
     this.generation++;
     this.sources = [];
     this.catalog = [];
+    this.accountCatalog = [];
     this.status = 'connecting';
     if (this.inflight) await this.inflight;
     return this.poll(true);
@@ -48,13 +53,16 @@ class MonitoringClient extends EventEmitter {
     this.credentials.clear();
     this.sources = [];
     this.catalog = [];
+    this.accountCatalog = [];
     this.status = 'not-configured';
     this.emit('change', this.snapshot());
     return this.snapshot();
   }
-  async select({ sources, metrics }) {
+  async select({ sources, accounts = null, metrics }) {
+    if (accounts !== null && (!Array.isArray(accounts) || accounts.length > 100 || !accounts.every(validAccountId))) throw new Error('Invalid account selection');
     if (sources !== null && (!Array.isArray(sources) || sources.length > 100 || !sources.every(validId))) throw new Error('Invalid source selection');
     if (!Array.isArray(metrics) || metrics.some(key => !Object.hasOwn(METRICS, key))) throw new Error('Invalid metric selection');
+    this.preferences.set('selectedAccounts', accounts === null ? null : [...new Set(accounts)]);
     this.preferences.set('selectedSources', sources === null ? null : [...new Set(sources)]);
     this.preferences.set('selectedMetrics', [...new Set(metrics)]);
     if (this.inflight) await this.inflight;
@@ -82,16 +90,26 @@ class MonitoringClient extends EventEmitter {
     const generation = this.generation;
     try {
       const selected = this.preferences.get('selectedSources') ?? null;
-      if (!discover && Array.isArray(selected) && selected.length === 0) {
+      const selectedAccounts = this.preferences.get('selectedAccounts') ?? null;
+      const all = selected === null && selectedAccounts === null;
+      const ids = selected ?? this.catalog.filter(source => source.kind !== 'agent').map(source => source.sourceId);
+      const accountIds = selectedAccounts ?? this.accountCatalog.map(account => account.accountId);
+      if (!discover && !all && ids.length === 0 && accountIds.length === 0) {
         this.sources = [];
         this.status = this.credentials.has() ? 'connected' : 'not-configured';
       } else {
-        const query = !discover && selected ? `?ids=${encodeURIComponent(selected.join(','))}` : '';
+        const parts = [];
+        if (ids.length) parts.push(`ids=${encodeURIComponent(ids.join(','))}`);
+        if (accountIds.length) parts.push(`accounts=${encodeURIComponent(accountIds.join(','))}`);
+        const query = !discover && !all ? `?${parts.join('&')}` : '';
         const data = await this.request(`/api/v1/sources${query}`);
         const sources = validateSources(data.sources);
         if (generation === this.generation) {
           this.sources = sources;
-          if (discover || !selected) this.catalog = sources.map(({ sourceId, displayName }) => ({ sourceId, displayName }));
+          if (discover || all) {
+            this.catalog = sources.map(({ sourceId, displayName, kind }) => ({ sourceId, displayName, kind }));
+            this.accountCatalog = groupAccounts(sources).map(({ accountId, displayName, provider }) => ({ accountId, displayName, provider }));
+          }
           this.status = 'connected';
           this.emit('sources', this.snapshot().sources);
         }
@@ -103,9 +121,11 @@ class MonitoringClient extends EventEmitter {
     }
     return this.snapshot();
   }
-  async trend(sourceId) {
-    if (!validId(sourceId)) throw new Error('Invalid source ID');
-    const data = await this.request(`/api/v1/sources/${encodeURIComponent(sourceId)}/trend?hours=1`);
+  async trend(target) {
+    const sourceId = typeof target === 'string' ? target : target?.id;
+    const account = typeof target === 'object' && target?.kind === 'account';
+    if (!(account ? validAccountId(sourceId) : validId(sourceId))) throw new Error('Invalid source ID');
+    const data = await this.request(`/api/v1/${account ? 'accounts' : 'sources'}/${encodeURIComponent(sourceId)}/trend?hours=1`);
     if (!Array.isArray(data.points) || data.points.length > 61) throw new Error('Invalid trend response');
     return data.points;
   }

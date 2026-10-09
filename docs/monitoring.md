@@ -26,3 +26,11 @@ The existing localhost hook endpoint and character/bubble behavior remain availa
 ![Spark gauges](images/monitoring-spark.png)
 
 ![Spark trend](images/monitoring-spark-trend.png)
+
+## Multiple resources and accounts
+
+Resources and provider accounts have separate selectors. Choose any combination of Kubernetes clusters, Spark hosts, Claude accounts, and Codex accounts. A provider account card lists its project states and shows the latest observation's usage. Its recent-hour view aggregates that account's summaries; percentages are averaged, not summed.
+
+The same project name can appear under several accounts. Selection and trend requests use provider/account keys and source IDs, never the project label. Configure account identity in the hook launch environment with `VIBEMON_ACCOUNT_ID` and `VIBEMON_ACCOUNT_NAME`; use `CLAUDE_CONFIG_DIR` or `CODEX_HOME` for the matching login. See the Web repository's monitoring API contract for provider-specific overrides.
+
+![Two independently selected fixture accounts](images/monitoring-accounts.png)

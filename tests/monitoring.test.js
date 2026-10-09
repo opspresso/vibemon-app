@@ -33,7 +33,7 @@ describe('cloud monitoring', () => {
     await client.poll(true);
     await client.select({ sources: ['spark'], metrics: ['cpuPercent'] });
     expect(fetchImpl.mock.calls[1][0]).toContain('?ids=spark');
-    expect(client.snapshot().catalog).toEqual([{ sourceId: 'spark', displayName: 'Spark' }]);
+    expect(client.snapshot().catalog).toEqual([{ sourceId: 'spark', displayName: 'Spark', kind: 'host' }]);
     await client.select({ sources: [], metrics: [] });
     expect(fetchImpl).toHaveBeenCalledTimes(2);
     expect(client.snapshot().sources).toEqual([]);
@@ -93,5 +93,28 @@ describe('credential storage', () => {
     const vault = new CredentialStore(preferences, { isEncryptionAvailable: () => available, getSelectedStorageBackend: () => 'basic_text' });
     expect(() => vault.set(rawToken)).toThrow('OS secure storage');
     expect(preferences.values.size).toBe(0);
+  });
+});
+
+describe('multiple accounts and resources', () => {
+  test('groups matching project names by provider account and polls only selected targets', async () => {
+    const { client, fetchImpl } = fixture();
+    const sources = [source(1000000), { ...source(1000000), sourceId: 'cluster-two', kind: 'cluster' }];
+    for (const provider of ['claude', 'codex']) for (const id of ['work', 'personal']) {
+      sources.push({ ...source(1000000), sourceId: `${provider}-${id}`, kind: 'agent', metrics: { contextPercent: id === 'work' ? 20 : 70 }, account: { provider, id, displayName: `${provider} ${id}` }, agent: { state: 'working', character: provider === 'claude' ? 'clawd' : 'codex', project: 'same-project' } });
+    }
+    fetchImpl.mockResolvedValue({ ok: true, text: async () => JSON.stringify({ sources }) });
+    await client.poll(true);
+    expect(client.snapshot().accounts).toHaveLength(4);
+    expect(client.snapshot().accounts.find(account => account.accountId === 'codex:work').latest.metrics.contextPercent).toBe(20);
+    expect(client.snapshot().accounts.find(account => account.accountId === 'codex:personal').latest.metrics.contextPercent).toBe(70);
+    await client.select({ sources: ['spark'], accounts: ['codex:work', 'claude:personal'], metrics: ['cpuPercent', 'usageWeekPercent'] });
+    expect(fetchImpl.mock.calls.at(-1)[0]).toBe('https://web.example/api/v1/sources?ids=spark&accounts=codex%3Awork%2Cclaude%3Apersonal');
+    fetchImpl.mockResolvedValue({ ok: true, text: async () => JSON.stringify({ points: [] }) });
+    await client.trend({ kind: 'account', id: 'codex:work' });
+    expect(fetchImpl.mock.calls.at(-1)[0]).toBe('https://web.example/api/v1/accounts/codex%3Awork/trend?hours=1');
+    const calls = fetchImpl.mock.calls.length;
+    await client.select({ sources: [], accounts: [], metrics: [] });
+    expect(fetchImpl).toHaveBeenCalledTimes(calls);
   });
 });

@@ -42,13 +42,16 @@ function render(data) {
   $('connection').textContent = descriptions[data.status] || data.status;
   if (document.activeElement !== $('web-url')) $('web-url').value = data.url;
   if (!choicesDirty) {
-    checkboxes($('sources'), (data.catalog || data.sources).map(source => [source.sourceId, source.displayName]), data.selectedSources);
+    checkboxes($('sources'), (data.catalog || data.sources).filter(source => source.kind !== 'agent').map(source => [source.sourceId, source.displayName]), data.selectedSources);
+    checkboxes($('accounts'), data.accountCatalog.map(account => [account.accountId, `${account.displayName} (${account.provider})`]), data.selectedAccounts);
     checkboxes($('metrics'), Object.entries(data.metrics).map(([key, metric]) => [key, metric.label]), data.selectedMetrics);
   }
-  const shown = data.sources.filter(source => data.selectedSources === null || data.selectedSources.includes(source.sourceId));
+  const resources = data.sources.filter(source => source.kind !== 'agent' && (data.selectedSources === null || data.selectedSources.includes(source.sourceId)));
+  const accounts = data.accounts.filter(account => data.selectedAccounts === null || data.selectedAccounts.includes(account.accountId));
+  const shown = [...resources, ...accounts.map(account => ({ ...account.latest, sourceId: account.accountId, displayName: account.displayName, accountMembers: account.sources, isAccount: true }))];
   $('cards').replaceChildren();
   $('empty').hidden = shown.length > 0;
-  $('empty').textContent = data.status === 'not-configured' ? 'Connect to Web to see your sources.' : data.selectedSources?.length === 0 ? 'No sources selected. Choose sources in display settings.' : data.status === 'connected' ? 'No data yet. Start a collector or a coding hook with a write token from the same account.' : 'No received data. Check the connection status above.';
+  $('empty').textContent = data.status === 'not-configured' ? 'Connect to Web to see your sources.' : data.selectedSources?.length === 0 && data.selectedAccounts?.length === 0 ? 'No resources or accounts selected. Choose sources in display settings.' : data.status === 'connected' ? 'No data yet. Start a collector or a coding hook with a write token from the same account.' : 'No received data. Check the connection status above.';
   for (const source of shown) {
     const card = node('article', undefined, 'card');
     const heading = node('div', undefined, 'card-head');
@@ -60,6 +63,11 @@ function render(data) {
       heading.append(image);
     }
     heading.append(node('h2', source.displayName)); card.append(heading);
+    if (source.isAccount) {
+      const members = node('ul', undefined, 'muted');
+      for (const member of source.accountMembers) members.append(node('li', `${member.agent.project} · ${member.stale ? 'stale' : member.agent.state}`));
+      card.append(members);
+    }
     card.append(node('span', source.stale ? 'Stale — last received state' : source.agent?.state || source.health, `badge ${source.stale ? 'stale' : source.health}`));
     for (const key of data.selectedMetrics) {
       const value = source.metrics[key];
@@ -110,7 +118,7 @@ async function refreshTrend() {
   if (!selectedTrend || document.hidden) return;
   const generation = ++trendGeneration;
   try {
-    const points = await call('trend', selectedTrend.sourceId);
+    const points = await call('trend', { id: selectedTrend.sourceId, kind: selectedTrend.isAccount ? 'account' : 'source' });
     if (generation !== trendGeneration) return;
     trendPoints = points; drawTrend();
   } catch (error) { if (generation === trendGeneration) $('trend-state').textContent = error.message; }
@@ -131,7 +139,7 @@ function openTrend(source) {
 $('close-trend').addEventListener('click', () => { selectedTrend = null; trendGeneration++; $('trend').hidden = true; clearInterval(trendTimer); trendTimer = null; });
 $('trend-metric').addEventListener('change', drawTrend);
 $('connect-form').addEventListener('submit', async event => {
-  event.preventDefault(); $('error').hidden = true;
+  event.preventDefault(); $('close-trend').click(); $('error').hidden = true;
   const token = $('read-token').value.trim(); $('read-token').value = '';
   try { render(await call('configure', { url: $('web-url').value, token })); } catch (error) { fail(error); }
 });
@@ -139,9 +147,10 @@ $('disconnect').addEventListener('click', async () => { $('close-trend').click()
 $('discover').addEventListener('click', async () => { choicesDirty = false; try { render(await call('refresh')); } catch (error) { fail(error); } });
 $('save-selection').addEventListener('click', async () => {
   const sources = [...$('sources').querySelectorAll('input:checked')].map(input => input.value);
+  const accounts = [...$('accounts').querySelectorAll('input:checked')].map(input => input.value);
   const metrics = [...$('metrics').querySelectorAll('input:checked')].map(input => input.value);
   choicesDirty = false;
-  try { render(await call('select', { sources, metrics })); } catch (error) { fail(error); }
+  try { render(await call('select', { sources, accounts, metrics })); } catch (error) { fail(error); }
 });
 api.onChange(render);
 call('snapshot').then(render).catch(fail);
