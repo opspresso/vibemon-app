@@ -1,6 +1,6 @@
 const { readJsonResponse } = require('../shared/json-response.cjs');
 const { EventEmitter } = require('events');
-const { METRICS, validId, validAccountId, accountId, groupAccounts, webOrigin, validateSources, validateTrend, validateDefinitions, displayMetrics, metricCatalog } = require('./domain.cjs');
+const { METRICS, validId, validAccountId, accountId, groupAccounts, webOrigin, validateSources, validateTrend, validateDefinitions, validateOrder, displayMetrics, metricCatalog } = require('./domain.cjs');
 const { CLOUD_POLL_MS, CLOUD_REQUEST_TIMEOUT_MS, CLOUD_STALE_MS, CLOUD_TREND_MS, CLOUD_MAX_RESPONSE_BYTES } = require('../shared/constants.cjs');
 
 class MonitoringClient extends EventEmitter {
@@ -29,12 +29,18 @@ class MonitoringClient extends EventEmitter {
       : selectedSources === null || selectedSources.includes(source.sourceId));
     const sources = selected.map(source => ({ ...source, displayMetrics: displayMetrics(source), stale: source.stale || this.now() - Date.parse(source.receivedAt) >= CLOUD_STALE_MS }));
     const catalogMetrics = metricCatalog(this.catalog);
+    const savedMetrics = this.preferences.get('selectedMetrics');
+    const selectedMetrics = savedMetrics === undefined || savedMetrics === null ? Object.keys(catalogMetrics) : [...new Set([
+      ...savedMetrics.filter(key => Object.hasOwn(catalogMetrics, key)),
+      ...this.catalog.filter(source => ['host', 'cluster'].includes(source.kind) && source.metricDefinitions)
+        .flatMap(source => displayMetrics(source).filter(metric => savedMetrics.includes(metric.key)).map(metric => metric.selectionKey))
+    ])];
     return {
       url: this.preferences.get('url') || 'https://vibemon.io',
       tokenConfigured: this.credentials.has(), status: this.status,
       selectedSources, selectedAccounts, accountCatalog: this.accountCatalog,
       accounts: groupAccounts(sources),
-      selectedMetrics: this.preferences.get('selectedMetrics') ?? Object.keys(catalogMetrics),
+      selectedMetrics,
       metrics: catalogMetrics, trendRefreshMs: CLOUD_TREND_MS, catalog: this.catalog, sources
     };
   }
@@ -119,6 +125,8 @@ class MonitoringClient extends EventEmitter {
           if (!discover && !all) {
             const updates = new Map(sources.map(source => [source.sourceId, this.catalogEntry(source)]));
             this.catalog = this.catalog.map(source => updates.get(source.sourceId) || source);
+            const accountUpdates = new Map(groupAccounts(sources).map(({ accountId, displayName, provider }) => [accountId, { accountId, displayName, provider }]));
+            this.accountCatalog = this.accountCatalog.map(account => accountUpdates.get(account.accountId) || account);
           }
           this.status = 'connected';
           this.emit('sources', this.snapshot().sources);
@@ -133,7 +141,7 @@ class MonitoringClient extends EventEmitter {
   }
   catalogEntry(source) {
     return { sourceId: source.sourceId, displayName: source.displayName, kind: source.kind,
-      ...(source.kind === 'resource' ? { resourceType: source.resourceType, metricDefinitions: source.metricDefinitions } : {}) };
+      ...(source.metricDefinitions ? { resourceType: source.resourceType, metricDefinitions: source.metricDefinitions, metricOrder: source.metricOrder } : {}) };
   }
   async trend(target) {
     const sourceId = typeof target === 'string' ? target : target?.id;
@@ -144,7 +152,7 @@ class MonitoringClient extends EventEmitter {
     const points = validateTrend(data.points, definitions);
     const metrics = data.metricDefinitions === undefined
       ? Object.entries(definitions).map(([key, definition]) => ({ ...definition, key, selectionKey: key }))
-      : displayMetrics({ sourceId, kind: 'resource', metricDefinitions: definitions });
+      : displayMetrics({ sourceId, kind: 'resource', metricDefinitions: definitions, metricOrder: validateOrder(data.metricOrder, definitions) });
     return { points, displayMetrics: metrics };
   }
   start() {

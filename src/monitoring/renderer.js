@@ -43,22 +43,38 @@ function visibleMetrics(source) {
   return source.displayMetrics.filter(metric => selectedMetricIds.has(metric.selectionKey));
 }
 function render(data) {
+  if (!snapshot && data.tokenConfigured) $('settings').open = false;
   snapshot = data;
   selectedMetricIds = new Set(data.selectedMetrics);
   $('connection').textContent = descriptions[data.status] || data.status;
   if (document.activeElement !== $('web-url')) $('web-url').value = data.url;
   if (!choicesDirty) {
     checkboxes($('sources'), (data.catalog || data.sources).filter(source => source.kind !== 'agent').map(source => [source.sourceId, source.displayName]), data.selectedSources);
-    checkboxes($('accounts'), data.accountCatalog.map(account => [account.accountId, `${account.displayName} (${account.provider})`]), data.selectedAccounts);
+    $('accounts').replaceChildren();
+    for (const provider of [...new Set(data.accountCatalog.map(account => account.provider))].sort()) {
+      const group = node('div', undefined, 'provider-group');
+      group.append(node('h4', provider, 'provider-title'));
+      const options = node('div');
+      checkboxes(options, data.accountCatalog.filter(account => account.provider === provider).map(account => [account.accountId, `${account.displayName} · ${account.accountId.slice(provider.length + 1)}`]), data.selectedAccounts);
+      group.append(options); $('accounts').append(group);
+    }
     checkboxes($('metrics'), Object.entries(data.metrics).map(([key, metric]) => [key, metric.label]), data.selectedMetrics);
   }
   const resources = data.sources.filter(source => source.kind !== 'agent' && (data.selectedSources === null || data.selectedSources.includes(source.sourceId)));
   const accounts = data.accounts.filter(account => data.selectedAccounts === null || data.selectedAccounts.includes(account.accountId));
-  const shown = [...resources, ...accounts.map(account => ({ ...account.latest, sourceId: account.accountId, displayName: account.displayName, accountMembers: account.sources, isAccount: true }))];
+  const shown = [...resources, ...accounts.sort((a, b) => a.provider.localeCompare(b.provider) || a.displayName.localeCompare(b.displayName)).map(account => ({ ...account.latest, sourceId: account.accountId, displayName: account.displayName, accountMembers: account.sources, isAccount: true }))];
+  $('resource-count').textContent = String(resources.length);
+  $('account-count').textContent = String(accounts.length);
   $('cards').replaceChildren();
   $('empty').hidden = shown.length > 0;
   $('empty').textContent = data.status === 'not-configured' ? 'Connect to Web to see your sources.' : data.selectedSources?.length === 0 && data.selectedAccounts?.length === 0 ? 'No resources or accounts selected. Choose sources in display settings.' : data.status === 'connected' ? 'No data yet. Start a collector or a coding hook with a write token from the same account.' : 'No received data. Check the connection status above.';
+  let section = null;
   for (const source of shown) {
+    const nextSection = source.isAccount ? source.account.provider : 'Resources';
+    if (nextSection !== section) {
+      const title = source.isAccount ? `${source.account.provider} · ${accounts.filter(account => account.provider === source.account.provider).length} ${accounts.filter(account => account.provider === source.account.provider).length === 1 ? 'account' : 'accounts'}` : 'Resources';
+      $('cards').append(node('h2', title, 'section-heading')); section = nextSection;
+    }
     const card = node('article', undefined, 'card');
     const heading = node('div', undefined, 'card-head');
     if (source.kind === 'agent') {
@@ -69,6 +85,7 @@ function render(data) {
       heading.append(image);
     }
     heading.append(node('h2', source.displayName)); card.append(heading);
+    if (source.isAccount) card.append(node('code', source.sourceId, 'account-id'));
     if (source.resourceType) card.append(node('p', source.resourceType, 'muted'));
     if (source.statusMessage) card.append(node('p', source.statusMessage));
     if (source.isAccount) {

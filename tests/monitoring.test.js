@@ -107,12 +107,12 @@ describe('multiple accounts and resources', () => {
   test('groups matching project names by provider account and polls only selected targets', async () => {
     const { client, fetchImpl } = fixture();
     const sources = [source(1000000), { ...source(1000000), sourceId: 'cluster-two', kind: 'cluster' }];
-    for (const provider of ['claude', 'codex']) for (const id of ['work', 'personal']) {
-      sources.push({ ...source(1000000), sourceId: `${provider}-${id}`, kind: 'agent', metrics: { contextPercent: id === 'work' ? 20 : 70 }, account: { provider, id, displayName: `${provider} ${id}` }, agent: { state: 'working', character: provider === 'claude' ? 'clawd' : 'codex', project: 'same-project' } });
+    for (const provider of ['claude', 'codex', 'kiro']) for (const id of ['work', 'personal']) {
+      sources.push({ ...source(1000000), sourceId: `${provider}-${id}`, kind: 'agent', metrics: { contextPercent: id === 'work' ? 20 : 70 }, account: { provider, id, displayName: `${provider} ${id}` }, agent: { state: 'working', character: provider === 'claude' ? 'clawd' : provider, project: 'same-project' } });
     }
     fetchImpl.mockResolvedValue(okResponse({ sources }));
     await client.poll(true);
-    expect(client.snapshot().accounts).toHaveLength(4);
+    expect(client.snapshot().accounts).toHaveLength(6);
     expect(client.snapshot().accounts.find(account => account.accountId === 'codex:work').latest.metrics.contextPercent).toBe(20);
     expect(client.snapshot().accounts.find(account => account.accountId === 'codex:personal').latest.metrics.contextPercent).toBe(70);
     await client.select({ sources: ['spark'], accounts: ['codex:work', 'claude:personal'], metrics: ['cpuPercent', 'usageWeekPercent'] });
@@ -166,7 +166,7 @@ describe('custom resource definitions', () => {
   const custom = (id, unit = 'ms') => ({ ...source(1000000), sourceId: id, kind: 'resource', resourceType: 'Any service', displayName: id, statusMessage: 'Serving requests', metricDefinitions: { value: { label: 'Measurement', unit, display: 'gauge', min: -100, max: 500 } }, metrics: { value: -20 } });
   test('validates arbitrary resource metadata and preserves negative values', () => {
     expect(validateSources([custom('service')])[0]).toMatchObject({ resourceType: 'Any service', statusMessage: 'Serving requests', metrics: { value: -20 } });
-    for (const changes of [{ resourceType: '' }, { metrics: { value: -101 } }, { metricDefinitions: { constructor: { label: 'Bad', unit: '', display: 'number' } } }]) expect(() => validateSources([{ ...custom('service'), ...changes }])).toThrow();
+    for (const changes of [{ resourceType: '' }, { metrics: { value: Infinity } }, { metricDefinitions: { constructor: { label: 'Bad', unit: '', display: 'number' } } }]) expect(() => validateSources([{ ...custom('service'), ...changes }])).toThrow();
   });
   test('discovers custom fields and selects equal keys independently per resource', async () => {
     const { client, fetchImpl } = fixture();
@@ -192,5 +192,25 @@ describe('custom resource definitions', () => {
     expect(trend.displayMetrics[0]).toMatchObject({ key: 'value', unit: '°C', min: -100, max: 500, selectionKey: 'resource:sensor:value' });
     expect(validateTrend([{ ...point, average: { value: null }, maximum: { value: null } }], item.metricDefinitions)[0].average.value).toBeNull();
     expect(() => validateTrend([{ ...point, maximum: { value: -30 } }], item.metricDefinitions)).toThrow();
+  });
+  test('keeps edited preset order and values outside display bounds, preserving old selections', async () => {
+    const { client, fetchImpl, preferences } = fixture();
+    const metricDefinitions = {
+      cpuPercent: { label: 'Processor', unit: '%', display: 'number' },
+      memoryPercent: { label: 'RAM', unit: '%', display: 'gauge', min: 0, max: 50 }
+    };
+    preferences.set('selectedMetrics', ['cpuPercent', 'memoryPercent']);
+    fetchImpl.mockResolvedValue(okResponse({ sources: [{ ...source(1000000), resourceType: 'Build server', metrics: { cpuPercent: 35, memoryPercent: 72 }, metricDefinitions, metricOrder: ['memoryPercent', 'cpuPercent'] }] }));
+    await client.poll(true);
+    const result = client.snapshot();
+    expect(result.sources[0].displayMetrics.map(metric => metric.key)).toEqual(['memoryPercent', 'cpuPercent']);
+    expect(result.sources[0].metrics.memoryPercent).toBe(72);
+    expect(result.selectedMetrics).toEqual(['resource:spark:memoryPercent', 'resource:spark:cpuPercent']);
+    fetchImpl.mockResolvedValue(okResponse({ points: [], metricDefinitions, metricOrder: ['memoryPercent', 'cpuPercent'] }));
+    expect((await client.trend('spark')).displayMetrics.map(metric => metric.key)).toEqual(['memoryPercent', 'cpuPercent']);
+  });
+  test('rejects invalid order at the server boundary', () => {
+    expect(() => validateSources([{ ...custom('sensor'), metricOrder: ['unknown'] }])).toThrow('exactly once');
+    expect(() => validateSources([{ ...custom('sensor'), metricOrder: ['value', 'value'] }])).toThrow('exactly once');
   });
 });

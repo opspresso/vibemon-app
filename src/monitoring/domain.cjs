@@ -1,5 +1,5 @@
 const { URL } = require('node:url');
-const { BUILTIN_METRICS: METRICS, validateDefinitions, validateValues, validText, definitionsFor, selectionKey, metricCatalog } = require('../shared/resource-schema.cjs');
+const { BUILTIN_METRICS: METRICS, validateDefinitions, validateValues, validateOrder, validText, definitionsFor, selectionKey, metricCatalog } = require('../shared/resource-schema.cjs');
 const validId = id => typeof id === 'string' && /^[a-zA-Z0-9][a-zA-Z0-9_.:-]{0,127}$/.test(id);
 function webOrigin(value, allowLocalHttp = false) {
   const url = new URL(value);
@@ -10,7 +10,8 @@ function webOrigin(value, allowLocalHttp = false) {
   return url.origin;
 }
 function metrics(value, definitions = METRICS) {
-  return validateValues(value, definitions);
+  // Edited display ranges do not invalidate measurements outside the visible gauge.
+  return validateValues(value, definitions, definitions === METRICS);
 }
 function displayMetrics(source) {
   return Object.entries(definitionsFor(source)).map(([key, definition]) => ({ ...definition, key, selectionKey: selectionKey(source, key) }));
@@ -23,9 +24,10 @@ function validateSources(value) {
     if (!source || !validId(source.sourceId) || ids.has(source.sourceId) || !['agent', 'host', 'cluster', 'resource'].includes(source.kind) || typeof source.displayName !== 'string' || !source.displayName.trim() || source.displayName.length > 128 || !validTime(source.receivedAt) || !validTime(source.observedAt) || !['ok', 'warning', 'error', 'unknown'].includes(source.health) || typeof source.stale !== 'boolean' || (source.memoryType != null && !['ram', 'unified'].includes(source.memoryType))) throw new Error('Invalid source response');
     ids.add(source.sourceId);
     let resource = {};
-    if (source.kind === 'resource') {
+    if (source.kind === 'resource' || source.metricDefinitions !== undefined) {
       if (!validText(source.resourceType, 64) || (source.statusMessage !== undefined && !validText(source.statusMessage, 160, true)) || source.agent != null || source.account != null) throw new Error('Invalid custom resource response');
-      resource = { resourceType: source.resourceType, metricDefinitions: validateDefinitions(source.metricDefinitions), ...(source.statusMessage === undefined ? {} : { statusMessage: source.statusMessage }) };
+      const metricDefinitions = validateDefinitions(source.metricDefinitions);
+      resource = { resourceType: source.resourceType, metricDefinitions, metricOrder: validateOrder(source.metricOrder, metricDefinitions), ...(source.statusMessage === undefined ? {} : { statusMessage: source.statusMessage }) };
     }
     let agent = null;
     let account = null;
@@ -60,7 +62,7 @@ function validateTrend(value, definitions = METRICS) {
     return { timestamp: point.timestamp, samples: point.samples, expiresAt: point.expiresAt, average, maximum };
   });
 }
-module.exports = { METRICS, validId, webOrigin, validateSources, validateTrend, validateDefinitions, displayMetrics, metricCatalog };
+module.exports = { METRICS, validId, webOrigin, validateSources, validateTrend, validateDefinitions, validateOrder, displayMetrics, metricCatalog };
 
 function accountId(account) { return `${account.provider}:${account.id}`; }
 function validAccountId(value) {

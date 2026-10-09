@@ -8,12 +8,13 @@
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <header><div><span class="eyebrow">VIBEMON</span><h1>Monitoring</h1></div><p id="connection" role="status">Not configured</p></header>
+  <header><div><span class="eyebrow">VIBEMON / YOUR WORKSPACE</span><h1>Monitoring</h1></div><p id="connection" role="status">Not configured</p></header>
   <main>
+    <div class="overview"><div><span>Selected resources</span><strong id="resource-count">0</strong></div><div><span>Coding accounts</span><strong id="account-count">0</strong></div><p>Metric labels and order follow your saved Web settings.</p></div>
     <details class="panel" id="settings" open><summary>Connection and display settings</summary>
       <form id="connect-form"><label>Web address<input id="web-url" type="url" value="https://vibemon.io" required></label><label>Read token<input id="read-token" type="password" autocomplete="off" placeholder="Paste a generated read token"></label><button>Save and connect</button><button type="button" id="disconnect" class="secondary">Disconnect</button></form>
       <p class="muted">Create a read token in your Web account. The app protects it with your operating system's secure storage.</p>
-      <div class="selection"><fieldset><legend>Resources</legend><button type="button" class="secondary" id="discover">Discover resources and accounts</button><div id="sources"></div><h3>Claude · Codex accounts</h3><div id="accounts"></div></fieldset><fieldset><legend>Metrics</legend><div id="metrics"></div></fieldset></div>
+      <div class="selection"><fieldset><legend>Resources & coding accounts</legend><button type="button" class="secondary" id="discover">Discover resources and accounts</button><h3>Resources</h3><div id="sources"></div><h3>Coding accounts</h3><div id="accounts"></div></fieldset><fieldset><legend>Visible metrics</legend><div id="metrics"></div></fieldset></div>
       <button id="save-selection" type="button">Apply display selection</button>
     </details>
     <p id="error" role="alert" hidden></p>

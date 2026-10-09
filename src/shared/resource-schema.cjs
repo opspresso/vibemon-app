@@ -38,39 +38,46 @@ function validateDefinitions(raw) {
     return [key, result];
   }));
 }
-function validateValues(raw, definitions) {
+function validateValues(raw, definitions, enforceBounds = true) {
   if (!object(raw) || Object.keys(raw).some(key => !Object.hasOwn(definitions, key))) throw new Error('Unknown metric');
   return Object.fromEntries(Object.entries(definitions).map(([key, definition]) => {
     const value = raw[key] ?? null;
-    if (value !== null && (typeof value !== 'number' || !Number.isFinite(value) || Math.abs(value) > MAX_VALUE || value < (definition.min ?? -MAX_VALUE) || value > (definition.max ?? MAX_VALUE))) throw new Error(`Invalid ${key}`);
+    if (value !== null && (typeof value !== 'number' || !Number.isFinite(value) || Math.abs(value) > MAX_VALUE || (enforceBounds && (value < (definition.min ?? -MAX_VALUE) || value > (definition.max ?? MAX_VALUE))))) throw new Error(`Invalid ${key}`);
     return [key, value];
   }));
 }
 function sameMeaning(a, b) {
-  return Boolean(a && b && a.unit === b.unit && a.display === b.display && a.min === b.min && a.max === b.max);
+  return Boolean(a && b && a.unit === b.unit);
 }
 function canExtendDefinitions(before, after) {
   return Object.keys(before).every(key => Object.hasOwn(after, key) && sameMeaning(before[key], after[key]));
 }
 function definitionsFor(source) {
-  if (source.kind === 'resource') return source.metricDefinitions;
+  if (source.metricDefinitions && source.kind !== 'agent') {
+    return Object.fromEntries(validateOrder(source.metricOrder, source.metricDefinitions).map(key => [key, source.metricDefinitions[key]]));
+  }
   return Object.fromEntries((PRESETS[source.kind] || []).map(key => [key, {
     ...BUILTIN_METRICS[key],
     label: key === 'memoryPercent' && source.memoryType === 'unified' ? 'Unified memory' : BUILTIN_METRICS[key].label
   }]));
 }
 function selectionKey(source, key) {
-  return source.kind === 'resource' ? `resource:${encodeURIComponent(source.sourceId)}:${key}` : key;
+  return source.kind === 'resource' || source.metricDefinitions ? `resource:${encodeURIComponent(source.sourceId)}:${key}` : key;
 }
 function metricCatalog(sources) {
   const result = {};
   for (const source of sources) {
     for (const [key, definition] of Object.entries(definitionsFor(source))) {
-      result[selectionKey(source, key)] = source.kind === 'resource'
+      result[selectionKey(source, key)] = source.kind === 'resource' || source.metricDefinitions
         ? { ...definition, label: `${source.displayName} · ${definition.label}` }
         : BUILTIN_METRICS[key];
     }
   }
   return result;
 }
-module.exports = { MAX_METRICS, MAX_VALUE, BUILTIN_METRICS, validText, validMetricKey, validateDefinitions, validateValues, sameMeaning, canExtendDefinitions, definitionsFor, selectionKey, metricCatalog };
+function validateOrder(value, definitions) {
+  if (value === undefined) return Object.keys(definitions);
+  if (!Array.isArray(value) || value.length !== Object.keys(definitions).length || new Set(value).size !== value.length || value.some(key => typeof key !== 'string' || !Object.hasOwn(definitions, key))) throw new Error('Metric order must contain each metric key exactly once');
+  return [...value];
+}
+module.exports = { MAX_METRICS, MAX_VALUE, BUILTIN_METRICS, validText, validMetricKey, validateDefinitions, validateValues, validateOrder, sameMeaning, canExtendDefinitions, definitionsFor, selectionKey, metricCatalog };
