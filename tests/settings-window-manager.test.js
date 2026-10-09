@@ -362,6 +362,7 @@ describe('VibeMon Config', () => {
 
   test('repair-vibemon-config works without a monitoringClient configured', async () => {
     const { deps } = freshManager();
+    deps.vibemonConfigManager.getStatus.mockReturnValue({ exists: true, hasDesktopUrl: true });
 
     await invoke('settings:repair-vibemon-config');
 
@@ -377,10 +378,10 @@ describe('VibeMon Config', () => {
     expect(result).toEqual(expect.objectContaining({ debug: false })); // mocked read() is static
   });
 
-  test('set-vibemon-config ignores a non-object payload without writing', async () => {
+  test('set-vibemon-config rejects a non-object payload without writing', async () => {
     const { deps } = freshManager();
 
-    await invoke('settings:set-vibemon-config', null);
+    expect(() => invoke('settings:set-vibemon-config', null)).toThrow('Config changes must be a JSON object');
 
     expect(deps.vibemonConfigManager.write).not.toHaveBeenCalled();
   });
@@ -629,4 +630,19 @@ test('all settings IPC rejects other windows and subframes before reading or cha
   expect(deps.vibemonConfigManager.read).not.toHaveBeenCalled();
   expect(deps.vibemonConfigManager.write).not.toHaveBeenCalled();
   expect(deps.app.setLoginItemSettings).not.toHaveBeenCalled();
+});
+
+
+test('hook credentials never enter the settings renderer or its generic mutation route', async () => {
+  const { deps } = freshManager();
+  deps.vibemonConfigManager.read.mockReturnValue({ debug: false, vibemon_token: 'fixture-secret', unknownSecret: 'fixture-secret' });
+  expect(JSON.stringify(await invoke('settings:get-all'))).not.toContain('fixture-secret');
+  expect(() => invoke('settings:set-vibemon-config', { vibemon_token: 'fixture-secret' })).toThrow('Configure hook write tokens');
+  expect(deps.vibemonConfigManager.write).not.toHaveBeenCalled();
+});
+
+
+test('an unsuccessful explicit config repair is reported to the renderer', () => {
+  freshManager();
+  expect(() => invoke('settings:repair-vibemon-config')).toThrow('Unable to repair hook config');
 });

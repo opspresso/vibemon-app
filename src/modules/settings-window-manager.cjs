@@ -86,7 +86,9 @@ class SettingsWindowManager {
    * @returns {object}
    */
   getVibemonConfigView() {
-    return { ...this.vibemonConfigManager.read(), status: this.vibemonConfigManager.getStatus() };
+    const config = this.vibemonConfigManager.read();
+    const display = Object.fromEntries(['debug', 'auto_launch', 'http_urls', 'serial_port', 'vibemon_url'].map(key => [key, config[key]]));
+    return { ...display, status: this.vibemonConfigManager.getStatus() };
   }
 
   /**
@@ -223,12 +225,15 @@ class SettingsWindowManager {
 
     handle('settings:repair-vibemon-config', () => {
       this.vibemonConfigManager.ensureDesktopUrl(null);
+      const result = this.getVibemonConfigView();
+      if (!result.status.hasDesktopUrl) throw new Error('Unable to repair hook config. Check its JSON format and file permissions.');
       this.notifyChanged();
-      return this.getVibemonConfigView();
+      return result;
     });
 
     handle('settings:set-vibemon-config', (_event, partial) => {
-      if (!partial || typeof partial !== 'object') return this.getVibemonConfigView();
+      if (!partial || typeof partial !== 'object' || Array.isArray(partial)) throw new Error('Config changes must be a JSON object');
+      if (Object.hasOwn(partial, 'vibemon_token')) throw new Error('Configure hook write tokens with the installer or hook config');
       this.vibemonConfigManager.write(partial);
       this.notifyChanged();
       return this.getVibemonConfigView();
