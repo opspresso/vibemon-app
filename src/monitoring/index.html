@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'none'">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>VibeMon Monitoring</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header><div><span class="eyebrow">VIBEMON</span><h1>Monitoring</h1></div><p id="connection" role="status">Not configured</p></header>
+  <main>
+    <details class="panel" id="settings" open><summary>Connection and display settings</summary>
+      <form id="connect-form"><label>Web address<input id="web-url" type="url" value="https://vibemon.io" required></label><label>Read token<input id="read-token" type="password" autocomplete="off" placeholder="Paste a generated read token"></label><button>Save and connect</button><button type="button" id="disconnect" class="secondary">Disconnect</button></form>
+      <p class="muted">Create a read token in your Web account. The app protects it with your operating system's secure storage.</p>
+      <div class="selection"><fieldset><legend>Sources</legend><button type="button" class="secondary" id="discover">Discover sources</button><div id="sources"></div></fieldset><fieldset><legend>Metrics</legend><div id="metrics"></div></fieldset></div>
+      <button id="save-selection" type="button">Apply display selection</button>
+    </details>
+    <p id="error" role="alert" hidden></p>
+    <section id="cards" aria-label="Source status"></section>
+    <p id="empty" class="panel muted">Connect to Web to see your sources.</p>
+    <section id="trend" class="panel" hidden><div class="trend-heading"><h2 id="trend-title">Recent hour</h2><button id="close-trend" class="secondary">Close</button></div><label>Metric<select id="trend-metric"></select></label><p id="trend-state" role="status"></p><svg id="chart" viewBox="0 0 900 240" role="img" aria-label="One hour metric trend"></svg><p class="muted">Last 60 minutes · window means · gaps indicate no recorded sample. Refreshes every minute while open.</p></section>
+  </main>
+  <script type="module" src="renderer.js"></script>
+</body>
+</html>

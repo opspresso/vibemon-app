@@ -11,10 +11,14 @@
 
 // Load environment variables from .env.local or .env
 const path = require('path');
+const Store = require('electron-store');
 require('dotenv').config({ path: path.join(__dirname, '..', '.env.local') });
 require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
 
-const { app, BrowserWindow, ipcMain, dialog, powerMonitor, screen } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, powerMonitor, screen, safeStorage } = require('electron');
+const { MonitoringClient } = require('./monitoring/client.cjs');
+const { CredentialStore } = require('./monitoring/credential-store.cjs');
+const { MonitoringWindow } = require('./monitoring/window.cjs');
 const { exec } = require('child_process');
 
 // Modules
@@ -67,6 +71,8 @@ let trayManager = null;
 let settingsWindowManager = null;
 let httpServer = null;
 let wsClient = null;
+let monitoringClient = null;
+let monitoringWindow = null;
 let hookCheckTimer = null;
 let updateCheckTimer = null;
 let usageRefreshTimer = null;
@@ -188,7 +194,7 @@ function handleWsStatusUpdate(data, meta = {}) {
 
   // A status without a project name has nothing meaningful to display — drop it.
   if (!stateData.project) return;
-  const projectId = stateData.project;
+  const projectId = meta.sourceId ? `cloud:${meta.sourceId}` : stateData.project;
 
   const routeResult = windowManager.routeStatusUpdate(projectId, stateData, {
     preserveFocus: meta.auto === true
@@ -265,7 +271,7 @@ ipcMain.handle('get-version', () => {
 });
 
 // Character registry for the renderer's engine setup (canonical:
-// vibemon-static, resolved by registry-cache.cjs — cached remote copy or
+// vibemon-web, resolved by registry-cache.cjs — cached remote copy or
 // bundled fallback). staticBaseUrl lets the renderer build remote-first
 // image URLs.
 ipcMain.handle('get-character-registry', () => {
@@ -276,7 +282,7 @@ ipcMain.handle('get-character-registry', () => {
   };
 });
 
-// State registry for the renderer's engine setup (canonical: vibemon-static,
+// State registry for the renderer's engine setup (canonical: vibemon-web,
 // resolved by registry-cache.cjs)
 ipcMain.handle('get-state-registry', () => {
   return registryCache.statesRegistry;
@@ -451,6 +457,25 @@ app.whenReady().then(() => {
   trayManager.setSettingsWindowManager(settingsWindowManager);
   trayManager.setShowCharacterHandler(showCharacterAgain);
 
+  const monitoringStore = new Store({ name: 'monitoring' });
+  monitoringClient = new MonitoringClient({ preferences: monitoringStore, credentials: new CredentialStore(monitoringStore, safeStorage), allowLocalHttp: !app.isPackaged });
+  monitoringWindow = new MonitoringWindow(monitoringClient);
+  trayManager.openMonitoring = () => monitoringWindow.open();
+  const seenObservations = new Map();
+  monitoringClient.on('sources', sources => {
+    for (const source of sources) {
+      if (source.kind !== 'agent' || !source.agent || source.stale || seenObservations.get(source.sourceId) === source.observedAt) continue;
+      seenObservations.set(source.sourceId, source.observedAt);
+      const data = { ...source.agent };
+      for (const [metric, field] of [['contextPercent', 'memory'], ['usageSessionPercent', 'usage5h'], ['usageWeekPercent', 'usageWeek']]) {
+        if (source.metrics[metric] !== null) data[field] = Math.round(source.metrics[metric]);
+      }
+      handleWsStatusUpdate(data, { auto: Boolean(windowManager.getFocusedProjectId()), sourceId: source.sourceId });
+    }
+  });
+  monitoringClient.start();
+
+
   // Start HTTP server
   httpServer = new HttpServer(stateManager, windowManager, app);
   httpServer.onStateUpdate = (menuOnly) => {
@@ -551,7 +576,7 @@ app.whenReady().then(() => {
   setTimeout(refreshUsageAndUpdateTray, USAGE_REFRESH_INITIAL_DELAY_MS);
   usageRefreshTimer = setInterval(refreshUsageAndUpdateTray, USAGE_REFRESH_INTERVAL_MS);
 
-  // Refresh the canonical registry cache from vibemon-static: once shortly
+  // Refresh the canonical registry cache from vibemon-web: once shortly
   // after startup, then periodically. A refreshed registry applies on the
   // next launch (startup resolves cache → bundled synchronously).
   setTimeout(() => registryCache.refresh(), UPDATE_CHECK_INITIAL_DELAY_MS);
@@ -623,6 +648,8 @@ app.on('before-quit', () => {
   if (trayManager) {
     trayManager.cleanup();
   }
+  if (monitoringClient) monitoringClient.stop();
+  if (monitoringWindow) monitoringWindow.cleanup();
   if (settingsWindowManager) {
     settingsWindowManager.cleanup();
   }

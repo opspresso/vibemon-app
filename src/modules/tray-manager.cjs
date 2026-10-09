@@ -554,6 +554,8 @@ class TrayManager {
         click: () => this.settingsWindowManager.open()
       }] : []),
       { type: 'separator' },
+      { label: 'Monitoring...', click: () => this.openMonitoring?.() },
+
       // VibeMon — mirrors the Settings window's VibeMon tab
       {
         label: 'Render Mode',

@@ -1,5 +1,7 @@
 # Documentation
 
+- [Cloud monitoring](monitoring.md) — Web connection, secure read tokens, source selection, gauges, and trends.
+
 ## Quick Start
 
 ```bash
