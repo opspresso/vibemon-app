@@ -10,7 +10,7 @@ VibeMon normalizes multiple agent ecosystems into one display model. The renderi
 | Codex | Native hooks and non-interactive JSON output | Interactive lifecycle and local tool hooks, `codex exec --json` for automation | High | Hosted tools such as WebSearch do not pass through local tool hooks |
 | Kiro | Native hooks | Prompt, tool, and stop hooks | High | Fewer lifecycle events than Claude Code |
 | OpenClaw | Plugin bridge | Plugin SDK hooks | Medium to high | Internal hooks are not enough by themselves for full tool-loop visibility |
-| OpenCode | Plugin + Python adapter | Session, chat, tool, permission, and compaction events | High | No context or plan-usage metrics; uses the default character until registered in vibemon-static |
+| OpenCode | Plugin + Python adapter | Session, chat, tool, permission, and compaction events | High | No context or plan-usage metrics; uses the default character until registered in vibemon-web |
 
 ### Bridge Types
 
@@ -47,11 +47,11 @@ On Windows, the installer pins the Python interpreter in the plugin; custom conf
 | `claw` | Red | Antenna character | OpenClaw |
 | `daangni` | Peach/teal | Round face, fluffy top | Manual only (Character Lock) |
 
-OpenCode reports `character: "opencode"`, which currently falls back to `vibemon` because the canonical registry does not contain that name. Its states, project, tool, and model remain visible. A dedicated character must be added to `vibemon-static` and synced here before it can be bundled or offered in Character Lock.
+OpenCode reports `character: "opencode"`, which currently falls back to `vibemon` because the canonical registry does not contain that name. Its states, project, tool, and model remain visible. A dedicated character must be added to `vibemon-web` and synced here before it can be bundled or offered in Character Lock.
 
-In **2D** (default) all characters use **image-based rendering** (128x128 PNG). Images load remote-first from `static.vibemon.io`, with copies bundled in `src/assets/characters/` as the offline fallback. Character is **auto-selected by bridge**, not by the core display runtime. You can also force one with [Character Lock](#character-lock).
+In **2D** (default) all characters use **image-based rendering** (128x128 PNG). Images load remote-first from `vibemon.io/static`, with copies bundled in `src/assets/characters/` as the offline fallback. Character is **auto-selected by bridge**, not by the core display runtime. You can also force one with [Character Lock](#character-lock).
 
-Characters are defined in a single registry canonically hosted in [vibemon-static](https://github.com/opspresso/vibemon-static) (served at `static.vibemon.io/data/characters.json`, with `src/shared/data/characters.json` bundled as the fallback and kept in sync via `npm run check:registry`): display name, accent color (the eye/accent overlay drawn on the sprite — white for VibeMon, distinct from the "Color" appearance above), image file, eye/effect coordinates (in canvas pixels on the 128x128 sprite, adjustable at 1px), and the `theme` palette the 3D engine paints. The character window, tray icon (downscaled from the same PNG), menus, and validation all derive from it — adding a character is one PNG plus one registry entry in vibemon-static, no code change here.
+Characters are defined in a single registry canonically hosted in [vibemon-web](https://github.com/opspresso/vibemon-web) (served at `vibemon.io/static/data/characters.json`, with `src/shared/data/characters.json` bundled as the fallback and kept in sync via `pnpm check:registry`): display name, accent color (the eye/accent overlay drawn on the sprite — white for VibeMon, distinct from the "Color" appearance above), image file, eye/effect coordinates (in canvas pixels on the 128x128 sprite, adjustable at 1px), and the `theme` palette the 3D engine paints. The character window, tray icon (downscaled from the same PNG), menus, and validation all derive from it — adding a character is one PNG plus one registry entry in vibemon-web, no code change here.
 
 ### Render Mode
 
@@ -66,7 +66,7 @@ Characters are defined in a single registry canonically hosted in [vibemon-stati
 | --- | --- |
 | ![Previous 3D size](images/3d-size-before.png) | ![Larger 3D size](images/3d-size-after.png) |
 
-Both engines are vendored from vibemon-static (`src/engine/`); three.js ships locally in `src/vendor/` because the renderer CSP forbids runtime CDN imports.
+Both engines are vendored from vibemon-web (`src/engine/`); three.js ships locally in `src/vendor/` because the renderer CSP forbids runtime CDN imports.
 
 ### Character Lock
 
@@ -240,11 +240,11 @@ Grouped to mirror the Settings window's tab order (VibeMon / Collector / AI Tool
 
 ## Rendering Engine
 
-The character is rendered by a bundled engine (`src/engine/vibemon-engine.js`): a 128x128 canvas drawing the character PNG, state-driven pixel-art eyes/effects, and the floating animation, over a fully transparent background. Character images load remote-first from `static.vibemon.io`, falling back to the bundled copies in `src/assets/characters/` — rendering works fully offline.
+The character is rendered by a bundled engine (`src/engine/vibemon-engine.js`): a 128x128 canvas drawing the character PNG, state-driven pixel-art eyes/effects, and the floating animation, over a fully transparent background. Character images load remote-first from `vibemon.io/static`, falling back to the bundled copies in `src/assets/characters/` — rendering works fully offline.
 
 ## Build
 
-Hook installation verifies the downloaded installer against the `installer` SHA-256 published in the same origin's `manifest.json` (fetched fresh at install time), so install.py updates ship with a vibemon-docs deploy alone — no app release needed. install.py then re-checks every file it downloads against that same manifest before writing it, so install.py and manifest.json have to go out in the same deploy. Custom installer deployments can pin a specific hash via `VIBEMON_INSTALLER_SHA256` together with `VIBEMON_DOCS_URL`; the pin takes precedence over the manifest. `VIBEMON_DOCS_URL` only redirects where install.py itself is fetched from — the installer always pulls the files it installs, and the manifest it checks them against, from `docs.vibemon.io`.
+Hook installation verifies the downloaded installer against the `installer` SHA-256 published in the same origin's `manifest.json` (fetched fresh at install time), so install.py updates ship with a vibemon-docs deploy alone — no app release needed. install.py then re-checks every file it downloads against that same manifest before writing it, so install.py and manifest.json have to go out in the same deploy. Custom installer deployments can pin a specific hash via `VIBEMON_INSTALLER_SHA256` together with `VIBEMON_DOCS_URL`; the pin takes precedence over the manifest. `VIBEMON_DOCS_URL` only redirects where install.py itself is fetched from — the installer always pulls the files it installs, and the manifest it checks them against, from `vibemon.io/install`.
 
 Installs run unattended but not force-approved: the app passes a platform flag and never `--yes`. VibeMon's own hook scripts are upgraded in place (so Reinstall still repairs drift), while settings you own — most visibly an existing Claude Code `statusLine` — are left as they are. Run install.py yourself with `--yes` to have those replaced too. When a run fails, the installer's own reason (a failed integrity check, a file it couldn't write) is shown with the exit code instead of the bare code.
 

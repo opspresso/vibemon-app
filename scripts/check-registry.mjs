@@ -3,14 +3,14 @@
  * Verifies that the bundled registry fallbacks (src/shared/data/*.json and
  * src/assets/characters/*.png) and the vendored rendering modules
  * (src/engine/, src/bubble/) match the canonical copies in the
- * vibemon-static repository.
+ * vibemon-web repository.
  *
  * By default the canonical files are fetched from GitHub (main branch). Set
- * VIBEMON_STATIC_DIR to a local vibemon-static checkout to compare offline.
+ * VIBEMON_WEB_DIR to a local vibemon-web checkout to compare offline.
  * Pass --fix to overwrite the bundled copies with the canonical ones.
  *
  *   node scripts/check-registry.mjs
- *   VIBEMON_STATIC_DIR=../vibemon-static node scripts/check-registry.mjs --fix
+ *   VIBEMON_WEB_DIR=../vibemon-web node scripts/check-registry.mjs --fix
  */
 
 import { createHash } from 'node:crypto';
@@ -19,8 +19,10 @@ import path from 'node:path';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
 
+const revision = JSON.parse(await readFile(new URL('../web-assets.json', import.meta.url), 'utf8')).revision;
+if (!/^[a-f0-9]{40}$/.test(revision)) throw new Error('web-assets.json requires a pinned commit SHA');
 const CANONICAL_BASE_URL =
-  'https://raw.githubusercontent.com/opspresso/vibemon-static/main/docs';
+  `https://raw.githubusercontent.com/opspresso/vibemon-web/${revision}/public/static`;
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const DATA_DIR = path.join(ROOT, 'src', 'shared', 'data');
 const ASSETS_DIR = path.join(ROOT, 'src', 'assets', 'characters');
@@ -30,9 +32,9 @@ const BUBBLE_DIR = path.join(ROOT, 'src', 'bubble');
 const FIX = process.argv.includes('--fix');
 
 async function loadCanonical(relPath) {
-  const staticDir = process.env.VIBEMON_STATIC_DIR;
+  const staticDir = process.env.VIBEMON_WEB_DIR;
   if (staticDir) {
-    return readFile(path.join(staticDir, 'docs', relPath));
+    return readFile(path.join(staticDir, 'public', 'static', relPath));
   }
   const res = await fetch(`${CANONICAL_BASE_URL}/${relPath}`);
   if (!res.ok) {
@@ -69,7 +71,7 @@ async function compare(relPath, localPath, isJson) {
     return true;
   }
 
-  console.error(`DRIFT ${relPath} (bundled copy differs from vibemon-static)`);
+  console.error(`DRIFT ${relPath} (bundled copy differs from vibemon-web)`);
   return false;
 }
 
@@ -92,4 +94,4 @@ if (results.includes(false)) {
   console.error('\nRe-sync with: node scripts/check-registry.mjs --fix');
   process.exit(1);
 }
-console.log('Bundled registry fallbacks are in sync with vibemon-static.');
+console.log('Bundled registry fallbacks are in sync with vibemon-web.');

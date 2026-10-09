@@ -19,7 +19,7 @@ on:
       - 'scripts/check-registry.mjs'
       - '.github/workflows/registry-drift.yml'
   schedule:
-    # Weekly: catch canonical registry changes in vibemon-static
+    # Weekly: catch canonical registry changes in vibemon-web
     - cron: '0 1 * * 1'
   workflow_dispatch:
 
@@ -36,5 +36,5 @@ jobs:
           node-version: '24'
 
       # No dependency install: the script only uses node built-ins and fetch.
-      - name: Compare bundled fallbacks with vibemon-static canonical
+      - name: Compare bundled fallbacks with vibemon-web canonical
         run: node scripts/check-registry.mjs

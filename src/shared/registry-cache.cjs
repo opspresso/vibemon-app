@@ -1,8 +1,8 @@
 /**
  * Registry cache (CommonJS)
  *
- * Canonical state/character registries live in the vibemon-static repository
- * and are served from STATIC_BASE_URL (static.vibemon.io). This module
+ * Canonical state/character registries live in the vibemon-web repository
+ * and are served from STATIC_BASE_URL (vibemon.io/static). This module
  * resolves the registries synchronously at startup — last cached remote copy
  * (validated) first, bundled data/*.json as fallback — and exposes refresh()
  * to fetch/validate/cache the remote copies in the background. A refreshed
@@ -22,7 +22,7 @@ const path = require('path');
 const bundledStates = require('./data/states.json');
 const bundledCharacters = require('./data/characters.json');
 
-const STATIC_BASE_URL = (process.env.VIBEMON_STATIC_URL || 'https://static.vibemon.io').replace(/\/+$/, '');
+const STATIC_BASE_URL = (process.env.VIBEMON_STATIC_URL || 'https://vibemon.io/static').replace(/\/+$/, '');
 
 const FETCH_TIMEOUT_MS = 5000;
 

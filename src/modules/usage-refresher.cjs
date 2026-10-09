@@ -1,7 +1,7 @@
 /**
  * Plan-usage cache refresher for Vibe Monitor
  *
- * Runs the installed ~/.vibemon/usage.py (placed by the docs.vibemon.io
+ * Runs the installed ~/.vibemon/usage.py (placed by the vibemon.io/install
  * installer), which fetches `claude -p "/usage"` and refreshes the shared
  * usage cache (~/.vibemon/cache/usage.json) that the AI-tool hooks read.
  * Invoked on app startup and on a schedule so usage data stays fresh even

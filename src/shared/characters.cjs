@@ -1,11 +1,11 @@
 /**
  * Character registry (CommonJS)
  *
- * Single source of truth: the canonical registry in vibemon-static
- * (static.vibemon.io/data/characters.json), resolved at startup by
+ * Single source of truth: the canonical registry in vibemon-web
+ * (vibemon.io/static/data/characters.json), resolved at startup by
  * registry-cache.cjs (cached remote copy → bundled data/characters.json).
  * To add a character, add its 128x128 PNG and one registry entry to
- * vibemon-static — the rendering engine, tray icon, menus, and validation
+ * vibemon-web — the rendering engine, tray icon, menus, and validation
  * all derive from the registry (bundled copies remain as offline fallback).
  */
 

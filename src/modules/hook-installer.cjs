@@ -3,7 +3,7 @@
  *
  * Detects locally installed AI CLI tools (Claude Code, Codex CLI, Kiro IDE,
  * OpenClaw, OpenCode) that are missing the VibeMon hook files, and — after explicit
- * user confirmation — runs the official docs.vibemon.io/install.py installer
+ * user confirmation — runs the official vibemon.io/install/install.py installer
  * to set them up. The script is downloaded over HTTPS and piped to
  * `python3 -` via stdin instead of a `curl | python3` shell pipe, so
  * arguments never pass through a shell.
@@ -291,7 +291,7 @@ function normalizeOpenCodePlugin(source) {
 }
 
 // Per tool, `files` lists every file install.py copies verbatim (local
-// install path ↔ path under docs.vibemon.io), used to detect drift against
+// install path ↔ path under vibemon.io/install), used to detect drift against
 // the published manifest.json. OpenCode's plugin supplies a normalizer for
 // its installer-adapted path literals. Merged config files (settings.json,
 // hooks.json, ...) and platform-adapted configs are excluded — their installed
