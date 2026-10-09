@@ -128,7 +128,7 @@ describe('multiple accounts and resources', () => {
 
 
 describe('bounded response reading', () => {
-  const { readJsonResponse } = require('../src/monitoring/response.cjs');
+  const { readJsonResponse } = require('../src/shared/json-response.cjs');
   test('cancels oversized bodies before buffering the rest', async () => {
     const reader = { read: jest.fn().mockResolvedValue({ done: false, value: Buffer.alloc(8) }), cancel: jest.fn(), releaseLock: jest.fn() };
     await expect(readJsonResponse({ body: { getReader: () => reader } }, 10)).rejects.toThrow('size limit');
@@ -139,7 +139,7 @@ describe('bounded response reading', () => {
   test('does not expose an invalid response body in error messages', async () => {
     let sent = false;
     const reader = { read: async () => sent ? { done: true } : (sent = true, { done: false, value: Buffer.from('fixture-sensitive-text') }), releaseLock: jest.fn() };
-    await expect(readJsonResponse({ body: { getReader: () => reader } }, 100)).rejects.toThrow('Invalid JSON from Web');
+    await expect(readJsonResponse({ body: { getReader: () => reader } }, 100)).rejects.toThrow('Invalid JSON response');
   });
 });
 

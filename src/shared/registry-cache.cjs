@@ -18,6 +18,8 @@
 
 const fs = require('fs');
 const path = require('path');
+const { readJsonResponse } = require('./json-response.cjs');
+const { REGISTRY_MAX_RESPONSE_BYTES } = require('./constants.cjs');
 
 const bundledStates = require('./data/states.json');
 const bundledCharacters = require('./data/characters.json');
@@ -234,7 +236,7 @@ async function fetchJson(url) {
   if (!res.ok) {
     throw new Error(`HTTP ${res.status}`);
   }
-  return res.json();
+  return readJsonResponse(res, REGISTRY_MAX_RESPONSE_BYTES);
 }
 
 function writeFileAtomic(file, data) {

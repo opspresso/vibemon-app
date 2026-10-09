@@ -1,7 +1,7 @@
 const { TextDecoder } = require('node:util');
 
 async function readJsonResponse(response, maximumBytes) {
-  if (!response.body) throw new Error('Empty Web response');
+  if (!response.body) throw new Error('Empty JSON response');
   const reader = response.body.getReader();
   const decoder = new TextDecoder('utf-8', { fatal: true });
   let bytes = 0;
@@ -13,13 +13,13 @@ async function readJsonResponse(response, maximumBytes) {
       bytes += value.byteLength;
       if (bytes > maximumBytes) {
         await reader.cancel();
-        throw new Error('Web response exceeds the size limit');
+        throw new Error('JSON response exceeds the size limit');
       }
       text += decoder.decode(value, { stream: true });
     }
     text += decoder.decode();
     try { return JSON.parse(text); }
-    catch { throw new Error('Invalid JSON from Web'); }
+    catch { throw new Error('Invalid JSON response'); }
   } finally {
     reader.releaseLock();
   }

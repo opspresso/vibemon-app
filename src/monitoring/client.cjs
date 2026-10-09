@@ -1,4 +1,4 @@
-const { readJsonResponse } = require('./response.cjs');
+const { readJsonResponse } = require('../shared/json-response.cjs');
 const { EventEmitter } = require('events');
 const { METRICS, validId, validAccountId, accountId, groupAccounts, webOrigin, validateSources, validateTrend } = require('./domain.cjs');
 const { CLOUD_POLL_MS, CLOUD_REQUEST_TIMEOUT_MS, CLOUD_STALE_MS, CLOUD_TREND_MS, CLOUD_MAX_RESPONSE_BYTES } = require('../shared/constants.cjs');
