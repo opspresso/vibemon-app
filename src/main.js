@@ -12,8 +12,10 @@
 // Load environment variables from .env.local or .env
 const path = require('path');
 const Store = require('electron-store');
-require('dotenv').config({ path: path.join(__dirname, '..', '.env.local') });
-require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
+for (const name of ['.env.local', '.env']) {
+  try { process.loadEnvFile(path.join(__dirname, '..', name)); }
+  catch (error) { if (error.code !== 'ENOENT') throw error; }
+}
 
 const { app, BrowserWindow, ipcMain, dialog, powerMonitor, screen, safeStorage } = require('electron');
 const { MonitoringClient } = require('./monitoring/client.cjs');
