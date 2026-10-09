@@ -20,9 +20,8 @@ const VIBEMON_HOME = homePath('.vibemon');
 const VIBEMON_CONFIG_PATH = path.join(VIBEMON_HOME, 'config.json');
 const DESKTOP_HTTP_URL = `http://127.0.0.1:${HTTP_PORT}`;
 
-// Matches vibemon-docs' config.example.json defaults. Only the fields this
-// app exposes as user-editable — statusline-only fields (show_*, usage_*,
-// token_reset_hours) are out of scope here, and cache_path is intentionally
+// Matches Web's config.example.json defaults. Only the fields this
+// app exposes as user-editable — statusline-only fields (show_*) are out of scope here, and cache_path is intentionally
 // excluded: no documented reason for a user to change it, and a typo silently
 // breaks memory/model/usage display with no surfaced error.
 const VIBEMON_CONFIG_DEFAULTS = {
@@ -39,7 +38,8 @@ function readRawConfig() {
     return null;
   }
   try {
-    return JSON.parse(fs.readFileSync(VIBEMON_CONFIG_PATH, 'utf8'));
+    const value = JSON.parse(fs.readFileSync(VIBEMON_CONFIG_PATH, 'utf8'));
+    return value && typeof value === 'object' && !Array.isArray(value) ? value : undefined;
   } catch {
     return undefined; // exists but invalid JSON
   }
@@ -80,7 +80,10 @@ class VibemonConfigManager {
    * @returns {object} the fresh config after writing (same shape as read())
    */
   write(partial) {
-    const current = this.read();
+    if (!partial || typeof partial !== 'object' || Array.isArray(partial)) throw new Error('Config changes must be a JSON object');
+    const raw = readRawConfig();
+    if (raw === undefined) throw new Error('Fix ~/.vibemon/config.json: expected a valid JSON object before saving changes');
+    const current = { ...VIBEMON_CONFIG_DEFAULTS, ...(raw || {}) };
     const next = { ...current };
 
     for (const key of Object.keys(partial)) {
@@ -111,7 +114,7 @@ class VibemonConfigManager {
       }
     }
 
-    this.persist(next);
+    if (!this.persist(next)) throw new Error('Unable to save ~/.vibemon/config.json');
     return next;
   }
 
@@ -178,8 +181,7 @@ class VibemonConfigManager {
       config.vibemon_token = token;
     }
 
-    this.persist(config);
-    return true;
+    return this.persist(config);
   }
 
   /**
