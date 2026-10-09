@@ -87,10 +87,23 @@ jobs:
       - name: Build Electron app on Windows
         if: matrix.os == 'windows-latest'
         shell: bash
-        run: pnpm exec electron-builder --win --publish never
+        run: pnpm exec electron-builder --win --publish never --config.forceCodeSigning=true
         env:
           CSC_LINK: ${{ secrets.WINDOWS_CERTS }}
           CSC_KEY_PASSWORD: ${{ secrets.WINDOWS_CERTS_PASSWORD }}
+
+      - name: Verify trusted Windows signatures
+        if: matrix.os == 'windows-latest'
+        shell: pwsh
+        run: |
+          $installers = @(Get-ChildItem dist -Filter *.exe)
+          if ($installers.Count -eq 0) { throw 'No Windows installer produced' }
+          foreach ($installer in $installers) {
+            $signature = Get-AuthenticodeSignature $installer.FullName
+            if ($signature.Status -ne 'Valid') {
+              throw "Trusted Authenticode signature required for $($installer.Name): $($signature.Status)"
+            }
+          }
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v7

@@ -105,7 +105,8 @@
             "x64"
           ]
         }
-      ]
+      ],
+      "verifyUpdateCodeSignature": true
     },
     "nsis": {
       "artifactName": "${productName}-Setup-${version}.${ext}",
