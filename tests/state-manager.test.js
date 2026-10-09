@@ -62,6 +62,10 @@ describe('StateManager', () => {
       expect(result.data.character).toBe('clawd');
     });
 
+    test.each(['constructor', '__proto__'])('does not accept inherited character %s', character => {
+      expect(stateManager.validateStateData({ state: 'idle', character }).data.character).toBe('vibemon');
+    });
+
     test('replaces invalid character with default', () => {
       const data = { state: 'idle', character: 'invalid-character' };
       const result = stateManager.validateStateData(data);

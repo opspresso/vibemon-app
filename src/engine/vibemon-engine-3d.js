@@ -403,7 +403,7 @@ export class VibeMonEngine3D {
 
     if (data.state !== undefined) this.currentState = data.state;
     if (data.character !== undefined) {
-      const next = this.characters[data.character] ? data.character : this.defaultCharacter;
+      const next = Object.hasOwn(this.characters, data.character) ? data.character : this.defaultCharacter;
       if (next !== this.currentCharacter) {
         this.currentCharacter = next;
         this._applyTheme(next);

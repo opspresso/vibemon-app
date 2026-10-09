@@ -183,3 +183,8 @@ describe('loadRegistries (cache → bundled fallback)', () => {
     expect(registryCache.charactersRegistry).toEqual(bundledCharacters);
   });
 });
+
+
+test.each(['constructor', '__proto__'])('requires an own default character entry: %s', name => {
+  expect(sanitizeCharactersRegistry({ default: name, characters: {} })).toBeNull();
+});

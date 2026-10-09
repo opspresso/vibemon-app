@@ -177,7 +177,7 @@ function drawTrayIcon(state, characterImage, showBadge) {
  * @returns {Promise<Electron.NativeImage>}
  */
 async function createTrayIcon(state, character = DEFAULT_CHARACTER, showBadge = false) {
-  const name = CHARACTER_CONFIG[character] ? character : DEFAULT_CHARACTER;
+  const name = Object.hasOwn(CHARACTER_CONFIG, character) ? character : DEFAULT_CHARACTER;
   const cacheKey = `${state}-${name}-${showBadge}`;
 
   // Return cached icon if available

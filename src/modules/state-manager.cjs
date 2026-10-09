@@ -142,7 +142,7 @@ class StateManager {
 
     // Validate and normalize character field
     if (normalized.character !== undefined) {
-      normalized.character = CHARACTER_CONFIG[normalized.character]
+      normalized.character = Object.hasOwn(CHARACTER_CONFIG, normalized.character)
         ? normalized.character
         : DEFAULT_CHARACTER;
     }

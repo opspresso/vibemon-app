@@ -385,7 +385,7 @@ export class VibeMonEngine {
     const prevState = this.currentState;
     if (data.state !== undefined) this.currentState = data.state;
     if (data.character !== undefined) {
-      this.currentCharacter = this.characters[data.character] ? data.character : this.defaultCharacter;
+      this.currentCharacter = Object.hasOwn(this.characters, data.character) ? data.character : this.defaultCharacter;
     }
 
     if (this.currentState === 'idle' && prevState !== 'idle') {

@@ -76,7 +76,7 @@ function sanitizeStatesRegistry(json) {
     return null;
   }
 
-  const states = {};
+  const states = Object.create(null);
   for (const [name, entry] of Object.entries(json.states)) {
     const required = REQUIRED_STATES.includes(name);
     const valid =
@@ -152,7 +152,7 @@ function sanitizeCharactersRegistry(json) {
     return null;
   }
 
-  const characters = {};
+  const characters = Object.create(null);
   for (const [name, entry] of Object.entries(json.characters)) {
     if (!REGISTRY_NAME.test(name) || !entry || typeof entry !== 'object') continue;
 
@@ -194,7 +194,7 @@ function sanitizeCharactersRegistry(json) {
     }
   }
 
-  if (typeof json.default !== 'string' || !characters[json.default]) {
+  if (typeof json.default !== 'string' || !Object.hasOwn(characters, json.default)) {
     return null;
   }
 
