@@ -731,10 +731,11 @@ class HookInstaller {
    * @param {string[]} flags - e.g. ['--claude']
    * @returns {Promise<{ok: boolean, reason?: string, [key: string]: any}>}
    */
-  runScript(script, python, flags) {
+  runScript(script, python, flags, token) {
     return new Promise((resolve) => {
       const child = spawn(python.command, [...python.prefixArgs, '-', ...flags], {
         stdio: ['pipe', 'pipe', 'pipe'],
+        env: { ...process.env, ...(token ? { VIBEMON_WRITE_TOKEN: token } : {}) },
         ...SPAWN_DEFAULTS
       });
       let stdout = '';
@@ -765,9 +766,8 @@ class HookInstaller {
    * download fails the whole batch (nothing to run); an individual script
    * run failing does not stop the remaining tools.
    * @param {Array} tools
-   * @param {string|null} token - VibeMon account token; when set (and
-   *   well-formed), passed to install.py as `--token` so a fresh install
-   *   seeds ~/.vibemon/config.json with the same token the app reports with
+   * @param {string|null} token - Optional generated hook write credential,
+   *   passed only through the child environment. Never use the App read token.
    * @param {{showSummary?: boolean}} [options] - showSummary: whether to show
    *   the native result dialog when finished (default true). The Settings
    *   window's Install/Reinstall button passes false since it already shows
@@ -800,13 +800,9 @@ class HookInstaller {
         }
 
         if (script !== null) {
-          // Guard the format locally: install.py rejects a malformed --token
-          // at argparse level (exit 2), which would fail the whole install.
-          const tokenFlags = typeof token === 'string' && /^[a-z0-9_-]{8,64}$/.test(token)
-            ? ['--token', token]
-            : [];
+          const writeToken = typeof token === 'string' && /^vm_[a-f0-9]{60}$/.test(token) ? token : undefined;
           for (const tool of tools) {
-            const result = await this.runScript(script, python, [tool.flag, ...tokenFlags]);
+            const result = await this.runScript(script, python, [tool.flag], writeToken);
             results.push({ tool, result });
           }
         }

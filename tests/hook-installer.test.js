@@ -884,15 +884,18 @@ describe('HookInstaller', () => {
     test('downloads install.py exactly once for a multi-tool batch and spawns once per tool', async () => {
       const children = mockSuccessfulInstall();
 
-      const results = await hookInstaller.installTools([TOOLS[0], TOOLS[1]], 'my_token_123');
+      const token = 'vm_' + 'a'.repeat(60);
+      const results = await hookInstaller.installTools([TOOLS[0], TOOLS[1]], token);
 
       const scriptFetches = https.get.mock.calls.filter(c => c[0].endsWith('/install.py'));
       expect(scriptFetches).toHaveLength(1);
       expect(spawn).toHaveBeenCalledTimes(2);
       expect(children).toHaveLength(2);
       expect(results.every(r => r.result.ok)).toBe(true);
-      expect(spawn.mock.calls[0][1]).toEqual(['-', TOOLS[0].flag, '--token', 'my_token_123']);
-      expect(spawn.mock.calls[1][1]).toEqual(['-', TOOLS[1].flag, '--token', 'my_token_123']);
+      expect(spawn.mock.calls[0][1]).toEqual(['-', TOOLS[0].flag]);
+      expect(spawn.mock.calls[1][1]).toEqual(['-', TOOLS[1].flag]);
+      expect(spawn.mock.calls[0][2].env.VIBEMON_WRITE_TOKEN).toBe(token);
+      expect(JSON.stringify(spawn.mock.calls.map(call => call[1]))).not.toContain(token);
     });
 
     test('omits --token when the token is missing or malformed (install.py exits 2 on a bad --token)', async () => {
