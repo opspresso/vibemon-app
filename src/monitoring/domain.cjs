@@ -20,26 +20,56 @@ function webOrigin(value, allowLocalHttp = false) {
   }
   return url.origin;
 }
+function metrics(value) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Invalid metric response');
+  return Object.fromEntries(Object.keys(METRICS).map(key => {
+    const number = value[key] ?? null;
+    const limit = key.endsWith('Percent') ? 100 : key === 'gpuTemperatureC' ? 150 : 1000000;
+    if (number !== null && (typeof number !== 'number' || !Number.isFinite(number) || number < 0 || number > limit)) throw new Error('Invalid metric response');
+    return [key, number];
+  }));
+}
+function validTime(value) { return typeof value === 'string' && Number.isFinite(Date.parse(value)); }
 function validateSources(value) {
   if (!Array.isArray(value) || value.length > 1000) throw new Error('Invalid source response');
+  const ids = new Set();
   return value.map(source => {
-    if (!source || !validId(source.sourceId) || !['agent', 'host', 'cluster'].includes(source.kind) || typeof source.displayName !== 'string' || source.displayName.length > 128 || !Number.isFinite(Date.parse(source.receivedAt)) || !Number.isFinite(Date.parse(source.observedAt)) || !source.metrics) {
-      throw new Error('Invalid source response');
-    }
+    if (!source || !validId(source.sourceId) || ids.has(source.sourceId) || !['agent', 'host', 'cluster'].includes(source.kind) || typeof source.displayName !== 'string' || !source.displayName.trim() || source.displayName.length > 128 || !validTime(source.receivedAt) || !validTime(source.observedAt) || !['ok', 'warning', 'error', 'unknown'].includes(source.health) || typeof source.stale !== 'boolean' || (source.memoryType != null && !['ram', 'unified'].includes(source.memoryType))) throw new Error('Invalid source response');
+    ids.add(source.sourceId);
+    let agent = null;
+    let account = null;
     if (source.kind === 'agent') {
-      if (!source.agent || !['state', 'character', 'project'].every(key => typeof source.agent[key] === 'string' && source.agent[key].length <= 256)) throw new Error('Invalid agent response');
-      if (!source.account || !validAccountId(accountId(source.account)) || typeof source.account.displayName !== 'string' || source.account.displayName.length > 128) throw new Error('Invalid account response');
+      if (!source.agent || !['state', 'character', 'project'].every(key => typeof source.agent[key] === 'string' && source.agent[key].length > 0 && source.agent[key].length <= 256)) throw new Error('Invalid agent response');
+      if (!source.account || !validAccountId(accountId(source.account)) || typeof source.account.displayName !== 'string' || !source.account.displayName.trim() || source.account.displayName.length > 128) throw new Error('Invalid account response');
+      agent = Object.fromEntries(['state', 'character', 'project'].map(key => [key, source.agent[key]]));
+      for (const key of ['tool', 'model', 'usageWeekModelLabel']) {
+        const text = source.agent[key];
+        if (text !== undefined && (typeof text !== 'string' || text.length > 128)) throw new Error('Invalid agent response');
+        if (text !== undefined) agent[key] = text;
+      }
+      for (const key of ['usage5hResetsIn', 'usageWeekResetsIn', 'usageWeekModelResetsIn', 'usageWeekModel']) {
+        const number = source.agent[key];
+        if (number !== undefined && (!Number.isSafeInteger(number) || number < 0 || (key === 'usageWeekModel' && number > 100))) throw new Error('Invalid agent response');
+        if (number !== undefined) agent[key] = number;
+      }
+      account = { id: source.account.id, provider: source.account.provider, displayName: source.account.displayName };
     }
-    const metrics = {};
-    for (const key of Object.keys(METRICS)) {
-      const metric = source.metrics[key] ?? null;
-      if (metric !== null && (typeof metric !== 'number' || !Number.isFinite(metric) || metric < 0 || metric > (key.endsWith('Percent') ? 100 : key === 'gpuTemperatureC' ? 150 : 1000000))) throw new Error('Invalid metric response');
-      metrics[key] = metric;
-    }
-    return { ...source, metrics };
+    return { sourceId: source.sourceId, kind: source.kind, displayName: source.displayName, receivedAt: source.receivedAt, observedAt: source.observedAt, health: source.health, stale: source.stale, memoryType: source.memoryType ?? null, metrics: metrics(source.metrics), agent, account };
   });
 }
-module.exports = { METRICS, validId, webOrigin, validateSources };
+function validateTrend(value) {
+  if (!Array.isArray(value) || value.length > 61) throw new Error('Invalid trend response');
+  let previous = -Infinity;
+  return value.map(point => {
+    if (!point || !validTime(point.timestamp) || Date.parse(point.timestamp) <= previous || !Number.isSafeInteger(point.samples) || point.samples < 1 || !Number.isFinite(point.expiresAt) || point.expiresAt < 0) throw new Error('Invalid trend response');
+    previous = Date.parse(point.timestamp);
+    const average = metrics(point.average);
+    const maximum = metrics(point.maximum);
+    for (const key of Object.keys(METRICS)) if ((average[key] === null) !== (maximum[key] === null) || (average[key] !== null && maximum[key] < average[key])) throw new Error('Invalid trend response');
+    return { timestamp: point.timestamp, samples: point.samples, expiresAt: point.expiresAt, average, maximum };
+  });
+}
+module.exports = { METRICS, validId, webOrigin, validateSources, validateTrend };
 
 function accountId(account) { return `${account.provider}:${account.id}`; }
 function validAccountId(value) {

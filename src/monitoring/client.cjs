@@ -1,6 +1,6 @@
 const { readJsonResponse } = require('./response.cjs');
 const { EventEmitter } = require('events');
-const { METRICS, validId, validAccountId, accountId, groupAccounts, webOrigin, validateSources } = require('./domain.cjs');
+const { METRICS, validId, validAccountId, accountId, groupAccounts, webOrigin, validateSources, validateTrend } = require('./domain.cjs');
 const { CLOUD_POLL_MS, CLOUD_REQUEST_TIMEOUT_MS, CLOUD_STALE_MS, CLOUD_TREND_MS, CLOUD_MAX_RESPONSE_BYTES } = require('../shared/constants.cjs');
 
 class MonitoringClient extends EventEmitter {
@@ -130,8 +130,7 @@ class MonitoringClient extends EventEmitter {
     const account = typeof target === 'object' && target?.kind === 'account';
     if (!(account ? validAccountId(sourceId) : validId(sourceId))) throw new Error('Invalid source ID');
     const data = await this.request(`/api/v1/${account ? 'accounts' : 'sources'}/${encodeURIComponent(sourceId)}/trend?hours=1`);
-    if (!Array.isArray(data.points) || data.points.length > 61) throw new Error('Invalid trend response');
-    return data.points;
+    return validateTrend(data.points);
   }
   start() {
     if (this.timer) return;

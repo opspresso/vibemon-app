@@ -1,6 +1,6 @@
 const { MonitoringClient } = require('../src/monitoring/client.cjs');
 const { CredentialStore } = require('../src/monitoring/credential-store.cjs');
-const { validateSources, webOrigin } = require('../src/monitoring/domain.cjs');
+const { validateSources, validateTrend, webOrigin } = require('../src/monitoring/domain.cjs');
 const rawToken = 'vm_' + '1'.repeat(60);
 function okResponse(value) {
   return { ok: true, body: { getReader: () => {
@@ -13,7 +13,7 @@ function store(initial = {}) {
   const values = new Map(Object.entries(initial));
   return { get: key => values.get(key), set: (key, value) => values.set(key, value), delete: key => values.delete(key), values };
 }
-const source = now => ({ sourceId: 'spark', kind: 'host', displayName: 'Spark', observedAt: new Date(now).toISOString(), receivedAt: new Date(now).toISOString(), metrics: { cpuPercent: 35, memoryPercent: 72, gpuTemperatureC: 40, gpuPercent: null }, memoryType: 'unified' });
+const source = now => ({ sourceId: 'spark', kind: 'host', displayName: 'Spark', health: 'ok', stale: false, observedAt: new Date(now).toISOString(), receivedAt: new Date(now).toISOString(), metrics: { cpuPercent: 35, memoryPercent: 72, gpuTemperatureC: 40, gpuPercent: null }, memoryType: 'unified' });
 function fixture(now = 1000000) {
   const preferences = store({ url: 'https://web.example' });
   const secrets = store();
@@ -140,5 +140,23 @@ describe('bounded response reading', () => {
     let sent = false;
     const reader = { read: async () => sent ? { done: true } : (sent = true, { done: false, value: Buffer.from('fixture-sensitive-text') }), releaseLock: jest.fn() };
     await expect(readJsonResponse({ body: { getReader: () => reader } }, 100)).rejects.toThrow('Invalid JSON from Web');
+  });
+});
+
+
+describe('validated renderer data', () => {
+  test('unknown fields never cross the source boundary', () => {
+    const [value] = validateSources([{ ...source(1000000), token: rawToken, privatePayload: { token: rawToken } }]);
+    expect(JSON.stringify(value)).not.toContain(rawToken);
+  });
+  test('duplicate source IDs and invalid freshness flags are rejected', () => {
+    expect(() => validateSources([source(1000000), source(1000000)])).toThrow();
+    expect(() => validateSources([{ ...source(1000000), stale: 'false' }])).toThrow();
+  });
+  test('trends reject malformed metrics, reversed timestamps, and impossible maxima', () => {
+    const point = { timestamp: '2026-10-09T00:00:00.000Z', samples: 2, expiresAt: 2000000000, average: { cpuPercent: 35 }, maximum: { cpuPercent: 40 } };
+    expect(validateTrend([point])[0]).toMatchObject({ average: { cpuPercent: 35, gpuPercent: null } });
+    for (const invalid of [null, { ...point, average: { cpuPercent: '35' } }, { ...point, average: { cpuPercent: -5 } }, { ...point, maximum: { cpuPercent: 30 } }, { ...point, samples: 0 }]) expect(() => validateTrend([invalid])).toThrow();
+    expect(() => validateTrend([point, point])).toThrow();
   });
 });

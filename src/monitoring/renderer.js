@@ -37,6 +37,15 @@ function checkboxes(container, options, selected) {
     const field = node('label'); field.append(input, document.createTextNode(label)); container.append(field);
   }
 }
+function visibleMetricKeys(source) {
+  return snapshot.selectedMetrics.filter(key => {
+    const agentMetric = ['contextPercent', 'usageSessionPercent', 'usageWeekPercent'].includes(key);
+    if ((source.kind === 'agent') !== agentMetric) return false;
+    if (source.kind === 'host' && ['nodesReady', 'nodesTotal', 'podsUnhealthy'].includes(key)) return false;
+    if (source.kind === 'cluster' && ['gpuPercent', 'gpuTemperatureC'].includes(key)) return false;
+    return true;
+  });
+}
 function render(data) {
   snapshot = data;
   $('connection').textContent = descriptions[data.status] || data.status;
@@ -69,12 +78,8 @@ function render(data) {
       card.append(members);
     }
     card.append(node('span', source.stale ? 'Stale — last received state' : source.agent?.state || source.health, `badge ${source.stale ? 'stale' : source.health}`));
-    for (const key of data.selectedMetrics) {
+    for (const key of visibleMetricKeys(source)) {
       const value = source.metrics[key];
-      const agentMetric = ['contextPercent', 'usageSessionPercent', 'usageWeekPercent'].includes(key);
-      if ((source.kind === 'agent') !== agentMetric) continue;
-      if (source.kind === 'host' && ['nodesReady', 'nodesTotal', 'podsUnhealthy'].includes(key)) continue;
-      if (source.kind === 'cluster' && ['gpuPercent', 'gpuTemperatureC'].includes(key)) continue;
       const metric = data.metrics[key];
       const row = node('div', undefined, 'gauge'); const label = node('div', undefined, 'gauge-label');
       label.append(node('span', key === 'memoryPercent' && source.memoryType === 'unified' ? 'Unified memory' : metric.label), node('strong', value === null ? 'Unavailable' : `${Number(value.toFixed(1))}${metric.unit}`));
@@ -124,10 +129,13 @@ async function refreshTrend() {
   } catch (error) { if (generation === trendGeneration) $('trend-state').textContent = error.message; }
 }
 function openTrend(source) {
+  if (trendTimer) clearInterval(trendTimer);
+  trendTimer = null; trendGeneration++;
   selectedTrend = source; trendPoints = [];
+  $('chart').replaceChildren();
   $('trend').hidden = false; $('trend-title').textContent = `${source.displayName} · recent hour`;
   $('trend-metric').replaceChildren();
-  for (const key of snapshot.selectedMetrics) {
+  for (const key of visibleMetricKeys(source)) {
     const metric = snapshot.metrics[key]; const option = node('option', metric.label); option.value = key; $('trend-metric').append(option);
   }
   if (!$('trend-metric').options.length) { $('trend-state').textContent = 'Select at least one metric in display settings.'; return; }
@@ -146,6 +154,7 @@ $('connect-form').addEventListener('submit', async event => {
 $('disconnect').addEventListener('click', async () => { $('close-trend').click(); try { render(await call('disconnect')); } catch (error) { fail(error); } });
 $('discover').addEventListener('click', async () => { choicesDirty = false; try { render(await call('refresh')); } catch (error) { fail(error); } });
 $('save-selection').addEventListener('click', async () => {
+  $('close-trend').click();
   const sources = [...$('sources').querySelectorAll('input:checked')].map(input => input.value);
   const accounts = [...$('accounts').querySelectorAll('input:checked')].map(input => input.value);
   const metrics = [...$('metrics').querySelectorAll('input:checked')].map(input => input.value);
