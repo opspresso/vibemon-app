@@ -12,7 +12,7 @@ jest.mock('electron', () => {
     constructor(opts) {
       super();
       this.opts = opts;
-      this.webContents = { send: jest.fn(), once: jest.fn() };
+      this.webContents = { send: jest.fn(), once: jest.fn(), mainFrame: {} };
       if (MockBrowserWindow.secureWebContents) {
         this.webContents.setWindowOpenHandler = jest.fn();
         this.webContents.on = jest.fn();
@@ -121,6 +121,8 @@ function makeDeps() {
   };
 }
 
+let activeManager;
+
 function freshManager() {
   mockIpcHandlers.clear();
   BrowserWindow.instances.length = 0;
@@ -128,13 +130,16 @@ function freshManager() {
   const deps = makeDeps();
   const manager = new SettingsWindowManager(deps);
   manager.onSettingsChanged = jest.fn();
+  activeManager = manager;
   return { manager, deps };
 }
 
 function invoke(channel, ...args) {
   const handler = mockIpcHandlers.get(channel);
   if (!handler) throw new Error(`No handler for ${channel}`);
-  return handler({}, ...args);
+  if (!activeManager.window) activeManager.open();
+  const sender = activeManager.window.webContents;
+  return handler({ sender, senderFrame: sender.mainFrame }, ...args);
 }
 
 describe('settings:get-all', () => {
@@ -611,4 +616,17 @@ describe('notifyUpdateStateChanged', () => {
     const { manager } = freshManager();
     expect(() => manager.notifyUpdateStateChanged()).not.toThrow();
   });
+});
+
+
+test('all settings IPC rejects other windows and subframes before reading or changing configuration', () => {
+  const { manager, deps } = freshManager();
+  manager.open();
+  for (const handler of mockIpcHandlers.values()) {
+    expect(() => handler({ sender: {}, senderFrame: {} })).toThrow('Untrusted settings request');
+    expect(() => handler({ sender: manager.window.webContents, senderFrame: {} })).toThrow('Untrusted settings request');
+  }
+  expect(deps.vibemonConfigManager.read).not.toHaveBeenCalled();
+  expect(deps.vibemonConfigManager.write).not.toHaveBeenCalled();
+  expect(deps.app.setLoginItemSettings).not.toHaveBeenCalled();
 });
