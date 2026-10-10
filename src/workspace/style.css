@@ -501,6 +501,11 @@ h3 {
   color: var(--bad);
   border-color: transparent;
 }
+#error {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
 .notice .icon-button {
   background: transparent;
   border: 0;

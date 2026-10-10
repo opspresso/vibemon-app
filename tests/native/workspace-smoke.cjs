@@ -123,8 +123,21 @@ startFixture().then(async fixture => {
   assert.equal(client.snapshot().sources.some(source => source.sourceId === 'production'), false);
 
   await navigate('companion');
+  await ui('document.getElementById("render-mode").focus()');
   await input('#render-mode', '2d', 'change');
   await until(() => ports.appearance.RenderMode === '2d', 'render mode saved');
+  await until(() => ui('!document.getElementById("render-mode").disabled'), 'render control ready');
+  assert.equal(await ui('document.activeElement.id'), 'render-mode', 'saving retains keyboard focus');
+  assert.equal(await value('#render-mode'), '2d', 'the save response contains authoritative preferences');
+  const setRenderMode = ports.windowManager.setRenderMode;
+  ports.windowManager.setRenderMode = () => { throw new Error('Unable to save render style'); };
+  await input('#render-mode', '3d', 'change');
+  await until(() => visible('#error'), 'failed preference shown');
+  await until(() => ui('!document.getElementById("render-mode").disabled'), 'failed control ready');
+  assert.equal(await value('#render-mode'), '2d', 'failed saves restore the persisted value');
+  assert.equal(await ui('document.activeElement.id'), 'render-mode');
+  ports.windowManager.setRenderMode = setRenderMode;
+  await click('#dismiss-error');
   await click('[aria-label="Use Kiro character"]');
   await until(() => ports.appearance.CharacterLock === 'kiro', 'character choice saved');
   await click('#speech-bubble-fields input');
@@ -149,6 +162,25 @@ startFixture().then(async fixture => {
   await click('#add-http-form button');
   await until(() => ports.config.http_urls.includes('http://127.0.0.1:19999'), 'HTTP destination saved');
   assert.equal(ports.config.vibemon_token, 'fixture-secret-must-not-cross-IPC');
+
+  ports.app.isPackaged = true;
+  let update = { status: null, version: null };
+  ports.updateChecker.getState = () => ({ ...update });
+  ports.updateChecker.checkForUpdates = async () => { update = { status: 'current', version: null }; };
+  ports.updateChecker.downloadUpdate = async () => { ports.calls.push(['download-update']); update = { status: 'downloaded', version: '3.1.0' }; };
+  ports.updateChecker.installDownloaded = () => ports.calls.push(['install-update']);
+  view.notify('settings');
+  await navigate('about');
+  await click('#check-updates');
+  await until(async () => (await text('#update-status')).includes('latest available version'), 'confirmed update check');
+  update = { status: 'available', version: '3.1.0' }; view.notify('settings');
+  await until(() => visible('#update-action'), 'update action shown');
+  assert.equal(await text('#update-action'), 'Download update');
+  await click('#update-action');
+  await until(async () => (await text('#update-action')) === 'Restart and install', 'downloaded update awaits restart');
+  assert.equal(ports.calls.some(call => call[0] === 'install-update'), false);
+  await click('#update-action');
+  await until(() => ports.calls.some(call => call[0] === 'install-update'), 'explicit install action');
 
   await navigate('connections');
   await input('#web-url', 'https://edited.example');

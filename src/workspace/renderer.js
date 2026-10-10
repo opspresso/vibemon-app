@@ -35,6 +35,10 @@ async function request(command, ...args) {
     ];
     throw new Error(known.includes(response.error) ? connection(response.error)[1] : response.error);
   }
+  if (command === 'settings') {
+    accept(response.value.frame);
+    return response.value.result;
+  }
   return response.value;
 }
 function fail(error) {
@@ -51,6 +55,7 @@ function fail(error) {
 }
 async function run(control, action) {
   if (control?.dataset.busy) return;
+  const hadFocus = control && document.activeElement === control;
   if (control) {
     control.dataset.busy = 'true';
     control.disabled = true;
@@ -69,6 +74,9 @@ async function run(control, action) {
       control.removeAttribute('aria-busy');
     }
     if (frame) render(frame);
+    if (hadFocus && document.activeElement === document.body && control.checkVisibility() && !control.disabled) {
+      control.focus({ preventScroll: true });
+    }
   }
 }
 function notify(message) {
@@ -340,8 +348,8 @@ document.addEventListener('keydown', (event) => {
     }
   }
 });
-api.onChange(accept);
-api.onVisibility((value) => {
+const stopChanges = api.onChange(accept);
+const stopVisibility = api.onVisibility((value) => {
   visible = value;
   detail.visibility(value);
   if (value && frame) render(frame);
@@ -349,6 +357,8 @@ api.onVisibility((value) => {
 });
 request('snapshot').then(accept).catch(fail);
 window.addEventListener('beforeunload', () => {
+  stopChanges();
+  stopVisibility();
   detail.close();
   if (toastTimer) clearTimeout(toastTimer);
 });

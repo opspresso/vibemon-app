@@ -76,7 +76,7 @@ class WorkspaceWindow {
         if (!Array.isArray(values) || values.length > 2) throw new Error('Invalid settings arguments');
         const result = await this.settings.invoke(action, ...values);
         this.notify('settings');
-        return result;
+        return { result, frame: this.snapshot() };
       }
       case 'show-companion': this.showCompanion(); return true;
       case 'open-web': {
