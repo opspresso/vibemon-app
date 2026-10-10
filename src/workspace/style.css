@@ -1291,8 +1291,12 @@ dialog::backdrop {
 }
 .detail-meta {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 12px;
+}
+#detail-status {
+  max-width: 100%;
 }
 .detail-message {
   font-size: 12px;

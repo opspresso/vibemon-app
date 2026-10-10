@@ -1,5 +1,5 @@
 import { $, el, text, choices, keyed, svg, reading, badge, providerName, stateLabel, ago } from '../dom.js';
-import { resourceType, accountCard } from './cards.js';
+import { resourceType, accountCard, sourceState } from './cards.js';
 
 export function setupDetail({ getFrame, request, run }) {
   const dialog = $('detail-dialog');
@@ -116,7 +116,7 @@ export function setupDetail({ getFrame, request, run }) {
       source.isAccount ? `${providerName(source.provider)} · ${source.sourceId.slice(source.provider.length + 1)}` : resourceType(source)
     );
     const status = el('span');
-    badge(status, source.stale ? 'stale' : source.agent?.state || source.health);
+    badge(status, sourceState(source));
     $('detail-status').replaceChildren(status);
     text($('detail-message'), source.statusMessage || '');
     $('detail-message').hidden = !source.statusMessage;
@@ -147,7 +147,7 @@ export function setupDetail({ getFrame, request, run }) {
       },
       (row, member) => {
         text(row.children[0], member.agent.project);
-        text(row.children[1], member.stale ? 'Stale' : stateLabel(member.agent.state));
+        text(row.children[1], stateLabel(sourceState(member)));
       }
     );
     const choice = $('trend-metric').value;

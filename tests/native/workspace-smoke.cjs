@@ -128,6 +128,21 @@ startFixture().then(async fixture => {
 
   await navigate('agents');
   assert.equal(await ui('document.querySelectorAll("#agent-cards .card").length'), 4);
+  state.sources = () => {
+    const data = originalSources();
+    const team = data.find(source => source.sourceId === 'codex-team');
+    return [...data, { ...team, sourceId: 'waiting-review', displayName: 'release-review', observedAt: new Date(Date.now() - 1000).toISOString(), agent: { ...team.agent, state: 'notification', project: 'release-review' } }];
+  };
+  await client.poll(true);
+  await until(() => ui('[...document.querySelectorAll("#agent-cards .card")].find(card => card.querySelector("h3").textContent === "Engineering").querySelector(".chip").textContent === "Needs input"'), 'account surfaces attention from an older reporting project');
+  await click('#agent-cards [aria-label="View Engineering details"]');
+  assert.equal(await text('#detail-status .chip'), 'Needs input');
+  assert.ok((await text('#detail-members')).includes('release-review'));
+  assert.ok((await text('#detail-readings')).includes('38%'), 'account usage still comes from its latest observation');
+  await click('[data-close-dialog="detail-dialog"]');
+  state.sources = originalSources;
+  await client.poll(true);
+  await until(() => ui('[...document.querySelectorAll("#agent-cards .card")].find(card => card.querySelector("h3").textContent === "Engineering").querySelector(".chip").textContent === "Working"'), 'account attention clears when the project no longer reports it');
   await input('#agent-filter', 'codex');
   assert.deepEqual(await ui('[...document.querySelectorAll("#agent-cards h3")].map(node => node.textContent)'), ['Engineering', 'Personal projects']);
   assert.ok((await text('#agent-cards')).includes('Codex · team'));

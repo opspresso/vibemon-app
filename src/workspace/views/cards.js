@@ -25,10 +25,14 @@ export const accountCard = (account) => ({
   provider: account.provider,
   members: account.sources
 });
-export const needsAttention = (source) =>
-  source.stale ||
-  ['warning', 'error'].includes(source.health) ||
-  ['notification', 'alert'].includes(source.agent?.state);
+const attentionStates = ['error', 'alert', 'notification', 'warning', 'stale'];
+export function sourceState(source) {
+  const states = (source.members || [source]).flatMap(member =>
+    member.stale ? ['stale'] : [member.health, member.agent?.state]
+  );
+  return attentionStates.find(state => states.includes(state)) || source.agent?.state || source.health;
+}
+export const needsAttention = source => attentionStates.includes(sourceState(source));
 
 export function createMetric() {
   const node = el('div', undefined, 'metric');
@@ -149,7 +153,7 @@ export function renderCards(
           );
         parts.image.dataset.identity = identity;
       }
-      badge(parts.status, source.stale ? 'stale' : source.agent?.state || source.health);
+      badge(parts.status, sourceState(source));
       const message =
         source.statusMessage ||
         (source.isAccount
