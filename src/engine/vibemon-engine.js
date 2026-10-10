@@ -7,8 +7,8 @@
  * background stays fully transparent — state color and status/metric text
  * live in the speech bubble module (vibemon-bubble.js), not here.
  *
- * Web imports this canonical module directly. The desktop App vendors the
- * pinned revision through its check-registry script.
+ * App loads this canonical module directly. web-distribution.json exports
+ * it to Web's pinned public snapshot.
  *
  * Character definitions (colors, eye/effect coordinates, image files) and
  * state definitions (eyeType/effect per state) come from the shared

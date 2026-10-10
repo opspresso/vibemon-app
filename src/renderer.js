@@ -56,10 +56,8 @@ async function init() {
   applyDisplayOptions(container, displayOptions);
 
   if (renderMode === '3d') {
-    // 3D pet engine: renders procedurally — characters map to the registry's
-    // `theme` palette, no images are loaded. The engine is vendored from
-    // the public App distribution, which ships no dependencies, so it takes three.js from
-    // here (local file: the CSP forbids runtime CDN imports).
+    // The shared 3D engine maps characters to registry themes without images.
+    // Supply the local three.js bundle; the CSP forbids runtime CDN imports.
     const [{ createVibeMonEngine }, THREE] = await Promise.all([
       import('./engine/vibemon-engine-3d.js'),
       import('./vendor/three.module.min.js')

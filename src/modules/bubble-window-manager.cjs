@@ -86,7 +86,7 @@ function buildFieldPayload(state, speechBubbleFields) {
     payload.status = { type: 'text', text };
     if (LOADING_STATES.includes(stateKey)) {
       // Loading dots beside the text; thinking-style states animate slower
-      // than working (bubble.html's DOT_SLOWDOWN).
+      // than working (vibemon-bubble.css's slow and fast animations).
       payload.status.showLoading = true;
       payload.status.slow = stateKey !== 'working';
     }
