@@ -4,8 +4,11 @@ on:
   pull_request:
     paths:
       - 'src/**'
-      - 'tests/native/**'
-      - 'tests/fixtures/**'
+      - 'tests/**'
+      - 'jest.config.js'
+      - 'eslint.config.js'
+      - '.nvmrc'
+      - 'pnpm-workspace.yaml'
       - 'package.json'
       - 'pnpm-lock.yaml'
       - '.github/workflows/overlay-verification.yml'
@@ -31,6 +34,8 @@ jobs:
         with:
           version: '12.10.1'
       - run: pnpm install --frozen-lockfile
+      - name: Lint and unit regressions
+        run: pnpm lint && pnpm exec jest --coverage --runInBand
       - name: Verify desktop workspace
         timeout-minutes: 2
         run: pnpm test:workspace
@@ -44,6 +49,10 @@ jobs:
             pnpm test:overlays --force-device-scale-factor=$scale
             if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           }
+      - name: Verify unpacked desktop package
+        run: pnpm exec electron-builder --dir --publish never --config.directories.output=out/package-check
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
       - name: Save geometry results and screenshots
         if: always()
         uses: actions/upload-artifact@v7
