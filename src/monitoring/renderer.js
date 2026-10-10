@@ -4,10 +4,11 @@ const descriptions = {
   connecting: 'Connecting…',
   connected: 'Connected · updates every 30 seconds',
   'not-configured': 'Not configured',
-  'token-expired': 'Token expired or revoked — enter a new read token',
+  'token-expired': 'Read token rejected — retrieve a token from this Web account',
   'permission-denied': 'This token does not have read permission',
   'connection-error': 'Cannot reach Web — showing the last received values',
-  'secure-storage-unavailable': 'Unlock the operating system secure storage'
+  'secure-storage-unavailable': 'Unlock the operating system secure storage',
+  'credential-unavailable': 'Saved token cannot be decrypted — enter it again from Web Account'
 };
 let snapshot = null;
 let selectedMetricIds = new Set();
@@ -44,7 +45,7 @@ function visibleMetrics(source) {
 }
 function render(data) {
   if (!snapshot) $('settings').open = data.status !== 'connected';
-  else if (snapshot.status !== data.status && ['not-configured', 'token-expired', 'permission-denied', 'secure-storage-unavailable'].includes(data.status)) $('settings').open = true;
+  else if (snapshot.status !== data.status && ['not-configured', 'token-expired', 'permission-denied', 'secure-storage-unavailable', 'credential-unavailable'].includes(data.status)) $('settings').open = true;
   snapshot = data;
   selectedMetricIds = new Set(data.selectedMetrics);
   $('connection').textContent = descriptions[data.status] || data.status;

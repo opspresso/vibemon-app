@@ -11,7 +11,8 @@ class CredentialStore {
   get() {
     if (!this.has()) return null;
     if (!this.available()) throw Object.assign(new Error('Unlock the OS secure storage'), { code: 'secure-storage-unavailable' });
-    return this.safeStorage.decryptString(Buffer.from(this.store.get('credential'), 'base64'));
+    try { return this.safeStorage.decryptString(Buffer.from(this.store.get('credential'), 'base64')); }
+    catch { throw Object.assign(new Error('The saved read token cannot be decrypted. Enter it again from Web Account.'), { code: 'credential-unavailable' }); }
   }
   set(token) {
     if (!this.available()) throw new Error('OS secure storage is unavailable; unlock your keychain or secret service');

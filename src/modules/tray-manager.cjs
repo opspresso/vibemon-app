@@ -424,7 +424,8 @@ class TrayManager {
     const status = this.monitoringClient.getStatus();
     const labels = {
       connected: 'Connected', connecting: 'Connecting…', 'not-configured': 'Not configured',
-      'token-expired': 'Token expired or revoked', 'permission-denied': 'Read permission required',
+      'token-expired': 'Read token rejected', 'permission-denied': 'Read permission required',
+      'credential-unavailable': 'Saved token needs replacement',
       'connection-error': 'Connection error', 'secure-storage-unavailable': 'Unlock OS secure storage'
     };
     return [{ label: `Cloud: ${labels[status] || 'Connection error'}`, click: () => this.openMonitoring?.() }];

@@ -97,6 +97,19 @@ describe('cloud monitoring', () => {
 });
 
 describe('credential storage', () => {
+  test('a damaged encrypted credential is a local recovery error, not a network failure', async () => {
+    const preferences = store({ credential: 'saved-encrypted-bytes' });
+    const safe = { isEncryptionAvailable: () => true, decryptString: () => { throw new Error('private storage detail'); } };
+    const vault = new CredentialStore(preferences, safe);
+    const fetchImpl = jest.fn();
+    const client = new MonitoringClient({ preferences, credentials: vault, fetchImpl });
+    const result = await client.poll(true);
+    expect(result.status).toBe('credential-unavailable');
+    expect(fetchImpl).not.toHaveBeenCalled();
+    expect(result.tokenConfigured).toBe(true);
+    expect(() => vault.get()).toThrow('cannot be decrypted');
+    try { vault.get(); } catch (error) { expect(error.message).not.toContain('private storage detail'); }
+  });
   test('stores encrypted bytes, never plaintext, and does not expose credentials in snapshots', () => {
     const preferences = store();
     const safe = { isEncryptionAvailable: () => true, encryptString: jest.fn(() => Buffer.from('encrypted')), decryptString: jest.fn(() => rawToken) };

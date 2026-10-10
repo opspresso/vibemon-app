@@ -94,7 +94,8 @@ function renderCloudState(cloud) {
     connected: ['● Connected', 'ok'],
     connecting: ['○ Connecting…', ''],
     'connection-error': ['○ Connection error', 'warn'],
-    'token-expired': ['○ Token expired or revoked', 'warn'],
+    'token-expired': ['○ Read token rejected', 'warn'],
+    'credential-unavailable': ['○ Re-enter saved read token', 'warn'],
     'permission-denied': ['○ Read permission required', 'warn'],
     'secure-storage-unavailable': ['○ Unlock secure storage', 'warn'],
     'not-configured': ['○ Not configured', '']
