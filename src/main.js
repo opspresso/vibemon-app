@@ -443,7 +443,6 @@ app.whenReady().then(() => {
 
   // Create tray (the window is created on demand via HTTP /status endpoint)
   trayManager = new TrayManager(windowManager, app, stateManager);
-  trayManager.createTray();
 
   // Settings window (opened from the tray menu)
   settingsWindowManager = new SettingsWindowManager({ windowManager, app, hookInstaller, vibemonConfigManager, updateChecker });
@@ -459,7 +458,8 @@ app.whenReady().then(() => {
   const monitoringStore = new Store({ name: 'monitoring' });
   monitoringClient = new MonitoringClient({ preferences: monitoringStore, credentials: new CredentialStore(monitoringStore, safeStorage), allowLocalHttp: !app.isPackaged });
   monitoringWindow = new MonitoringWindow(monitoringClient);
-  trayManager.openMonitoring = () => monitoringWindow.open();
+  trayManager.openDashboard = () => monitoringWindow.open();
+  trayManager.createTray();
   const seenObservations = new Map();
   monitoringClient.on('sources', sources => {
     const selected = new Set(sources.filter(source => source.kind === 'agent').map(source => source.sourceId));

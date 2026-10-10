@@ -203,6 +203,7 @@ class TrayManager {
     this.updateChecker = null;
     this.settingsWindowManager = null;
     this.showCharacterHandler = null;
+    this.openDashboard = null;
   }
 
   /**
@@ -280,6 +281,7 @@ class TrayManager {
   }
 
   createTray() {
+    if (typeof this.openDashboard !== 'function') throw new Error('A dashboard action is required before creating the tray');
     const state = this.getFocusedState();
     // Start with a synchronous background-only icon; the character sprite
     // is drawn in as soon as its image finishes loading (updateIcon below).
@@ -288,10 +290,12 @@ class TrayManager {
     this.updateMenu();
     this.updateIcon();
 
-    // Left-click to show menu (Windows support)
-    this.tray.on('click', () => {
-      this.tray.popUpContextMenu();
-    });
+    this.tray.on('click', () => this.openDashboard());
+    if (process.platform !== 'linux') {
+      this.tray.on('right-click', () => {
+        this.tray.popUpContextMenu(Menu.buildFromTemplate(this.buildMenuTemplate()));
+      });
+    }
 
     return this.tray;
   }
@@ -428,7 +432,7 @@ class TrayManager {
       'credential-unavailable': 'Saved token needs replacement',
       'connection-error': 'Connection error', 'secure-storage-unavailable': 'Unlock OS secure storage'
     };
-    return [{ label: `Cloud: ${labels[status] || 'Connection error'}`, click: () => this.openMonitoring?.() }];
+    return [{ label: `Cloud: ${labels[status] || 'Connection error'}`, click: () => this.openDashboard?.() }];
   }
 
   /**
@@ -525,7 +529,7 @@ class TrayManager {
         click: () => this.settingsWindowManager.open()
       }] : []),
       { type: 'separator' },
-      { label: 'Monitoring...', click: () => this.openMonitoring?.() },
+      { label: 'Dashboard', click: () => this.openDashboard?.() },
 
       // VibeMon — mirrors the Settings window's VibeMon tab
       {
@@ -586,7 +590,9 @@ class TrayManager {
   }
 
   updateMenu() {
-    if (!this.tray) return;
+    // macOS/Windows menus are built when opened. Linux desktop environments
+    // retain a native context menu and require it to be updated explicitly.
+    if (!this.tray || process.platform !== 'linux') return;
     const contextMenu = Menu.buildFromTemplate(this.buildMenuTemplate());
     this.tray.setContextMenu(contextMenu);
   }

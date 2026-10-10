@@ -14,6 +14,7 @@ jest.mock('electron', () => ({
 jest.mock('canvas', () => ({
   createCanvas: jest.fn(() => ({
     getContext: () => ({
+      clearRect: jest.fn(),
       beginPath: jest.fn(),
       roundRect: jest.fn(),
       fill: jest.fn(),
@@ -33,6 +34,7 @@ jest.mock('../src/modules/usage-cache-reader.cjs', () => ({
 }));
 
 const { TrayManager } = require('../src/modules/tray-manager.cjs');
+const { Tray, Menu } = require('electron');
 const { getUsageSnapshot, formatResetIn } = require('../src/modules/usage-cache-reader.cjs');
 
 const EMPTY_USAGE_SNAPSHOT = {
@@ -67,6 +69,41 @@ function makeApp() {
     setLoginItemSettings: jest.fn()
   };
 }
+
+describe('primary dashboard entry', () => {
+  test.each(['darwin', 'win32'])('%s opens the dashboard directly and creates a context menu only on demand', platform => {
+    const original = Object.getOwnPropertyDescriptor(process, 'platform');
+    Object.defineProperty(process, 'platform', { value: platform, configurable: true });
+    const events = new Map();
+    const native = { on: jest.fn((name, handler) => events.set(name, handler)), setToolTip: jest.fn(), setContextMenu: jest.fn(), popUpContextMenu: jest.fn(), destroy: jest.fn() };
+    Tray.mockImplementation(() => native);
+    Menu.buildFromTemplate.mockClear().mockReturnValue({ nativeMenu: true });
+    const tray = new TrayManager(makeWindowManager(null), makeApp(), {});
+    tray.openDashboard = jest.fn();
+    jest.spyOn(tray, 'updateIcon').mockImplementation(() => {});
+    try {
+      tray.createTray();
+      events.get('click')();
+      expect(tray.openDashboard).toHaveBeenCalledTimes(1);
+      expect(native.popUpContextMenu).not.toHaveBeenCalled();
+      for (let event = 0; event < 250; event++) tray.updateMenu();
+      expect(Menu.buildFromTemplate).not.toHaveBeenCalled();
+      expect(getUsageSnapshot).not.toHaveBeenCalled();
+      expect(native.setContextMenu).not.toHaveBeenCalled();
+      events.get('right-click')();
+      expect(Menu.buildFromTemplate).toHaveBeenCalledTimes(1);
+      expect(native.popUpContextMenu).toHaveBeenCalledWith({ nativeMenu: true });
+    } finally {
+      tray.cleanup();
+      Object.defineProperty(process, 'platform', original);
+    }
+  });
+
+  test('the dashboard callback must exist before the tray becomes interactive', () => {
+    const tray = new TrayManager(makeWindowManager(null), makeApp(), {});
+    expect(() => tray.createTray()).toThrow('dashboard action is required');
+  });
+});
 
 describe('TrayManager settings menu item', () => {
   test('shows Settings... that opens the settings window when a manager is set', () => {
