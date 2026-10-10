@@ -17,7 +17,7 @@ Provide the write token through `VIBEMON_WRITE_TOKEN`, using your environment or
 
 ## 2. Install hooks
 
-Desktop users can open **Settings → AI Tools → Install**. Set the write token independently of the App's Monitoring read token.
+Desktop users can open **Settings → Integrations** and choose **Install integration** for a detected tool. Set the hook write token independently of the read token in **Settings → Connections**.
 
 For a headless macOS or Linux installation:
 
@@ -103,7 +103,7 @@ The shared directory contains six required helpers: `vibemon_core.py`, `usage.py
    ```
 
 3. Start a coding session. The local App should show its project and state.
-4. Open the App's **Monitoring** window, enter the Web origin and read token, and select the desired resources or accounts.
+4. Open **Settings → Connections** in the App, enter the Web origin and read token, and select **Save and connect**. Use **Customize view** to select resources, accounts, and metrics.
 5. Confirm that the same account's source appears. Missing measurements remain unavailable; they do not appear as zero.
 
 Read and write tokens must belong to the same Google owner. Resource collection is separate from hooks; see the [collector guide](https://vibemon.io/docs/collector) and [monitoring API](https://vibemon.io/docs/api/monitoring).
@@ -114,7 +114,7 @@ Open [Custom resource](https://vibemon.io/resources/new) to define any resource 
 
 Send measurements with `kind: "resource"` to `/api/v1/ingest` using a write token. Web and App display the supplied definitions and status message. Use null for unavailable measurements. See the [custom-resource contract](https://vibemon.io/docs/api/monitoring#custom-resources) for JSON, limits, and history rules.
 
-On the dashboard, **Edit metrics** changes existing resource labels, units, display ranges, and order, including Spark and Kubernetes presets. Reorder with the handles, arrow buttons, or Alt+Up/Down on a handle, then save. Both clients use the saved order; later collection does not overwrite it. New keys or units remain unavailable until the collector supplies matching definitions. Display-only edits do not change receipt time or erase retained measurements.
+On the Web dashboard, **Edit metrics** changes existing resource labels, units, display ranges, and order, including Spark and Kubernetes presets. In Desktop, open **Details → Edit resource on Web** to reach the editor. Reorder with the handles, arrow buttons, or Alt+Up/Down on a handle, then save. Both clients use the saved order; later collection does not overwrite it. New keys or units remain unavailable until the collector supplies matching definitions. Display-only edits do not change receipt time or erase retained measurements.
 
 ## Repair or uninstall
 
