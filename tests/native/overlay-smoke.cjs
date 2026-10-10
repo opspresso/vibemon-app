@@ -184,8 +184,15 @@ async function verifyDockCorners(win, mode, live = null) {
       assert(rect.x + rect.width <= layout.area.x + layout.area.width);
       assert(rect.y + rect.height <= layout.area.y + layout.area.height);
     }
-    const rendered = await bubble.webContents.executeJavaScript('(() => { const b = document.getElementById("bubble").getBoundingClientRect(); return { right: b.right, bottom: b.bottom, width: innerWidth, height: innerHeight }; })()');
-    assert(rendered.right <= rendered.width && rendered.bottom <= rendered.height, 'scaled bubble content is not clipped');
+    // Native bounds update before Chromium receives its viewport resize.
+    // Verify clipping only after both processes describe the same window.
+    let rendered;
+    await until(async () => {
+      rendered = await bubble.webContents.executeJavaScript('(() => { const b = document.getElementById("bubble").getBoundingClientRect(); return { right: b.right, bottom: b.bottom, width: innerWidth, height: innerHeight }; })()');
+      return rendered.width === layout.bubble.width && rendered.height === layout.bubble.height;
+    }, `${mode} ${side} renderer receives Dock viewport dimensions`);
+    assert(rendered.right <= rendered.width && rendered.bottom <= rendered.height,
+      `scaled bubble content is not clipped: ${JSON.stringify({ mode, side, autoScale, source, layout, rendered })}`);
     const label = `${source}-${mode}-${side}-${autoScale ? 'shrink' : 'keep'}`;
     fs.writeFileSync(path.join(output, `${label}-character.png`), (await win.webContents.capturePage()).toPNG());
     fs.writeFileSync(path.join(output, `${label}-bubble.png`), (await bubble.webContents.capturePage()).toPNG());
