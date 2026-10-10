@@ -41,7 +41,7 @@ This reference describes the Desktop App's local HTTP server on `127.0.0.1:19280
 
 | Endpoint | Description |
 |----------|-------------|
-| GET / | Dashboard HTML page |
+| GET / | Local API identity and desktop workspace guidance |
 | GET /dashboard-data | Dashboard data (focused project, character lock, tracked projects) |
 | POST/GET /status | Update / get status |
 | POST /close | Close the character window |
@@ -215,15 +215,15 @@ curl -X POST http://127.0.0.1:19280/character-lock \
 
 ### GET /
 
-Serve the dashboard HTML page showing tracked projects and the focused one.
+Return the App identity, version, and documentation URL as JSON. Open the dashboard from the VibeMon tray icon; the loopback service does not serve a second HTML dashboard.
 
 ```bash
-open http://127.0.0.1:19280/
+curl http://127.0.0.1:19280/
 ```
 
 ### GET /dashboard-data
 
-Get current dashboard data as JSON (used by the dashboard page).
+Get the focused project, character lock, and tracked project states as JSON for local integrations.
 
 ```bash
 curl http://127.0.0.1:19280/dashboard-data

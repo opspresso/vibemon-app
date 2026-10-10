@@ -4,8 +4,6 @@
 
 const http = require('http');
 const { URL } = require('url');
-const fsPromises = require('fs').promises;
-const path = require('path');
 const { HTTP_PORT, MAX_PAYLOAD_SIZE, RATE_LIMIT, RATE_WINDOW_MS, CHARACTER_NAMES } = require('../shared/config.cjs');
 const { setCorsHeaders, isAllowedOrigin, hasJsonContentType, sendJson, sendError, parseJsonBody } = require('./http-utils.cjs');
 const { validateStatusPayload } = require('./validators.cjs');
@@ -153,7 +151,7 @@ class HttpServer {
 
     switch (route) {
       case 'GET /':
-        await this.handleGetDashboard(res);
+        this.handleGetInfo(res);
         break;
       case 'GET /dashboard-data':
         this.handleGetDashboardData(res);
@@ -434,17 +432,13 @@ class HttpServer {
     });
   }
 
-  async handleGetDashboard(res) {
-    const dashboardPath = path.join(__dirname, '..', 'dashboard.html');
-
-    try {
-      const html = await fsPromises.readFile(dashboardPath, 'utf8');
-      res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
-      res.end(html);
-    } catch (err) {
-      console.error('Failed to load dashboard page:', err.message);
-      sendError(res, 500, 'Failed to load dashboard page');
-    }
+  handleGetInfo(res) {
+    sendJson(res, 200, {
+      application: 'VibeMon Desktop',
+      version: this.app.getVersion(),
+      dashboard: 'Open the desktop workspace from the VibeMon tray icon.',
+      documentation: 'https://vibemon.io/docs'
+    });
   }
 
 }

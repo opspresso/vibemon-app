@@ -135,6 +135,20 @@ describe('HttpServer request boundaries', () => {
     expect(missing.statusCode).toBe(404);
   });
 
+  test('the loopback root identifies the API without serving a duplicate desktop UI', async () => {
+    const { server, windowManager } = createServer();
+    const res = response();
+    await server.handleRequest(request('GET', '/'), res);
+    expect(res.statusCode).toBe(200);
+    expect(res.headers['Content-Type']).toContain('application/json');
+    expect(JSON.parse(res.body)).toEqual({
+      application: 'VibeMon Desktop', version: '0.0.0-test',
+      dashboard: 'Open the desktop workspace from the VibeMon tray icon.',
+      documentation: 'https://vibemon.io/docs'
+    });
+    expect(windowManager.getRegisteredStates).not.toHaveBeenCalled();
+  });
+
   test('routes on the pathname, ignoring a query string', async () => {
     const { server } = createServer();
     const health = response();
