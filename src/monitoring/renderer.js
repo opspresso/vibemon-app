@@ -43,7 +43,8 @@ function visibleMetrics(source) {
   return source.displayMetrics.filter(metric => selectedMetricIds.has(metric.selectionKey));
 }
 function render(data) {
-  if (!snapshot && data.tokenConfigured) $('settings').open = false;
+  if (!snapshot) $('settings').open = data.status !== 'connected';
+  else if (snapshot.status !== data.status && ['not-configured', 'token-expired', 'permission-denied', 'secure-storage-unavailable'].includes(data.status)) $('settings').open = true;
   snapshot = data;
   selectedMetricIds = new Set(data.selectedMetrics);
   $('connection').textContent = descriptions[data.status] || data.status;

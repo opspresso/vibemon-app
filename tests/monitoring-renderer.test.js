@@ -13,6 +13,23 @@ class Element {
   scrollIntoView() {}
 }
 const descendants = node => [node, ...(node.children || []).flatMap(descendants)];
+test('shows credential recovery settings when the saved token is rejected', async () => {
+  const snapshot = { url: 'https://web.example', tokenConfigured: true, status: 'token-expired', catalog: [], sources: [], accountCatalog: [], accounts: [], selectedSources: [], selectedAccounts: [], selectedMetrics: [], metrics: {} };
+  const elements = new Map();
+  const document = { hidden: false, activeElement: null, getElementById: id => {
+    if (!elements.has(id)) { const element = new Element('div'); element.open = true; elements.set(id, element); }
+    return elements.get(id);
+  }, createElement: tag => new Element(tag), createTextNode: textContent => ({ textContent }), addEventListener() {} };
+  let changed;
+  const api = { onChange(callback) { changed = callback; }, snapshot: async () => ({ ok: true, value: snapshot }) };
+  vm.runInNewContext(fs.readFileSync(require.resolve('../src/monitoring/renderer.js'), 'utf8'), { window: { monitoring: api, addEventListener() {} }, document, console, setInterval: jest.fn(), clearInterval: jest.fn(), Date });
+  await new Promise(setImmediate);
+  expect(elements.get('settings').open).toBe(true);
+  elements.get('settings').open = false;
+  changed({ ...snapshot, status: 'connected' });
+  changed({ ...snapshot, status: 'permission-denied' });
+  expect(elements.get('settings').open).toBe(true);
+});
 test('renders custom range, unit, message and negative trend without fixed CPU assumptions', async () => {
   const source = { sourceId: 'cold-room', kind: 'resource', resourceType: 'Refrigeration', displayName: 'Cold room', statusMessage: 'Cooling', health: 'ok', stale: false, receivedAt: new Date().toISOString(), metricDefinitions: { temperature: { label: 'Temperature', unit: '°C', display: 'gauge', min: -40, max: 20 } }, metrics: { temperature: -12 } };
   source.displayMetrics = displayMetrics(source);

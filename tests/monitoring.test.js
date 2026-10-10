@@ -25,6 +25,17 @@ function fixture(now = 1000000) {
 
 describe('cloud monitoring', () => {
   afterEach(() => jest.useRealTimers());
+  test.each([[401, 'token-expired'], [403, 'permission-denied'], [503, 'connection-error']])('empty selection cannot hide HTTP %s as a successful connection', async (status, expected) => {
+    const { client, preferences, fetchImpl } = fixture();
+    preferences.set('selectedSources', []);
+    preferences.set('selectedAccounts', []);
+    fetchImpl.mockResolvedValue({ ok: false, status });
+    await client.poll(true);
+    expect(client.getStatus()).toBe(expected);
+    await client.poll();
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+    expect(client.getStatus()).toBe(expected);
+  });
   test('polls latest state every 30 seconds and never prefetches trends', async () => {
     jest.useFakeTimers();
     const { client, fetchImpl } = fixture();

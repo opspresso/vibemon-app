@@ -107,7 +107,8 @@ class MonitoringClient extends EventEmitter {
       const accountIds = selectedAccounts ?? this.accountCatalog.map(account => account.accountId);
       if (!discover && !all && ids.length === 0 && accountIds.length === 0) {
         this.sources = [];
-        this.status = this.credentials.has() ? 'connected' : 'not-configured';
+        // No request was made: keep the last connection result, including errors.
+        if (!this.credentials.has()) this.status = 'not-configured';
         this.emit('sources', []);
       } else {
         const parts = [];
