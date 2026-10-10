@@ -565,6 +565,7 @@ h3 {
 }
 .card-heading {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 10px;
   margin-bottom: 17px;
@@ -593,13 +594,21 @@ h3 {
   display: block;
   font-size: 10px;
   margin-top: 2px;
+  overflow-wrap: anywhere;
 }
 .card-heading > .chip {
   margin-left: auto;
   padding: 4px 6px;
   font-size: 9px;
+  max-width: 100%;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.card-heading > .chip:before {
+  flex: none;
 }
 .card-title-group {
+  flex: 1;
   min-width: 0;
 }
 .card-message {
@@ -614,6 +623,7 @@ h3 {
 }
 .metric-line {
   display: flex;
+  flex-wrap: wrap;
   align-items: baseline;
   justify-content: space-between;
   gap: 12px;
@@ -625,7 +635,10 @@ h3 {
   font-weight: 620;
   color: var(--ink);
   font-variant-numeric: tabular-nums;
-  white-space: nowrap;
+  max-width: 100%;
+  margin-left: auto;
+  overflow-wrap: anywhere;
+  text-align: right;
 }
 .metric-label {
   overflow-wrap: anywhere;
@@ -1265,6 +1278,16 @@ dialog::backdrop {
 .detail-dialog {
   width: 710px;
   max-width: calc(100vw - 44px);
+  overflow-wrap: anywhere;
+}
+.detail-dialog .dialog-heading > div {
+  min-width: 0;
+}
+.detail-dialog .chip {
+  white-space: normal;
+}
+.detail-dialog .chip:before {
+  flex: none;
 }
 .detail-meta {
   display: flex;

@@ -45,7 +45,7 @@ startFixture().then(async fixture => {
   };
   const navigate = async route => {
     view.open(route);
-    await until(() => visible(`[data-page="${route}"]`), `${route} page visible`);
+    await until(() => visible(`section[data-page="${route}"]`), `${route} page visible`);
   };
   const screenshot = async name => {
     await until(() => ui('document.getElementById("toast").hidden'), 'transient feedback completed');
@@ -302,6 +302,47 @@ startFixture().then(async fixture => {
   const compactBounds = await ui('({ bottom: document.querySelector("#overview-accounts .card").getBoundingClientRect().bottom, viewport: innerHeight })');
   await screenshot('compact-overview');
   assert.ok(compactBounds.bottom < compactBounds.viewport, `both categories fit the minimum window: ${JSON.stringify(compactBounds)}`);
+  // Exercise the API's accepted text/value limits at the minimum window size.
+  const longName = '測'.repeat(128);
+  state.sources = () => originalSources().map(source => {
+    if (source.sourceId === 'cache') return {
+      ...source, displayName: longName, resourceType: '基'.repeat(64), statusMessage: '確'.repeat(160),
+      metrics: { ...source.metrics, latency: Number.MAX_SAFE_INTEGER },
+      metricDefinitions: { ...source.metricDefinitions, latency: { label: '測'.repeat(80), unit: '測定単位'.repeat(4), display: 'number' } }
+    };
+    if (source.sourceId === 'codex-team') return {
+      ...source, account: { provider: 'p'.repeat(32), id: 'a'.repeat(128), displayName: longName },
+      agent: { ...source.agent, project: '計'.repeat(256), state: 's'.repeat(256) }
+    };
+    return source;
+  });
+  await client.poll(true);
+  await client.select({ sources: null, accounts: null, metrics: Object.keys(client.snapshot().metrics) });
+  await input('#resource-search', '');
+  const overflow = [];
+  const checkFit = async (label, selector) => {
+    await ui('new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))');
+    const invalid = await ui(`[...document.querySelectorAll(${JSON.stringify(selector)})].filter(node => node.checkVisibility() && node.scrollWidth > node.clientWidth + 1).map(node => ({ tag: node.tagName, id: node.id, className: node.className, width: node.clientWidth, content: node.scrollWidth }))`);
+    if (invalid.length) overflow.push({ label, invalid });
+  };
+  for (const route of ['overview', 'resources', 'agents']) {
+    await navigate(route);
+    await until(async () => (await text(route === 'agents' ? '#agent-cards' : route === 'resources' ? '#resource-cards' : '#overview-resources')).includes(longName), `${route} renders accepted long names`);
+    await checkFit(route, '#main, .card, .card-heading, .metric, .metric-line, .card-title-group');
+    if (route === 'overview') continue;
+    await click(`section[data-page="${route}"] [aria-label="View ${longName} details"]`);
+    await until(() => visible('#detail-dialog'), 'long source details');
+    assert.equal(await text('#detail-type'), route === 'agents' ? `${'p'.repeat(32)} · ${'a'.repeat(128)}` : '基'.repeat(64));
+    await checkFit(`${route} detail`, '#detail-dialog, .dialog-heading, #detail-type, .detail-message, .detail-reading, .detail-member');
+    await screenshot(`long-${route}-detail`);
+    await click('[data-close-dialog="detail-dialog"]');
+  }
+  await click('[data-page="agents"] [data-selection]');
+  await until(() => visible('#selection-dialog'), 'long source selection');
+  await checkFit('selection', '#selection-dialog, .selection-columns fieldset, .selection-columns .choice');
+  await screenshot('long-selection');
+  await click('[data-close-dialog="selection-dialog"]');
+  assert.deepEqual(overflow, [], 'accepted API values fit cards and dialogs without horizontal clipping');
   assert.deepEqual(errors, [], 'no renderer or loading errors');
   console.log('PASS native workspace: navigation, custom metrics, multiple accounts, focus, selection, preferences, credential boundaries, recovery, resizing and visibility.');
   app.quit();
