@@ -30,12 +30,13 @@ describe('getUsageCachePath', () => {
   });
 
   test('honors cache_path from config.json', () => {
+    const customDirectory = path.resolve('/custom/dir');
     fs.readFileSync.mockImplementation((p) => {
-      if (p === CONFIG_PATH) return JSON.stringify({ cache_path: '/custom/dir/projects.json' });
+      if (p === CONFIG_PATH) return JSON.stringify({ cache_path: path.join(customDirectory, 'projects.json') });
       throw new Error('ENOENT');
     });
 
-    expect(getUsageCachePath()).toBe(path.join('/custom/dir', 'usage.json'));
+    expect(getUsageCachePath()).toBe(path.join(customDirectory, 'usage.json'));
   });
 
   test('expands a ~-prefixed cache_path', () => {

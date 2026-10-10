@@ -884,6 +884,8 @@ describe('HookInstaller', () => {
   });
 
   describe('installTools', () => {
+    const pythonCommand = process.platform === 'win32' ? 'py' : 'python3';
+    const pythonPrefix = process.platform === 'win32' ? ['-3'] : [];
     test('does not run concurrently; returns [] without spawning anything', async () => {
       hookInstaller.isRunning = true;
 
@@ -916,8 +918,10 @@ describe('HookInstaller', () => {
       expect(spawn).toHaveBeenCalledTimes(2);
       expect(children).toHaveLength(2);
       expect(results.every(r => r.result.ok)).toBe(true);
-      expect(spawn.mock.calls[0][1]).toEqual(['-', TOOLS[0].flag]);
-      expect(spawn.mock.calls[1][1]).toEqual(['-', TOOLS[1].flag]);
+      expect(spawn.mock.calls[0][0]).toBe(pythonCommand);
+      expect(spawn.mock.calls[0][1]).toEqual([...pythonPrefix, '-', TOOLS[0].flag]);
+      expect(spawn.mock.calls[1][0]).toBe(pythonCommand);
+      expect(spawn.mock.calls[1][1]).toEqual([...pythonPrefix, '-', TOOLS[1].flag]);
       expect(spawn.mock.calls[0][2].env.VIBEMON_WRITE_TOKEN).toBe(token);
       expect(JSON.stringify(spawn.mock.calls.map(call => call[1]))).not.toContain(token);
     });
@@ -926,10 +930,10 @@ describe('HookInstaller', () => {
       mockSuccessfulInstall();
 
       await hookInstaller.installTools([TOOLS[0]], null);
-      expect(spawn.mock.calls[0][1]).toEqual(['-', TOOLS[0].flag]);
+      expect(spawn.mock.calls[0][1]).toEqual([...pythonPrefix, '-', TOOLS[0].flag]);
 
       await hookInstaller.installTools([TOOLS[0]], 'BAD TOKEN!');
-      expect(spawn.mock.calls[1][1]).toEqual(['-', TOOLS[0].flag]);
+      expect(spawn.mock.calls[1][1]).toEqual([...pythonPrefix, '-', TOOLS[0].flag]);
     });
 
     test('suppresses the whole batch and skips spawning when the download fails', async () => {

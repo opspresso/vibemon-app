@@ -1,4 +1,5 @@
 const { EventEmitter } = require('node:events');
+const path = require('node:path');
 
 jest.mock('electron', () => ({
   BrowserWindow: jest.fn(),
@@ -51,7 +52,7 @@ function open() { view.open(); native.emit('ready-to-show'); }
 test('one sandboxed window serves navigation and denies external window navigation', async () => {
   open();
   expect(BrowserWindow).toHaveBeenCalledWith(expect.objectContaining({ webPreferences: expect.objectContaining({ contextIsolation: true, nodeIntegration: false, sandbox: true }) }));
-  expect(native.loadFile).toHaveBeenCalledWith(expect.stringContaining('workspace/index.html'));
+  expect(native.loadFile).toHaveBeenCalledWith(path.resolve(__dirname, '../src/workspace/index.html'));
   expect(centerOnCursorDisplay).toHaveBeenCalledWith(native);
   expect(native.webContents.setWindowOpenHandler.mock.calls[0][0]()).toEqual({ action: 'deny' });
   const navigation = { preventDefault: jest.fn() };
