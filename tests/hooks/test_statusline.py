@@ -13,6 +13,40 @@ sys.path.insert(0, str(Path(__file__).parents[2] / "public" / "install" / "claud
 
 
 class StatuslineCacheTest(unittest.TestCase):
+    def test_non_object_configuration_does_not_disable_statusline(self):
+        statusline = importlib.import_module('statusline')
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / '.vibemon').mkdir()
+            for filename in ['config.json', 'statusline.json']:
+                for value in [[], None, 'invalid', 42, True]:
+                    with self.subTest(filename=filename, value=value):
+                        config = root / '.vibemon' / filename
+                        config.write_text(json.dumps(value))
+                        with patch.object(statusline.Path, 'home', return_value=root), patch.dict(os.environ, {}, clear=True):
+                            statusline.load_config()
+                        config.unlink()
+
+    def test_rendered_usage_obeys_cache_age_and_reset_time(self):
+        statusline = importlib.import_module('statusline')
+        for observed_at, resets_at, visible in [(100, 3000, False), (2000, 3000, True), (2000, 1999, False)]:
+            with self.subTest(observed_at=observed_at, resets_at=resets_at):
+                cache = {'claude': {'updated_at': observed_at, 'session': {'pct': 0, 'resets_at': resets_at}}}
+                output = io.StringIO()
+                with (
+                    patch.dict(os.environ, {}, clear=True),
+                    patch.object(statusline, 'read_input', return_value='{}'),
+                    patch.object(statusline, 'load_usage_cache', return_value=cache),
+                    patch.object(statusline, 'save_cache_background'),
+                    patch.object(statusline.time, 'time', return_value=2000),
+                    patch.object(statusline, 'SHOW_USAGE', True),
+                    patch.object(statusline, 'SHOW_STATUSLINE', True),
+                    patch.object(sys, 'stdout', output),
+                ):
+                    statusline.main()
+                self.assertEqual('📊' in output.getvalue(), visible)
+                self.assertIn('Claude', output.getvalue())
+
     def test_save_to_cache_writes_project_memory(self):
         with tempfile.TemporaryDirectory() as directory:
             cache_path = str(Path(directory) / "projects.json")

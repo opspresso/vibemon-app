@@ -47,9 +47,11 @@ import urllib.request
 from typing import Any
 
 from usage_cache import (
+    CACHE_STALE_SECONDS,
     build_bucket,
     get_fresh_provider,
     is_usage_bucket,
+    is_fresh_observation,
     load_usage_cache as _load_usage_cache,
     parse_usage_output,
     parse_epoch,
@@ -359,11 +361,11 @@ def get_codex_usage_from_sessions() -> dict[str, Any] | None:
     files.sort(key=lambda item: item[1], reverse=True)
 
     for path, mtime in files[:8]:
-        if time.time() - mtime > 1800:
+        if time.time() - mtime > CACHE_STALE_SECONDS:
             continue
         for obj in reverse_jsonl(path):
             observed_at = parse_epoch(obj.get("timestamp", mtime))
-            if observed_at is None or not -30 <= time.time() - observed_at <= 1800:
+            if not is_fresh_observation(observed_at, CACHE_STALE_SECONDS, time.time()):
                 continue
             payload = obj.get("payload") if isinstance(obj.get("payload"), dict) else obj
             rate_limits = payload.get("rate_limits") if isinstance(payload, dict) else None

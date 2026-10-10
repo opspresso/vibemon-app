@@ -31,6 +31,8 @@ for helper_dir in (Path(__file__).resolve().parent.parent / "vibemon", VIBEMON_H
 from cache_io import update_json_cache
 
 from usage_cache import (  # noqa: E402
+    CACHE_STALE_SECONDS,
+    get_fresh_provider,
     normalize_percent,
     load_usage_cache as _load_usage_cache,
     model_week_bucket,
@@ -56,9 +58,16 @@ def load_config() -> None:
     def _load(path: Path) -> dict[str, Any]:
         try:
             with open(path, encoding="utf-8") as f:
-                return json.load(f)
-        except (FileNotFoundError, json.JSONDecodeError, IOError):
+                value = json.load(f)
+        except FileNotFoundError:
             return {}
+        except (json.JSONDecodeError, OSError):
+            print(f"[vibemon] Cannot read {path.name}; ignoring its statusline settings", file=sys.stderr)
+            return {}
+        if not isinstance(value, dict):
+            print(f"[vibemon] {path.name} must contain a JSON object; ignoring its statusline settings", file=sys.stderr)
+            return {}
+        return value
 
     config = _load(vibemon_home / "config.json")
     statusline_config = _load(vibemon_home / "statusline.json")
@@ -353,7 +362,7 @@ def get_context_usage(data: dict[str, Any]) -> str:
 # ============================================================================
 
 
-from account_context import project_cache_key, cache_key
+from account_context import project_cache_key
 
 
 def get_cache_path() -> str:
@@ -853,8 +862,7 @@ def main() -> None:
     if usage_cache is not None:
         save_usage_cache({"claude": usage_cache})
     else:
-        raw_cache = load_usage_cache()
-        usage_cache = raw_cache.get(cache_key("claude")) if isinstance(raw_cache, dict) else None
+        usage_cache = get_fresh_provider(load_usage_cache(), "claude", CACHE_STALE_SECONDS)
     usage_segment = build_usage_segment(usage_cache)
 
     # A reset countdown requires an observed provider reset time.

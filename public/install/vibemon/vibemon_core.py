@@ -31,7 +31,7 @@ from urllib.request import Request, urlopen
 
 from account_context import cloud_context, project_cache_key
 from http_client import open_credential_request
-from usage_cache import get_fresh_provider, is_fresh_observation, load_usage_cache, model_week_bucket, reverse_jsonl
+from usage_cache import CACHE_STALE_SECONDS, get_fresh_provider, is_fresh_observation, load_usage_cache, model_week_bucket, reverse_jsonl
 
 try:
     import fcntl
@@ -114,7 +114,6 @@ HTTP_TIMEOUT_SECONDS = 5
 # Cache configuration: entries older than this are treated as unknown rather
 # than sent as-is. Usage freshness is evaluated per provider; project metadata
 # continues to use its own entry timestamps.
-CACHE_STALE_SECONDS = 1800
 CODEX_SESSIONS_DIR = str(
     Path(os.environ.get("CODEX_HOME") or "~/.codex").expanduser() / "sessions"
 )

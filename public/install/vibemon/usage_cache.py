@@ -15,6 +15,7 @@ from typing import Any
 from cache_io import update_json_cache
 
 MAX_CLOCK_SKEW_SECONDS = 30
+CACHE_STALE_SECONDS = 1800
 
 
 def reverse_jsonl(path: str):
