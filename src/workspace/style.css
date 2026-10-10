@@ -53,7 +53,6 @@ button:disabled {
   cursor: wait;
   opacity: 0.6;
 }
-#page-title:focus-visible,
 button:focus-visible,
 a:focus-visible,
 input:focus-visible,
@@ -61,6 +60,10 @@ select:focus-visible,
 summary:focus-visible {
   outline: 3px solid var(--accent);
   outline-offset: 3px;
+}
+/* Headings announce navigation; keyboard-operated controls retain their focus rings. */
+#page-title:focus {
+  outline: none;
 }
 button {
   transition:
