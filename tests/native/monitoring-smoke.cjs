@@ -9,6 +9,8 @@ const { MonitoringClient } = require('../../src/monitoring/client.cjs');
 const { CredentialStore } = require('../../src/monitoring/credential-store.cjs');
 const { MonitoringWindow } = require('../../src/monitoring/window.cjs');
 const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'vibemon-native-monitoring-'));
+const artifacts = process.env.VIBEMON_TEST_ARTIFACTS || path.join(__dirname, '..', '..', 'docs', 'images');
+fs.mkdirSync(artifacts, { recursive: true });
 app.setPath('userData', directory);
 const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
 async function until(check) {
@@ -31,14 +33,14 @@ app.whenReady().then(async () => {
   await until(() => view.window.webContents.executeJavaScript('document.querySelectorAll(".card").length > 0'));
   await view.window.webContents.executeJavaScript('document.getElementById("settings").open = false;');
   await delay(250);
-  fs.writeFileSync(path.join(__dirname, '..', '..', 'docs', 'images', 'monitoring-spark.png'), (await view.window.webContents.capturePage()).toPNG());
+  fs.writeFileSync(path.join(artifacts, 'monitoring-spark.png'), (await view.window.webContents.capturePage()).toPNG());
   await view.window.webContents.executeJavaScript('document.querySelector(".card button").click();');
   await until(() => view.window.webContents.executeJavaScript('document.querySelectorAll("#chart circle").length > 0'));
   const result = await view.window.webContents.executeJavaScript('({ cards: document.querySelectorAll(".card").length, gauges: document.querySelectorAll("progress").length, points: document.querySelectorAll("#chart circle").length, unified: document.body.textContent.includes("Unified memory"), credentialVisible: Boolean(document.getElementById("read-token").value) })');
   assert.ok(result.gauges >= 3); assert.equal(result.unified, true); assert.equal(result.credentialVisible, false);
   await delay(250);
   const image = await view.window.webContents.capturePage();
-  const destination = path.join(__dirname, '..', '..', 'docs', 'images', 'monitoring-spark-trend.png');
+  const destination = path.join(artifacts, 'monitoring-spark-trend.png');
   fs.writeFileSync(destination, image.toPNG());
   console.log('PASS native monitoring:', JSON.stringify(result));
   if (snapshot.accounts.some(account => account.accountId === 'codex:work')) {
@@ -50,7 +52,7 @@ app.whenReady().then(async () => {
     await view.window.webContents.executeJavaScript('window.scrollTo(0, 0);');
     await view.window.webContents.executeJavaScript('new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))');
     await delay(150);
-    fs.writeFileSync(path.join(__dirname, '..', '..', 'docs', 'images', 'monitoring-accounts.png'), (await view.window.webContents.capturePage()).toPNG());
+    fs.writeFileSync(path.join(artifacts, 'monitoring-accounts.png'), (await view.window.webContents.capturePage()).toPNG());
     await view.window.webContents.executeJavaScript('document.querySelector(".card button").click();');
     await until(() => view.window.webContents.executeJavaScript('document.querySelectorAll("#chart circle").length > 0'));
     console.log('PASS native account selection: two same-project provider accounts and account trend');
@@ -64,9 +66,23 @@ app.whenReady().then(async () => {
     await view.window.webContents.executeJavaScript('window.scrollTo(0, 0);');
     await view.window.webContents.executeJavaScript('new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))');
     await delay(150);
-    fs.writeFileSync(path.join(__dirname, '..', '..', 'docs', 'images', 'monitoring-resources.png'), (await view.window.webContents.capturePage()).toPNG());
+    fs.writeFileSync(path.join(artifacts, 'monitoring-resources.png'), (await view.window.webContents.capturePage()).toPNG());
     console.log('PASS native resource selection: real Spark and Kubernetes summaries');
   }
+  await view.window.webContents.executeJavaScript('document.getElementById("close-trend").click();');
+  await client.configure({ url: snapshot.url, token: 'vm_' + '0'.repeat(60) });
+  await until(() => view.window.webContents.executeJavaScript('document.getElementById("connection").textContent.includes("Read token rejected") && document.getElementById("settings").open'));
+  await client.select({ sources: [], accounts: [], metrics: [] });
+  assert.equal(client.getStatus(), 'token-expired');
+  await client.configure({ url: snapshot.url, token: fixture.readToken });
+  assert.equal(client.getStatus(), 'connected');
+  preferences.set('credential', 'corrupt');
+  await client.poll(true);
+  assert.equal(client.getStatus(), 'credential-unavailable');
+  await until(() => view.window.webContents.executeJavaScript('document.getElementById("connection").textContent.includes("cannot be decrypted") && document.getElementById("settings").open'));
+  await client.configure({ url: snapshot.url, token: fixture.readToken });
+  assert.equal(client.getStatus(), 'connected');
+  console.log('PASS native recovery: rejected/corrupt credentials remain distinct from network errors and open settings');
   view.cleanup(); client.stop(); credentials.clear();
   app.quit();
 }).catch(error => { console.error(error.name, error.message); app.exit(1); });
