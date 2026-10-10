@@ -158,6 +158,14 @@ startFixture().then(async fixture => {
   await until(async () => !(await text('#hook-list')).includes('Update available'), 'integration repair reflected');
   await screenshot('integration-settings');
   await click('#local-routing summary');
+  const getConfigStatus = ports.vibemonConfigManager.getStatus;
+  ports.vibemonConfigManager.getStatus = () => ({ exists: true, hasDesktopUrl: false, error: 'Invalid field types in ~/.vibemon/config.json: http_urls.' });
+  view.notify('settings');
+  await until(() => visible('#routing-error'), 'invalid integration config explained');
+  assert.ok((await text('#routing-error')).includes('http_urls'));
+  assert.equal(await ui('document.getElementById("settings-attention").hidden'), false);
+  ports.vibemonConfigManager.getStatus = getConfigStatus;
+  view.notify('settings');
   await input('#new-http-url', 'http://127.0.0.1:19999');
   await click('#add-http-form button');
   await until(() => ports.config.http_urls.includes('http://127.0.0.1:19999'), 'HTTP destination saved');

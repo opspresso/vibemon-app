@@ -192,6 +192,7 @@ function render(value) {
   text($('summary-local-note'), `${active.length} active on this device`);
   text($('summary-attention-note'), attention ? 'Review highlighted sources' : 'No reported issues');
   $('settings-attention').hidden =
+    !settings.vibemonConfig.status.error &&
     !settings.hooks.some((tool) => tool.present && (tool.broken || tool.changed)) &&
     !['available', 'downloaded'].includes(settings.update.status);
   text(

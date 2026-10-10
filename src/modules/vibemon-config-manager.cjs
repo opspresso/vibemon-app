@@ -33,6 +33,16 @@ const VIBEMON_CONFIG_DEFAULTS = {
   vibemon_token: ''
 };
 
+function invalidFields(config) {
+  return Object.entries(VIBEMON_CONFIG_DEFAULTS).filter(([key, fallback]) => {
+    if (!Object.hasOwn(config, key)) return false;
+    const value = config[key];
+    if (Array.isArray(fallback)) return !Array.isArray(value) || value.some(item => typeof item !== 'string');
+    if (fallback === null) return value !== null && typeof value !== 'string';
+    return typeof value !== typeof fallback;
+  }).map(([key]) => key);
+}
+
 function readRawConfig() {
   if (!fs.existsSync(VIBEMON_CONFIG_PATH)) {
     return null;
@@ -57,10 +67,11 @@ class VibemonConfigManager {
       return { exists: false, hasDesktopUrl: false };
     }
     if (raw === undefined) {
-      return { exists: true, hasDesktopUrl: false };
+      return { exists: true, hasDesktopUrl: false, error: 'Fix ~/.vibemon/config.json: expected a valid JSON object.' };
     }
     const urls = Array.isArray(raw.http_urls) ? raw.http_urls : [];
-    return { exists: true, hasDesktopUrl: urls.includes(DESKTOP_HTTP_URL) };
+    const invalid = invalidFields(raw);
+    return { exists: true, hasDesktopUrl: urls.includes(DESKTOP_HTTP_URL), ...(invalid.length ? { error: `Invalid field types in ~/.vibemon/config.json: ${invalid.join(', ')}.` } : {}) };
   }
 
   /**
@@ -70,7 +81,14 @@ class VibemonConfigManager {
    */
   read() {
     const raw = readRawConfig();
-    return { ...VIBEMON_CONFIG_DEFAULTS, ...(raw || {}) };
+    const view = { ...VIBEMON_CONFIG_DEFAULTS, ...(raw || {}) };
+    // Keep the settings UI usable without silently rewriting a malformed file.
+    for (const key of invalidFields(raw || {})) {
+      view[key] = key === 'http_urls' && Array.isArray(raw[key])
+        ? raw[key].filter(value => typeof value === 'string')
+        : VIBEMON_CONFIG_DEFAULTS[key];
+    }
+    return view;
   }
 
   /**

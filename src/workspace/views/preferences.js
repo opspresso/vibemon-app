@@ -289,7 +289,10 @@ export function setupPreferences({ getFrame, request, run, notify }) {
     );
     $('hooks-reset-prompts').hidden = !settings.hooks.some((tool) => tool.dismissed);
     const config = settings.vibemonConfig;
-    text($('routing-status'), config.status.hasDesktopUrl ? 'Desktop connected' : 'Setup needed');
+    text($('routing-status'), config.status.error ? 'Check configuration' : config.status.hasDesktopUrl ? 'Desktop connected' : 'Setup needed');
+    $('routing-status').className = `chip ${config.status.error ? 'warning' : config.status.hasDesktopUrl ? 'good' : 'neutral'}`;
+    text($('routing-error'), config.status.error || '');
+    $('routing-error').hidden = !config.status.error;
     keyed(
       $('http-destinations'),
       config.http_urls,
