@@ -1,6 +1,6 @@
 # Build and npm packaging
 
-Use Node.js 24 and the pnpm version pinned in `package.json`.
+Use Node.js 26.11.1 and the pnpm version pinned in `package.json`.
 
 ```sh
 pnpm install --frozen-lockfile

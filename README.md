@@ -19,7 +19,7 @@ On macOS:
 brew install opspresso/tap/vibemon
 ```
 
-For Windows or a direct macOS installer, download the matching package from [Releases](https://github.com/opspresso/vibemon-app/releases/latest). With Node.js 24, you can also run:
+For Windows or a direct macOS installer, download the matching package from [Releases](https://github.com/opspresso/vibemon-app/releases/latest). With Node.js 26.11.1, you can also run:
 
 ```sh
 npx vibemon
@@ -52,7 +52,7 @@ One character window follows the active local or selected cloud project. Drag th
 
 ## Develop
 
-Use Node.js 24 (`nvm use`) and the pnpm version pinned in `package.json`:
+Use Node.js 26.11.1 (`nvm use`) and the pnpm version pinned in `package.json`:
 
 ```sh
 pnpm install --frozen-lockfile
