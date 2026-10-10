@@ -41,6 +41,8 @@ Equal project names across accounts remain separate. Identity metadata does not 
 - **Integrations**: hook installation and repair, installation prompts, and advanced HTTP/serial delivery settings.
 - **About**: App version, update actions, documentation, and release notes.
 
+**About → Download update** downloads and verifies the package without closing the App. Select **Restart and install** when ready. Ordinary App exit does not install a pending update.
+
 Preference changes save automatically. Connection and selection forms save only when submitted. Automatic polling keeps typed values and unsaved selections intact.
 
 ![Companion settings with synthetic preferences](images/workspace-companion.png)

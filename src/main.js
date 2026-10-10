@@ -552,8 +552,9 @@ app.whenReady().then(() => {
 
   // Detect new VibeMon releases: once shortly after startup, then
   // periodically. Installing requires the update action in Settings > About.
-  setTimeout(() => updateChecker.checkForUpdates(), UPDATE_CHECK_INITIAL_DELAY_MS);
-  updateCheckTimer = setInterval(() => updateChecker.checkForUpdates(), UPDATE_CHECK_INTERVAL_MS);
+  const checkForUpdates = () => updateChecker.checkForUpdates().catch(error => console.error('Update check failed:', error.message));
+  setTimeout(checkForUpdates, UPDATE_CHECK_INITIAL_DELAY_MS);
+  updateCheckTimer = setInterval(checkForUpdates, UPDATE_CHECK_INTERVAL_MS);
 
   // Refresh the shared plan-usage cache (~/.vibemon/cache/usage.json) via
   // ~/.vibemon/usage.py: once shortly after startup, then periodically, so

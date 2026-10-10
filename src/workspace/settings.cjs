@@ -186,14 +186,14 @@ class WorkspaceSettings {
     });
 
     handle('check-for-updates', async () => {
-      await this.updateChecker.checkForUpdates({ notifyOnError: true });
+      await this.updateChecker.checkForUpdates();
       return this.updateChecker.getState();
     });
 
-    handle('download-update', () => {
-      const { status, version } = this.updateChecker.getState();
+    handle('download-update', async () => {
+      const { status } = this.updateChecker.getState();
       if (status !== 'available') return this.updateChecker.getState();
-      this.updateChecker.downloadAndInstall(version);
+      await this.updateChecker.downloadUpdate();
       return this.updateChecker.getState();
     });
 

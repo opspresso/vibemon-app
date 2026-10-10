@@ -57,7 +57,7 @@ function createPorts() {
       write(partial) { Object.assign(config, partial); }, ensureDesktopUrl() {},
       addHttpUrl(url) { config.http_urls.push(url); }, removeHttpUrl(url) { config.http_urls = config.http_urls.filter(value => value !== url); }
     },
-    updateChecker: { getState: () => update, async checkForUpdates() {}, downloadAndInstall() {}, installDownloaded() {} },
+    updateChecker: { getState: () => update, async checkForUpdates() {}, async downloadUpdate() {}, installDownloaded() {} },
     openExternal: async url => { calls.push(['external', url]); },
     getActivity: () => [
       { id: 'console', project: 'web-console', state: 'working', character: 'codex', model: 'Codex', tool: 'Editing files', focused: true },

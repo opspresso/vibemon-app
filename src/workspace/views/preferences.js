@@ -314,6 +314,8 @@ export function setupPreferences({ getFrame, request, run, notify }) {
     text($('footer-version'), settings.version);
     const update = settings.update;
     const updateDescriptions = {
+      current: 'You are using the latest available version.',
+      error: 'The update could not finish. Check again to try another download.',
       checking: 'Checking for a new version…',
       available: `Version ${update.version} is available.`,
       downloading: `Downloading version ${update.version}…`,
@@ -328,7 +330,7 @@ export function setupPreferences({ getFrame, request, run, notify }) {
     $('check-updates').disabled =
       Boolean($('check-updates').dataset.busy) ||
       !settings.isPackaged ||
-      ['checking', 'downloading'].includes(update.status);
+      ['checking', 'downloading', 'downloaded'].includes(update.status);
     $('update-action').hidden = !['available', 'downloaded'].includes(update.status);
     text($('update-action'), update.status === 'downloaded' ? 'Restart and install' : 'Download update');
   }

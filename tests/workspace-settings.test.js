@@ -34,7 +34,7 @@ function fixture() {
     updateChecker: {
       getState: () => update,
       checkForUpdates: jest.fn(async () => { update = { status: 'available', version: '3.0.2' }; }),
-      downloadAndInstall: jest.fn(() => { update = { ...update, status: 'downloading' }; }),
+      downloadUpdate: jest.fn(async () => { update = { ...update, status: 'downloaded' }; }),
       installDownloaded: jest.fn()
     },
     openExternal: jest.fn(async () => {})
@@ -120,10 +120,10 @@ test('external links use known destinations and propagate launch failures', asyn
 test('update actions follow the updater lifecycle', async () => {
   const { settings, dependencies, setUpdate } = fixture();
   expect(() => settings.invoke('install-downloaded')).toThrow('Download the update');
-  settings.invoke('download-update');
-  expect(dependencies.updateChecker.downloadAndInstall).not.toHaveBeenCalled();
+  await settings.invoke('download-update');
+  expect(dependencies.updateChecker.downloadUpdate).not.toHaveBeenCalled();
   expect((await settings.invoke('check-for-updates')).status).toBe('available');
-  expect(settings.invoke('download-update').status).toBe('downloading');
+  expect((await settings.invoke('download-update')).status).toBe('downloaded');
   setUpdate({ status: 'downloaded', version: '3.0.2' });
   settings.invoke('install-downloaded');
   expect(dependencies.updateChecker.installDownloaded).toHaveBeenCalledTimes(1);
