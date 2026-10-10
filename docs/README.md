@@ -3,7 +3,7 @@
 ## Use the App
 
 - [Install and connect](../README.md#install-and-start) — Packages, cloud connection, and local hooks.
-- [Cloud monitoring](monitoring.md) — Read tokens, resource/account selection, metrics, trends, and connection failures.
+- [Desktop workspace](monitoring.md) — Dashboard, read tokens, resource/account selection, settings, and recovery.
 - [Desktop features](features.md) — Character states, animations, settings, and tray controls.
 - [Web connection guide](https://vibemon.io/docs) — Google login, tokens, collectors, and coding accounts.
 

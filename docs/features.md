@@ -2,7 +2,7 @@
 
 ## Cloud resources and coding accounts
 
-Open **Monitoring…** to select custom resources, host/cluster presets, and multiple accounts per provider. The App polls summaries with an OS-encrypted read token. Web resource edits control labels, display ranges, and metric order; local hook activity still works independently. See [cloud monitoring](monitoring.md) for setup, selection, trends, and failure states.
+Open the workspace from the tray icon to select custom resources, host/cluster presets, and multiple accounts per provider. The App polls summaries with an OS-encrypted read token. Web resource edits control labels, display ranges, and metric order; local hook activity still works independently. See [cloud monitoring](monitoring.md) for setup, selection, trends, and failure states.
 
 
 ## Agent Support
@@ -33,13 +33,11 @@ VibeMon normalizes multiple agent ecosystems into one display model. The renderi
 
 ### OpenCode Setup
 
-In **Settings > AI Tools**, click **Install** for OpenCode, then restart OpenCode. The [official plugin loader](https://opencode.ai/docs/plugins/) discovers local plugins at startup; no `opencode.json` registration is required.
+In **Settings → Integrations**, click **Install integration** for OpenCode, then restart OpenCode. The [official plugin loader](https://opencode.ai/docs/plugins/) discovers local plugins at startup; no `opencode.json` registration is required.
 
 The installer places `plugins/vibemon.js` and `hooks/vibemon.py` under `OPENCODE_CONFIG_DIR`, or `$XDG_CONFIG_HOME/opencode` (default `~/.config/opencode`). Both files must be present for the app to report the integration as installed. Transmission settings come from the shared `~/.vibemon/config.json`.
 
-On Windows, the installer pins the Python interpreter in the plugin; custom config directories also receive an absolute adapter path. The app normalizes these known path adaptations when checking the published plugin checksum, so updates remain detectable. A missing pinned interpreter or stale adapter reference is shown as **Needs repair**; use **Reinstall**, then restart OpenCode. Missing installation files restore the **Install** action.
-
-![OpenCode installed in Settings > AI Tools](images/opencode-settings.png)
+On Windows, the installer pins the Python interpreter in the plugin; custom config directories also receive an absolute adapter path. The app normalizes these known path adaptations when checking the published plugin checksum, so updates remain detectable. A missing pinned interpreter or stale adapter reference is shown as **Needs repair**; use **Repair installation**, then restart OpenCode. Missing installation files restore the **Install integration** action.
 
 ## Characters
 
@@ -60,16 +58,14 @@ Characters are defined in `src/shared/data/characters.json`: display name, accen
 
 ### Render Mode
 
-**Settings → Character → Render Mode** switches the character window between the two engines; the choice persists and the open window reloads into it.
+**Settings → Companion → Render style** switches the character window between the two engines; the choice persists and the open window reloads into it.
 
 - `2d` (default): the pixel-art sprite described above
 - `3d`: a procedurally rendered pet (three.js) — no images are used. The rig is the same for every character; each one is tinted by its registry `theme` (`body`/`belly`/`accent`/`eye`/`blush`/`flame`), so Character Lock and per-project switching behave identically to 2D.
 
-**Settings → VibeMon → Character → Character Size** offers 100% through 30% in 10-point steps. The choice applies to both render modes and persists across restarts. The 3D canvas uses the largest uniform scale that fits each pose about the camera center, leaving a 2px margin. It recalculates before rendering each frame, including state transitions, and uses higher WebGL resolution for sharp enlargement. The 2D presentation is unchanged.
+**Settings → Companion → Size** offers 100% through 30% in 10-point steps. The choice applies to both render modes and persists across restarts. The 3D canvas uses the largest uniform scale that fits each pose about the camera center, leaving a 2px margin. It recalculates before rendering each frame, including state transitions, and uses higher WebGL resolution for sharp enlargement. The 2D presentation is unchanged.
 
-| Previous 3D framing | Adaptive 3D framing |
-| --- | --- |
-| ![Previous 3D size](images/3d-size-before.png) | ![Larger 3D size](images/3d-size-after.png) |
+![Adaptive 3D character framing](images/3d-size-after.png)
 
 Both engines are maintained here (`src/engine/`); three.js ships locally in `src/vendor/` because the renderer CSP forbids runtime CDN imports.
 
@@ -79,7 +75,7 @@ Forces the character window to always show one character, ignoring whatever char
 
 - `auto` (default): each project shows its own character
 - Any character name: that character is always shown instead, applied immediately to the open window
-- Toggled via the system tray menu (**Character Lock** submenu) or `POST /character-lock`
+- Choose **Settings → Companion → Character** or use `POST /character-lock`
 - Switching back to `auto` doesn't retroactively fix the open window — it picks up each project's real character again on its next status update
 
 ## States
@@ -127,7 +123,7 @@ The `working` state's speech bubble shows fixed text based on the active tool:
 | `planning`, `thinking`, `working`, `packing`, `notification`, `alert` | 5 minutes | `idle` |
 | `idle` | 5 minutes | `sleep` |
 
-After 10 minutes in sleep state, the window automatically closes. It reappears on the next status update — or on demand via the tray menu's **Show Character** action, which reopens the character (and its speech bubble) immediately.
+After 10 minutes in sleep state, the window automatically closes. It reappears on the next status update — or on demand via the tray menu's **Show companion** action, which reopens the character (and its speech bubble) immediately.
 
 ## Animations
 
@@ -169,11 +165,9 @@ The app shows exactly one character window plus its following speech bubble:
 - **System Tray**: Quick access from menubar/taskbar
 - **Draggable**: Move the character anywhere on screen
 - **Snap to corner**: Can be dragged past the screen edge mid-drag; once you let go, it's clamped back on-screen, snapping flush to a corner within a 30px threshold
-- **macOS Dock corners**: Dropping the character at a bottom corner uses the free space beside a bottom Dock, or below a side Dock, while respecting Edge Margin. **Settings → VibeMon → Window → Dock Corner Size** chooses the behavior and saves it across restarts. **Keep current size** is the default: both overlays retain their sizes and sit beside or above each other in the available space. If neither arrangement fits, normal work-area placement preserves their sizes. **Auto shrink** scales both overlays, including the bubble's tail, to fit the Dock's narrow strip; dragging away restores Character Size and the bubble's natural size. Changing the setting immediately updates a parked character. Dock geometry is refreshed while a character rests in a bottom corner; unavailable or hidden Dock geometry uses normal work-area placement.
+- **macOS Dock corners**: Dropping the character at a bottom corner uses the free space beside a bottom Dock, or below a side Dock, while respecting Edge Margin. **Settings → Companion → Dock corner size** chooses the behavior and saves it across restarts. **Keep current size** is the default: both overlays retain their sizes and sit beside or above each other in the available space. If neither arrangement fits, normal work-area placement preserves their sizes. **Auto shrink** scales both overlays, including the bubble's tail, to fit the Dock's narrow strip; dragging away restores Character Size and the bubble's natural size. Changing the setting immediately updates a parked character. Dock geometry is refreshed while a character rests in a bottom corner; unavailable or hidden Dock geometry uses normal work-area placement.
 
   Dock geometry uses the read-only, undocumented macOS `CoreDockGetRect` function, with a public `CGWindowListCopyWindowInfo` fallback. Neither Accessibility nor Screen Recording permission is requested. A future macOS release may remove or change the private function; unusable geometry preserves normal work-area snapping. `pnpm test:overlays --require-dock` requires detection of a real visible Dock in addition to the deterministic fixture checks.
-
-  ![Dock Corner Size defaults to Keep current size](images/dock-corner-settings.png)
 
   Native window captures with **Auto shrink** enabled and an 801 × 56-point Dock (Retina 2×):
 
@@ -197,7 +191,7 @@ When `active-only` is selected:
 - Active states (thinking, planning, working, packing, notification, alert) immediately enable always on top
 - Inactive states (start, idle, done, sleep) immediately disable always on top (prevents focus stealing)
 
-Change via system tray menu: Always on Top → Select mode
+Choose **Settings → Companion → Stay on top**.
 
 ### Click to Focus Terminal (macOS)
 
@@ -213,35 +207,18 @@ When running Claude Code in multiple terminal tabs, clicking the character windo
 
 ### Speech Bubble
 
-A small, transparent, click-through window that displays selected info fields (status, project name, model, memory, 5h usage, weekly usage, model-scoped weekly usage — e.g. "Fable 12% · 4d11h") next to the character. Each plan-usage row shows its own reset countdown when available. Positioned automatically so it never overlaps the character window and stays on-screen, with an animated slide when it needs to move.
+A small, transparent window with input only on its visible body and tail that displays selected info fields (status, project name, model, memory, 5h usage, weekly usage, model-scoped weekly usage — e.g. "Fable 12% · 4d11h") next to the character. Each plan-usage row shows its own reset countdown when available. Positioned automatically so it never overlaps the character window and stays on-screen, with an animated slide when it needs to move.
 
-- Toggled per field via the system tray menu (**Speech Bubble** submenu: Status / Project / Model / Memory / Usage 5h / Usage Week / Usage Model Week)
+- Select fields under **Settings → Companion → Speech bubble**: Activity, Project name, Model, Context usage, Session usage, Weekly usage, and Model usage.
 - The status field shows state-based text (e.g. "Ready", "Thinking") and tool-based text while working (e.g. "Reading"), with animated loading dots during thinking/planning/working/packing — slower for thinking-style states
 
-### Settings Window
+### Workspace and settings
 
-A dedicated settings window (tray menu → **Settings...**) with four tabs in a sidebar:
+The tray icon opens one window with Overview, Resources, Coding agents, and Settings. Connections, Companion, Integrations, and About share its navigation and connection state. Preference changes apply immediately; connection and display-selection forms require Save. Search fields and unsaved choices survive automatic polling.
 
-- **VibeMon** — Character Lock, Always on Top mode, Speech Bubble field toggles, Open at Login
-- **Collector** — how AI tool session status gets delivered here, locally or via the cloud relay: HTTPS connection status and a link to the Monitoring window; its read token is separate from the hook write token, plus Config (HTTP URLs, Serial Port, VibeMon URL, Debug Logging, Auto-launch Desktop App) read and written directly by the app — no python installer needed
-- **AI Tools** — per-tool hook install status for Claude Code / Codex CLI / Kiro IDE / OpenClaw / OpenCode, with one-click Install (Reinstall for already-installed tools) and a Refresh action
-- **About** — app version, Check for Updates with one-click download/install, and Docs / GitHub Releases links
+The secondary tray menu provides Dashboard, Settings, Show companion, Integrations, About VibeMon, and Quit VibeMon. Usage and preference controls live in the workspace instead of submenus. **Show companion** restores the last shown character and speech bubble after they close, without waiting for another status event.
 
-Changes apply immediately through the same code paths as the tray menu, and the window re-syncs when refocused so tray-made changes are reflected.
-
-The read token is encrypted by OS secure storage and is never returned to a renderer. HTTPS requests use the Authorization header. Hook installation preserves the existing write token in hook configuration and never copies the read token.
-
-### System Tray Menu
-
-Grouped to mirror the Settings window's tab order (VibeMon / Collector / AI Tools / About):
-
-- **Show Character** — reopens the character window and its speech bubble after they closed (the sleep close-timeout or a manual close / `POST /close`), recreating the last shown character/state instead of waiting for the next status update
-- Settings... (opens the Settings window)
-- **VibeMon** — Character Lock (Auto/VibeMon/Clawd/Codex/Kiro/Claw/Daangni), Always on Top, Speech Bubble field toggles, Open at Login toggle
-- **Collector** — Cloud connection status, HTTP Server port display
-- **AI Tools** — AI Tool Hooks (per-tool install status for Claude Code/Codex CLI/Kiro IDE/OpenClaw/OpenCode, with one-click install), followed by Claude/Codex plan usage grouped per provider (5h, weekly, and model-scoped weekly %, each with a heat-colored bar icon and its own time-to-reset) — read from the shared usage cache independent of which project is focused; rows with no fresh data are omitted
-- **About** — opens the Settings window's About tab, followed by a version display or a one-click "Update to vX" / "Restart to install vX" item
-- Quit
+See [the desktop workspace guide](monitoring.md) for navigation, connection, settings, and recovery.
 
 ## Rendering Engine
 

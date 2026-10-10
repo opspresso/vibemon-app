@@ -10,6 +10,8 @@ Monitor selected resources and coding accounts from your desktop. VibeMon combin
 - Choose visible metrics and view recent-hour trends. Web edits to resource labels, ranges, and order appear on the next poll.
 - Receive local tool events without a cloud connection. Hooks support Claude Code, Codex, Kiro, OpenClaw, and OpenCode.
 
+![Desktop workspace with synthetic monitoring data](docs/images/workspace-overview-light.png)
+
 ## Install and start
 
 On macOS:
@@ -28,22 +30,22 @@ Open the installed VibeMon application. It starts in the system tray and listens
 
 1. Sign in to [VibeMon Account](https://vibemon.io/account) with Google.
 2. Create a **Read** token and select **Show token** to copy it. Tokens can be retrieved again; deleting one stops its API access.
-3. Open **Monitoring…** in the App tray menu. Enter the Web origin and read token, then select **Save and connect**.
-4. Select resources, provider accounts, and metrics under **Connection and display settings**, then **Apply display selection**.
+3. Click the App tray icon and open **Settings → Connections**. Enter the Web origin and read token, then select **Save and connect**.
+4. Open **Customize view**, select resources, provider accounts, and metrics, then select **Save view**.
 
 A source appears after its collector or hook sends the first report. Follow the [connection guide](https://vibemon.io/docs) to set up separate write tokens, custom resources, or several accounts for one provider. Provider credentials remain on the source machine.
 
-The App keeps its read token in OS secure storage. **Disconnect** removes the local credential; deleting the token on Web invalidates it for every client using it. See [cloud monitoring](docs/monitoring.md) for selection, missing data, stale sources, and troubleshooting.
+The App keeps its read token in OS secure storage. **Disconnect** removes the local credential; deleting the token on Web invalidates it for every client using it. See [the desktop workspace guide](docs/monitoring.md) for selection, missing data, stale sources, and troubleshooting.
 
 ## Connect local coding tools
 
-Open **Settings → AI Tools → Install** for the tool you use, then restart that tool. Local character updates do not require Google login. Sending the same activity to Web requires a separate write token in the hook configuration; the App's read token is never reused for hooks.
+Open **Settings → Integrations → Install integration** for the tool you use, then restart that tool. Local character updates do not require Google login. Sending the same activity to Web requires a separate write token in the hook configuration; the App's read token is never reused for hooks.
 
 Tool detection honors `CLAUDE_CONFIG_DIR`, `CODEX_HOME`, `KIRO_HOME`, and `OPENCODE_CONFIG_DIR`. These variables must reach both the tool and App processes. OpenClaw installation is supported on macOS/Linux. See the [hook installation guide](https://vibemon.io/docs/setup) for headless/Windows setup and [hook reference](https://vibemon.io/docs/hooks) for event mappings.
 
 ## Character display
 
-One character window follows the active local or selected cloud project. Drag the character or bubble to move them together; use **Character Lock** to choose a fixed character. See [desktop features](docs/features.md) for states, characters, settings, and interaction details.
+One character window follows the active local or selected cloud project. Drag the character or bubble to move them together; use **Settings → Companion → Character** to choose a fixed character. See [desktop features](docs/features.md) for states, characters, settings, and interaction details.
 
 ![VibeMon character preview](images/demo.gif)
 

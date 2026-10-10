@@ -6,6 +6,8 @@ Use Node.js 26.11.1 and the pnpm version pinned in `package.json`.
 pnpm install --frozen-lockfile
 pnpm lint
 pnpm exec jest --coverage --runInBand
+pnpm test:workspace
+pnpm test:overlays
 pnpm build:mac
 ```
 
@@ -13,7 +15,7 @@ Build scripts pass `--publish never`. For unsigned local macOS verification, set
 
 Desktop packages bundle Electron, so it belongs in development dependencies. Releases are distributed through GitHub and Homebrew. The root package is private and cannot be published to npm. `dist/` contains generated build artifacts and is not committed.
 
-Desktop packaging uses an explicit allowlist: `src/`, application icons, `LICENSE`, and package metadata, plus production dependencies assembled by electron-builder. Development configuration, environment files, tests, coverage, and maintenance scripts are excluded. With the same Electron 43.7.9 dependency lock, this reduced the application ASAR from 8,708,272 to 5,979,179 bytes during verification. This is a package-size comparison, not a startup-time benchmark.
+Desktop packaging uses an explicit allowlist: `src/`, application icons, `LICENSE`, and package metadata, plus production dependencies assembled by electron-builder. Development configuration, environment files, tests, coverage, and maintenance scripts are excluded.
 
 ## Public distribution
 

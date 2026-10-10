@@ -30,6 +30,8 @@ startFixture().then(async fixture => {
     await until(() => visible(`[data-page="${route}"]`), `${route} page visible`);
   };
   const screenshot = async name => {
+    await until(() => ui('document.getElementById("toast").hidden'), 'transient feedback completed');
+    await ui('Promise.all(document.getAnimations().map(animation => animation.finished))');
     await ui('new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))');
     fs.writeFileSync(path.join(output, `${name}.png`), (await web.capturePage()).toPNG());
   };
