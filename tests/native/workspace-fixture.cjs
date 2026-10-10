@@ -53,6 +53,7 @@ async function startFixture() {
   const errors = [];
   const view = new WorkspaceWindow({ monitoring: client, settings, ...ports, reportError: error => { errors.push(error.message); } });
   settings.onSettingsChanged = () => view.notify('settings');
+  ports.hookInstaller.onStateChanged = () => view.notify('settings');
   function cleanup() {
     view.cleanup(); client.stop(); server.close();
   }

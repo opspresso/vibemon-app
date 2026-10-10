@@ -130,6 +130,8 @@ export function setupPreferences({ getFrame, request, run, notify }) {
     latest = frame;
     const settings = frame.settings,
       cloud = frame.cloud;
+    $('integration-progress').hidden = !settings.installing;
+    $('hooks-refresh').disabled = Boolean($('hooks-refresh').dataset.busy) || settings.installing;
     field('web-url', cloud.url);
     text($('token-state'), cloud.tokenConfigured ? 'A token is saved securely' : 'No token saved');
     $('read-token').placeholder = cloud.tokenConfigured
@@ -276,6 +278,7 @@ export function setupPreferences({ getFrame, request, run, notify }) {
               : 'Install integration'
         );
         action.className = `button ${(tool.hasHook && !attention) || !tool.present ? 'secondary' : ''}`;
+        action.disabled = Boolean(action.dataset.busy) || Boolean(settings.installing && tool.present);
         text(
           detail,
           tool.brokenPath

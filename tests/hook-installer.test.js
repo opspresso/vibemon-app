@@ -182,7 +182,7 @@ function mockSuccessfulInstall(script = 'script-source') {
   const spawnedChildren = [];
   spawn.mockImplementation(() => {
     const child = new EventEmitter();
-    child.stdin = { write: jest.fn(), end: jest.fn() };
+    child.stdin = Object.assign(new EventEmitter(), { write: jest.fn(), end: jest.fn() });
     child.stdout = new EventEmitter();
     child.stderr = new EventEmitter();
     spawnedChildren.push(child);
@@ -757,9 +757,21 @@ describe('HookInstaller', () => {
   });
 
   describe('runScript', () => {
+    test.each([0, 1])('handles a closed input pipe and reports a failed result for exit %s', async code => {
+      const child = new EventEmitter();
+      child.stdin = Object.assign(new EventEmitter(), { write: jest.fn(), end: jest.fn() });
+      child.stdout = new EventEmitter(); child.stderr = new EventEmitter();
+      spawn.mockReturnValue(child);
+      const pending = hookInstaller.runScript('source', PYTHON, ['--claude']);
+      expect(() => child.stdin.emit('error', new Error('write EPIPE'))).not.toThrow();
+      child.stderr.emit('data', 'Python could not process the installer');
+      child.emit('close', code);
+      expect(await pending).toMatchObject({ ok: false, reason: code ? 'exit-code' : 'input-error' });
+    });
+
     test('spawns python3 without exposing the token in process arguments', async () => {
       const fakeChild = new EventEmitter();
-      fakeChild.stdin = { write: jest.fn(), end: jest.fn() };
+      fakeChild.stdin = Object.assign(new EventEmitter(), { write: jest.fn(), end: jest.fn() });
       fakeChild.stdout = new EventEmitter();
       fakeChild.stderr = new EventEmitter();
       spawn.mockReturnValue(fakeChild);
@@ -785,7 +797,7 @@ describe('HookInstaller', () => {
     // statusLine the user configured themselves.
     test('does not pass --yes, so user-owned settings survive an install', async () => {
       const fakeChild = new EventEmitter();
-      fakeChild.stdin = { write: jest.fn(), end: jest.fn() };
+      fakeChild.stdin = Object.assign(new EventEmitter(), { write: jest.fn(), end: jest.fn() });
       fakeChild.stdout = new EventEmitter();
       fakeChild.stderr = new EventEmitter();
       spawn.mockReturnValue(fakeChild);
@@ -800,7 +812,7 @@ describe('HookInstaller', () => {
 
     test('resolves ok:false with exit code when the script fails', async () => {
       const fakeChild = new EventEmitter();
-      fakeChild.stdin = { write: jest.fn(), end: jest.fn() };
+      fakeChild.stdin = Object.assign(new EventEmitter(), { write: jest.fn(), end: jest.fn() });
       fakeChild.stdout = new EventEmitter();
       fakeChild.stderr = new EventEmitter();
       spawn.mockReturnValue(fakeChild);
@@ -819,7 +831,7 @@ describe('HookInstaller', () => {
     // fills, and install.py prints its failures to stdout, not stderr.
     test('drains stdout and keeps it on the result', async () => {
       const fakeChild = new EventEmitter();
-      fakeChild.stdin = { write: jest.fn(), end: jest.fn() };
+      fakeChild.stdin = Object.assign(new EventEmitter(), { write: jest.fn(), end: jest.fn() });
       fakeChild.stdout = new EventEmitter();
       fakeChild.stderr = new EventEmitter();
       spawn.mockReturnValue(fakeChild);
@@ -835,7 +847,7 @@ describe('HookInstaller', () => {
 
     test('caps captured output so a runaway script cannot grow it without bound', async () => {
       const fakeChild = new EventEmitter();
-      fakeChild.stdin = { write: jest.fn(), end: jest.fn() };
+      fakeChild.stdin = Object.assign(new EventEmitter(), { write: jest.fn(), end: jest.fn() });
       fakeChild.stdout = new EventEmitter();
       fakeChild.stderr = new EventEmitter();
       spawn.mockReturnValue(fakeChild);
@@ -886,12 +898,10 @@ describe('HookInstaller', () => {
   describe('installTools', () => {
     const pythonCommand = process.platform === 'win32' ? 'py' : 'python3';
     const pythonPrefix = process.platform === 'win32' ? ['-3'] : [];
-    test('does not run concurrently; returns [] without spawning anything', async () => {
+    test('rejects a concurrent installation without spawning anything', async () => {
       hookInstaller.isRunning = true;
 
-      const result = await hookInstaller.installTools([TOOLS[0]], null);
-
-      expect(result).toEqual([]);
+      await expect(hookInstaller.installTools([TOOLS[0]], null)).rejects.toThrow('already running');
       expect(https.get).not.toHaveBeenCalled();
       expect(spawn).not.toHaveBeenCalled();
     });
@@ -909,6 +919,8 @@ describe('HookInstaller', () => {
 
     test('downloads install.py exactly once for a multi-tool batch and spawns once per tool', async () => {
       const children = mockSuccessfulInstall();
+      const progress = [];
+      hookInstaller.onStateChanged = () => progress.push(hookInstaller.isRunning);
 
       const token = 'vm_' + 'a'.repeat(60);
       const results = await hookInstaller.installTools([TOOLS[0], TOOLS[1]], token);
@@ -917,6 +929,7 @@ describe('HookInstaller', () => {
       expect(scriptFetches).toHaveLength(1);
       expect(spawn).toHaveBeenCalledTimes(2);
       expect(children).toHaveLength(2);
+      expect(progress).toEqual([true, false]);
       expect(results.every(r => r.result.ok)).toBe(true);
       expect(spawn.mock.calls[0][0]).toBe(pythonCommand);
       expect(spawn.mock.calls[0][1]).toEqual([...pythonPrefix, '-', TOOLS[0].flag]);
@@ -1011,7 +1024,7 @@ describe('HookInstaller', () => {
       });
       spawn.mockImplementation(() => {
         const child = new EventEmitter();
-        child.stdin = { write: jest.fn(), end: jest.fn() };
+        child.stdin = Object.assign(new EventEmitter(), { write: jest.fn(), end: jest.fn() });
         child.stdout = new EventEmitter();
         child.stderr = new EventEmitter();
         setTimeout(() => child.emit('close', 0), 0);
@@ -1034,7 +1047,7 @@ describe('HookInstaller', () => {
     });
 
     // A dialog confirming what the user just asked for is a modal
-    // interruption; the tray submenu and Settings rows already show it.
+    // interruption; Settings > Integrations already shows it.
     test('stays silent when every tool installed', async () => {
       mockSuccessfulInstall();
 
@@ -1060,7 +1073,7 @@ describe('HookInstaller', () => {
       let call = 0;
       spawn.mockImplementation(() => {
         const child = new EventEmitter();
-        child.stdin = { write: jest.fn(), end: jest.fn() };
+        child.stdin = Object.assign(new EventEmitter(), { write: jest.fn(), end: jest.fn() });
         child.stdout = new EventEmitter();
         child.stderr = new EventEmitter();
         const code = call++ === 0 ? 0 : 1;

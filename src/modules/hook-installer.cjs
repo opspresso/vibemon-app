@@ -396,6 +396,7 @@ class HookInstaller {
       defaults: { dismissed: [] }
     });
     this.isRunning = false;
+    this.onStateChanged = null;
     // In-memory only (cleared on restart): avoids re-prompting every check
     // cycle for an error that won't resolve itself (e.g. missing python3).
     this.sessionSuppressed = new Set();
@@ -405,8 +406,7 @@ class HookInstaller {
     this.manifest = null;
     // Detecting tools spawns `which`/`where` per tool, which blocks the
     // main process for tens of ms. Computed once eagerly here (a one-time
-    // startup cost) so cheap, frequent reads (e.g. the tray menu, which
-    // rebuilds on every status update) never trigger it. Refreshed again
+    // startup cost) so workspace snapshots never trigger it. Refreshed again
     // by getMissingTools() and after installTools() completes.
     this.cachedStatuses = this.refreshStatuses();
   }
@@ -661,14 +661,16 @@ class HookInstaller {
       });
       let stdout = '';
       let stderr = '';
+      let inputFailed = false;
       // Both streams are drained, not merely sampled for diagnostics: a piped
       // stream nobody reads blocks the child as soon as the OS buffer fills.
       child.stdout.on('data', (chunk) => { stdout = appendCapped(stdout, chunk); });
       child.stderr.on('data', (chunk) => { stderr = appendCapped(stderr, chunk); });
+      child.stdin.on('error', () => { inputFailed = true; });
       child.on('error', (err) => resolve({ ok: false, reason: 'spawn-error', error: err.message }));
       child.on('close', (code) => resolve({
-        ok: code === 0,
-        reason: code === 0 ? null : 'exit-code',
+        ok: code === 0 && !inputFailed,
+        reason: code !== 0 ? 'exit-code' : inputFailed ? 'input-error' : null,
         code,
         stdout,
         stderr
@@ -696,9 +698,10 @@ class HookInstaller {
    */
   async installTools(tools, token, { showSummary = true } = {}) {
     if (this.isRunning) {
-      return [];
+      throw new Error('Another integration installation is already running');
     }
     this.isRunning = true;
+    this.onStateChanged?.();
 
     const results = [];
     try {
@@ -730,6 +733,7 @@ class HookInstaller {
       }
     } finally {
       this.isRunning = false;
+      this.onStateChanged?.();
     }
 
     this.refreshStatuses();
@@ -796,7 +800,7 @@ class HookInstaller {
     const failed = results.filter(r => !r.result.ok);
 
     // Nothing to say when it worked: the install is already visible in the
-    // tray submenu and the Settings AI Tools rows, so a dialog here is a modal
+    // Settings > Integrations cards, so a dialog here is a modal
     // interruption confirming what the user just asked for.
     if (failed.length === 0) {
       return;

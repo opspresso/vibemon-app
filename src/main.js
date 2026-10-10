@@ -517,6 +517,7 @@ app.whenReady().then(() => {
   trayManager.setMonitoringClient(monitoringClient);
   trayManager.setHookInstaller(hookInstaller);
   trayManager.setUpdateChecker(updateChecker);
+  hookInstaller.onStateChanged = () => workspaceWindow?.notify('settings');
 
   updateChecker.onStateChanged = () => {
     if (trayManager) {
@@ -531,8 +532,7 @@ app.whenReady().then(() => {
   // ~/.vibemon/config.json pointed at this app, since a hook file can be
   // present while that shared config is missing or stale. The same cycle
   // compares installed hook/script files against the published manifest and
-  // surfaces drift as badges (tray icon dot, tray submenu, Settings AI Tools
-  // tab) — no dialog.
+  // surfaces drift in the tray badge and Settings > Integrations.
   const runHookCheck = () => {
     vibemonConfigManager.ensureDesktopUrl(null);
     hookInstaller.checkAndPrompt(null)

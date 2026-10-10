@@ -79,6 +79,7 @@ class WorkspaceSettings {
       devMode: this.windowManager.getDevMode(),
       openAtLogin: this.app.getLoginItemSettings().openAtLogin,
       hooks: this.toHookView(this.hookInstaller.getCachedStatuses()),
+      installing: Boolean(this.hookInstaller.isRunning),
       vibemonConfig: this.getVibemonConfigView(),
       update: this.updateChecker.getState(),
       options: {

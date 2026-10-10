@@ -198,9 +198,37 @@ startFixture().then(async fixture => {
   assert.equal(await value('#character-scale'), '80');
   await screenshot('companion-settings');
   await navigate('integrations');
+  const installByFlag = ports.hookInstaller.installByFlag;
+  let finishInstallation;
+  const installation = new Promise(resolve => { finishInstallation = resolve; });
+  ports.hookInstaller.installByFlag = async flag => {
+    ports.hookInstaller.isRunning = true;
+    ports.hookInstaller.onStateChanged();
+    try {
+      await installation;
+      return await installByFlag(flag);
+    } finally {
+      ports.hookInstaller.isRunning = false;
+      ports.hookInstaller.onStateChanged();
+    }
+  };
   await ui('[...document.querySelectorAll("#hook-list .integration-card")].find(card => card.textContent.includes("Codex CLI")).querySelector("button").click()');
+  await until(() => visible('#integration-progress'), 'installation progress announced');
+  assert.equal(await ui('document.getElementById("hooks-refresh").disabled'), true);
+  assert.deepEqual(await ui('[...document.querySelectorAll("#hook-list .integration-card button")].map(button => ({ label: button.textContent, disabled: button.disabled }))'), [
+    { label: 'Reinstall', disabled: true },
+    { label: 'Repair installation', disabled: true },
+    { label: 'Install integration', disabled: true },
+    { label: 'Setup guide', disabled: false },
+    { label: 'Setup guide', disabled: false },
+    { label: 'Reinstall', disabled: true }
+  ]);
+  finishInstallation();
   await until(() => ports.calls.some(call => call[0] === 'install' && call[1] === '--codex'), 'integration repair');
   await until(async () => !(await text('#hook-list')).includes('Update available'), 'integration repair reflected');
+  await until(async () => !(await visible('#integration-progress')), 'installation progress cleared');
+  assert.equal(await ui('document.querySelectorAll("#hook-list button:disabled").length'), 0);
+  ports.hookInstaller.installByFlag = installByFlag;
   await screenshot('integration-settings');
   await click('#local-routing summary');
   const getConfigStatus = ports.vibemonConfigManager.getStatus;

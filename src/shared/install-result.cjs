@@ -33,6 +33,8 @@ function describeFailure(result, platform = process.platform) {
       return `Network error: ${result.error}`;
     case 'spawn-error':
       return `Execution error: ${result.error}`;
+    case 'input-error':
+      return 'Python stopped receiving the installer. Check the Python installation and try again.';
     case 'exit-code': {
       // install.py reports *why* it stopped (a failed integrity check, a file
       // it couldn't write) on stdout, so the bare exit code alone is useless.
