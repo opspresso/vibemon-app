@@ -419,6 +419,24 @@ describe('HttpServer request boundaries', () => {
     await expect(server.stop()).resolves.toBeUndefined();
   });
 
+  test('stop closes active connections after its grace period before resolving', async () => {
+    jest.useFakeTimers();
+    const { HTTP_CLOSE_TIMEOUT_MS } = require('../src/shared/config.cjs');
+    const { server } = createServer();
+    let closed;
+    const native = { close: callback => { closed = callback; }, closeAllConnections: jest.fn(() => closed()) };
+    server.server = native;
+    try {
+      const stopped = server.stop();
+      jest.advanceTimersByTime(HTTP_CLOSE_TIMEOUT_MS - 1);
+      expect(native.closeAllConnections).not.toHaveBeenCalled();
+      jest.advanceTimersByTime(1);
+      await stopped;
+      expect(native.closeAllConnections).toHaveBeenCalledTimes(1);
+      expect(server.server).toBeNull();
+    } finally { jest.useRealTimers(); }
+  });
+
   test('rejects invalid JSON and missing JSON content types on mutation routes', async () => {
     const { server } = createServer();
     const invalidJson = response();

@@ -4,7 +4,7 @@
 
 const http = require('http');
 const { URL } = require('url');
-const { HTTP_PORT, MAX_PAYLOAD_SIZE, RATE_LIMIT, RATE_WINDOW_MS, CHARACTER_NAMES } = require('../shared/config.cjs');
+const { HTTP_PORT, MAX_PAYLOAD_SIZE, RATE_LIMIT, RATE_WINDOW_MS, HTTP_CLOSE_TIMEOUT_MS, CHARACTER_NAMES } = require('../shared/config.cjs');
 const { setCorsHeaders, isAllowedOrigin, isAllowedHost, hasJsonContentType, sendJson, sendError, parseJsonBody } = require('./http-utils.cjs');
 const { validateStatusPayload } = require('./validators.cjs');
 
@@ -103,17 +103,17 @@ class HttpServer {
         return;
       }
 
+      const server = this.server;
       const forceCloseTimeout = setTimeout(() => {
-        console.warn('HTTP server close timeout, forcing shutdown');
-        resolve();
-      }, 5000);
+        server.closeAllConnections();
+      }, HTTP_CLOSE_TIMEOUT_MS);
 
-      this.server.close((err) => {
+      server.close((err) => {
         clearTimeout(forceCloseTimeout);
         if (err && err.code !== 'ERR_SERVER_NOT_RUNNING') {
           console.error('HTTP server close error:', err.message);
         }
-        this.server = null;
+        if (this.server === server) this.server = null;
         resolve();
       });
     });

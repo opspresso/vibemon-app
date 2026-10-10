@@ -38,6 +38,7 @@ function createMockRequest(headers = {}) {
   const req = new EventEmitter();
   req.headers = headers;
   req.destroy = jest.fn();
+  req.pause = jest.fn();
   return req;
 }
 
@@ -249,7 +250,8 @@ describe('parseJsonBody', () => {
     expect(result.data).toBeNull();
     expect(result.error).toBe('Payload too large');
     expect(result.statusCode).toBe(413);
-    expect(req.destroy).toHaveBeenCalled();
+    expect(req.pause).toHaveBeenCalled();
+    expect(req.destroy).not.toHaveBeenCalled();
   });
 
   test('rejects invalid JSON', async () => {
@@ -301,7 +303,8 @@ describe('parseJsonBody', () => {
     expect(result.data).toBeNull();
     expect(result.error).toBe('Request timeout');
     expect(result.statusCode).toBe(408);
-    expect(req.destroy).toHaveBeenCalled();
+    expect(req.pause).toHaveBeenCalled();
+    expect(req.destroy).not.toHaveBeenCalled();
 
     jest.useRealTimers();
   });

@@ -57,6 +57,7 @@ function sendJson(res, statusCode, data) {
  * @param {string} message
  */
 function sendError(res, statusCode, message) {
+  if (statusCode === 408 || statusCode === 413) res.setHeader('Connection', 'close');
   sendJson(res, statusCode, { error: message });
 }
 
@@ -77,7 +78,8 @@ function parseJsonBody(req, maxSize, timeout = REQUEST_TIMEOUT_MS) {
     const timer = setTimeout(() => {
       if (!aborted) {
         aborted = true;
-        req.destroy();
+        // Let the responder flush 408/413 before closing the connection.
+        req.pause();
         resolve({ data: null, error: 'Request timeout', statusCode: 408 });
       }
     }, timeout);
@@ -88,7 +90,7 @@ function parseJsonBody(req, maxSize, timeout = REQUEST_TIMEOUT_MS) {
       if (bodySize > maxSize) {
         aborted = true;
         clearTimeout(timer);
-        req.destroy();
+        req.pause();
         resolve({ data: null, error: 'Payload too large', statusCode: 413 });
         return;
       }
