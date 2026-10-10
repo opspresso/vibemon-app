@@ -6,99 +6,7 @@ const { Tray, Menu, nativeImage, BrowserWindow } = require('electron');
 const { createCanvas, loadImage } = require('canvas');
 const fs = require('fs');
 const path = require('path');
-const {
-  STATE_COLORS, CHARACTER_CONFIG, DEFAULT_CHARACTER,
-  HTTP_PORT, ALWAYS_ON_TOP_MODES,
-  CHARACTER_NAMES, TRAY_ICON_SIZE,
-  SPEECH_BUBBLE_FIELDS
-} = require('../shared/config.cjs');
-const { getUsageSnapshot, formatResetIn } = require('./usage-cache-reader.cjs');
-
-const SPEECH_BUBBLE_FIELD_LABELS = {
-  status: 'Status',
-  project: 'Project',
-  model: 'Model',
-  memory: 'Memory',
-  usage5h: 'Usage 5h',
-  usageWeek: 'Usage Week',
-  usageWeekModel: 'Usage Model Week'
-};
-
-// Same emoji semantics as bubble-window-manager.cjs's METRIC_ICONS: ⏱️ for
-// the 5-hour session window, 📅 for the weekly window, 🎯 for the
-// model-scoped weekly limit.
-const USAGE_PROVIDERS = [
-  { provider: 'claude', label: 'Claude' },
-  { provider: 'codex', label: 'Codex' }
-];
-const USAGE_BUCKETS = [
-  { bucket: 'session', suffix: '5h', emoji: '⏱️' },
-  { bucket: 'week', suffix: 'Week', emoji: '📅' },
-  // Model-scoped weekly limit (e.g. Fable); suffix comes from the bucket label.
-  { bucket: 'modelWeek', suffix: null, emoji: '🎯' }
-];
-
-// Usage bar graph rendered as a PNG menu-item icon (capsule track + heat
-// colored fill). An icon — unlike label text — aligns pixel-perfectly
-// regardless of the menu's proportional font and can carry color.
-const USAGE_BAR_WIDTH = 56;
-const USAGE_BAR_HEIGHT = 5;
-const USAGE_BAR_SCALE = 2; // draw at 2x for retina menus
-
-const usageBarIconCache = new Map(); // pct (0-100 int) -> NativeImage
-
-/**
- * Usage heat color — same thresholds and palette as the speech bubble's
- * barColor() (vibemon-bubble.js) and statusline.py: green, yellow past 50%,
- * orange past 70%, red past 90%.
- * @param {number} pct
- * @returns {string}
- */
-function usageHeatColor(pct) {
-  if (pct > 90) return '#FF4444';
-  if (pct > 70) return '#FF8800';
-  if (pct > 50) return '#FFCC00';
-  return '#00AA00';
-}
-
-/**
- * Render (and cache) the bar icon for a usage percentage.
- * @param {number} pct
- * @returns {Electron.NativeImage}
- */
-function getUsageBarIcon(pct) {
-  const key = Math.max(0, Math.min(100, Math.round(pct)));
-  if (usageBarIconCache.has(key)) return usageBarIconCache.get(key);
-
-  const w = USAGE_BAR_WIDTH * USAGE_BAR_SCALE;
-  const h = USAGE_BAR_HEIGHT * USAGE_BAR_SCALE;
-  const canvas = createCanvas(w, h);
-  const ctx = canvas.getContext('2d');
-  const radius = h / 2;
-
-  // Track: translucent mid-gray, readable on both light and dark menus.
-  ctx.fillStyle = 'rgba(127, 127, 127, 0.35)';
-  ctx.beginPath();
-  ctx.roundRect(0, 0, w, h, radius);
-  ctx.fill();
-
-  const fillWidth = Math.round((key / 100) * w);
-  if (fillWidth > 0) {
-    ctx.save();
-    ctx.beginPath();
-    ctx.roundRect(0, 0, w, h, radius);
-    ctx.clip();
-    ctx.fillStyle = usageHeatColor(key);
-    ctx.fillRect(0, 0, fillWidth, h);
-    ctx.restore();
-  }
-
-  const icon = nativeImage.createFromBuffer(canvas.toBuffer('image/png'), {
-    scaleFactor: USAGE_BAR_SCALE
-  });
-  usageBarIconCache.set(key, icon);
-  return icon;
-}
+const { STATE_COLORS, CHARACTER_CONFIG, DEFAULT_CHARACTER, TRAY_ICON_SIZE } = require('../shared/config.cjs');
 
 // Tray icon cache for performance
 const trayIconCache = new Map();
@@ -193,17 +101,22 @@ async function createTrayIcon(state, character = DEFAULT_CHARACTER, showBadge = 
 }
 
 class TrayManager {
-  constructor(windowManager, app, stateManager, monitoringClient = null) {
+  constructor(windowManager, app, monitoringClient = null) {
     this.tray = null;
     this.windowManager = windowManager;
     this.app = app;
-    this.stateManager = stateManager;
-    this.monitoringClient = monitoringClient;
+    this.contextMenu = null;
+    this.monitoringClient = null;
+    this.onMonitoringChange = null;
+    this.cloudAttention = false;
+    this.iconGeneration = 0;
+    this.iconKey = null;
     this.hookInstaller = null;
     this.updateChecker = null;
-    this.settingsWindowManager = null;
+    this.openSettings = null;
     this.showCharacterHandler = null;
     this.openDashboard = null;
+    if (monitoringClient) this.setMonitoringClient(monitoringClient);
   }
 
   /**
@@ -211,7 +124,16 @@ class TrayManager {
    * @param {MonitoringClient} monitoringClient
    */
   setMonitoringClient(monitoringClient) {
+    if (this.monitoringClient && this.onMonitoringChange) this.monitoringClient.off('change', this.onMonitoringChange);
     this.monitoringClient = monitoringClient;
+    this.onMonitoringChange = snapshot => {
+      this.cloudAttention = !['connected', 'connecting', 'not-configured'].includes(snapshot.status) || snapshot.sources.some(source => source.stale || ['error', 'warning'].includes(source.health) || ['alert', 'notification'].includes(source.agent?.state));
+      this.updateIcon();
+    };
+    if (monitoringClient) {
+      monitoringClient.on('change', this.onMonitoringChange);
+      this.onMonitoringChange(monitoringClient.snapshot());
+    } else { this.cloudAttention = false; this.updateIcon(); }
   }
 
   /**
@@ -228,14 +150,6 @@ class TrayManager {
    */
   setUpdateChecker(updateChecker) {
     this.updateChecker = updateChecker;
-  }
-
-  /**
-   * Set SettingsWindowManager reference (can be set after construction)
-   * @param {SettingsWindowManager} settingsWindowManager
-   */
-  setSettingsWindowManager(settingsWindowManager) {
-    this.settingsWindowManager = settingsWindowManager;
   }
 
   /**
@@ -263,20 +177,20 @@ class TrayManager {
   }
 
   /**
-   * Whether an update is available/downloading/downloaded, for the tray icon badge.
+   * Whether an update needs a user action, for the tray icon badge.
    * @returns {boolean}
    */
   hasUpdateAvailable() {
-    return Boolean(this.updateChecker && this.updateChecker.getState().status !== null);
+    return Boolean(this.updateChecker && ['available', 'downloaded'].includes(this.updateChecker.getState().status));
   }
 
   /**
    * Whether the tray icon should show its attention badge: an app update is
-   * available, or installed hook scripts drifted from the published manifest.
+   * available, an integration needs repair, or a cloud source needs attention.
    * @returns {boolean}
    */
   hasAttentionBadge() {
-    return this.hasUpdateAvailable() ||
+    return this.cloudAttention || this.hasUpdateAvailable() ||
       Boolean(this.hookInstaller && this.hookInstaller.hasChanges());
   }
 
@@ -303,298 +217,35 @@ class TrayManager {
   updateIcon() {
     if (!this.tray) return;
     const state = this.getFocusedState();
-    createTrayIcon(state.state, state.character, this.hasAttentionBadge()).then((icon) => {
-      // The tray can be destroyed while the character image is loading.
-      if (this.tray) this.tray.setImage(icon);
+    const badge = this.hasAttentionBadge();
+    const key = `${state.state}:${state.character}:${badge}`;
+    if (this.iconKey === key) return;
+    this.iconKey = key;
+    const generation = ++this.iconGeneration;
+    createTrayIcon(state.state, state.character, badge).then(image => {
+      if (this.tray && generation === this.iconGeneration) this.tray.setImage(image);
     });
-  }
-
-  buildRenderModeSubmenu() {
-    const currentMode = this.windowManager.getRenderMode();
-
-    return [
-      ['2d', '2D (Pixel Art)'],
-      ['3d', '3D (Pet)']
-    ].map(([mode, label]) => ({
-      label,
-      type: 'radio',
-      checked: currentMode === mode,
-      click: () => {
-        this.windowManager.setRenderMode(mode);
-        this.updateMenu();
-      }
-    }));
-  }
-
-  buildCharacterLockSubmenu() {
-    const currentLock = this.windowManager.getCharacterLock();
-
-    const items = [{
-      label: 'Auto',
-      type: 'radio',
-      checked: currentLock === 'auto',
-      click: () => {
-        this.windowManager.setCharacterLock('auto');
-        this.updateMenu();
-        this.updateIcon();
-      }
-    }];
-
-    for (const c of CHARACTER_NAMES) {
-      items.push({
-        label: CHARACTER_CONFIG[c].displayName,
-        type: 'radio',
-        checked: currentLock === c,
-        click: () => {
-          this.windowManager.setCharacterLock(c);
-          this.updateMenu();
-          this.updateIcon();
-        }
-      });
-    }
-
-    return items;
-  }
-
-  buildAlwaysOnTopSubmenu() {
-    const currentMode = this.windowManager.getAlwaysOnTopMode();
-
-    return Object.entries(ALWAYS_ON_TOP_MODES).map(([mode, label]) => ({
-      label: label,
-      type: 'radio',
-      checked: currentMode === mode,
-      click: () => {
-        this.windowManager.setAlwaysOnTopMode(mode);
-        this.updateMenu();
-      }
-    }));
-  }
-
-  buildSpeechBubbleSubmenu() {
-    const fields = this.windowManager.getSpeechBubbleFields();
-
-    return SPEECH_BUBBLE_FIELDS.map(field => ({
-      label: SPEECH_BUBBLE_FIELD_LABELS[field] || field,
-      type: 'checkbox',
-      checked: !!fields[field],
-      click: () => {
-        const current = this.windowManager.getSpeechBubbleFields();
-        this.windowManager.setSpeechBubbleField(field, !current[field]);
-        this.updateMenu();
-      }
-    }));
-  }
-
-  /**
-   * Claude/Codex plan-usage rows (5h, weekly, and model-scoped weekly, each
-   * with a heat-colored bar icon and time-to-reset), read directly from the
-   * shared usage cache —
-   * account-level, so it shows both tools regardless of which project is
-   * currently focused. Rows are grouped under a disabled header per provider;
-   * buckets with no fresh data are omitted entirely (no "N/A" placeholders),
-   * a provider with no fresh buckets loses its header too, and [] is
-   * returned when nothing is available yet.
-   * @returns {Array<Object>}
-   */
-  buildUsageMenuItems() {
-    const snapshot = getUsageSnapshot();
-    const items = [];
-
-    for (const { provider, label } of USAGE_PROVIDERS) {
-      const rows = [];
-      for (const { bucket, suffix, emoji } of USAGE_BUCKETS) {
-        const data = snapshot[provider][bucket];
-        if (!data) continue;
-        const suffixText = suffix ?? data.label;
-        if (!suffixText) continue;
-        const resetPart = data.resetsAt !== null
-          ? ` · ${formatResetIn(data.resetsAt)}`
-          : '';
-        rows.push({
-          label: `${emoji} ${suffixText}  ${data.pct}%${resetPart}`,
-          icon: getUsageBarIcon(data.pct),
-          enabled: false
-        });
-      }
-      if (rows.length === 0) continue;
-      items.push({ label, enabled: false }, ...rows);
-    }
-
-    return items;
-  }
-
-  buildCloudStatusMenu() {
-    if (!this.monitoringClient) return [];
-    const status = this.monitoringClient.getStatus();
-    const labels = {
-      connected: 'Connected', connecting: 'Connecting…', 'not-configured': 'Not configured',
-      'token-expired': 'Read token rejected', 'permission-denied': 'Read permission required',
-      'credential-unavailable': 'Saved token needs replacement',
-      'connection-error': 'Connection error', 'secure-storage-unavailable': 'Unlock OS secure storage'
-    };
-    return [{ label: `Cloud: ${labels[status] || 'Connection error'}`, click: () => this.openDashboard?.() }];
-  }
-
-  /**
-   * Per-tool install status/action for the "AI Tool Hooks" submenu.
-   * Not detected/already-installed tools are shown disabled; a tool that's
-   * present but missing its VibeMon hook gets a manual "Install..." action
-   * (bypasses the dismissed/suppressed filters used by the periodic check).
-   */
-  buildHookInstallerSubmenu() {
-    if (!this.hookInstaller) {
-      return [{ label: 'Unavailable', enabled: false }];
-    }
-
-    return this.hookInstaller.getCachedStatuses().map(tool => {
-      if (!tool.present) {
-        return { label: `${tool.name}: Not detected`, enabled: false };
-      }
-      const install = () => {
-        this.hookInstaller.installByFlag(tool.flag, null).then(() => {
-          this.updateMenu();
-          this.updateIcon();
-        });
-      };
-      if (tool.hasHook) {
-        // Broken outranks changed: a hook pointing at a path that no longer
-        // exists doesn't run at all, while drift only means it's outdated.
-        if (tool.broken) {
-          return { label: `${tool.name}: Needs repair — Reinstall...`, click: install };
-        }
-        if (tool.changed) {
-          return { label: `${tool.name}: Changed — Reinstall...`, click: install };
-        }
-        return { label: `${tool.name}: Installed ✓`, enabled: false };
-      }
-      return { label: `${tool.name}: Install...`, click: install };
-    });
-  }
-
-  /**
-   * Version/update row shown near the bottom of the tray menu. Reflects the
-   * current UpdateChecker state — a plain version label normally, or a
-   * clickable one-click upgrade action while an update is available.
-   */
-  buildUpdateMenuItems() {
-    const { status, version } = this.updateChecker ? this.updateChecker.getState() : {};
-
-    if (status === 'available') {
-      return [{
-        label: `⬆ Update to v${version}`,
-        click: () => this.updateChecker.downloadAndInstall(version)
-      }];
-    }
-    if (status === 'downloading') {
-      return [{ label: `Downloading v${version}…`, enabled: false }];
-    }
-    if (status === 'downloaded') {
-      return [{
-        label: `Restart to install v${version}`,
-        click: () => this.updateChecker.installDownloaded()
-      }];
-    }
-    return [{ label: `Version: ${this.app.getVersion()}`, enabled: false }];
   }
 
   buildMenuTemplate() {
-    const state = this.getFocusedState();
-
-    const statusLabel = state.project
-      ? `${state.project}: ${state.state}`
-      : 'Waiting for status';
-
-    const usageItems = this.buildUsageMenuItems();
-
     return [
-      {
-        label: statusLabel,
-        enabled: false
-      },
-      { type: 'separator' },
-      // Re-open the character window after it closed (sleep close-timeout
-      // or a manual close), so it doesn't need a status update to come back.
-      {
-        label: 'Show Character',
-        click: () => {
-          if (this.showCharacterHandler) this.showCharacterHandler();
-        }
-      },
-      ...(this.settingsWindowManager ? [{
-        // Trailing dot mirrors the Settings window's AI Tools tab attention
-        // dot: installed hook scripts drifted and need a reinstall.
-        label: this.hookInstaller && this.hookInstaller.hasChanges()
-          ? 'Settings... ●'
-          : 'Settings...',
-        click: () => this.settingsWindowManager.open()
-      }] : []),
-      { type: 'separator' },
       { label: 'Dashboard', click: () => this.openDashboard?.() },
-
-      // VibeMon — mirrors the Settings window's VibeMon tab
-      {
-        label: 'Render Mode',
-        submenu: this.buildRenderModeSubmenu()
-      },
-      {
-        label: 'Character Lock',
-        submenu: this.buildCharacterLockSubmenu()
-      },
-      {
-        label: 'Always on Top',
-        submenu: this.buildAlwaysOnTopSubmenu()
-      },
-      {
-        label: 'Speech Bubble',
-        submenu: this.buildSpeechBubbleSubmenu()
-      },
-      {
-        label: 'Open at Login',
-        type: 'checkbox',
-        checked: this.app.getLoginItemSettings().openAtLogin,
-        click: () => {
-          const current = this.app.getLoginItemSettings().openAtLogin;
-          this.app.setLoginItemSettings({ openAtLogin: !current });
-          this.updateMenu();
-        }
-      },
+      { label: 'Settings…', click: () => this.openSettings?.('companion') },
       { type: 'separator' },
-      // Collector — mirrors the Settings window's Collector tab
-      ...this.buildCloudStatusMenu(),
-      {
-        label: `HTTP Server: localhost:${HTTP_PORT}`,
-        enabled: false
-      },
+      { label: 'Show companion', click: () => this.showCharacterHandler?.() },
+      { label: 'Integrations…', click: () => this.openSettings?.('integrations') },
       { type: 'separator' },
-      // AI Tools — mirrors the Settings window's AI Tools tab
-      {
-        label: 'AI Tool Hooks',
-        submenu: this.buildHookInstallerSubmenu()
-      },
-      ...(usageItems.length ? [{ type: 'separator' }, ...usageItems] : []),
-      { type: 'separator' },
-      // About — opens the Settings window's About tab
-      ...(this.settingsWindowManager ? [{
-        label: 'About',
-        click: () => this.settingsWindowManager.open('about')
-      }] : []),
-      ...this.buildUpdateMenuItems(),
-      { type: 'separator' },
-      {
-        label: 'Quit',
-        click: () => {
-          this.app.quit();
-        }
-      }
+      { label: 'About VibeMon', click: () => this.openSettings?.('about') },
+      { label: 'Quit VibeMon', click: () => this.app.quit() }
     ];
   }
 
   updateMenu() {
-    // macOS/Windows menus are built when opened. Linux desktop environments
-    // retain a native context menu and require it to be updated explicitly.
-    if (!this.tray || process.platform !== 'linux') return;
-    const contextMenu = Menu.buildFromTemplate(this.buildMenuTemplate());
-    this.tray.setContextMenu(contextMenu);
+    // Linux desktops require a native context menu. Its navigation actions
+    // are static, so background status events do not need to rebuild it.
+    if (!this.tray || process.platform !== 'linux' || this.contextMenu) return;
+    this.contextMenu = Menu.buildFromTemplate(this.buildMenuTemplate());
+    this.tray.setContextMenu(this.contextMenu);
   }
 
   showContextMenu(sender) {
@@ -615,7 +266,10 @@ class TrayManager {
     // Clear icon caches to free memory
     trayIconCache.clear();
     characterImageCache.clear();
-    usageBarIconCache.clear();
+    this.iconGeneration++;
+    this.iconKey = null;
+    this.contextMenu = null;
+    if (this.monitoringClient && this.onMonitoringChange) this.monitoringClient.off('change', this.onMonitoringChange);
     if (this.tray) {
       this.tray.destroy();
       this.tray = null;

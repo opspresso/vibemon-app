@@ -10,7 +10,10 @@ const { createInterface } = require('node:readline');
 const { CharacterWindowManager } = require('../../src/modules/character-window-manager.cjs');
 const { BubbleWindowManager } = require('../../src/modules/bubble-window-manager.cjs');
 const { DockMonitor } = require('../../src/modules/dock-monitor.cjs');
-const { SettingsWindowManager } = require('../../src/modules/settings-window-manager.cjs');
+const { WorkspaceSettings } = require('../../src/workspace/settings.cjs');
+const { WorkspaceWindow } = require('../../src/workspace/window.cjs');
+const { MonitoringClient } = require('../../src/monitoring/client.cjs');
+const { memoryStore, createPorts } = require('../fixtures/workspace.cjs');
 const { dockCorner } = require('../../src/modules/dock-layout.cjs');
 const { getDockCandidates } = require('./dock-candidates.cjs');
 const characters = require('../../src/shared/data/characters.json');
@@ -324,15 +327,13 @@ function fullSizeWorkAreaPlacement(display) {
 
 async function verifyDockSettings() {
   characterManager.setDockAutoScale(false);
-  settingsManager = new SettingsWindowManager({
-    windowManager: characterManager,
-    app,
-    hookInstaller: { getCachedStatuses: () => [] },
-    vibemonConfigManager: { read: () => ({ http_urls: [] }), getStatus: () => ({ exists: false, hasDesktopUrl: false }) },
-    updateChecker: { getState: () => ({ status: null, version: null }) }
-  });
+  const ports = { ...createPorts(), windowManager: characterManager };
+  const settings = new WorkspaceSettings(ports);
+  const monitoring = new MonitoringClient({ preferences: memoryStore(), credentials: { has: () => false, get: () => null } });
   async function openSettings() {
-    settingsManager.open();
+    settingsManager = new WorkspaceWindow({ monitoring, settings, ...ports, reportError: error => errors.push(error.message) });
+    settings.onSettingsChanged = () => settingsManager.notify('settings');
+    settingsManager.open('companion');
     await until(() => {
       if (settingsManager.window.webContents.isLoading()) return false;
       return settingsManager.window.webContents.executeJavaScript('document.getElementById("dock-corner-size").options.length === 2');

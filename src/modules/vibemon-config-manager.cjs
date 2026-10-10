@@ -120,7 +120,7 @@ class VibemonConfigManager {
 
   /**
    * Add a single HTTP URL, based on a fresh read of the current on-disk
-   * config rather than a caller-supplied array — a caller (e.g. settings.html)
+   * config rather than a caller-supplied array — a workspace renderer
    * that held onto a stale snapshot can't clobber an entry added elsewhere
    * (e.g. ensureDesktopUrl()'s periodic check) in the meantime.
    * @param {string} url
