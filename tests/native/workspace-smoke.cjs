@@ -72,6 +72,10 @@ startFixture().then(async fixture => {
   assert.equal(await ui('document.activeElement.getAttribute("aria-label")'), 'Close source details');
   await screenshot('resource-detail');
   const originalSources = state.sources;
+  state.sources = () => originalSources().map(source => source.sourceId === 'cache' ? { ...source, metrics: { ...source.metrics, latency: 12.3456 } } : source);
+  await client.poll(true);
+  await until(async () => (await text('#detail-readings')).includes('12.3456 ms'), 'custom detail keeps six significant digits');
+  assert.ok((await text('#resource-cards')).includes('12.3456 ms'), 'full resource cards retain custom metric precision');
   state.sources = () => originalSources().map(source => source.sourceId === 'cache' ? { ...source, statusMessage: 'Recovered <script>window.injected=true</script>', metrics: { ...source.metrics, latency: 0 }, metricOrder: ['throughput', 'latency', 'connections'] } : source);
   await client.poll(true);
   await until(async () => (await text('#detail-readings')).includes('0 ms'), 'open detail reflects latest measurement');

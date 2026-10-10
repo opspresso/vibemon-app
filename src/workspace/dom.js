@@ -102,13 +102,14 @@ export function choices(select, entries, selected) {
 }
 const decimalFormat = new Intl.NumberFormat(undefined, { maximumFractionDigits: 1 });
 const smallFormat = new Intl.NumberFormat(undefined, { maximumSignificantDigits: 2 });
+const preciseFormat = new Intl.NumberFormat(undefined, { maximumSignificantDigits: 6 });
 export const number = (value) => {
   if (typeof value !== 'number' || !Number.isFinite(value)) return '—';
   return (value !== 0 && Math.abs(value) < 1 ? smallFormat : decimalFormat).format(value);
 };
-export function reading(value, unit = '') {
+export function reading(value, unit = '', precise = false) {
   return typeof value === 'number' && Number.isFinite(value)
-    ? `${number(value)}${unit ? (['%', '°C', '°F'].includes(unit) ? '' : ' ') + unit : ''}`
+    ? `${precise ? preciseFormat.format(value) : number(value)}${unit ? (['%', '°C', '°F'].includes(unit) ? '' : ' ') + unit : ''}`
     : '—';
 }
 export function ago(timestamp, now = Date.now()) {

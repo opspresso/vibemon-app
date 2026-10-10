@@ -43,10 +43,11 @@ export function createMetric() {
   node._parts = { name, value, bar, fill };
   return node;
 }
-export function updateMetric(node, { metric, value, label }) {
+export function updateMetric(node, { metric, value, label, precise = false }) {
   const { name, value: output, bar, fill } = node._parts;
   text(name, label || metric.label);
-  text(output, reading(value, metric.unit));
+  text(output, reading(value, metric.unit, precise));
+  output.title = reading(value, metric.unit, true);
   const available = typeof value === 'number' && Number.isFinite(value);
   bar.hidden = !available || metric.display !== 'gauge';
   if (!bar.hidden) {
@@ -57,7 +58,7 @@ export function updateMetric(node, { metric, value, label }) {
     bar.setAttribute('aria-valuemin', metric.min);
     bar.setAttribute('aria-valuemax', metric.max);
     bar.setAttribute('aria-valuenow', Math.max(metric.min, Math.min(metric.max, value)));
-    bar.setAttribute('aria-valuetext', reading(value, metric.unit));
+    bar.setAttribute('aria-valuetext', reading(value, metric.unit, precise));
     bar.dataset.tone =
       metric.key.startsWith('usage') && value >= 90
         ? 'danger'
@@ -161,6 +162,7 @@ export function renderCards(
       const metrics = (compact ? visible.slice(0, 3) : visible).map((metric) => ({
         metric,
         value: source.metrics[metric.key],
+        precise: !compact && metric.selectionKey.startsWith('resource:'),
         label:
           metric.key === 'memoryPercent' && source.memoryType === 'unified' ? 'Unified memory' : metric.label
       }));

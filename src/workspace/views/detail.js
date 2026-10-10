@@ -22,6 +22,7 @@ export function setupDetail({ getFrame, request, run }) {
       text($('trend-state'), 'Choose a visible metric in Customize view.');
       return;
     }
+    const precise = metric.selectionKey.startsWith('resource:');
     const now = Date.now(),
       start = now - 3600000;
     const samples = points
@@ -37,8 +38,8 @@ export function setupDetail({ getFrame, request, run }) {
     for (const y of [30, 110, 190])
       chart.append(svg('line', { x1: 48, y1: y, x2: 582, y2: y, class: 'grid' }));
     chart.append(
-      svg('text', { x: 0, y: 25 }, reading(maximum, metric.unit)),
-      svg('text', { x: 0, y: 195 }, reading(minimum, metric.unit))
+      svg('text', { x: 0, y: 25 }, reading(maximum, metric.unit, precise)),
+      svg('text', { x: 0, y: 195 }, reading(minimum, metric.unit, precise))
     );
     for (const [label, x] of [
       ['−60 min', 48],
@@ -61,7 +62,7 @@ export function setupDetail({ getFrame, request, run }) {
         svg(
           'title',
           {},
-          `${new Date(point.time).toLocaleTimeString()} · ${reading(point.value, metric.unit)}`
+          `${new Date(point.time).toLocaleTimeString()} · ${reading(point.value, metric.unit, precise)}`
         )
       );
       chart.append(circle);
@@ -71,7 +72,7 @@ export function setupDetail({ getFrame, request, run }) {
     text(
       $('trend-state'),
       values.length
-        ? `${values.length} recorded ${values.length === 1 ? 'minute' : 'minutes'} · latest ${reading(values.at(-1).value, metric.unit)}`
+        ? `${values.length} recorded ${values.length === 1 ? 'minute' : 'minutes'} · latest ${reading(values.at(-1).value, metric.unit, precise)}`
         : 'No measurements recorded for this metric in the last hour.'
     );
   }
@@ -132,7 +133,7 @@ export function setupDetail({ getFrame, request, run }) {
       },
       (node, metric) => {
         text(node.children[0], metric.label);
-        text(node.children[1], reading(source.metrics[metric.key], metric.unit));
+        text(node.children[1], reading(source.metrics[metric.key], metric.unit, metric.selectionKey.startsWith('resource:')));
       }
     );
     keyed(
