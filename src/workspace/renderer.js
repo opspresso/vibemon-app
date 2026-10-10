@@ -1,4 +1,4 @@
-import { $, text, hydrateIcons, connection, choices, configureSprites, ago } from './dom.js';
+import { $, text, hydrateIcons, connection, choices, configureSprites, ago, providerName } from './dom.js';
 import { renderCards, renderActivity, renderUsage, accountCard, needsAttention } from './views/cards.js';
 import { setupPreferences } from './views/preferences.js';
 import { setupSelection } from './views/selection.js';
@@ -285,7 +285,7 @@ function render(value) {
       $('agent-filter'),
       [
         ['all', 'All providers'],
-        ...providers.map((provider) => [provider, provider.charAt(0).toUpperCase() + provider.slice(1)])
+        ...providers.map((provider) => [provider, providerName(provider)])
       ],
       previous === 'all' || providers.includes(previous) ? previous : 'all'
     );

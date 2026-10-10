@@ -126,10 +126,8 @@ export function remaining(seconds) {
   if (minutes < 1440) return `${Math.floor(minutes / 60)}h ${minutes % 60}m`;
   return `${Math.floor(minutes / 1440)}d ${Math.floor((minutes % 1440) / 60)}h`;
 }
-export const providerName = (provider) =>
-  ({ claude: 'Claude', codex: 'Codex', kiro: 'Kiro', openclaw: 'OpenClaw', opencode: 'OpenCode' })[
-    provider
-  ] || provider;
+const providerLabels = { claude: 'Claude', codex: 'Codex', kiro: 'Kiro', openclaw: 'OpenClaw', opencode: 'OpenCode' };
+export const providerName = provider => Object.hasOwn(providerLabels, provider) ? providerLabels[provider] : provider;
 let characterImages = new Map([['vibemon', 'vibemon.png']]);
 export function configureSprites(characters) {
   characterImages = new Map(
@@ -142,25 +140,24 @@ export function sprite(character) {
   return `../assets/characters/${characterImages.get(character) || characterImages.get('vibemon') || 'vibemon.png'}`;
 }
 export function stateLabel(state) {
-  return (
-    {
-      ok: 'Healthy',
-      warning: 'Attention',
-      error: 'Collection error',
-      unknown: 'Awaiting data',
-      stale: 'Stale',
-      working: 'Working',
-      thinking: 'Thinking',
-      planning: 'Planning',
-      packing: 'Compacting',
-      notification: 'Needs input',
-      alert: 'Needs attention',
-      idle: 'Idle',
-      sleep: 'Resting',
-      done: 'Done',
-      start: 'Starting'
-    }[state] || state
-  );
+  const labels = {
+    ok: 'Healthy',
+    warning: 'Attention',
+    error: 'Collection error',
+    unknown: 'Awaiting data',
+    stale: 'Stale',
+    working: 'Working',
+    thinking: 'Thinking',
+    planning: 'Planning',
+    packing: 'Compacting',
+    notification: 'Needs input',
+    alert: 'Needs attention',
+    idle: 'Idle',
+    sleep: 'Resting',
+    done: 'Done',
+    start: 'Starting'
+  };
+  return Object.hasOwn(labels, state) ? labels[state] : state;
 }
 export function stateTone(state) {
   return ['stale', 'warning', 'notification'].includes(state)

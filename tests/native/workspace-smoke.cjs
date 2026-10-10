@@ -66,6 +66,7 @@ startFixture().then(async fixture => {
   assert.ok(!JSON.stringify(view.snapshot()).includes(TOKEN), 'snapshots omit read credentials');
   assert.ok(!JSON.stringify(view.snapshot()).includes(ports.config.vibemon_token), 'snapshots omit collector credentials');
   assert.equal(await value('#read-token'), '');
+  assert.deepEqual(await ui('import("./dom.js").then(({ providerName, stateLabel }) => [providerName("constructor"), providerName("opencode"), stateLabel("constructor")])'), ['constructor', 'OpenCode', 'constructor']);
   assert.equal(await text('#summary-resources'), '4');
   assert.equal(await text('#summary-accounts'), '4');
   assert.equal(await text('#summary-local'), '2');
