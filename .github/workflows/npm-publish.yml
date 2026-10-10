@@ -39,12 +39,11 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Validate
-        env:
-          VIBEMON_WEB_READ_TOKEN: ${{ secrets.VIBEMON_WEB_READ_TOKEN }}
         run: |
           pnpm lint
           pnpm exec jest --coverage --runInBand
           pnpm check:registry
+          pnpm check:distribution
 
       - name: Prepare npm launcher
         run: pnpm prepare:npm

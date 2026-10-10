@@ -42,13 +42,12 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Validate
-        env:
-          VIBEMON_WEB_READ_TOKEN: ${{ secrets.VIBEMON_WEB_READ_TOKEN }}
         if: matrix.os == 'macos-latest'
         run: |
           pnpm lint
           pnpm exec jest --coverage --runInBand
           pnpm check:registry
+          pnpm check:distribution
 
       - name: Sync version from tag
         shell: bash

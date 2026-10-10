@@ -1,0 +1,60 @@
+{
+  "version": "v1",
+  "hooks": [
+    {
+      "name": "VibeMon - Session Start",
+      "description": "Send the start state to VibeMon when a session begins",
+      "trigger": "SessionStart",
+      "action": {
+        "type": "command",
+        "command": "python3 ~/.kiro/hooks/vibemon.py SessionStart"
+      },
+      "timeout": 10,
+      "enabled": true
+    },
+    {
+      "name": "VibeMon - Prompt Submit",
+      "description": "Send the thinking state to VibeMon when a prompt is submitted",
+      "trigger": "UserPromptSubmit",
+      "action": {
+        "type": "command",
+        "command": "python3 ~/.kiro/hooks/vibemon.py UserPromptSubmit"
+      },
+      "timeout": 10,
+      "enabled": true
+    },
+    {
+      "name": "VibeMon - Tool Use",
+      "description": "Send the working state to VibeMon before a tool runs",
+      "trigger": "PreToolUse",
+      "action": {
+        "type": "command",
+        "command": "python3 ~/.kiro/hooks/vibemon.py PreToolUse"
+      },
+      "timeout": 10,
+      "enabled": true
+    },
+    {
+      "name": "VibeMon - Tool Complete",
+      "description": "Return VibeMon to thinking after a tool finishes",
+      "trigger": "PostToolUse",
+      "action": {
+        "type": "command",
+        "command": "python3 ~/.kiro/hooks/vibemon.py PostToolUse"
+      },
+      "timeout": 10,
+      "enabled": true
+    },
+    {
+      "name": "VibeMon - Stop",
+      "description": "Send the done state to VibeMon when the agent finishes responding",
+      "trigger": "Stop",
+      "action": {
+        "type": "command",
+        "command": "python3 ~/.kiro/hooks/vibemon.py Stop"
+      },
+      "timeout": 10,
+      "enabled": true
+    }
+  ]
+}

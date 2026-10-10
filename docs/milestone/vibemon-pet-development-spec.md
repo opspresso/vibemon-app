@@ -1223,14 +1223,14 @@ VibeMon Pet은 네 개 저장소에 걸쳐 구현된다.
 
 | 저장소 | 책임 |
 |---|---|
-| vibemon-web/public/install | AI 도구 훅. 원시 이벤트 방출 — 훅 이벤트 이름, 도구 이름, 파일 경로, 명령어를 추출해 전송 |
+| vibemon-app/public/install | AI 도구 훅. 원시 이벤트 방출 — 훅 이벤트 이름, 도구 이름, 파일 경로, 명령어를 추출해 전송 |
 | vibemon-app | 이벤트 수신, 로컬 분류 엔진, XP·집계 계산, 로컬 저장, 몬스터 UI |
-| vibemon-web/public/static | 진화 폼 이미지, 상태·캐릭터 레지스트리, 분류 규칙 배포 채널 |
+| vibemon-app의 공개 자산 | 진화 폼 이미지, 상태·캐릭터 레지스트리, 분류 규칙 배포 채널 |
 | 서버 (신규) | 소유자·몬스터 저장, 집계 수신과 검증, 기기 간 동기화 |
 
 ## 22.1 훅 페이로드 확장
 
-vibemon-web/public/install 훅은 기존 상태 페이로드에 다음 필드를 추가한다.
+vibemon-app/public/install 훅은 기존 상태 페이로드에 다음 필드를 추가한다.
 
 ```text
 hookEvent : 훅 이벤트 이름 (SessionStart, PreToolUse, PostToolUse, Stop, SessionEnd 등)
@@ -1243,7 +1243,7 @@ vibemon-app은 수신 필드 화이트리스트와 검증기에 동일한 필드
 
 ## 22.2 분류 규칙 배포
 
-분류 규칙(JSON)은 vibemon-web/public/static의 레지스트리 갱신 채널로 배포한다. 앱은 시작 시 검증된 원격 규칙을 우선 사용하고, 실패하면 번들 규칙으로 동작한다.
+분류 규칙(JSON)은 vibemon-app의 공개 자산의 레지스트리 갱신 채널로 배포한다. 앱은 시작 시 검증된 원격 규칙을 우선 사용하고, 실패하면 번들 규칙으로 동작한다.
 
 ---
 
@@ -1253,7 +1253,7 @@ vibemon-app은 수신 필드 화이트리스트와 검증기에 동일한 필드
 
 목표:
 
-- 활동 이벤트 수집 (vibemon-web/public/install 훅 확장 + 앱 수신 필드 확장)
+- 활동 이벤트 수집 (vibemon-app/public/install 훅 확장 + 앱 수신 필드 확장)
 - 규칙 기반 분류
 - 로컬 XP 계산
 - 몬스터 상태 연동

@@ -42,7 +42,7 @@ function applyDisplayOptions(container, options) {
 async function init() {
   const container = document.getElementById('vibemon-display');
 
-  // Character/state registries (canonical: vibemon-web, resolved by
+  // Character/state registries (canonical: the public App distribution, resolved by
   // registry-cache.cjs in the main process), fetched via preload.js, the
   // persisted render mode selecting which engine to boot, and the display
   // options the character area is drawn with.
@@ -58,7 +58,7 @@ async function init() {
   if (renderMode === '3d') {
     // 3D pet engine: renders procedurally — characters map to the registry's
     // `theme` palette, no images are loaded. The engine is vendored from
-    // vibemon-web, which ships no dependencies, so it takes three.js from
+    // the public App distribution, which ships no dependencies, so it takes three.js from
     // here (local file: the CSP forbids runtime CDN imports).
     const [{ createVibeMonEngine }, THREE] = await Promise.all([
       import('./engine/vibemon-engine-3d.js'),

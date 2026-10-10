@@ -15,7 +15,7 @@ VibeMon normalizes multiple agent ecosystems into one display model. The renderi
 | Codex | Native hooks and non-interactive JSON output | Interactive lifecycle and local tool hooks, `codex exec --json` for automation | High | Hosted tools such as WebSearch do not pass through local tool hooks |
 | Kiro | Native hooks | Prompt, tool, and stop hooks | High | Fewer lifecycle events than Claude Code |
 | OpenClaw | Plugin bridge | Plugin SDK hooks | Medium to high | Internal hooks are not enough by themselves for full tool-loop visibility |
-| OpenCode | Plugin + Python adapter | Session, chat, tool, permission, and compaction events | High | No context or plan-usage metrics; uses the default character until registered in vibemon-web |
+| OpenCode | Plugin + Python adapter | Session, chat, tool, permission, and compaction events | High | No context or plan-usage metrics; uses the default character until registered in this repository |
 
 ### Bridge Types
 
@@ -52,11 +52,11 @@ On Windows, the installer pins the Python interpreter in the plugin; custom conf
 | `claw` | Red | Antenna character | OpenClaw |
 | `daangni` | Peach/teal | Round face, fluffy top | Manual only (Character Lock) |
 
-OpenCode reports `character: "opencode"`, which currently falls back to `vibemon` because the canonical registry does not contain that name. Its states, project, tool, and model remain visible. A dedicated character must be added to `vibemon-web` and synced here before it can be bundled or offered in Character Lock.
+OpenCode reports `character: "opencode"`, which currently falls back to `vibemon` because the canonical registry does not contain that name. Its states, project, tool, and model remain visible. Add a dedicated character to this repository's registry and export map before it can be bundled or offered in Character Lock.
 
 In **2D** (default) all characters use **image-based rendering** (128x128 PNG). Images load remote-first from `vibemon.io/static`, with copies bundled in `src/assets/characters/` as the offline fallback. Character is **auto-selected by bridge**, not by the core display runtime. You can also force one with [Character Lock](#character-lock).
 
-Characters are defined in a single registry canonically hosted in [vibemon-web](https://github.com/opspresso/vibemon-web) (served at `vibemon.io/static/data/characters.json`, with `src/shared/data/characters.json` bundled as the fallback and kept in sync via `pnpm check:registry`): display name, accent color (the eye/accent overlay drawn on the sprite — white for VibeMon, distinct from the "Color" appearance above), image file, eye/effect coordinates (in canvas pixels on the 128x128 sprite, adjustable at 1px), and the `theme` palette the 3D engine paints. The character window, tray icon (downscaled from the same PNG), menus, and validation all derive from it — adding a character is one PNG plus one registry entry in vibemon-web, no code change here.
+Characters are defined in `src/shared/data/characters.json`: display name, accent color, PNG, eye/effect coordinates, and 3D theme. App owns these sources; Web serves the pinned public snapshot at `vibemon.io/static/data/characters.json`. Rendering, tray menus, and validation derive from the same registry. Add the image and registry entry here, update `web-distribution.json`, and run `pnpm check:registry` plus `pnpm check:distribution`.
 
 ### Render Mode
 
@@ -71,7 +71,7 @@ Characters are defined in a single registry canonically hosted in [vibemon-web](
 | --- | --- |
 | ![Previous 3D size](images/3d-size-before.png) | ![Larger 3D size](images/3d-size-after.png) |
 
-Both engines are vendored from vibemon-web (`src/engine/`); three.js ships locally in `src/vendor/` because the renderer CSP forbids runtime CDN imports.
+Both engines are maintained here (`src/engine/`); three.js ships locally in `src/vendor/` because the renderer CSP forbids runtime CDN imports.
 
 ### Character Lock
 

@@ -1,0 +1,1 @@
+"""VibeMon summary collector."""

@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sprite Sheet Preview</title>
+<style>
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+    background: #1e1e2e;
+    color: #cdd6f4;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 24px;
+    margin: 0;
+  }
+  h1 { font-size: 18px; margin: 0 0 16px; }
+  .controls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 20px;
+  }
+  .controls label { font-size: 13px; display: flex; align-items: center; gap: 6px; }
+  input[type="text"], select {
+    background: #313244;
+    color: #cdd6f4;
+    border: 1px solid #45475a;
+    border-radius: 6px;
+    padding: 6px 10px;
+    font-size: 13px;
+  }
+  input[type="text"] { width: 180px; }
+  input[type="range"] { width: 100px; }
+  button {
+    background: #89b4fa;
+    color: #1e1e2e;
+    border: none;
+    border-radius: 6px;
+    padding: 6px 14px;
+    font-size: 13px;
+    cursor: pointer;
+  }
+  button:hover { opacity: 0.9; }
+  .stage {
+    background: #313244;
+    border: 1px solid #45475a;
+    border-radius: 12px;
+    padding: 24px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+  }
+  canvas {
+    image-rendering: pixelated;
+    width: 256px;
+    height: 256px;
+    background:
+      repeating-conic-gradient(#3a3a4e 0% 25%, #2a2a3e 0% 50%) 0 0 / 24px 24px;
+    border-radius: 8px;
+  }
+  .info { font-size: 12px; color: #a6adc8; }
+  .error { color: #f38ba8; font-size: 13px; min-height: 18px; }
+</style>
+</head>
+<body>
+<h1>Sprite Sheet Preview</h1>
+
+<div class="controls">
+  <label>이미지
+    <input type="text" id="imageName" value="spritesheet_claude.png" list="imageList">
+    <datalist id="imageList">
+      <option value="spritesheet_claude.png">
+    </datalist>
+  </label>
+  <label>그리드
+    <select id="grid">
+      <option value="10" selected>10×10</option>
+      <option value="9">9×9</option>
+    </select>
+  </label>
+  <label>Row
+    <select id="row">
+      <option value="1">1 — start</option>
+      <option value="2">2 — idle</option>
+      <option value="3">3 — thinking</option>
+      <option value="4">4 — planning</option>
+      <option value="5" selected>5 — working</option>
+      <option value="6">6 — packing</option>
+      <option value="7">7 — notification</option>
+      <option value="8">8 — done</option>
+      <option value="9">9 — sleep</option>
+      <option value="10">10 — alert</option>
+    </select>
+  </label>
+  <label>FPS
+    <input type="range" id="fps" min="1" max="30" value="8">
+    <span id="fpsValue">8</span>
+  </label>
+  <label>
+    <input type="checkbox" id="chroma" checked>
+    크로마키 제거 (#FF00FF)
+  </label>
+  <label>
+    <input type="checkbox" id="autoAlign" checked>
+    프레임 자동 감지
+  </label>
+  <button id="load">불러오기</button>
+</div>
+
+<div class="stage">
+  <canvas id="canvas" width="128" height="128"></canvas>
+  <div class="info" id="frameInfo">-</div>
+  <div class="error" id="error"></div>
+</div>
+
+<script>
+const OUT = 128; // 표시 프레임 크기
+let GRID = 10;   // N×N 그리드 (컨트롤에서 변경)
+const STATES = ['start', 'idle', 'thinking', 'planning', 'working', 'packing', 'notification', 'done', 'sleep', 'alert'];
+
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+const errorEl = document.getElementById('error');
+const frameInfoEl = document.getElementById('frameInfo');
+
+let sheet = null;        // 원본 Image
+let sheetCenters = null; // 자동 감지된 열 중심 (시트 전체 공통)
+let frames = [];         // row의 프레임별 캔버스 (크로마키 적용본)
+let frameIndex = 0;
+let lastTime = 0;
+let rafId = null;
+
+function isBg(d, i) {
+  // #FF00FF 근처 색상 또는 투명 (생성 이미지의 안티앨리어싱 오차 허용)
+  return d[i + 3] < 16 || (d[i] > 180 && d[i + 1] < 120 && d[i + 2] > 180);
+}
+
+function chromaKey(imageData) {
+  const d = imageData.data;
+  for (let i = 0; i < d.length; i += 4) {
+    if (d[i] > 200 && d[i + 1] < 80 && d[i + 2] > 200) {
+      d[i + 3] = 0;
+    }
+  }
+  return imageData;
+}
+
+// 행 스트립에서 비배경 픽셀의 x 히스토그램으로 스프라이트 중심을 감지.
+// AI 생성 시트가 그리드를 정확히 지키지 않는 경우를 보정한다.
+function detectCenters(strip, cellH) {
+  const w = strip.width;
+  const d = strip.getContext('2d').getImageData(0, 0, w, cellH).data;
+  const hist = new Array(w).fill(0);
+  for (let y = 0; y < cellH; y += 2) {
+    for (let x = 0; x < w; x++) {
+      if (!isBg(d, (y * w + x) * 4)) hist[x]++;
+    }
+  }
+  const runs = [];
+  let start = null;
+  const GAP = 24; // 이 간격 이하로 떨어진 콘텐츠는 같은 스프라이트로 병합
+  for (let x = 0; x <= w; x++) {
+    const filled = x < w && hist[x] > 2;
+    if (filled && start === null) {
+      start = x;
+    } else if (!filled && start !== null) {
+      const prev = runs[runs.length - 1];
+      if (prev && start - prev.end < GAP) {
+        prev.end = x;
+      } else {
+        runs.push({ start, end: x });
+      }
+      start = null;
+    }
+  }
+  if (runs.length !== GRID) return null;
+  return runs.map(r => (r.start + r.end) / 2);
+}
+
+// 캐릭터 앵커는 모든 행에서 같은 열 위치이므로,
+// 감지에 성공한 행들의 중심 평균을 시트 공통 중심으로 사용한다.
+// (스프라이트가 이펙트로 이어져 감지가 안 되는 행이 있어도 보정 가능)
+function detectSheetCenters() {
+  const cellH = sheet.height / GRID;
+  const strip = document.createElement('canvas');
+  strip.width = sheet.width;
+  strip.height = cellH;
+  const sctx = strip.getContext('2d');
+  const sums = new Array(GRID).fill(0);
+  let ok = 0;
+  for (let r = 0; r < GRID; r++) {
+    sctx.clearRect(0, 0, strip.width, cellH);
+    sctx.drawImage(sheet, 0, r * cellH, sheet.width, cellH, 0, 0, sheet.width, cellH);
+    const centers = detectCenters(strip, cellH);
+    if (centers) {
+      centers.forEach((c, i) => { sums[i] += c; });
+      ok++;
+    }
+  }
+  return ok > 0 ? sums.map(s => s / ok) : null;
+}
+
+function buildFrames() {
+  const row = parseInt(document.getElementById('row').value, 10);
+  const useChroma = document.getElementById('chroma').checked;
+  const useAuto = document.getElementById('autoAlign').checked;
+  frames = [];
+  errorEl.textContent = '';
+  // 셀 크기는 이미지를 GRID×GRID로 균등 분할해 계산 (1280×1280, 1536×1280 모두 대응)
+  const cellW = sheet.width / GRID;
+  const cellH = sheet.height / GRID;
+  const sy = (row - 1) * cellH;
+
+  // 균등 분할 기준 중심. 자동 감지 성공 시 감지된 중심으로 대체.
+  let centers = Array.from({ length: GRID }, (_, c) => c * cellW + cellW / 2);
+  let pixelReadable = true;
+  if (useAuto || useChroma) {
+    try {
+      if (sheetCenters === null) sheetCenters = detectSheetCenters() || false;
+      if (useAuto) {
+        if (sheetCenters) {
+          centers = sheetCenters;
+        } else {
+          errorEl.textContent = `프레임 자동 감지 실패 — 균등 ${GRID}분할로 표시합니다.`;
+        }
+      }
+    } catch (e) {
+      // file:// 로 열면 캔버스 픽셀 접근 불가
+      pixelReadable = false;
+      errorEl.textContent = '자동 감지·크로마키는 http 서버로 열어야 동작합니다. (예: python3 -m http.server)';
+    }
+  }
+
+  for (let col = 0; col < GRID; col++) {
+    const off = document.createElement('canvas');
+    off.width = OUT;
+    off.height = OUT;
+    const octx = off.getContext('2d');
+    const sx = Math.max(0, Math.min(sheet.width - cellH, centers[col] - cellH / 2));
+    octx.drawImage(sheet, sx, sy, cellH, cellH, 0, 0, OUT, OUT);
+    if (useChroma && pixelReadable) {
+      octx.putImageData(chromaKey(octx.getImageData(0, 0, OUT, OUT)), 0, 0);
+    }
+    frames.push(off);
+  }
+  frameIndex = 0;
+}
+
+function tick(time) {
+  rafId = requestAnimationFrame(tick);
+  const fps = parseInt(document.getElementById('fps').value, 10);
+  if (time - lastTime < 1000 / fps) return;
+  lastTime = time;
+  if (!frames.length) return;
+  ctx.clearRect(0, 0, OUT, OUT);
+  ctx.drawImage(frames[frameIndex], 0, 0);
+  const row = document.getElementById('row').value;
+  frameInfoEl.textContent = `row ${row} (${STATES[row - 1]}) — frame ${frameIndex + 1}/${GRID}`;
+  frameIndex = (frameIndex + 1) % GRID;
+}
+
+function loadSheet() {
+  const name = document.getElementById('imageName').value.trim();
+  if (!name) return;
+  errorEl.textContent = '';
+  const img = new Image();
+  img.onload = () => {
+    sheet = img;
+    sheetCenters = null;
+    buildFrames();
+  };
+  img.onerror = () => {
+    errorEl.textContent = `이미지를 불러올 수 없습니다: ${name}`;
+  };
+  img.src = name;
+}
+
+document.getElementById('load').addEventListener('click', loadSheet);
+document.getElementById('imageName').addEventListener('keydown', e => {
+  if (e.key === 'Enter') loadSheet();
+});
+document.getElementById('row').addEventListener('change', () => { if (sheet) buildFrames(); });
+document.getElementById('chroma').addEventListener('change', () => { if (sheet) buildFrames(); });
+document.getElementById('autoAlign').addEventListener('change', () => { if (sheet) buildFrames(); });
+document.getElementById('grid').addEventListener('change', e => {
+  GRID = parseInt(e.target.value, 10);
+  // 9×9에서는 row 10 선택 불가
+  const rowSel = document.getElementById('row');
+  rowSel.querySelector('option[value="10"]').hidden = GRID < 10;
+  if (parseInt(rowSel.value, 10) > GRID) rowSel.value = String(GRID);
+  sheetCenters = null;
+  if (sheet) buildFrames();
+});
+document.getElementById('fps').addEventListener('input', e => {
+  document.getElementById('fpsValue').textContent = e.target.value;
+});
+
+loadSheet();
+rafId = requestAnimationFrame(tick);
+</script>
+</body>
+</html>

@@ -270,7 +270,7 @@ ipcMain.handle('get-version', () => {
 });
 
 // Character registry for the renderer's engine setup (canonical:
-// vibemon-web, resolved by registry-cache.cjs — cached remote copy or
+// the public App distribution, resolved by registry-cache.cjs — cached remote copy or
 // bundled fallback). staticBaseUrl lets the renderer build remote-first
 // image URLs.
 ipcMain.handle('get-character-registry', () => {
@@ -281,7 +281,7 @@ ipcMain.handle('get-character-registry', () => {
   };
 });
 
-// State registry for the renderer's engine setup (canonical: vibemon-web,
+// State registry for the renderer's engine setup (canonical: the public App distribution,
 // resolved by registry-cache.cjs)
 ipcMain.handle('get-state-registry', () => {
   return registryCache.statesRegistry;
@@ -566,7 +566,7 @@ app.whenReady().then(() => {
   setTimeout(refreshUsageAndUpdateTray, USAGE_REFRESH_INITIAL_DELAY_MS);
   usageRefreshTimer = setInterval(refreshUsageAndUpdateTray, USAGE_REFRESH_INTERVAL_MS);
 
-  // Refresh the canonical registry cache from vibemon-web: once shortly
+  // Refresh the canonical registry cache from the public App distribution: once shortly
   // after startup, then periodically. A refreshed registry applies on the
   // next launch (startup resolves cache → bundled synchronously).
   setTimeout(() => registryCache.refresh(), UPDATE_CHECK_INITIAL_DELAY_MS);

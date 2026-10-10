@@ -67,8 +67,8 @@ Web development normally runs on `http://localhost:3030`; the unpackaged App acc
 - [Local HTTP API](docs/api.md) — Loopback status, window, and health endpoints.
 - [Web Monitoring API](https://vibemon.io/docs/api/monitoring) — Cloud tokens, summaries, settings, and trends.
 - [Web service](https://vibemon.io) — Login, source configuration, and browser dashboard.
-- [Web source](https://github.com/opspresso/vibemon-web) — Private canonical source; maintainer access required.
-- [Docs mirror](https://github.com/opspresso/vibemon-docs) and [Static mirror](https://github.com/opspresso/vibemon-static) — Compatibility publishing snapshots, not independent source repositories.
+- [Hooks and collector source](docs/distribution.md) — Public installers, collector, shared schema, registries, and rendering assets live in this repository.
+- [Web source](https://github.com/opspresso/vibemon-web) — Private service implementation; App installation, builds, and CI do not require access.
 - [ESP32 firmware](https://github.com/opspresso/vibemon-esp32) — Separate hardware project; its legacy cloud WebSocket transport is unavailable.
 
 ## License

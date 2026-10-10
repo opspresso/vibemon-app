@@ -19,7 +19,7 @@ const DOCS_BASE_URL = process.env.VIBEMON_DOCS_URL || 'https://vibemon.io/instal
 const INSTALLER_SHA256 = process.env.VIBEMON_INSTALLER_SHA256 || null;
 
 // =============================================================================
-// Canonical Registry (vibemon-web)
+// Canonical Registry (the public App distribution)
 // =============================================================================
 const { STATIC_BASE_URL } = require('./registry-cache.cjs');
 
@@ -40,6 +40,6 @@ module.exports = {
   DOCS_BASE_URL,
   INSTALLER_SHA256,
 
-  // Canonical registry base URL (vibemon-web)
+  // Canonical registry base URL (the public App distribution)
   STATIC_BASE_URL
 };

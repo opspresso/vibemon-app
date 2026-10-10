@@ -6,7 +6,7 @@ VibeMon is an Electron desktop application. The main process starts in `src/main
 
 ## Architecture & Data Flow
 
-Local HTTP and scoped cloud polling updates converge at `routeStatusUpdate()` and flow through `CharacterWindowManager` to one retargetable character window and speech bubble. Preserve this ingress and focus-selection behavior. State and character registries *and* the rendering modules are canonical in `vibemon-web/public/static/`; update them there, then sync the copies with `pnpm check:registry -- --fix`. Keep timeouts and sizes in `src/shared/data/constants.json` (`_MS` for milliseconds). The renderer CSP requires local Three.js files; do not use runtime CDN imports — `src/renderer.js` passes the vendored three.js namespace to the 3D engine as `options.THREE`.
+Local HTTP and scoped cloud polling updates converge at `routeStatusUpdate()` and flow through `CharacterWindowManager` to one retargetable character window and speech bubble. Preserve this ingress and focus-selection behavior. This public repository owns the state/character registries, character art, shared rendering modules, hooks, and Python collector. `web-distribution.json` maps their source paths to the public files consumed by private Web. Keep timeouts and sizes in `src/shared/data/constants.json` (`_MS` for milliseconds). The renderer CSP requires local Three.js files; do not use runtime CDN imports — `src/renderer.js` passes the vendored three.js namespace to the 3D engine as `options.THREE`.
 
 ## Build, Test, and Development Commands
 
@@ -18,11 +18,14 @@ Use pnpm:
 - `pnpm test` runs the Jest suite once; `pnpm test:watch` reruns affected tests during development.
 - `pnpm test:coverage` writes coverage reports to `coverage/`.
 - `pnpm build` creates platform packages without publishing. Use `pnpm build:mac`, `pnpm build:win`, or `pnpm build:linux` for a specific target.
-- `pnpm check:registry` compares the bundled registry data, character art, and vendored rendering modules against `vibemon-web` (`-- --fix` overwrites the local copies; `VIBEMON_WEB_DIR=../vibemon-web` reads the pinned commit from a local checkout instead of GitHub; private remote access uses `VIBEMON_WEB_READ_TOKEN`).
+- `pnpm check:registry` validates local registry fields, image references, and dimensions.
+- `pnpm check:distribution` validates the public export map without network or private credentials.
+- `pnpm build:distribution` writes the reviewed installer/static payload to `dist/web/`.
+- `python3 -m pytest tests/hooks collector/tests` checks hooks and collector behavior (install pytest and `./collector` in a virtual environment first).
 
 ## Coding Style & Naming Conventions
 
-Follow `eslint.config.js`: two-space indentation, single quotes, semicolons, no trailing commas, and an ending newline. Use `camelCase` for variables and functions, `PascalCase` for classes, and kebab-case filenames such as `state-manager.cjs`. Preserve module boundaries: main-process modules use CommonJS (`.cjs`), while renderer and engine code may use ES modules. Do not edit files under `src/vendor/`. `src/shared/resource-schema.cjs`, `src/engine/`, `src/bubble/`, `src/shared/data/{states,characters}.json`, and `src/assets/characters/` are verbatim copies of `vibemon-web`: change them there and re-sync, never in place — CI compares them against the canonical copies.
+Follow `eslint.config.js`: two-space indentation, single quotes, semicolons, no trailing commas, and an ending newline. Use `camelCase` for variables and functions, `PascalCase` for classes, and kebab-case filenames such as `state-manager.cjs`. Preserve module boundaries: main-process modules use CommonJS (`.cjs`), while renderer and engine code may use ES modules. Do not edit files under `src/vendor/`. `src/shared/resource-schema.cjs`, `src/engine/`, `src/bubble/`, `src/shared/data/{states,characters}.json`, and `src/assets/characters/` are canonical here. Installer sources live in `public/install/`, their tests in `tests/hooks/`, and sprite authoring tools in `tools/sprites/`. Regenerate `public/install/manifest.json` with `python3 scripts/generate_manifest.py` when an installer payload changes.
 
 ## Testing Guidelines
 

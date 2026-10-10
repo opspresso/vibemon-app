@@ -24,7 +24,9 @@
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
     "check:registry": "node scripts/check-registry.mjs",
-    "prepare:npm": "node scripts/prepare-npm.mjs"
+    "prepare:npm": "node scripts/prepare-npm.mjs",
+    "check:distribution": "node scripts/export-web.mjs",
+    "build:distribution": "node scripts/export-web.mjs --write"
   },
   "author": "nalbam",
   "license": "MIT",

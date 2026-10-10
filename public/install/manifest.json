@@ -1,0 +1,25 @@
+{
+  "installer": "cd7156f4e0ff645b1dab82f06e85d54446783d80b5b61c44df30ba1c30bc7467",
+  "files": {
+    "claude/settings.json": "cf57ea426d00c74e9c6a94fae29b6b039b67832761af3266c7e48a73a1379388",
+    "codex/hooks.json": "b7e5e486400a0b289a789f4f6ecc9d04188192ef031b7e6c1dcbc60d3d8ad2f8",
+    "codex/config.toml": "d9cc7d2779544974c949a1a3d2749b2f4d931e291f3225784867215678acd34f",
+    "vibemon/config.example.json": "d6cb3a66527ec2254163e05d676b145d8a00f68662789fd55cb212dbdcf2fbc5",
+    "vibemon/statusline.example.json": "c4b370200330578bdc76707e6d20b729aeee8304d0b05906c804deafd09bec4f",
+    "vibemon/usage.py": "0f84e3296c956415781326bc7716751bd5fa56deee4a96511e7258170d6e6ff1",
+    "vibemon/usage_cache.py": "3715da1594961b5b4f378c3d623ed3559cabe17cbc9b83c4ed244a9205a869d6",
+    "vibemon/account_context.py": "3e8694250e8f718752e6ff4fd3ec4b6189dcf82d4fb998921101eb86049df5ab",
+    "vibemon/cache_io.py": "f99ddbcba818ac8cf5b84aa714cdec1ef4ff87f87680dd2868ef483deb208de7",
+    "vibemon/http_client.py": "306f9804a3bffc221b7c68f7b1f100937311908912ffb50bca500d493464052a",
+    "vibemon/vibemon_core.py": "eed8f64214a74a887e2871a26119d617087698b19cd3418ef86fa2d4dcf40126",
+    "claude/statusline.py": "897abb2e8ea490f2759f548d380edc26765a5aff59514931380dcf4ce20b1c6c",
+    "claude/hooks/vibemon.py": "ac91d79cf5a4a94eeb1ff2e5df8dab0ccfc18406058e8263ea4ec07566e17b09",
+    "codex/hooks/vibemon.py": "cf7ef2f85f10028d2e9d51e24cfc772f578ec179ac5506d6874acf0a66423159",
+    "kiro/hooks/vibemon.py": "ee4fc0d85f5904e268d336b9e7426860f219fed2208d5a2cf3454e0ff49a28db",
+    "kiro/hooks/vibemon.json": "b4f43d0d1f3ae7f9884a2379ecc8d3f9ff62ac7b166f4b0b5e1f6a2c959cb2b9",
+    "openclaw/extensions/index.mjs": "851a80835ce15e7a84a25b4aafd75a005e5204fcdaad628773d15205c0bca126",
+    "openclaw/extensions/openclaw.plugin.json": "57645f6ec888e43ee0ef0b2f6db9cfe604c1a4b82ac58df98a06491bfaa10ff1",
+    "opencode/plugin/vibemon.js": "d3e8ac4676d56e3b68ee3869cc2595c020de9300dd08317cfb98138a8cea2574",
+    "opencode/hooks/vibemon.py": "212baa92ba0b82bf103f347f95944c401523898793adf86036f544f46d5bf822"
+  }
+}
