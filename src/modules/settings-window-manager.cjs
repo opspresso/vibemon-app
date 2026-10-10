@@ -14,7 +14,7 @@ const {
   ALWAYS_ON_TOP_MODES, CHARACTER_NAMES, CHARACTER_CONFIG, SPEECH_BUBBLE_FIELDS,
   CHARACTER_SCALES, EDGE_MARGINS
 } = require('../shared/config.cjs');
-const { describeFailure } = require('./hook-installer.cjs');
+const { describeFailure } = require('../shared/install-result.cjs');
 
 // Fixed navigation targets — the renderer picks by key, so no URL ever
 // crosses the IPC boundary.
