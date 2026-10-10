@@ -1,0 +1,34 @@
+name: Collector image
+on:
+  pull_request:
+    paths: ['collector/**', '.github/workflows/collector-image.yml']
+  push:
+    branches: [main]
+    paths: ['collector/**', '.github/workflows/collector-image.yml']
+permissions:
+  contents: read
+jobs:
+  image:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, ubuntu-24.04-arm]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v6
+      - run: docker build -f collector/Dockerfile -t vibemon-collector:check .
+      - run: docker run --rm vibemon-collector:check --help
+      - run: docker run --rm --entrypoint kubectl vibemon-collector:check version --client
+      - name: Verify unprivileged readiness on a read-only root
+        run: |
+          docker run --rm --read-only --tmpfs /tmp --entrypoint python vibemon-collector:check -c '
+          import os, time
+          from vibemon_collector.health import DeliveryHealth
+          assert os.getuid() == 65532
+          health = DeliveryHealth("/tmp/health")
+          health.reset()
+          assert not health.ready(time.time())
+          health.record(time.time())
+          assert health.ready(time.time())
+          health.reset()
+          assert not health.ready(time.time())'
