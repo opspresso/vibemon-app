@@ -34,4 +34,4 @@ Web's `app-assets.json` pins a full App commit. Its sync command fetches that pu
 - [Collector setup](../collector/README.md) installs the Python package from this repository.
 - Desktop source builds use this repository alone. Cloud monitoring still needs a reachable Web service and an account's read token.
 
-The old Docs and Static repositories are outside this source and CI dependency graph. Existing `docs.vibemon.io` and `static.vibemon.io` downloads remain a hosting migration concern: deploy the Web snapshot and verify their HTTPS routes before retiring the old Pages sites. No credential for the private Web repository is needed for that public content.
+The old Docs and Static repositories are retired. Their Pages and Actions are disabled. `docs.vibemon.io`, `static.vibemon.io`, and `static.vibemon.toast.sh` now serve the pinned files from Web on AWS Amplify. Canonical and legacy HTTPS paths must return identical bytes; no private Web credential is required to download this public content.
