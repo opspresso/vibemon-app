@@ -83,6 +83,16 @@ def normalize_percent(value: Any) -> int | None:
     return round(number) if math.isfinite(number) and 0 <= number <= 100 else None
 
 
+def is_fresh_observation(value: Any, max_age_seconds: int, now: float) -> bool:
+    """Reject missing, invalid, expired, or implausibly future observations."""
+    observed_at = parse_epoch(value)
+    return (
+        observed_at is not None
+        and 0 < observed_at <= now + MAX_CLOCK_SKEW_SECONDS
+        and now - observed_at <= max_age_seconds
+    )
+
+
 def is_usage_bucket(name: Any) -> bool:
     """True for usage bucket keys: "session" plus any "week_*" bucket
     ("week_all", or a model-scoped bucket like "week_fable")."""
@@ -227,7 +237,7 @@ def get_fresh_provider(
         return None
     current_time = time.time() if now is None else now
     observed_at = provider_updated_at(cache, provider)
-    if observed_at <= 0 or observed_at > current_time + MAX_CLOCK_SKEW_SECONDS or current_time - observed_at > max_age_seconds:
+    if not is_fresh_observation(observed_at, max_age_seconds, current_time):
         return None
 
     fresh = dict(data)
@@ -235,16 +245,9 @@ def get_fresh_provider(
         bucket = data.get(bucket_name)
         if not isinstance(bucket, dict):
             continue
-        try:
-            bucket_updated_at = float(bucket.get("updated_at", observed_at))
-        except (TypeError, ValueError):
-            bucket_updated_at = 0
         resets_at = parse_epoch(bucket.get("resets_at"))
         if (
-            not math.isfinite(bucket_updated_at)
-            or bucket_updated_at <= 0
-            or bucket_updated_at > current_time + MAX_CLOCK_SKEW_SECONDS
-            or current_time - bucket_updated_at > max_age_seconds
+            not is_fresh_observation(bucket.get("updated_at", observed_at), max_age_seconds, current_time)
             or (resets_at is not None and resets_at <= current_time)
         ):
             fresh.pop(bucket_name, None)

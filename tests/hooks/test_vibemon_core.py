@@ -59,6 +59,20 @@ class ParseJsonTest(unittest.TestCase):
 
 
 class ProjectMetadataTest(unittest.TestCase):
+    def test_invalid_future_or_expired_observations_are_unknown(self):
+        with tempfile.TemporaryDirectory() as directory:
+            cache_path = Path(directory) / 'projects.json'
+            config = vibemon_core.Config((), None, str(cache_path), False, None, None)
+            key = vibemon_core.project_cache_key('p')
+            with patch.object(vibemon_core, 'get_config', return_value=config), patch.object(vibemon_core.time, 'time', return_value=2000):
+                for observed_at in [float('nan'), float('inf'), 'NaN', 'Infinity', None, 0, 100, 2031]:
+                    with self.subTest(observed_at=observed_at):
+                        cache_path.write_text(json.dumps({key: {'model': 'stale-model', 'memory': 42, 'ts': observed_at}}))
+                        self.assertEqual(vibemon_core.get_project_metadata('p'), {})
+                entry = {'model': 'fresh-model', 'memory': 0, 'ts': 2000}
+                cache_path.write_text(json.dumps({key: entry}))
+                self.assertEqual(vibemon_core.get_project_metadata('p'), entry)
+
     def test_non_dict_cache_file_is_ignored(self):
         with tempfile.TemporaryDirectory() as directory:
             cache_path = Path(directory) / "projects.json"

@@ -31,7 +31,7 @@ from urllib.request import Request, urlopen
 
 from account_context import cloud_context, project_cache_key
 from http_client import open_credential_request
-from usage_cache import get_fresh_provider, load_usage_cache, model_week_bucket, reverse_jsonl
+from usage_cache import get_fresh_provider, is_fresh_observation, load_usage_cache, model_week_bucket, reverse_jsonl
 
 try:
     import fcntl
@@ -321,10 +321,7 @@ def get_project_metadata(project: str, cwd: str | None = None) -> dict[str, Any]
     if not isinstance(entry, dict):
         return {}
 
-    try:
-        if (time.time() - float(entry.get("ts", 0))) > CACHE_STALE_SECONDS:
-            return {}
-    except (TypeError, ValueError):
+    if not is_fresh_observation(entry.get("ts"), CACHE_STALE_SECONDS, time.time()):
         return {}
 
     return entry
