@@ -100,7 +100,9 @@ function collectCommands(node, out = []) {
 }
 
 function isVibemonEntry({ command, args }) {
-  return [command, ...args].some(part => typeof part === 'string' && part.includes('vibemon.py'));
+  return [...tokenizeCommand(command), ...args].some(part =>
+    typeof part === 'string' && part.split(/[\\/]/).at(-1) === 'vibemon.py'
+  );
 }
 
 /**

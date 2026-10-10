@@ -120,6 +120,14 @@ if __name__ == "__main__":
 
 
 class StripAllVibemonHooksTest(unittest.TestCase):
+    def test_similarly_named_user_scripts_survive_removal(self):
+        commands = ['python3 ~/my-vibemon.py', 'python3 ~/vibemon.py.backup', 'python3 ~/vibemon.py/helper.py']
+        user_hooks = [{'hooks': [{'type': 'command', 'command': command}]} for command in commands]
+        user_hooks.append({'command': 'python.exe', 'args': ['C:/custom/my-vibemon.py']})
+        existing = {'Stop': [VIBEMON_ENTRY, *user_hooks]}
+        install.strip_all_vibemon_hooks(existing)
+        self.assertEqual(existing, {'Stop': user_hooks})
+
     def test_removes_vibemon_and_keeps_user_hooks(self):
         existing = {"Stop": [VIBEMON_ENTRY, USER_ENTRY], "PreToolUse": [VIBEMON_ENTRY]}
         changed = install.strip_all_vibemon_hooks(existing)
@@ -1074,6 +1082,29 @@ class UninstallHooksFromJsonTest(unittest.TestCase):
             json.loads(self.path.read_text(encoding="utf-8")),
             {"version": 2, "hooks": {"Stop": [USER_ENTRY]}},
         )
+
+
+class UninstallClaudeStatuslineTest(unittest.TestCase):
+    def test_only_the_installed_statusline_path_is_removed(self):
+        for command, remove in [
+            ('python3 ~/.claude/statusline.py', True),
+            ('python3 ~/custom/statusline.py', False),
+            ('python3 ~/.claude/my-statusline.py', False),
+            ('python3 ~/.claude/statusline.py.backup', False),
+        ]:
+            with self.subTest(command=command), tempfile.TemporaryDirectory() as directory:
+                home = Path(directory)
+                settings_path = home / '.claude/settings.json'
+                settings_path.parent.mkdir()
+                settings = {'statusLine': {'type': 'command', 'command': command}, 'env': {'KEEP': 'unchanged'}}
+                settings_path.write_text(json.dumps(settings))
+                with PosixFake(), mock.patch.object(Path, 'home', return_value=home):
+                    self.assertTrue(install.uninstall_claude())
+                result = json.loads(settings_path.read_text())
+                self.assertEqual('statusLine' not in result, remove)
+                if not remove:
+                    self.assertEqual(result['statusLine'], settings['statusLine'])
+                self.assertEqual(result['env'], settings['env'])
 
 
 class EnsureCodexStatusLineValidityTest(unittest.TestCase):

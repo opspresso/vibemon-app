@@ -279,6 +279,12 @@ describe('HookInstaller', () => {
       expect(missing.map(t => t.flag)).toContain(target.flag);
     });
 
+    test.each(['my-vibemon.py', 'vibemon.py.backup', 'vibemon.py/helper.py'])('does not treat the unrelated %s script as an installed integration', name => {
+      const tool = TOOLS[0];
+      mockToolInstalled(tool, { config: JSON.stringify({ hooks: { Stop: [{ hooks: [{ command: `python3 ~/${name}` }] }] } }) });
+      expect(hookInstaller.refreshStatuses().find(item => item.flag === tool.flag).hasHook).toBe(false);
+    });
+
     test('includes a tool whose config is missing entirely', () => {
       const target = TOOLS[1];
       const filePaths = new Set([target.homeDir, target.hookFile, ...target.files.map(f => f.local)]);
