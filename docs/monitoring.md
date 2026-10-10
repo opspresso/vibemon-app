@@ -1,8 +1,8 @@
 # Cloud monitoring
 
-Open **Monitoring…** from the tray menu. Enter the Web origin and a generated read token, then select **Save and connect**. Create the token in the Web site's `/account` page with Google login. A write-only token cannot display data.
+Open **Monitoring…** from the tray menu. Enter the Web origin and a generated read token, then select **Save and connect**. Create the token in [Account](https://vibemon.io/account) with Google login and use **Show token** to copy it. You can retrieve it again later. A write-only token cannot display data.
 
-The read token is encrypted with Electron `safeStorage`, backed by the operating system keychain or secret service. No plaintext read token is returned to the renderer or written to preferences. Linux `basic_text` storage is rejected. Unlock or configure your OS secure storage if the app cannot save the token. To remove it, select **Disconnect**.
+The read token is encrypted with Electron `safeStorage`, backed by the operating system keychain or secret service. No plaintext read token is returned to the renderer or written to preferences. Linux `basic_text` storage is rejected. Unlock or configure your OS secure storage if the app cannot save the token. To remove the local copy, select **Disconnect**. To invalidate it for every client, delete it in Web Account.
 
 Select the resources, accounts, and metrics under **Connection and display settings**, then select **Apply display selection**. **Discover resources and accounts** refreshes the available list. Latest state is polled every 30 seconds, restricted to the selection. **View recent hour** loads minute aggregates and refreshes them every minute until the panel closes. No trend requests run while the panel is closed or the window is hidden.
 
@@ -35,7 +35,7 @@ The existing localhost hook endpoint and character/bubble behavior remain availa
 
 Resources and provider accounts have separate selectors. Choose any combination of custom resources, Kubernetes clusters, Spark hosts, and coding accounts. Codex, Claude, Kiro and other agent types can each have several account IDs. Selection controls and cards group them by provider and show the account ID explicitly. A provider account card lists its project states and shows the latest observation's usage. Its recent-hour view aggregates that account's summaries; percentages are averaged, not summed.
 
-The same project name can appear under several accounts. Selection and trend requests use provider/account keys and source IDs, never the project label. The Web site's `/coding-accounts/new` page generates launch settings, including `VIBEMON_KIRO_ACCOUNT_ID` / `_NAME` for Kiro. Use each tool's matching signed-in environment; identity metadata does not switch logins. Unsupported usage remains unavailable. See the Web repository's monitoring API contract for provider-specific overrides.
+The same project name can appear under several accounts. Selection and trend requests use provider/account keys and source IDs, never the project label. The Web site's `/coding-accounts/new` page generates launch settings, including `VIBEMON_KIRO_ACCOUNT_ID` / `_NAME` for Kiro. Use each tool's matching signed-in environment; identity metadata does not switch logins. Unsupported usage remains unavailable. See the [provider/account contract](https://vibemon.io/docs/api/monitoring#multiple-provider-accounts) for provider-specific overrides.
 
 ![Two independently selected fixture accounts](images/monitoring-accounts.png)
 

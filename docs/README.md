@@ -1,31 +1,22 @@
-# Documentation
+# Desktop documentation
 
-- [Cloud monitoring](monitoring.md) — Web connection, secure read tokens, source selection, gauges, and trends.
+## Use the App
 
-## Quick Start
+- [Install and connect](../README.md#install-and-start) — Packages, cloud connection, and local hooks.
+- [Cloud monitoring](monitoring.md) — Read tokens, resource/account selection, metrics, trends, and connection failures.
+- [Desktop features](features.md) — Character states, animations, settings, and tray controls.
+- [Web connection guide](https://vibemon.io/docs) — Google login, tokens, collectors, and coding accounts.
 
-```bash
-npx vibemon
-```
+## Integrate and develop
 
-The desktop app launches in the system tray and listens on `http://127.0.0.1:19280`.
+- [Local HTTP API](api.md) — The App's loopback endpoints on port 19280.
+- [Web Monitoring API](https://vibemon.io/docs/api/monitoring) — Authenticated cloud endpoints; separate from the local API.
+- [Build and packaging](build.md) — Dependencies, validation, canonical assets, signing, and publication.
+- [Overlay verification](overlay-interaction.md) — Character/bubble input, movement, and display scaling.
+- [Pet proposal](milestone/vibemon-pet-development-spec.md) — Future design only; not implemented behavior.
 
-For the ESP32 hardware display, see [vibemon-esp32](https://github.com/opspresso/vibemon-esp32).
+## Documentation maintenance
 
-## Guides
+Edit Desktop behavior here. Web owns hook installation and cloud API documentation; link to its published guides instead of copying those contracts. Markdown uses English and lowercase-hyphen filenames, except existing Korean design and verification documents.
 
-- [Build and packaging](build.md) - Pinned dependencies, canonical assets, and CI access.
-
-- **[Features](features.md)** - States, animations, character window behavior
-- **[HTTP API Reference](api.md)** - Complete API documentation for all endpoints
-
-## Conventions
-
-- File names: lowercase-hyphen.md
-- Language: English
-
-## Links
-
-- [Main README](../README.md) - Project overview
-- [npm Package](https://www.npmjs.com/package/vibemon) - Desktop app on npm
-- [vibemon.io/docs](https://vibemon.io/docs) - Full documentation site
+[Repository overview](../README.md) · [npm package](https://www.npmjs.com/package/vibemon) · [Downloads](https://github.com/opspresso/vibemon-app/releases/latest)

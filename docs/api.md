@@ -1,6 +1,6 @@
 # HTTP API Reference
 
-Default port: `19280`
+This reference describes the Desktop App's local HTTP server on `127.0.0.1:19280`. Cloud ingestion, token management, and trends use the separate [Web Monitoring API](https://vibemon.io/docs/api/monitoring).
 
 > For the ESP32 device API, see [vibemon-esp32](https://github.com/opspresso/vibemon-esp32).
 
