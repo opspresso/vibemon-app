@@ -2,6 +2,8 @@
 
 Install hooks to send coding-agent summaries to the local Desktop App, the Web service, or both. Python 3 is required. Web uses Google login; agent-provider credentials remain on the machine running the hooks.
 
+Desktop auto-launch opens the installed macOS App or a Windows installer location (or `VibeMon.exe` on PATH). Start custom Windows installations and other platforms manually. Hooks never install or run an npm package.
+
 ## 1. Prepare credentials
 
 1. Sign in at [Account](https://vibemon.io/account).

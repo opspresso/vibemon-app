@@ -407,16 +407,16 @@ async function isDesktopRunning() {
 }
 
 /**
- * Launch Desktop App via npx
+ * Use the shared native-package launcher.
  */
 function launchDesktop() {
-  debug("Launching Desktop App via npx...");
+  debug("Launching installed Desktop App...");
 
   try {
-    const shell = process.env.SHELL || "/bin/sh";
-    const child = spawn(shell, ["-l", "-c", "npx vibemon@latest"], {
+    const child = spawn("python3", [CORE_SCRIPT, "--launch-desktop"], {
       detached: true,
       stdio: "ignore",
+      timeout: 5000,
     });
     child.on("error", (err) => debug(`Desktop launch failed: ${err.message}`));
     child.unref();

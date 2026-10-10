@@ -22,4 +22,4 @@
 
 Edit Desktop behavior here. App owns hooks, public distributions, and Desktop behavior; Web owns cloud API and authentication contracts. Web publishes a pinned App snapshot alongside its own guides. Markdown uses English and lowercase-hyphen filenames, except existing Korean design and verification documents.
 
-[Repository overview](../README.md) · [npm package](https://www.npmjs.com/package/vibemon) · [Downloads](https://github.com/opspresso/vibemon-app/releases/latest)
+[Repository overview](../README.md) · [Downloads](https://github.com/opspresso/vibemon-app/releases/latest)

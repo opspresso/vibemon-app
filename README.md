@@ -1,8 +1,7 @@
 # VibeMon Desktop
 
-[![npm version](https://img.shields.io/npm/v/vibemon.svg)](https://www.npmjs.com/package/vibemon)
-[![npm downloads](https://img.shields.io/npm/dm/vibemon.svg)](https://www.npmjs.com/package/vibemon)
-[![license](https://img.shields.io/npm/l/vibemon.svg)](LICENSE)
+[![Release](https://img.shields.io/github/v/release/opspresso/vibemon-app)](https://github.com/opspresso/vibemon-app/releases/latest)
+[![License](https://img.shields.io/github/license/opspresso/vibemon-app)](LICENSE)
 
 Monitor selected resources and coding accounts from your desktop. VibeMon combines cloud summaries with local coding-agent activity, a floating character, and a speech bubble.
 
@@ -19,13 +18,9 @@ On macOS:
 brew install opspresso/tap/vibemon
 ```
 
-For Windows or a direct macOS installer, download the matching package from [Releases](https://github.com/opspresso/vibemon-app/releases/latest). With Node.js 26.11.1, you can also run:
+For Windows or a direct macOS installer, download the matching package from [Releases](https://github.com/opspresso/vibemon-app/releases/latest). npm distribution is discontinued; existing npm packages do not receive updates.
 
-```sh
-npx vibemon
-```
-
-The App starts in the system tray and listens locally on `http://127.0.0.1:19280`. `vibemon --version` and `vibemon --help` exit without opening the App.
+Open the installed VibeMon application. It starts in the system tray and listens locally on `http://127.0.0.1:19280`.
 
 ## Connect cloud sources
 

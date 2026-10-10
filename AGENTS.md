@@ -2,7 +2,7 @@
 
 ## Project Structure & Module Organization
 
-VibeMon is an Electron desktop application. The main process starts in `src/main.js`; CommonJS services live in `src/modules/`, shared registries in `src/shared/`, and renderer code in `src/renderer.js`, `src/bubble/`, and `src/engine/`. Keep tests in `tests/`, documentation in `docs/`, CLI code in `bin/`, character art in `src/assets/characters/`, and application icons in `assets/`.
+VibeMon is an Electron desktop application. The main process starts in `src/main.js`; CommonJS services live in `src/modules/`, shared registries in `src/shared/`, and renderer code in `src/renderer.js`, `src/bubble/`, and `src/engine/`. Keep tests in `tests/`, documentation in `docs/`, character art in `src/assets/characters/`, and application icons in `assets/`.
 
 ## Architecture & Data Flow
 
@@ -10,7 +10,7 @@ Local HTTP and scoped cloud polling updates converge at `routeStatusUpdate()` an
 
 ## Build, Test, and Development Commands
 
-Use pnpm:
+Use Node.js 26.11.1 from `.nvmrc` and pnpm:
 
 - `pnpm install` installs dependencies.
 - `pnpm start` launches the Electron app locally.

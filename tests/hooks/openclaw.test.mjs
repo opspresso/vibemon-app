@@ -4,6 +4,21 @@ import { openclaw } from "./plugin_harness.mjs";
 
 const ctx = { runId: "r", sessionId: "s", sessionKey: "agent:main:s" };
 
+test("auto-launch delegates to the installed shared native launcher", async () => {
+  const h = await openclaw({
+    pluginConfig: { autoLaunch: true, httpUrls: ["http://127.0.0.1:19280"] },
+    fetch: async (url) => ({ ok: !url.endsWith("/health"), status: 200, text: async () => "ok" }),
+  });
+  const started = h.emit("gateway_start");
+  await h.flush();
+  const launch = h.children.find(({ args }) => args.includes("--launch-desktop"));
+  assert.equal(launch.command, "python3");
+  assert.deepEqual([...launch.args], ["/home/test/.vibemon/vibemon_core.py", "--launch-desktop"]);
+  assert.equal(launch.options.timeout, 5000);
+  await h.advance(3000);
+  await started;
+});
+
 test("tool failures return to thinking and failed runs finish", async () => {
   const h = await openclaw();
   await h.emit("before_agent_run", {}, ctx);

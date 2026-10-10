@@ -291,5 +291,27 @@ class SerialWriteTest(unittest.TestCase):
         self.assertFalse(self._send(lambda fd, data: 0))
 
 
+class DesktopLaunchTest(unittest.TestCase):
+    def test_macos_opens_installed_application_without_a_shell(self):
+        with patch.object(vibemon_core, 'IS_WINDOWS', False), patch.object(sys, 'platform', 'darwin'), patch.object(vibemon_core.subprocess, 'Popen') as spawn, patch.object(vibemon_core.time, 'sleep'):
+            self.assertTrue(vibemon_core.launch_desktop())
+        self.assertEqual(spawn.call_args.args[0], ['/usr/bin/open', '-g', '-a', 'VibeMon'])
+        self.assertTrue(spawn.call_args.kwargs['start_new_session'])
+
+    def test_windows_launches_installed_executable_with_spaces(self):
+        with tempfile.TemporaryDirectory() as directory:
+            executable = Path(directory) / 'Programs/VibeMon/VibeMon.exe'
+            executable.parent.mkdir(parents=True)
+            executable.touch()
+            with patch.dict(os.environ, {'LOCALAPPDATA': directory}, clear=True), patch.object(vibemon_core, 'IS_WINDOWS', True), patch.object(vibemon_core.subprocess, 'Popen') as spawn, patch.object(vibemon_core.time, 'sleep'):
+                self.assertTrue(vibemon_core.launch_desktop())
+            self.assertEqual(spawn.call_args.args[0], [str(executable)])
+
+    def test_missing_windows_installation_does_not_download_an_app(self):
+        with patch.dict(os.environ, {}, clear=True), patch.object(vibemon_core, 'IS_WINDOWS', True), patch.object(vibemon_core.shutil, 'which', return_value=None), patch.object(vibemon_core.subprocess, 'Popen') as spawn:
+            self.assertFalse(vibemon_core.launch_desktop())
+            spawn.assert_not_called()
+
+
 if __name__ == "__main__":
     unittest.main()
