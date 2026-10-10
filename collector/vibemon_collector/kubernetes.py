@@ -36,7 +36,9 @@ class KubectlReader:
             'pods': ['get', 'pods', '-A', '-o', f'jsonpath={POD_FIELDS}'],
             'usage': ['get', '--raw', '/apis/metrics.k8s.io/v1beta1/nodes'],
         }[kind]
-        result = subprocess.run([*self.command, '--request-timeout=5s', *arguments], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, timeout=8, check=False, text=True)
+        # A request-timeout override prevents kubectl's default-config check from
+        # selecting the mounted service account. Bound the whole process instead.
+        result = subprocess.run([*self.command, *arguments], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, timeout=8, check=False, text=True)
         if result.returncode or len(result.stdout.encode()) > 1024 * 1024:
             raise ValueError('Kubernetes summary query failed')
         return json.loads(result.stdout) if kind == 'usage' else [line.split('\t') for line in result.stdout.splitlines() if line]
