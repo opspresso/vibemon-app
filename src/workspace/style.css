@@ -1616,10 +1616,10 @@ dialog::backdrop {
 }
 @media (max-height: 760px) {
   [data-page='overview'] .main {
-    padding-top: 20px;
+    padding-top: 16px;
   }
   [data-page='overview'] .page-header {
-    margin-bottom: 16px;
+    margin-bottom: 12px;
   }
   [data-page='overview'] .page-header .eyebrow,
   [data-page='overview'] .page-header p,
@@ -1630,7 +1630,7 @@ dialog::backdrop {
   }
   [data-page='overview'] .summary-grid {
     grid-template-columns: repeat(4, minmax(0, 1fr));
-    margin-bottom: 14px;
+    margin-bottom: 10px;
   }
   [data-page='overview'] .summary {
     padding: 10px 13px;
@@ -1643,7 +1643,7 @@ dialog::backdrop {
     margin: 4px 0 0;
   }
   [data-page='overview'] .section-heading {
-    margin: 16px 0 9px;
+    margin: 12px 0 9px;
   }
   .compact-card {
     padding: 12px;
