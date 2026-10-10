@@ -20,6 +20,8 @@ brew install opspresso/tap/vibemon
 
 For Windows or a direct macOS installer, download the matching package from [Releases](https://github.com/opspresso/vibemon-app/releases/latest). npm distribution is discontinued; existing npm packages do not receive updates.
 
+Windows packages use the OpsPresso self-signed certificate. Windows may show an unknown-publisher warning, and automatic updates require a trusted publisher.
+
 Open the installed VibeMon application. It starts in the system tray and listens locally on `http://127.0.0.1:19280`.
 
 ## Connect cloud sources

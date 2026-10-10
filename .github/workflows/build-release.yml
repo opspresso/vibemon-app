@@ -15,7 +15,29 @@ permissions:
   contents: read
 
 jobs:
+  resolve:
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.release.outputs.tag }}
+      commit: ${{ steps.release.outputs.commit }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - name: Resolve immutable release source
+        id: release
+        env:
+          RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.version || github.ref_name }}
+        run: |
+          [[ "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || exit 1
+          commit=$(git rev-parse "refs/tags/$RELEASE_TAG^{commit}")
+          version=$(git show "$commit:package.json" | jq -r .version)
+          test "$version" = "${RELEASE_TAG#v}"
+          echo "tag=$RELEASE_TAG" >> "$GITHUB_OUTPUT"
+          echo "commit=$commit" >> "$GITHUB_OUTPUT"
+
   build:
+    needs: resolve
     runs-on: ${{ matrix.os }}
 
     strategy:
@@ -28,6 +50,7 @@ jobs:
         uses: actions/checkout@v6
         with:
           fetch-depth: 0
+          ref: ${{ needs.resolve.outputs.commit }}
 
       - name: Setup Node.js
         uses: actions/setup-node@v6
@@ -48,14 +71,6 @@ jobs:
           pnpm exec jest --coverage --runInBand
           pnpm check:registry
           pnpm check:distribution
-
-      - name: Sync version from tag
-        shell: bash
-        env:
-          RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.version || github.ref_name }}
-        run: |
-          node -e "if (!/^v?[0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z.-]+)?$/.test(process.env.RELEASE_TAG)) throw new Error('Invalid release version')"
-          npm version "${RELEASE_TAG#v}" --no-git-tag-version --allow-same-version
 
       - name: Import macOS codesign certificate
         if: matrix.os == 'macos-latest'
@@ -83,6 +98,13 @@ jobs:
         if: matrix.os == 'macos-latest'
         run: pnpm exec electron-builder --mac --publish never
 
+      - name: Verify macOS signature and notarization
+        if: matrix.os == 'macos-latest'
+        run: |
+          codesign --verify --deep --strict dist/mac-arm64/VibeMon.app
+          xcrun stapler validate dist/mac-arm64/VibeMon.app
+          spctl --assess --type execute --verbose dist/mac-arm64/VibeMon.app
+
       - name: Build Electron app on Windows
         if: matrix.os == 'windows-latest'
         shell: bash
@@ -91,18 +113,13 @@ jobs:
           CSC_LINK: ${{ secrets.WINDOWS_CERTS }}
           CSC_KEY_PASSWORD: ${{ secrets.WINDOWS_CERTS_PASSWORD }}
 
-      - name: Verify trusted Windows signatures
+      - name: Bind Windows artifacts to the configured signer
         if: matrix.os == 'windows-latest'
         shell: pwsh
-        run: |
-          $installers = @(Get-ChildItem dist -Filter *.exe)
-          if ($installers.Count -eq 0) { throw 'No Windows installer produced' }
-          foreach ($installer in $installers) {
-            $signature = Get-AuthenticodeSignature $installer.FullName
-            if ($signature.Status -ne 'Valid') {
-              throw "Trusted Authenticode signature required for $($installer.Name): $($signature.Status)"
-            }
-          }
+        run: ./scripts/export-windows-signing-certificate.ps1
+        env:
+          WINDOWS_CERTS: ${{ secrets.WINDOWS_CERTS }}
+          WINDOWS_CERTS_PASSWORD: ${{ secrets.WINDOWS_CERTS_PASSWORD }}
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v7
@@ -113,10 +130,41 @@ jobs:
             dist/*.zip
             dist/*.exe
             dist/*.yml
-          if-no-files-found: ignore
+            dist/*.blockmap
+            dist/signing-certificate.pem
+          if-no-files-found: error
+
+  verify-windows:
+    needs: [resolve, build]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.resolve.outputs.commit }}
+      - uses: actions/download-artifact@v8
+        with:
+          name: windows-latest-artifacts
+          path: windows
+      - name: Install Authenticode verifier
+        run: sudo apt-get update && sudo apt-get install -y osslsigncode
+      - name: Verify publisher, file integrity and trusted timestamp
+        run: bash scripts/verify-windows-release.sh windows
+      - name: Confirm modified executables are rejected
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          target = next(Path('windows').glob('*.exe'))
+          data = bytearray(target.read_bytes())
+          data[64] ^= 1
+          target.write_bytes(data)
+          PY
+          if bash scripts/verify-windows-release.sh windows > tamper-check.log 2>&1; then
+            echo 'Modified executable passed signature verification' >&2
+            exit 1
+          fi
 
   release:
-    needs: [build]
+    needs: [resolve, build, verify-windows]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -125,6 +173,7 @@ jobs:
         uses: actions/checkout@v6
         with:
           fetch-depth: 0
+          ref: ${{ needs.resolve.outputs.commit }}
 
       - name: Download all artifacts
         uses: actions/download-artifact@v8
@@ -135,7 +184,7 @@ jobs:
         id: release_tag
         shell: bash
         env:
-          RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.version || github.ref_name }}
+          RELEASE_TAG: ${{ needs.resolve.outputs.tag }}
         run: echo "tag=$RELEASE_TAG" >> "$GITHUB_OUTPUT"
 
       - name: Get tag message
@@ -183,6 +232,7 @@ jobs:
             artifacts/**/*.dmg
             artifacts/**/*.zip
             artifacts/**/*.exe
+            artifacts/**/*.blockmap
             artifacts/**/latest*.yml
 
       - name: Calculate DMG SHA256
@@ -201,7 +251,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GHP_TOKEN }}
         run: |
-          curl -sL -X POST \
+          curl --fail-with-body -sSL -X POST \
             -H "Accept: application/vnd.github.v3+json" \
             -H "Authorization: Bearer $GH_TOKEN" \
             -d "{\"event_type\":\"gitops\",\"client_payload\":{\"project\":\"vibemon\",\"version\":\"${{ steps.release_tag.outputs.tag }}\",\"sha256\":\"${{ steps.sha256.outputs.sha256 }}\"}}" \
