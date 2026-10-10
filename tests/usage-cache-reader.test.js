@@ -11,7 +11,7 @@ jest.mock('../src/shared/config.cjs', () => ({
 }));
 
 const fs = require('fs');
-const { getUsageCachePath, getUsageSnapshot, formatResetIn } = require('../src/modules/usage-cache-reader.cjs');
+const { getUsageCachePath, getUsageSnapshot } = require('../src/modules/usage-cache-reader.cjs');
 
 const CONFIG_PATH = path.join(os.homedir(), '.vibemon', 'config.json');
 const DEFAULT_USAGE_PATH = path.join(os.homedir(), '.vibemon', 'cache', 'usage.json');
@@ -205,35 +205,6 @@ describe('getUsageSnapshot', () => {
     expect(getUsageSnapshot(1_500_000).claude.session).toBeNull();
   });
 });
-
-describe('formatResetIn', () => {
-  const now = 1_000_000; // 1000s
-
-  test('formats under an hour as minutes', () => {
-    expect(formatResetIn(1000 + 24 * 60, now)).toBe('24m');
-  });
-
-  test('formats an exact hour with no minutes suffix', () => {
-    expect(formatResetIn(1000 + 60 * 60, now)).toBe('1h');
-  });
-
-  test('formats hours and minutes', () => {
-    expect(formatResetIn(1000 + 2 * 3600 + 5 * 60, now)).toBe('2h5m');
-  });
-
-  test('formats an exact day with no hours suffix', () => {
-    expect(formatResetIn(1000 + 24 * 3600, now)).toBe('1d');
-  });
-
-  test('formats days and hours', () => {
-    expect(formatResetIn(1000 + 3 * 86400 + 4 * 3600, now)).toBe('3d4h');
-  });
-
-  test('clamps a past resetsAt to 0m', () => {
-    expect(formatResetIn(500, now)).toBe('0m');
-  });
-});
-
 
 describe('profile isolation', () => {
   const original = { ...process.env };
