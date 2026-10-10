@@ -19,6 +19,22 @@ jobs:
       - run: docker build -f collector/Dockerfile -t vibemon-collector:check .
       - run: docker run --rm vibemon-collector:check --help
       - run: docker run --rm --entrypoint kubectl vibemon-collector:check version --client
+      - name: Verify in-cluster service-account authentication
+        run: |
+          fixture=$(mktemp -d)
+          trap 'rm -rf "$fixture"' EXIT
+          chmod 755 "$fixture"
+          mkdir "$fixture/serviceaccount"
+          openssl req -x509 -newkey rsa:2048 -nodes -days 1 \
+            -keyout "$fixture/tls.key" -out "$fixture/serviceaccount/ca.crt" \
+            -subj /CN=localhost -addext subjectAltName=IP:127.0.0.1
+          printf 'in-cluster-test-token' > "$fixture/serviceaccount/token"
+          chmod 644 "$fixture/tls.key"
+          docker run --rm --read-only --tmpfs /tmp \
+            -v "$fixture:/tmp/fixture:ro" \
+            -v "$fixture/serviceaccount:/var/run/secrets/kubernetes.io/serviceaccount:ro" \
+            -v "$PWD/collector/tests/in_cluster_smoke.py:/tmp/in_cluster_smoke.py:ro" \
+            --entrypoint python vibemon-collector:check /tmp/in_cluster_smoke.py
       - name: Verify unprivileged readiness on a read-only root
         run: |
           docker run --rm --read-only --tmpfs /tmp --entrypoint python vibemon-collector:check -c '
