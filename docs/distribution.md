@@ -12,6 +12,8 @@ VibeMon is maintained in two repositories: public `vibemon-app` and private `vib
 | Python resource collector | `collector/` | Install from this public repository |
 | Sprite authoring tools and references | `tools/sprites/` | Not included in runtime packages |
 
+Shared guides are rendered in both repositories. Use relative links only for other exported paths; use absolute public App URLs for repository-only references.
+
 `web-distribution.json` is the export allowlist. It excludes private configuration, application preferences, credentials, and authoring artifacts. Static files are exported directly from their runtime source paths, so App does not maintain a second renderer or character copy.
 
 ## Validate and export

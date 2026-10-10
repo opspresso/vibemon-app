@@ -235,4 +235,4 @@ Resumed OpenCode sessions use the project instance directory and resolved chat m
 
 - [VibeMon Web](https://vibemon.io) - Cloud dashboard and API
 - [vibemon-app](https://github.com/opspresso/vibemon-app) - Desktop App
-- [Shared assets](../web-distribution.json) - App-owned registries, renderers, and character images
+- [Public App source](https://github.com/opspresso/vibemon-app) - Hooks, collectors, registries, renderers, and character images
