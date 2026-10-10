@@ -993,44 +993,29 @@ def show_monitor_window(url: str) -> None:
     send_http_post(url, "/show")
 
 
-def get_user_shell() -> str:
-    """Get user's login shell (POSIX)."""
-    shell = os.environ.get("SHELL")
-    if shell:
-        return shell
-
-    try:
-        import pwd
-
-        return pwd.getpwuid(os.getuid()).pw_shell
-    except Exception:
-        pass
-
-    return "/bin/sh"
-
-
-def launch_desktop() -> None:
-    """Launch Desktop App via npx.
-
-    POSIX goes through a login shell so npx is found the way the user's
-    terminal finds it. Windows has no login shell to borrow, and `npx` there is
-    a `.cmd` shim that CreateProcess can't resolve from the bare name, so the
-    absolute path from PATH is used instead.
-    """
-    debug_log("Launching Desktop App via npx")
+def launch_desktop() -> bool:
+    """Launch an installed desktop package without downloading software."""
     try:
         if IS_WINDOWS:
-            npx = shutil.which("npx")
-            if not npx:
-                debug_log("npx not found in PATH; cannot launch Desktop App")
-                return
-            command = [npx, "vibemon@latest"]
+            roots = [
+                ("LOCALAPPDATA", ("Programs", "VibeMon", "VibeMon.exe")),
+                ("PROGRAMFILES", ("VibeMon", "VibeMon.exe")),
+                ("PROGRAMFILES(X86)", ("VibeMon", "VibeMon.exe")),
+            ]
+            candidates = [Path(os.environ[key]).joinpath(*parts) for key, parts in roots if os.environ.get(key)]
+            installed = next((str(path) for path in candidates if path.is_file()), None)
+            executable = installed or shutil.which("VibeMon.exe")
+            if not executable:
+                debug_log("Installed VibeMon.exe not found; start the Desktop App manually")
+                return False
+            command = [executable]
             kwargs = {"creationflags": NO_WINDOW_FLAGS | getattr(subprocess, "DETACHED_PROCESS", 0)}
-        else:
-            shell = get_user_shell()
-            debug_log(f"Using shell: {shell}")
-            command = [shell, "-l", "-c", "npx vibemon@latest"]
+        elif sys.platform == "darwin":
+            command = ["/usr/bin/open", "-g", "-a", "VibeMon"]
             kwargs = {"start_new_session": True}
+        else:
+            debug_log("Start the Desktop App manually on this platform")
+            return False
 
         subprocess.Popen(
             command,
@@ -1039,8 +1024,10 @@ def launch_desktop() -> None:
             **kwargs,
         )
         time.sleep(DESKTOP_LAUNCH_WAIT_SECONDS)
-    except Exception as e:
+        return True
+    except OSError as e:
         debug_log(f"Failed to launch Desktop App: {e}")
+        return False
 
 
 def get_desktop_url(http_urls: tuple[str, ...]) -> str | None:
@@ -1125,6 +1112,7 @@ def send_serial_input(args: list[str]) -> bool:
 
 
 COMMAND_HANDLERS: dict[str, Any] = {
+    "--launch-desktop": lambda args: launch_desktop(),
     "--send-serial": send_serial_input,
     "--lock": lambda args: send_lock(
         args[0] if args else os.path.basename(os.getcwd())
