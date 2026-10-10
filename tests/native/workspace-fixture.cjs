@@ -1,7 +1,4 @@
 const { app } = require('electron');
-const fs = require('node:fs');
-const os = require('node:os');
-const path = require('node:path');
 const http = require('node:http');
 const { URL } = require('node:url');
 const { MonitoringClient } = require('../../src/monitoring/client.cjs');
@@ -9,7 +6,8 @@ const { WorkspaceSettings } = require('../../src/workspace/settings.cjs');
 const { WorkspaceWindow } = require('../../src/workspace/window.cjs');
 const { TOKEN, memoryStore, sources, createPorts, trend } = require('../fixtures/workspace.cjs');
 
-const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'vibemon-workspace-'));
+const directory = process.env.VIBEMON_TEST_USER_DATA;
+if (!directory) throw new Error('Launch this fixture with pnpm test:workspace or pnpm preview:workspace');
 app.setPath('userData', directory);
 
 async function startFixture() {
@@ -56,7 +54,6 @@ async function startFixture() {
   settings.onSettingsChanged = () => view.notify('settings');
   function cleanup() {
     view.cleanup(); client.stop(); server.close();
-    fs.rmSync(directory, { recursive: true, force: true });
   }
   app.once('before-quit', cleanup);
   await client.configure({ url: 'https://vibemon.io', token: TOKEN });

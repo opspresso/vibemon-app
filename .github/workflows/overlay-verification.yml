@@ -32,6 +32,7 @@ jobs:
           version: '12.10.1'
       - run: pnpm install --frozen-lockfile
       - name: Verify desktop workspace
+        timeout-minutes: 2
         run: pnpm test:workspace
       - name: Verify native display scaling
         run: pnpm test:overlays
