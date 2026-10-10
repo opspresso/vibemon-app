@@ -4,7 +4,7 @@ import os
 import re
 import shlex
 import time
-from .application import run
+from .application import DeliveryFailure, run
 from .domain import HOST_METRICS, CLUSTER_METRICS
 from .prometheus import PrometheusSampler
 from .kubernetes import KubectlReader, KubernetesSampler
@@ -35,7 +35,7 @@ def main():
     if not metrics or any(key not in allowed for key in metrics):
         parser.error("Unknown or unsupported metric selection")
     try:
-        url = checked_url(args.url, args.allow_local_http)
+        url = checked_url(args.url, args.allow_local_http, origin_only=True)
         if args.kind == "cluster" and args.cluster_backend == "metrics-api":
             sampler = KubernetesSampler(KubectlReader(shlex.split(args.kubectl_command)), metrics, time.time)
         elif args.kind == "cluster":
@@ -54,6 +54,9 @@ def main():
         run(sampler, lambda payload: client.request(f"{url}/api/v1/ingest", payload), args.source_id, args.kind, args.name, metrics, time.time, time.monotonic, time.sleep, args.once)
     except KeyboardInterrupt:
         pass
+    except DeliveryFailure as error:
+        logging.error("%s", error)
+        raise SystemExit(2) from None
 
 
 if __name__ == "__main__":

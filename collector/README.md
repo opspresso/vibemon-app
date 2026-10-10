@@ -38,6 +38,8 @@ The collector observes every 10 seconds and summarizes three observations. It se
 
 Only the current three samples and the newest pending summary remain in memory. Transmission failures discard the old pending window; the next window replaces it. Exponential backoff caps at 60 seconds. Recovery sends current state without replaying old samples. A slow adapter never triggers a burst of catch-up observations. Collection and transmission failures are logged by exception type without credentials or response bodies.
 
+Temporary delivery failures (network errors, HTTP 408/425/429/500/502/503/504) retry with bounded backoff. A numeric `Retry-After` delays sending by up to 60 seconds while sampling continues. Other HTTP rejections and invalid acknowledgements stop with exit code **2** instead of retrying indefinitely. Correct the Web origin, write token, permissions, source definition, or clock, then restart. A process supervisor should not automatically restart exit code 2. Diagnostics include the HTTP status but never credential values or response bodies. `--url` must be an origin without an API/page path; a Prometheus URL may include a reverse-proxy prefix.
+
 Window maxima accompany means so the Web minute aggregate retains peaks. Missing, unsupported, nonfinite, or failed measurements remain `null`. If a metric fails on the last observation of a window, that metric is `null` for the entire transmitted window; earlier success cannot hide a current failure.
 
 ## DGX Spark

@@ -3,6 +3,14 @@ import logging
 from .domain import Sample, TransmissionPolicy
 
 
+class DeliveryFailure(RuntimeError):
+    """A sender's sanitized failure with an explicit recovery policy."""
+    def __init__(self, message, retryable, retry_after=0):
+        super().__init__(message)
+        self.retryable = retryable
+        self.retry_after = retry_after
+
+
 def run(sampler, sender, source_id, kind, name, metrics, wall_clock, monotonic, wait, once=False):
     policy = TransmissionPolicy()
     deadline = monotonic()
@@ -21,10 +29,12 @@ def run(sampler, sender, source_id, kind, name, metrics, wall_clock, monotonic, 
             try:
                 result = sender(payload)
                 if not isinstance(result, dict) or not isinstance(result.get("accepted"), bool):
-                    raise ValueError("Invalid ingest acknowledgement")
+                    raise DeliveryFailure("Web returned an invalid ingest acknowledgement; check the API origin", retryable=False)
             except Exception as error:
-                logging.warning("Transmission failed: %s", type(error).__name__)
-                policy.failed(monotonic())
+                if isinstance(error, DeliveryFailure) and not error.retryable:
+                    raise
+                logging.warning("Transmission failed: %s", str(error) if isinstance(error, DeliveryFailure) else type(error).__name__)
+                policy.failed(monotonic(), error.retry_after if isinstance(error, DeliveryFailure) else 0)
             else:
                 finished = monotonic()
                 # An overrun restarts the cadence; normal latency and jitter do not.

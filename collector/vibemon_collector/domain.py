@@ -72,8 +72,8 @@ class TransmissionPolicy:
         self.failures = 0
         self.retry_at = 0
 
-    def failed(self, now: float):
+    def failed(self, now: float, retry_after: float = 0):
         self.failures += 1
-        self.retry_at = now + min(60, 2 ** min(self.failures, 6))
+        self.retry_at = now + min(60, max(retry_after, 2 ** min(self.failures, 6)))
         # Never retry an old window. The next three observations replace it.
         self.pending = None
