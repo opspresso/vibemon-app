@@ -28,6 +28,7 @@ Generate the token at [Account](https://vibemon.io/account) and select **Show to
 | `--metrics cpuPercent,memoryPercent` | Collect only the selected metrics |
 | `--memory-type auto` | Detect Spark/GB10 unified memory; `ram` and `unified` explicitly override |
 | `--once` | Exit after one successfully acknowledged 30-second summary |
+| `--health-file PATH` | Atomically record the last acknowledged delivery time for readiness checks |
 | `--allow-local-http` | Permit HTTP on loopback addresses only for isolated development |
 
 `VIBEMON_WRITE_TOKEN` supplies the Web token. `PROMETHEUS_TOKEN`, if set, supplies a separate read credential for Prometheus. TLS certificate verification is always enabled. Redirects are rejected to avoid forwarding credentials to another host.
@@ -86,3 +87,22 @@ docker run --rm --entrypoint /bin/promtool \
 ```
 
 The PromQL fixture covers unequal host memory, idle rates, duplicate kube-state-metrics replicas, running unready pods, completed Jobs, and missing exporters. This proves expression behavior against synthetic series; it does not prove a particular cluster's scrape configuration or permissions.
+
+## Container and supervised deployment
+
+Build the collector separately from the Desktop application. The image pins Python and kubectl base digests, installs the collector without tests or Desktop assets, and runs as UID/GID 65532. Build from the repository root:
+
+```sh
+docker buildx build --platform linux/amd64,linux/arm64 \
+  -f collector/Dockerfile -t REGISTRY/vibemon-collector:REVISION --push .
+```
+
+Pin the resulting multi-platform digest in deployment configuration. Pass `VIBEMON_WRITE_TOKEN` from a secret, not an image layer or argument. For Kubernetes, use the existing Metrics API backend and `--kubectl-command "kubectl --cache-dir=/tmp/kubectl"`; mount a writable `/tmp` when the root filesystem is read-only. The ServiceAccount needs only list on nodes/pods and get/list on metrics.k8s.io nodes.
+
+Use `--health-file /tmp/vibemon-health` and a readiness probe:
+
+```sh
+python -m vibemon_collector.health /tmp/vibemon-health --max-age 120
+```
+
+Readiness is false until a valid acknowledgement arrives, expires after 120 seconds without one, and resets on process start. It contains no credentials or measurements. Readiness failure must not restart a working collector during a Web outage. Kubernetes still exposes a permanent configuration failure through its container restart/backoff state; repair the Secret or arguments and restart the deployment. A systemd service can use `RestartPreventExitStatus=2` to wait for an operator instead.

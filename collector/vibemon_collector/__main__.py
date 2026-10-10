@@ -9,6 +9,7 @@ from .domain import HOST_METRICS, CLUSTER_METRICS
 from .prometheus import PrometheusSampler
 from .kubernetes import KubectlReader, KubernetesSampler
 from .transport import JsonClient, checked_url
+from .health import DeliveryHealth
 
 
 def main():
@@ -24,6 +25,7 @@ def main():
     parser.add_argument("--kubectl-command", default="kubectl", help="Read-only kubectl command prefix for metrics-api collection")
     parser.add_argument("--allow-local-http", action="store_true", help="Allow loopback HTTP for isolated development only")
     parser.add_argument("--once", action="store_true", help="Exit after one successful 30-second summary")
+    parser.add_argument("--health-file", help="Write the last acknowledged delivery time for readiness checks")
     args = parser.parse_args()
     if not re.fullmatch(r"[a-zA-Z0-9][a-zA-Z0-9_.:-]{0,127}", args.source_id) or not 1 <= len(args.name.strip()) <= 128:
         parser.error("Invalid source ID or display name")
@@ -51,7 +53,10 @@ def main():
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
     client = JsonClient(token)
     try:
-        run(sampler, lambda payload: client.request(f"{url}/api/v1/ingest", payload), args.source_id, args.kind, args.name, metrics, time.time, time.monotonic, time.sleep, args.once)
+        health = DeliveryHealth(args.health_file) if args.health_file else None
+        if health:
+            health.reset()
+        run(sampler, lambda payload: client.request(f"{url}/api/v1/ingest", payload), args.source_id, args.kind, args.name, metrics, time.time, time.monotonic, time.sleep, args.once, on_delivery=health.record if health else None)
     except KeyboardInterrupt:
         pass
     except DeliveryFailure as error:

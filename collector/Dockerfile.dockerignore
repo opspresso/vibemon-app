@@ -1,0 +1,6 @@
+**
+!collector/
+!collector/Dockerfile
+!collector/pyproject.toml
+!collector/vibemon_collector/
+!collector/vibemon_collector/*.py

@@ -11,7 +11,7 @@ class DeliveryFailure(RuntimeError):
         self.retry_after = retry_after
 
 
-def run(sampler, sender, source_id, kind, name, metrics, wall_clock, monotonic, wait, once=False):
+def run(sampler, sender, source_id, kind, name, metrics, wall_clock, monotonic, wait, once=False, on_delivery=None):
     policy = TransmissionPolicy()
     deadline = monotonic()
     while True:
@@ -39,6 +39,8 @@ def run(sampler, sender, source_id, kind, name, metrics, wall_clock, monotonic, 
                 finished = monotonic()
                 # An overrun restarts the cadence; normal latency and jitter do not.
                 policy.succeeded(payload, finished if finished >= deadline + 10 else deadline)
+                if on_delivery is not None:
+                    on_delivery(wall_clock())
                 if once:
                     return payload
         # A slow adapter must not cause a burst of backdated catch-up samples.
