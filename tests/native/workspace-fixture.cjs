@@ -5,6 +5,7 @@ const { MonitoringClient } = require('../../src/monitoring/client.cjs');
 const { WorkspaceSettings } = require('../../src/workspace/settings.cjs');
 const { WorkspaceWindow } = require('../../src/workspace/window.cjs');
 const { installWorkspaceMenu } = require('../../src/workspace/menu.cjs');
+const { TrayManager } = require('../../src/modules/tray-manager.cjs');
 const { TOKEN, memoryStore, sources, createPorts, trend } = require('../fixtures/workspace.cjs');
 
 const directory = process.env.VIBEMON_TEST_USER_DATA;
@@ -54,17 +55,24 @@ async function startFixture() {
   const view = new WorkspaceWindow({ monitoring: client, settings, ...ports, reportError: error => { errors.push(error.message); } });
   settings.onSettingsChanged = () => view.notify('settings');
   ports.hookInstaller.onStateChanged = () => view.notify('settings');
+  const trayManager = new TrayManager({ getProjectIds: () => [], getState: () => null }, app, client);
+  trayManager.openDashboard = () => view.open('overview');
+  trayManager.openSettings = page => view.open(page);
+  trayManager.setShowCharacterHandler(ports.showCompanion);
+  trayManager.createTray();
+  trayManager.tray.setToolTip('VibeMon workspace preview');
   function cleanup() {
-    view.cleanup(); client.stop(); server.close();
+    trayManager.cleanup(); view.cleanup(); client.stop(); server.close();
   }
   app.once('before-quit', cleanup);
   await client.configure({ url: 'https://vibemon.io', token: TOKEN });
   installWorkspaceMenu({ open: page => view.open(page), showCompanion: ports.showCompanion });
-  view.open('overview');
+  // Exercise the production Tray event binding with the actual Electron Tray.
+  trayManager.tray.emit('click');
   view.window.webContents.on('console-message', details => {
     if (details.level === 'error') errors.push(details.message);
   });
   view.window.webContents.on('did-fail-load', (_event, code, description) => errors.push(`${code}: ${description}`));
-  return { ports, state, client, settings, view, preferences, errors, cleanup, corruptCredential() { corrupt = true; } };
+  return { ports, state, client, settings, view, trayManager, preferences, errors, cleanup, corruptCredential() { corrupt = true; } };
 }
 module.exports = { startFixture, TOKEN };

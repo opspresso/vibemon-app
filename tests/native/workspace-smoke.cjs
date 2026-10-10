@@ -17,7 +17,7 @@ async function until(check, label) {
 let cleanup;
 startFixture().then(async fixture => {
   cleanup = fixture.cleanup;
-  const { view, client, ports, state, errors } = fixture;
+  const { view, client, ports, state, errors, trayManager } = fixture;
   const web = view.window.webContents;
   const ui = code => web.executeJavaScript(code);
   const click = selector => ui(`document.querySelector(${JSON.stringify(selector)}).click()`);
@@ -311,7 +311,8 @@ startFixture().then(async fixture => {
   await screenshot('minimum-window');
   view.window.hide();
   await client.configure({ url: 'https://vibemon.io', token: TOKEN });
-  await navigate('overview');
+  trayManager.tray.emit('click');
+  await until(() => view.window.isVisible() && visible('section[data-page="overview"]'), 'tray activation restores the overview');
   await until(async () => (await text('#summary-resources')) === '3', 'hidden window receives latest state with the saved selection');
   await ui('new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))');
   const compactBounds = await ui('({ bottom: document.querySelector("#overview-accounts .card").getBoundingClientRect().bottom, viewport: innerHeight })');
