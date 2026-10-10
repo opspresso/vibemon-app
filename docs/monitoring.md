@@ -21,7 +21,7 @@ Use **Edit metrics** on the Web dashboard to edit an existing resource, includin
 - **Cannot reach Web**: retained values remain visible and become stale as time passes.
 - **No data yet**: connected account has no observations.
 
-Chart gaps mean no recorded sample. Unchanged heartbeat messages refresh status but add no chart sample. A single observed minute appears as a point. The Web retains visible trends for 24 hours; this app requests only the recent hour.
+Chart gaps mean no recorded sample. Resource heartbeats contain fresh measurements and add minute samples, keeping stable resources visible in trends. Agent heartbeats refresh status without adding activity samples. A single observed minute appears as a point. The Web retains visible trends for 24 hours; this app requests only the recent hour.
 
 The existing localhost hook endpoint and character/bubble behavior remain available without cloud configuration. HTTPS is required for cloud origins. An unpackaged development app also accepts loopback HTTP for isolated tests.
 
