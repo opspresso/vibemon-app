@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 import tempfile
 import unittest
@@ -23,7 +24,8 @@ class ReadinessTests(unittest.TestCase):
             self.assertTrue(health.ready(clock[0]))
             self.assertFalse(health.ready(clock[0] + 121))
             self.assertFalse(health.ready(clock[0] - 1))
-            self.assertEqual(health.path.stat().st_mode & 0o777, 0o600)
+            if os.name == "posix":
+                self.assertEqual(health.path.stat().st_mode & 0o777, 0o600)
             health.reset()
             self.assertFalse(health.ready(clock[0]))
 
