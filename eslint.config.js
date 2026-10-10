@@ -20,6 +20,8 @@ const nodeGlobals = {
 };
 
 const browserGlobals = {
+  setInterval: 'readonly',
+  clearInterval: 'readonly',
   window: 'readonly',
   document: 'readonly',
   setTimeout: 'readonly',
@@ -96,7 +98,7 @@ module.exports = [
   },
   // ES Module files (renderer, shared)
   {
-    files: ['src/renderer.js', 'src/shared/*.js', 'src/engine/monster-states.js', 'src/engine/vibemon-engine-3d.js'],
+    files: ['src/renderer.js', 'src/settings-renderer.js', 'src/monitoring/renderer.js', 'src/shared/*.js', 'src/engine/monster-states.js', 'src/engine/vibemon-engine-3d.js'],
     languageOptions: {
       ecmaVersion: 2022,
       sourceType: 'module',

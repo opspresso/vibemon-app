@@ -2,15 +2,14 @@
  * VibeMon speech bubble styles
  *
  * Canonical shared stylesheet for the .bubble markup that
- * js/vibemon-bubble.js's renderBubble() fills in. Ported from
- * vibemon-app's src/bubble.html, generalized from its #bubble id to a
+ * vibemon-bubble.js's renderBubble() fills in. Shared with
+ * src/bubble.html, using a .bubble class rather than its #bubble id for a
  * reusable .bubble class and with the tail's default top/left centered via
  * CSS (bubble.html always sets an explicit offset from JS instead, since its
  * bubble window is physics-positioned relative to the character).
  *
- * This file is the source of truth, consumed at build time only —
- * vibemon-app vendors a copy (see its check-registry script). No page on
- * this site links it at runtime.
+ * App loads this canonical file directly. web-distribution.json exports
+ * it to Web's pinned public snapshot.
  */
 
 .bubble {

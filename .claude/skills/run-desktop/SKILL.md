@@ -5,15 +5,18 @@ description: Run and drive the VibeMon Electron app — launch it, put a charact
 
 VibeMon is a tray-only Electron app: `pnpm start` shows no window, because the
 character window is created on demand by a `POST /status` to its local HTTP
-server. For agent use, drive it through
-`.claude/skills/run-desktop/driver.mjs` — a zero-dependency driver that speaks
-the Chrome DevTools Protocol over Node's built-in WebSocket (Node >= 22, no
-npm install, no tmux).
+server. For automated regression checks, use `pnpm test:overlays` and the isolated
+monitoring fixture in `tests/native/monitoring-smoke.cjs`. For interactive
+agent verification, use the UI tools provided by the current session.
+The optional `driver.mjs` is a manual CDP utility; do not use it when session
+instructions require the provided computer-use tools.
 
-The driver always launches with an isolated `--user-data-dir`, so a run never
-touches the developer's real settings in `~/Library/Application Support/vibemon`.
+The manual driver isolates the Electron store with `--user-data-dir`. It
+launches the full application, which still manages `~/.vibemon/config.json`
+and refreshes local provider usage. Use the native fixtures when shared hook
+configuration must remain untouched.
 
-## Run (agent path)
+## Optional manual driver
 
 One shot: pass the commands as arguments. They run in order, the app is closed
 at the end, and the exit code is non-zero if any command failed.
@@ -76,13 +79,9 @@ curl -X POST http://127.0.0.1:19280/status -H 'Content-Type: application/json' \
   next to every screenshot so an image that surprises you is explainable
   rather than mysterious.
 
-- **The window's first update races renderer init.** The main process sends
-  the initial state at `ready-to-show`, before the renderer's async init
-  (registry IPC + character image preload) registers its listener — on a cold
-  cache the update is lost and the default character stays on screen. `status`
-  self-heals: when it creates the window it waits for the engine to boot and
-  re-drives the state (via a different-state nudge, because an identical
-  re-POST is deduped). Expect the extra `/status` pair in the app's logs.
+- **The preload buffers initial state.** The first status reaches late renderer
+  subscribers after image loading. The driver waits for engine readiness and
+  does not resend synthetic states to hide initialization failures.
 
 - **Render mode is persisted state, not a flag.** It lives in electron-store
   (`<userData>/config.json`), read when the character window is created.
@@ -101,7 +100,8 @@ curl -X POST http://127.0.0.1:19280/status -H 'Content-Type: application/json' \
 
 - **`launch` fails with "port 19280 is already in use"** — the real app (or a
   previous driver run) still holds it: `lsof -nP -iTCP:19280 -sTCP:LISTEN`
-  and kill that PID.
+  and identify its owner. Stop only a test instance you launched; preserve the
+  real app and unrelated processes.
 - **`status` times out waiting for the character window** — check `logs`; a
   renderer crash (bad vendored engine, CSP violation) shows up there.
 - **3D shows the default purple monster for every character** — the registry

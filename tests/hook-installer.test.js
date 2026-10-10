@@ -676,6 +676,29 @@ describe('HookInstaller', () => {
   });
 
   describe('downloadScript', () => {
+    test('refuses to download an executable without its integrity reference', async () => {
+      await expect(hookInstaller.downloadScript()).rejects.toEqual({ reason: 'integrity-reference-missing' });
+      expect(https.get).not.toHaveBeenCalled();
+    });
+
+    test('destroys a stalled request and reports the timeout', async () => {
+      const req = new EventEmitter();
+      req.destroy = jest.fn(error => req.emit('error', error));
+      https.get.mockReturnValue(req);
+      const pending = hookInstaller.downloadScript(sha256('print(1)'));
+      req.emit('timeout');
+      await expect(pending).rejects.toMatchObject({ reason: 'network-error', error: 'Download timed out' });
+      expect(req.destroy).toHaveBeenCalled();
+    });
+
+    test('rejects an interrupted response before executing a partial script', async () => {
+      const res = new EventEmitter(); res.statusCode = 200; res.setEncoding = jest.fn();
+      https.get.mockImplementation((_url, _options, ready) => { ready(res); return new EventEmitter(); });
+      const pending = hookInstaller.downloadScript(sha256('print(1)'));
+      res.emit('data', 'print('); res.emit('aborted');
+      await expect(pending).rejects.toMatchObject({ reason: 'network-error' });
+    });
+
     test('resolves the script body on a 200 response', async () => {
       const fakeRes = new EventEmitter();
       fakeRes.statusCode = 200;
@@ -686,7 +709,7 @@ describe('HookInstaller', () => {
         return new EventEmitter();
       });
 
-      const promise = hookInstaller.downloadScript();
+      const promise = hookInstaller.downloadScript(sha256('print(1)'));
       fakeRes.emit('data', 'print(1)');
       fakeRes.emit('end');
 
@@ -702,14 +725,14 @@ describe('HookInstaller', () => {
         return new EventEmitter();
       });
 
-      await expect(hookInstaller.downloadScript()).rejects.toEqual({ reason: 'download-failed', statusCode: 500 });
+      await expect(hookInstaller.downloadScript(sha256('print(1)'))).rejects.toEqual({ reason: 'download-failed', statusCode: 500 });
     });
 
     test('rejects with network-error when the request errors out', async () => {
       const fakeReq = new EventEmitter();
       https.get.mockImplementation(() => fakeReq);
 
-      const promise = hookInstaller.downloadScript();
+      const promise = hookInstaller.downloadScript(sha256('print(1)'));
       fakeReq.emit('error', new Error('boom'));
 
       await expect(promise).rejects.toEqual({ reason: 'network-error', error: 'boom' });
@@ -725,7 +748,7 @@ describe('HookInstaller', () => {
         return new EventEmitter();
       });
 
-      const promise = hookInstaller.downloadScript();
+      const promise = hookInstaller.downloadScript(sha256('print(1)'));
       fakeRes.emit('data', 'x'.repeat(1024 * 1024 + 1));
 
       await expect(promise).rejects.toEqual({ reason: 'download-too-large' });
@@ -752,6 +775,7 @@ describe('HookInstaller', () => {
         expect.objectContaining({ stdio: ['pipe', 'pipe', 'pipe'] })
       );
       expect(spawn.mock.calls[0][2].shell).toBeUndefined();
+      expect(spawn.mock.calls[0][2].env.VIBEMON_DOCS_URL).toBe('https://docs.example.test');
       expect(fakeChild.stdin.write).toHaveBeenCalledWith('print(1)');
       expect(fakeChild.stdin.end).toHaveBeenCalled();
     });
@@ -884,15 +908,18 @@ describe('HookInstaller', () => {
     test('downloads install.py exactly once for a multi-tool batch and spawns once per tool', async () => {
       const children = mockSuccessfulInstall();
 
-      const results = await hookInstaller.installTools([TOOLS[0], TOOLS[1]], 'my_token_123');
+      const token = 'vm_' + 'a'.repeat(60);
+      const results = await hookInstaller.installTools([TOOLS[0], TOOLS[1]], token);
 
       const scriptFetches = https.get.mock.calls.filter(c => c[0].endsWith('/install.py'));
       expect(scriptFetches).toHaveLength(1);
       expect(spawn).toHaveBeenCalledTimes(2);
       expect(children).toHaveLength(2);
       expect(results.every(r => r.result.ok)).toBe(true);
-      expect(spawn.mock.calls[0][1]).toEqual(['-', TOOLS[0].flag, '--token', 'my_token_123']);
-      expect(spawn.mock.calls[1][1]).toEqual(['-', TOOLS[1].flag, '--token', 'my_token_123']);
+      expect(spawn.mock.calls[0][1]).toEqual(['-', TOOLS[0].flag]);
+      expect(spawn.mock.calls[1][1]).toEqual(['-', TOOLS[1].flag]);
+      expect(spawn.mock.calls[0][2].env.VIBEMON_WRITE_TOKEN).toBe(token);
+      expect(JSON.stringify(spawn.mock.calls.map(call => call[1]))).not.toContain(token);
     });
 
     test('omits --token when the token is missing or malformed (install.py exits 2 on a bad --token)', async () => {

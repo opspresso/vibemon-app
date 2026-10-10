@@ -104,3 +104,8 @@ describe('math helpers', () => {
     expect(fast).toBeGreaterThan(slow);
   });
 });
+
+
+test.each(['constructor', '__proto__'])('unknown inherited animation name falls back to idle: %s', name => {
+  expect(getStateAnimation(name)).toBe(STATE_ANIMATIONS.idle);
+});

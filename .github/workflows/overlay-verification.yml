@@ -28,9 +28,8 @@ jobs:
           node-version: '24'
       - uses: pnpm/action-setup@v6
         with:
-          version: '11.25.0'
+          version: '12.10.1'
       - run: pnpm install --frozen-lockfile
-      - run: node node_modules/electron/install.js
       - name: Verify native display scaling
         run: pnpm test:overlays
       - name: Verify fractional display scaling on Windows

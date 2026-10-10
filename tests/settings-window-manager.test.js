@@ -12,7 +12,7 @@ jest.mock('electron', () => {
     constructor(opts) {
       super();
       this.opts = opts;
-      this.webContents = { send: jest.fn(), once: jest.fn() };
+      this.webContents = { send: jest.fn(), once: jest.fn(), mainFrame: {} };
       if (MockBrowserWindow.secureWebContents) {
         this.webContents.setWindowOpenHandler = jest.fn();
         this.webContents.on = jest.fn();
@@ -121,6 +121,8 @@ function makeDeps() {
   };
 }
 
+let activeManager;
+
 function freshManager() {
   mockIpcHandlers.clear();
   BrowserWindow.instances.length = 0;
@@ -128,13 +130,16 @@ function freshManager() {
   const deps = makeDeps();
   const manager = new SettingsWindowManager(deps);
   manager.onSettingsChanged = jest.fn();
+  activeManager = manager;
   return { manager, deps };
 }
 
 function invoke(channel, ...args) {
   const handler = mockIpcHandlers.get(channel);
   if (!handler) throw new Error(`No handler for ${channel}`);
-  return handler({}, ...args);
+  if (!activeManager.window) activeManager.open();
+  const sender = activeManager.window.webContents;
+  return handler({ sender, senderFrame: sender.mainFrame }, ...args);
 }
 
 describe('settings:get-all', () => {
@@ -148,12 +153,12 @@ describe('settings:get-all', () => {
     for (const c of before.options.characters) {
       expect(typeof c.displayName).toBe('string');
     }
-    // No wsClient yet: safe defaults
-    expect(before.ws).toEqual({ status: 'not-configured', tokenConfigured: false });
+    // No monitoringClient yet: safe defaults
+    expect(before.cloud).toEqual({ status: 'not-configured', tokenConfigured: false });
 
-    manager.setWsClient({ getStatus: () => 'connected', getToken: () => 'tok' });
+    manager.setMonitoringClient({ getStatus: () => 'connected', hasToken: () => true });
     const after = await invoke('settings:get-all');
-    expect(after.ws).toEqual({ status: 'connected', tokenConfigured: true });
+    expect(after.cloud).toEqual({ status: 'connected', tokenConfigured: true });
   });
 
   test('carries the character size, edge margin and dev mode plus their option lists', async () => {
@@ -216,16 +221,13 @@ describe('setting mutations', () => {
     expect(await invoke('settings:set-speech-bubble-field', 'nope', true)).toBe(false);
   });
 
-  test('set-token trims and forwards to wsClient and the vibemon config; rejects without one', async () => {
+  test('opens cloud configuration without copying read credentials to hook config', async () => {
     const { manager, deps } = freshManager();
-    expect(await invoke('settings:set-token', ' tok ')).toBe(false);
-
-    const wsClient = { setToken: jest.fn(), getStatus: () => 'connected', getToken: () => '' };
-    manager.setWsClient(wsClient);
-    expect(await invoke('settings:set-token', ' tok ')).toBe(true);
-    expect(wsClient.setToken).toHaveBeenCalledWith('tok');
-    expect(deps.vibemonConfigManager.write).toHaveBeenCalledWith({ vibemon_token: 'tok' });
-    expect(await invoke('settings:set-token', 123)).toBe(false);
+    const openMonitoring = jest.fn();
+    manager.setMonitoringClient({ getStatus: () => 'connected', hasToken: () => true }, openMonitoring);
+    expect(await invoke('settings:open-monitoring')).toBe(true);
+    expect(openMonitoring).toHaveBeenCalled();
+    expect(deps.vibemonConfigManager.write).not.toHaveBeenCalled();
   });
 
   test('set-character-scale accepts only listed percentages', async () => {
@@ -282,13 +284,13 @@ describe('setting mutations', () => {
 });
 
 describe('AI tool hooks', () => {
-  test('install-hook passes the wsClient token and returns refreshed statuses', async () => {
+  test('install-hook keeps the read credential separate from hook configuration', async () => {
     const { manager, deps } = freshManager();
-    manager.setWsClient({ getToken: () => 'tok', getStatus: () => 'connected' });
+    manager.setMonitoringClient({ hasToken: () => true, getStatus: () => 'connected' });
 
     const result = await invoke('settings:install-hook', '--claude');
 
-    expect(deps.hookInstaller.installByFlag).toHaveBeenCalledWith('--claude', 'tok', { showSummary: false });
+    expect(deps.hookInstaller.installByFlag).toHaveBeenCalledWith('--claude', null, { showSummary: false });
     expect(result[0]).not.toHaveProperty('hookFile');
   });
 
@@ -347,19 +349,20 @@ describe('AI tool hooks', () => {
 });
 
 describe('VibeMon Config', () => {
-  test('repair-vibemon-config passes the wsClient token and returns the refreshed config+status', async () => {
+  test('repair-vibemon-config preserves the existing hook credential', async () => {
     const { manager, deps } = freshManager();
-    manager.setWsClient({ getToken: () => 'tok', getStatus: () => 'connected' });
+    manager.setMonitoringClient({ hasToken: () => true, getStatus: () => 'connected' });
     deps.vibemonConfigManager.getStatus.mockReturnValue({ exists: true, hasDesktopUrl: true });
 
     const result = await invoke('settings:repair-vibemon-config');
 
-    expect(deps.vibemonConfigManager.ensureDesktopUrl).toHaveBeenCalledWith('tok');
+    expect(deps.vibemonConfigManager.ensureDesktopUrl).toHaveBeenCalledWith(null);
     expect(result.status).toEqual({ exists: true, hasDesktopUrl: true });
   });
 
-  test('repair-vibemon-config works without a wsClient configured', async () => {
+  test('repair-vibemon-config works without a monitoringClient configured', async () => {
     const { deps } = freshManager();
+    deps.vibemonConfigManager.getStatus.mockReturnValue({ exists: true, hasDesktopUrl: true });
 
     await invoke('settings:repair-vibemon-config');
 
@@ -375,10 +378,10 @@ describe('VibeMon Config', () => {
     expect(result).toEqual(expect.objectContaining({ debug: false })); // mocked read() is static
   });
 
-  test('set-vibemon-config ignores a non-object payload without writing', async () => {
+  test('set-vibemon-config rejects a non-object payload without writing', async () => {
     const { deps } = freshManager();
 
-    await invoke('settings:set-vibemon-config', null);
+    expect(() => invoke('settings:set-vibemon-config', null)).toThrow('Config changes must be a JSON object');
 
     expect(deps.vibemonConfigManager.write).not.toHaveBeenCalled();
   });
@@ -614,4 +617,32 @@ describe('notifyUpdateStateChanged', () => {
     const { manager } = freshManager();
     expect(() => manager.notifyUpdateStateChanged()).not.toThrow();
   });
+});
+
+
+test('all settings IPC rejects other windows and subframes before reading or changing configuration', () => {
+  const { manager, deps } = freshManager();
+  manager.open();
+  for (const handler of mockIpcHandlers.values()) {
+    expect(() => handler({ sender: {}, senderFrame: {} })).toThrow('Untrusted settings request');
+    expect(() => handler({ sender: manager.window.webContents, senderFrame: {} })).toThrow('Untrusted settings request');
+  }
+  expect(deps.vibemonConfigManager.read).not.toHaveBeenCalled();
+  expect(deps.vibemonConfigManager.write).not.toHaveBeenCalled();
+  expect(deps.app.setLoginItemSettings).not.toHaveBeenCalled();
+});
+
+
+test('hook credentials never enter the settings renderer or its generic mutation route', async () => {
+  const { deps } = freshManager();
+  deps.vibemonConfigManager.read.mockReturnValue({ debug: false, vibemon_token: 'fixture-secret', unknownSecret: 'fixture-secret' });
+  expect(JSON.stringify(await invoke('settings:get-all'))).not.toContain('fixture-secret');
+  expect(() => invoke('settings:set-vibemon-config', { vibemon_token: 'fixture-secret' })).toThrow('Configure hook write tokens');
+  expect(deps.vibemonConfigManager.write).not.toHaveBeenCalled();
+});
+
+
+test('an unsuccessful explicit config repair is reported to the renderer', () => {
+  freshManager();
+  expect(() => invoke('settings:repair-vibemon-config')).toThrow('Unable to repair hook config');
 });

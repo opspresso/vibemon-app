@@ -167,7 +167,7 @@ export function getCharacterTheme(registryEntry) {
 
 /** Resolve the animation for a state name, falling back to idle. */
 export function getStateAnimation(state) {
-  return STATE_ANIMATIONS[state] || STATE_ANIMATIONS.idle;
+  return Object.hasOwn(STATE_ANIMATIONS, state) ? STATE_ANIMATIONS[state] : STATE_ANIMATIONS.idle;
 }
 
 export function lerp(a, b, t) {

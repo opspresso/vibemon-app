@@ -20,7 +20,13 @@ function expandHome(p) {
   if (p.startsWith('~/') || p.startsWith('~\\')) {
     return path.join(os.homedir(), p.slice(2));
   }
-  return p;
+  return path.resolve(p);
+}
+
+function providerCacheKey(provider) {
+  const id = process.env[`VIBEMON_${provider.toUpperCase()}_ACCOUNT_ID`] || process.env.VIBEMON_ACCOUNT_ID || 'default';
+  if (!/^[a-zA-Z0-9][a-zA-Z0-9_.:-]{0,127}$/.test(id)) return null;
+  return id === 'default' ? provider : `${provider}:${id}`;
 }
 
 /**
@@ -29,6 +35,7 @@ function expandHome(p) {
  * @returns {string}
  */
 function getUsageCachePath() {
+  if (process.env.VIBEMON_CACHE_PATH?.trim()) return path.join(path.dirname(expandHome(process.env.VIBEMON_CACHE_PATH.trim())), 'usage.json');
   let projectsCachePath = DEFAULT_CACHE_PATH;
   try {
     const raw = JSON.parse(fs.readFileSync(VIBEMON_CONFIG_PATH, 'utf8'));
@@ -65,23 +72,23 @@ function readUsageCache() {
  */
 function getFreshBucket(cache, provider, bucketKey, nowMs) {
   if (!cache || typeof cache !== 'object') return null;
-  const providerData = cache[provider];
+  const providerData = cache[providerCacheKey(provider)];
   if (!providerData || typeof providerData !== 'object') return null;
 
   const providerUpdatedAt = Number(providerData.updated_at ?? cache.ts ?? 0);
-  if (!providerUpdatedAt || nowMs - providerUpdatedAt * 1000 > USAGE_CACHE_STALE_SECONDS * 1000) {
+  if (!Number.isFinite(providerUpdatedAt) || providerUpdatedAt <= 0 || providerUpdatedAt * 1000 > nowMs + 30000 || nowMs - providerUpdatedAt * 1000 > USAGE_CACHE_STALE_SECONDS * 1000) {
     return null;
   }
 
   const bucket = providerData[bucketKey];
-  if (!bucket || typeof bucket !== 'object' || typeof bucket.pct !== 'number') return null;
+  if (!bucket || typeof bucket !== 'object' || !Number.isFinite(bucket.pct) || bucket.pct < 0 || bucket.pct > 100) return null;
 
   const bucketUpdatedAt = Number(bucket.updated_at ?? providerUpdatedAt);
-  if (!bucketUpdatedAt || nowMs - bucketUpdatedAt * 1000 > USAGE_CACHE_STALE_SECONDS * 1000) {
+  if (!Number.isFinite(bucketUpdatedAt) || bucketUpdatedAt <= 0 || bucketUpdatedAt * 1000 > nowMs + 30000 || nowMs - bucketUpdatedAt * 1000 > USAGE_CACHE_STALE_SECONDS * 1000) {
     return null;
   }
 
-  const resetsAt = typeof bucket.resets_at === 'number' ? bucket.resets_at : null;
+  const resetsAt = Number.isFinite(bucket.resets_at) ? bucket.resets_at : null;
   if (resetsAt !== null && resetsAt * 1000 <= nowMs) {
     return null;
   }
@@ -100,7 +107,7 @@ function getFreshBucket(cache, provider, bucketKey, nowMs) {
  * @returns {{pct: number, resetsAt: number|null, label: string}|null}
  */
 function getFreshModelWeekBucket(cache, provider, nowMs) {
-  const providerData = cache && typeof cache === 'object' ? cache[provider] : null;
+  const providerData = cache && typeof cache === 'object' ? cache[providerCacheKey(provider)] : null;
   if (!providerData || typeof providerData !== 'object') return null;
 
   let best = null;
@@ -164,4 +171,4 @@ function formatResetIn(resetsAt, nowMs = Date.now()) {
   return remHours > 0 ? `${days}d${remHours}h` : `${days}d`;
 }
 
-module.exports = { getUsageCachePath, getUsageSnapshot, formatResetIn };
+module.exports = { getUsageCachePath, getUsageSnapshot, formatResetIn, providerCacheKey, expandHome };

@@ -1,0 +1,14 @@
+{
+  "show_project": true,
+  "show_git": true,
+  "show_model": true,
+  "show_tokens": true,
+  "show_cost": true,
+  "show_duration": false,
+  "show_lines": true,
+  "show_memory": true,
+  "show_usage": true,
+  "show_usage_reset": true,
+  "show_version": true,
+  "show_statusline": true
+}

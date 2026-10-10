@@ -1,5 +1,10 @@
 # Features
 
+## Cloud resources and coding accounts
+
+Open **Monitoring…** to select custom resources, host/cluster presets, and multiple accounts per provider. The App polls summaries with an OS-encrypted read token. Web resource edits control labels, display ranges, and metric order; local hook activity still works independently. See [cloud monitoring](monitoring.md) for setup, selection, trends, and failure states.
+
+
 ## Agent Support
 
 VibeMon normalizes multiple agent ecosystems into one display model. The rendering layer is shared, but the integration path is not.
@@ -10,7 +15,7 @@ VibeMon normalizes multiple agent ecosystems into one display model. The renderi
 | Codex | Native hooks and non-interactive JSON output | Interactive lifecycle and local tool hooks, `codex exec --json` for automation | High | Hosted tools such as WebSearch do not pass through local tool hooks |
 | Kiro | Native hooks | Prompt, tool, and stop hooks | High | Fewer lifecycle events than Claude Code |
 | OpenClaw | Plugin bridge | Plugin SDK hooks | Medium to high | Internal hooks are not enough by themselves for full tool-loop visibility |
-| OpenCode | Plugin + Python adapter | Session, chat, tool, permission, and compaction events | High | No context or plan-usage metrics; uses the default character until registered in vibemon-static |
+| OpenCode | Plugin + Python adapter | Session, chat, tool, permission, and compaction events | High | No context or plan-usage metrics; uses the default character until registered in this repository |
 
 ### Bridge Types
 
@@ -24,7 +29,7 @@ VibeMon normalizes multiple agent ecosystems into one display model. The renderi
 - **Codex**: Strong interactive lifecycle and local tool coverage. VibeMon's `PreToolUse` and `PostToolUse` hooks observe shell commands, `apply_patch`, MCP tools, and other local function tools; `codex exec --json` remains useful for CI or batch jobs.
 - **Kiro**: Strong tool-level support with explicit `PreToolUse` and `PostToolUse`, plus namespaced MCP tool names.
 - **OpenClaw**: Strongest when treated as a plugin platform. The VibeMon bridge should continue to use plugin hooks instead of depending on the lighter internal hook system.
-- **OpenCode**: Session creation, prompts, tool execution, permission requests, compaction, and completion map to the existing states. Plan-agent activity uses `planning`; known child sessions are suppressed by the bridge. The adapter sends `memory: 0` and no plan-usage fields. See the [bridge event mappings](https://github.com/opspresso/vibemon-docs#opencode) for details.
+- **OpenCode**: Session creation, prompts, tool execution, permission requests, compaction, and completion map to the existing states. Plan-agent activity uses `planning`; known child sessions are suppressed by the bridge. The adapter omits context and plan-usage fields when no measurement is available. See the [bridge event mappings](https://vibemon.io/docs/hooks#opencode) for details.
 
 ### OpenCode Setup
 
@@ -47,11 +52,11 @@ On Windows, the installer pins the Python interpreter in the plugin; custom conf
 | `claw` | Red | Antenna character | OpenClaw |
 | `daangni` | Peach/teal | Round face, fluffy top | Manual only (Character Lock) |
 
-OpenCode reports `character: "opencode"`, which currently falls back to `vibemon` because the canonical registry does not contain that name. Its states, project, tool, and model remain visible. A dedicated character must be added to `vibemon-static` and synced here before it can be bundled or offered in Character Lock.
+OpenCode reports `character: "opencode"`, which currently falls back to `vibemon` because the canonical registry does not contain that name. Its states, project, tool, and model remain visible. Add a dedicated character to this repository's registry and export map before it can be bundled or offered in Character Lock.
 
-In **2D** (default) all characters use **image-based rendering** (128x128 PNG). Images load remote-first from `static.vibemon.io`, with copies bundled in `src/assets/characters/` as the offline fallback. Character is **auto-selected by bridge**, not by the core display runtime. You can also force one with [Character Lock](#character-lock).
+In **2D** (default) all characters use **image-based rendering** (128x128 PNG). Images load remote-first from `vibemon.io/static`, with copies bundled in `src/assets/characters/` as the offline fallback. Character is **auto-selected by bridge**, not by the core display runtime. You can also force one with [Character Lock](#character-lock).
 
-Characters are defined in a single registry canonically hosted in [vibemon-static](https://github.com/opspresso/vibemon-static) (served at `static.vibemon.io/data/characters.json`, with `src/shared/data/characters.json` bundled as the fallback and kept in sync via `npm run check:registry`): display name, accent color (the eye/accent overlay drawn on the sprite — white for VibeMon, distinct from the "Color" appearance above), image file, eye/effect coordinates (in canvas pixels on the 128x128 sprite, adjustable at 1px), and the `theme` palette the 3D engine paints. The character window, tray icon (downscaled from the same PNG), menus, and validation all derive from it — adding a character is one PNG plus one registry entry in vibemon-static, no code change here.
+Characters are defined in `src/shared/data/characters.json`: display name, accent color, PNG, eye/effect coordinates, and 3D theme. App owns these sources; Web serves the pinned public snapshot at `vibemon.io/static/data/characters.json`. Rendering, tray menus, and validation derive from the same registry. Add the image and registry entry here, update `web-distribution.json`, and run `pnpm check:registry` plus `pnpm check:distribution`.
 
 ### Render Mode
 
@@ -66,7 +71,7 @@ Characters are defined in a single registry canonically hosted in [vibemon-stati
 | --- | --- |
 | ![Previous 3D size](images/3d-size-before.png) | ![Larger 3D size](images/3d-size-after.png) |
 
-Both engines are vendored from vibemon-static (`src/engine/`); three.js ships locally in `src/vendor/` because the renderer CSP forbids runtime CDN imports.
+Both engines are maintained here (`src/engine/`); three.js ships locally in `src/vendor/` because the renderer CSP forbids runtime CDN imports.
 
 ### Character Lock
 
@@ -218,13 +223,13 @@ A small, transparent, click-through window that displays selected info fields (s
 A dedicated settings window (tray menu → **Settings...**) with four tabs in a sidebar:
 
 - **VibeMon** — Character Lock, Always on Top mode, Speech Bubble field toggles, Open at Login
-- **Collector** — how AI tool session status gets delivered here, locally or via the cloud relay: WebSocket connection status + account token (also writes the collector's `vibemon_token` into `~/.vibemon/config.json`), plus Config (HTTP URLs, Serial Port, VibeMon URL, Debug Logging, Auto-launch Desktop App) read and written directly by the app — no python installer needed
+- **Collector** — how AI tool session status gets delivered here, locally or via the cloud relay: HTTPS connection status and a link to the Monitoring window; its read token is separate from the hook write token, plus Config (HTTP URLs, Serial Port, VibeMon URL, Debug Logging, Auto-launch Desktop App) read and written directly by the app — no python installer needed
 - **AI Tools** — per-tool hook install status for Claude Code / Codex CLI / Kiro IDE / OpenClaw / OpenCode, with one-click Install (Reinstall for already-installed tools) and a Refresh action
 - **About** — app version, Check for Updates with one-click download/install, and Docs / GitHub Releases links
 
 Changes apply immediately through the same code paths as the tray menu, and the window re-syncs when refocused so tray-made changes are reflected.
 
-The account token is never returned to the settings renderer after it is saved; the UI only receives whether a token is configured. WebSocket authentication sends the token both as a connection URL query parameter (required by the deployed relay, which authorizes at the HTTP upgrade) and in a protocol auth message after connecting.
+The read token is encrypted by OS secure storage and is never returned to a renderer. HTTPS requests use the Authorization header. Hook installation preserves the existing write token in hook configuration and never copies the read token.
 
 ### System Tray Menu
 
@@ -233,28 +238,28 @@ Grouped to mirror the Settings window's tab order (VibeMon / Collector / AI Tool
 - **Show Character** — reopens the character window and its speech bubble after they closed (the sleep close-timeout or a manual close / `POST /close`), recreating the last shown character/state instead of waiting for the next status update
 - Settings... (opens the Settings window)
 - **VibeMon** — Character Lock (Auto/VibeMon/Clawd/Codex/Kiro/Claw/Daangni), Always on Top, Speech Bubble field toggles, Open at Login toggle
-- **Collector** — WebSocket status (Connected/Disconnected), HTTP Server port display
+- **Collector** — Cloud connection status, HTTP Server port display
 - **AI Tools** — AI Tool Hooks (per-tool install status for Claude Code/Codex CLI/Kiro IDE/OpenClaw/OpenCode, with one-click install), followed by Claude/Codex plan usage grouped per provider (5h, weekly, and model-scoped weekly %, each with a heat-colored bar icon and its own time-to-reset) — read from the shared usage cache independent of which project is focused; rows with no fresh data are omitted
 - **About** — opens the Settings window's About tab, followed by a version display or a one-click "Update to vX" / "Restart to install vX" item
 - Quit
 
 ## Rendering Engine
 
-The character is rendered by a bundled engine (`src/engine/vibemon-engine.js`): a 128x128 canvas drawing the character PNG, state-driven pixel-art eyes/effects, and the floating animation, over a fully transparent background. Character images load remote-first from `static.vibemon.io`, falling back to the bundled copies in `src/assets/characters/` — rendering works fully offline.
+The character is rendered by a bundled engine (`src/engine/vibemon-engine.js`): a 128x128 canvas drawing the character PNG, state-driven pixel-art eyes/effects, and the floating animation, over a fully transparent background. Character images load remote-first from `vibemon.io/static`, falling back to the bundled copies in `src/assets/characters/` — rendering works fully offline.
 
 ## Build
 
-Hook installation verifies the downloaded installer against the `installer` SHA-256 published in the same origin's `manifest.json` (fetched fresh at install time), so install.py updates ship with a vibemon-docs deploy alone — no app release needed. install.py then re-checks every file it downloads against that same manifest before writing it, so install.py and manifest.json have to go out in the same deploy. Custom installer deployments can pin a specific hash via `VIBEMON_INSTALLER_SHA256` together with `VIBEMON_DOCS_URL`; the pin takes precedence over the manifest. `VIBEMON_DOCS_URL` only redirects where install.py itself is fetched from — the installer always pulls the files it installs, and the manifest it checks them against, from `docs.vibemon.io`.
+Hook installation verifies the downloaded installer against the `installer` SHA-256 published in the same origin's `manifest.json` (fetched fresh at install time), so install.py updates ship with a Web deployment alone — no app release needed. install.py then re-checks every file it downloads against that same manifest before writing it, so install.py and manifest.json have to go out in the same deploy. Custom installer deployments can pin a specific hash via `VIBEMON_INSTALLER_SHA256` together with `VIBEMON_DOCS_URL`; the pin takes precedence over the manifest. `VIBEMON_DOCS_URL` selects the source for the installer, manifest, and all installed files. The App passes the same source to the Python child. Use `VIBEMON_URL` separately for the API origin; see [self-hosted installation](../public/install/setup.md#self-hosted-installation).
 
 Installs run unattended but not force-approved: the app passes a platform flag and never `--yes`. VibeMon's own hook scripts are upgraded in place (so Reinstall still repairs drift), while settings you own — most visibly an existing Claude Code `statusLine` — are left as they are. Run install.py yourself with `--yes` to have those replaced too. When a run fails, the installer's own reason (a failed integrity check, a file it couldn't write) is shown with the exit code instead of the bare code.
 
 Detection and hook paths honor `CLAUDE_CONFIG_DIR`, `CODEX_HOME`, `KIRO_HOME`, and `OPENCODE_CONFIG_DIR` (with the OpenCode XDG fallback described above). These variables must reach the Desktop App process. Kiro is detected through either `kiro` or `kiro-cli`.
 
-Registration checks inspect the command used on the current OS, including Codex's Windows override and the installer's quoted POSIX paths. OpenClaw requires its script, manifest, and enabled `vibemon-bridge` entry. The installer records `plugins.load.paths`, and existing installations in the global extensions directory are also recognized without that entry. Global disable, deny entries, and a non-empty allowlist that excludes VibeMon prevent an installed status, matching [OpenClaw's plugin policy](https://docs.openclaw.ai/tools/plugin#configure-plugin-policy). After an OpenClaw update, refresh its persisted plugin registry and restart the gateway as described in the [setup guide](https://github.com/opspresso/vibemon-docs#openclaw-configuration). The docs installer currently skips OpenClaw on Windows.
+Registration checks inspect the command used on the current OS, including Codex's Windows override and the installer's quoted POSIX paths. OpenClaw requires its script, manifest, and enabled `vibemon-bridge` entry. The installer records `plugins.load.paths`, and existing installations in the global extensions directory are also recognized without that entry. Global disable, deny entries, and a non-empty allowlist that excludes VibeMon prevent an installed status, matching [OpenClaw's plugin policy](https://docs.openclaw.ai/tools/plugin#configure-plugin-policy). After an OpenClaw update, refresh its persisted plugin registry and restart the gateway as described in the [setup guide](https://vibemon.io/docs/hooks#openclaw-configuration). The docs installer currently skips OpenClaw on Windows.
 
 ```bash
-npm run build:mac     # macOS (DMG, ZIP)
-npm run build:win     # Windows (NSIS, Portable)
-npm run build:linux   # Linux (AppImage, DEB)
-npm run build:all     # All platforms
+pnpm build:mac     # macOS (DMG, ZIP)
+pnpm build:win     # Windows (NSIS, Portable)
+pnpm build:linux   # Linux (AppImage, DEB)
+pnpm build:all     # All platforms
 ```

@@ -79,9 +79,10 @@ function buildFieldPayload(state, speechBubbleFields) {
   if (speechBubbleFields && speechBubbleFields.status && state && state.state) {
     const stateKey = String(state.state);
     // State/tool -> text mapping from constants.json (STATE_TEXTS/TOOL_TEXTS).
+    const toolKey = String(state.tool || '').toLowerCase();
     const text = stateKey === 'working'
-      ? TOOL_TEXTS[String(state.tool || '').toLowerCase()] || TOOL_TEXTS.default
-      : STATE_TEXTS[stateKey] || stateKey.charAt(0).toUpperCase() + stateKey.slice(1);
+      ? (Object.hasOwn(TOOL_TEXTS, toolKey) ? TOOL_TEXTS[toolKey] : TOOL_TEXTS.default)
+      : (Object.hasOwn(STATE_TEXTS, stateKey) ? STATE_TEXTS[stateKey] : stateKey.charAt(0).toUpperCase() + stateKey.slice(1));
     payload.status = { type: 'text', text };
     if (LOADING_STATES.includes(stateKey)) {
       // Loading dots beside the text; thinking-style states animate slower

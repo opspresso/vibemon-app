@@ -637,6 +637,24 @@ describe('restoreLastWindow', () => {
     expect(manager.onStateUpdated).toHaveBeenCalledWith('proj-a');
   });
 
+  test('restores the source identity independently of its label, then forgets deselected sources', () => {
+    const manager = new CharacterWindowManager();
+    const id = 'cloud:account-work';
+    manager.entry = { projectId: id, state: null, window: {} };
+    manager.updateState(id, { state: 'working', project: 'same-label', character: 'codex' });
+    manager.entry = null;
+    const { BrowserWindow } = require('electron');
+    BrowserWindow.mockImplementation(() => makeMockWindow());
+    expect(manager.restoreLastWindow().projectId).toBe(id);
+    expect(manager.getRegisteredState('same-label')).toBeNull();
+    manager.removeProject(id, { forgetLastState: true });
+    manager.entry = null;
+    const restored = manager.restoreLastWindow();
+    expect(restored.projectId).toBeNull();
+    expect(restored.stateData.project).toBeNull();
+    manager.cleanup();
+  });
+
   test('falls back to a default idle character when nothing was shown yet', () => {
     const manager = new CharacterWindowManager();
     const { BrowserWindow } = require('electron');
@@ -680,6 +698,12 @@ describe('updateState change detection', () => {
     manager.entry = { window: {}, state, projectId };
     return manager;
   }
+
+  test('updates a renamed label without changing source identity', () => {
+    const manager = managerWithWindow('source-id', { state: 'working', project: 'old-label' });
+    expect(manager.updateState('source-id', { state: 'working', project: 'new-label' })).toMatchObject({ updated: true, infoChanged: true });
+    expect(manager.getState('source-id').project).toBe('new-label');
+  });
 
   test('detects a state change', () => {
     const manager = managerWithWindow('a', { state: 'idle' });

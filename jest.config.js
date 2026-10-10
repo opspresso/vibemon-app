@@ -4,12 +4,14 @@
 
 module.exports = {
   testEnvironment: 'node',
+  modulePathIgnorePatterns: ['<rootDir>/dist/', '<rootDir>/out/'],
   testMatch: [
     '**/tests/**/*.test.js',
     '**/__tests__/**/*.js'
   ],
   collectCoverageFrom: [
     'src/modules/**/*.{js,cjs}',
+    'src/monitoring/**/*.cjs',
     'src/shared/**/*.{js,cjs}',
     '!**/node_modules/**'
   ],

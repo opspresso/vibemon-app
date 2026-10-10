@@ -183,3 +183,33 @@ describe('loadRegistries (cache → bundled fallback)', () => {
     expect(registryCache.charactersRegistry).toEqual(bundledCharacters);
   });
 });
+
+
+test.each(['constructor', '__proto__'])('requires an own default character entry: %s', name => {
+  expect(sanitizeCharactersRegistry({ default: name, characters: {} })).toBeNull();
+});
+
+
+test('keeps cached registries when a remote payload exceeds the size limit', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'vibemon-registry-size-'));
+  const originalFetch = global.fetch;
+  const originalDir = process.env.VIBEMON_REGISTRY_CACHE_DIR;
+  const warning = jest.spyOn(console, 'warn').mockImplementation(() => {});
+  try {
+    process.env.VIBEMON_REGISTRY_CACHE_DIR = dir;
+    const file = path.join(dir, 'states.json');
+    fs.writeFileSync(file, JSON.stringify(bundledStates));
+    const original = fs.readFileSync(file, 'utf8');
+    global.fetch = jest.fn().mockImplementation(async () => new global.Response(JSON.stringify({
+      ...bundledStates, padding: 'x'.repeat(65536)
+    })));
+    expect(await require('../src/shared/registry-cache.cjs').refresh()).toBe(false);
+    expect(fs.readFileSync(file, 'utf8')).toBe(original);
+  } finally {
+    global.fetch = originalFetch;
+    if (originalDir === undefined) delete process.env.VIBEMON_REGISTRY_CACHE_DIR;
+    else process.env.VIBEMON_REGISTRY_CACHE_DIR = originalDir;
+    warning.mockRestore();
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});

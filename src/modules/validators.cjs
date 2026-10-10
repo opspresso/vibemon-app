@@ -6,7 +6,7 @@ const { VALID_STATES } = require('../shared/config.cjs');
 
 // Validation limits. project/tool/model match the cloud API's
 // STATUS_FIELD_LIMITS (vibemon src/lib/validation.ts): anything the cloud
-// accepts is re-broadcast over WebSocket into this app, and a stricter limit
+// accepts may reach this app through cloud polling, and a stricter limit
 // here would silently drop the whole update.
 const PROJECT_MAX_LENGTH = 128;
 const TOOL_MAX_LENGTH = 64;

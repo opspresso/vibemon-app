@@ -1,12 +1,13 @@
 /**
  * Python interpreter discovery for the modules that shell out to the
- * docs.vibemon.io scripts (install.py, ~/.vibemon/usage.py).
+ * vibemon.io/install scripts (install.py, ~/.vibemon/usage.py).
  *
  * Windows makes both halves of this non-obvious: the interpreter is not named
  * `python3`, and the name that does exist may not be an interpreter at all.
  */
 
 const { spawnSync } = require('child_process');
+const { PYTHON_PROBE_TIMEOUT_MS } = require('../shared/constants.cjs');
 
 const IS_WINDOWS = process.platform === 'win32';
 
@@ -57,7 +58,10 @@ function probePython(candidate) {
   try {
     result = spawnSync(candidate.command, [...candidate.prefixArgs, ...PROBE_ARGS], {
       ...SPAWN_DEFAULTS,
-      encoding: 'utf8'
+      encoding: 'utf8',
+      timeout: PYTHON_PROBE_TIMEOUT_MS,
+      killSignal: 'SIGKILL',
+      maxBuffer: 1024
     });
   } catch {
     return false;

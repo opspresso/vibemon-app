@@ -50,6 +50,15 @@ describe('VibemonConfigManager', () => {
     });
   });
 
+  test.each(['null', '[]', '42', '{invalid'])('preserves malformed configuration instead of overwriting it: %s', body => {
+    fs.existsSync.mockReturnValue(true);
+    fs.readFileSync.mockReturnValue(body);
+    expect(manager.getStatus()).toEqual({ exists: true, hasDesktopUrl: false });
+    expect(() => manager.write({ debug: true })).toThrow('expected a valid JSON object');
+    expect(manager.ensureDesktopUrl(null)).toBe(false);
+    expect(fs.writeFileSync).not.toHaveBeenCalled();
+  });
+
   describe('read', () => {
     test('returns defaults when the file does not exist', () => {
       expect(manager.read()).toEqual(VIBEMON_CONFIG_DEFAULTS);
@@ -256,10 +265,11 @@ describe('VibemonConfigManager', () => {
       expect(consoleError).toHaveBeenCalled();
     });
 
-    test('write() does not throw when the underlying write fails', () => {
+    test('write() reports failure when the underlying write fails', () => {
       fs.renameSync.mockImplementation(() => { throw new Error('EACCES'); });
 
-      expect(() => manager.write({ debug: true })).not.toThrow();
+      expect(() => manager.write({ debug: true })).toThrow('Unable to save');
+      expect(manager.ensureDesktopUrl(null)).toBe(false);
     });
   });
 });

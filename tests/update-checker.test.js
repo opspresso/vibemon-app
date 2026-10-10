@@ -36,11 +36,16 @@ describe('UpdateChecker', () => {
     app.isPackaged = true;
   });
 
-  test('skips Authenticode verification (self-signed Windows cert can never chain to a trusted root)', async () => {
-    freshChecker();
-
-    await expect(autoUpdater.verifyUpdateCodeSignature(['OpsPresso'], 'C:\\temp\\update.exe'))
-      .resolves.toBeNull();
+  test('does not install an update rejected by the platform signature verifier', async () => {
+    autoUpdater.verifyUpdateCodeSignature = jest.fn().mockResolvedValue('Untrusted Authenticode signature');
+    const checker = freshChecker();
+    autoUpdater.downloadUpdate.mockImplementationOnce(async () => {
+      const failure = await autoUpdater.verifyUpdateCodeSignature(['Publisher'], 'fixture-update.exe');
+      if (failure) throw new Error(failure);
+    });
+    await checker.downloadAndInstall('2.0.0');
+    expect(autoUpdater.quitAndInstall).not.toHaveBeenCalled();
+    expect(dialog.showErrorBox.mock.calls[0][1]).toContain('Untrusted Authenticode signature');
   });
 
   describe('event -> state transitions', () => {

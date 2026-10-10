@@ -1,0 +1,11 @@
+* text=auto eol=lf
+*.py text eol=lf
+*.json text eol=lf
+*.toml text eol=lf
+*.js text eol=lf
+*.mjs text eol=lf
+*.cjs text eol=lf
+*.ps1 text eol=lf
+*.png binary
+*.ico binary
+*.icns binary

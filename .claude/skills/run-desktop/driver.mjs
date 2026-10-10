@@ -9,8 +9,8 @@
 //
 // With no arguments it starts an interactive REPL instead (human path).
 //
-// Launch always uses an isolated --user-data-dir, so the developer's real
-// settings under ~/Library/Application Support/vibemon are never touched.
+// The Electron store is isolated. The full app still manages shared hook
+// configuration; use tests/native for isolated automated verification.
 import { spawn } from 'node:child_process';
 import * as fs from 'node:fs';
 import * as net from 'node:net';
@@ -231,21 +231,12 @@ const COMMANDS = {
     console.log(await post('/status', { state, character, project }));
     page = await until('character window', async () => windowByKind('character'));
     if (isNewWindow) {
-      // The window's initial state-update races the renderer's async init
-      // (registry IPC + character image preload): the main process sends it at
-      // ready-to-show, before the renderer registers onStateUpdate, so on a
-      // cold cache the update is lost and the default character stays on
-      // screen. Wait for the engine to finish booting — the 2D engine sets the
-      // canvas float offset as an inline style on its first render, the 3D
-      // engine appends its canvas at the end of its synchronous init — then
-      // re-drive the state through a different-state nudge (an identical
-      // re-POST is deduped as "skipped" and never reaches the renderer).
+      // The preload buffers initial IPC until the renderer subscribes.
+      // Wait for the actual engine; never manufacture replacement updates.
       await until('renderer engine', () => evaluate(page,
         '(() => { if (document.querySelector(".vibemon-canvas-3d")) return true;' +
         ' const c = document.querySelector(".vibemon-canvas");' +
         ' return !!c && c.style.left !== ""; })()'));
-      await post('/status', { state: state === 'start' ? 'idle' : 'start', character, project });
-      await post('/status', { state, character, project });
     }
     await sleep(1500);   // let images load / the rig build and animate
     console.log('character window ready:', page.url.split('/').pop());

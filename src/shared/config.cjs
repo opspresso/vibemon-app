@@ -10,22 +10,16 @@ const characters = require('./characters.cjs');
 const states = require('./states.cjs');
 
 // =============================================================================
-// WebSocket Configuration (from environment variables)
-// =============================================================================
-const WS_URL = process.env.VIBEMON_WS_URL || 'wss://ws.vibemon.io';
-const WS_TOKEN = process.env.VIBEMON_WS_TOKEN || null;
-
-// =============================================================================
 // Hook Installer Configuration (from environment variables)
 // =============================================================================
-const DOCS_BASE_URL = process.env.VIBEMON_DOCS_URL || 'https://docs.vibemon.io';
+const DOCS_BASE_URL = process.env.VIBEMON_DOCS_URL || 'https://vibemon.io/install';
 // Optional strict pin for custom installer deployments. Normally null: the
 // installer hash comes from the published manifest.json, so install.py
-// updates ship with a docs deploy alone (no app release needed).
+// updates ship with a Web deployment alone (no app release needed).
 const INSTALLER_SHA256 = process.env.VIBEMON_INSTALLER_SHA256 || null;
 
 // =============================================================================
-// Canonical Registry (vibemon-static)
+// Canonical Registry (the public App distribution)
 // =============================================================================
 const { STATIC_BASE_URL } = require('./registry-cache.cjs');
 
@@ -42,14 +36,10 @@ module.exports = {
   // STATE_COLORS, STATE_TEXTS
   ...states,
 
-  // WebSocket
-  WS_URL,
-  WS_TOKEN,
-
   // Hook Installer
   DOCS_BASE_URL,
   INSTALLER_SHA256,
 
-  // Canonical registry base URL (vibemon-static)
+  // Canonical registry base URL (the public App distribution)
   STATIC_BASE_URL
 };

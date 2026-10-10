@@ -15,7 +15,7 @@ const vm = require('vm');
 const { STATE_CONFIG, VALID_STATES } = require('../src/shared/states.cjs');
 const charactersRegistry = require('../src/shared/data/characters.json');
 
-function loadEngine() {
+function loadEngine(globals = {}) {
   const src = fs.readFileSync(
     path.join(__dirname, '..', 'src', 'engine', 'vibemon-engine.js'),
     'utf8'
@@ -26,7 +26,7 @@ function loadEngine() {
     + '\nmodule.exports = { VibeMonEngine, CONSTANTS, CharacterRenderer };';
 
   const mod = { exports: {} };
-  vm.runInNewContext(src, { module: mod, exports: mod.exports, console });
+  vm.runInNewContext(src, { module: mod, exports: mod.exports, console, ...globals });
   return mod.exports;
 }
 
@@ -114,4 +114,26 @@ describe('engine drawing', () => {
       }
     }
   });
+});
+
+
+test('cleanup permits a fresh engine to remount in the same container', async () => {
+  const children = [];
+  const container = { appendChild: canvas => children.push(canvas), querySelector: () => children[0] };
+  const document = { createElement: () => {
+    const canvas = { getContext: () => fakeCtx(), remove: () => children.splice(children.indexOf(canvas), 1) };
+    return canvas;
+  } };
+  const Engine = loadEngine({ document }).VibeMonEngine;
+  const first = new Engine(container);
+  await first.init();
+  const oldCanvas = first.canvas;
+  first.cleanup();
+  const next = new Engine(container);
+  await next.init();
+  expect(next.ctx).not.toBeNull();
+  expect(next.canvas).not.toBe(oldCanvas);
+  expect(children).toEqual([next.canvas]);
+  next.cleanup();
+  expect(children).toHaveLength(0);
 });

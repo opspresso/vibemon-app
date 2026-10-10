@@ -3,7 +3,7 @@
  *
  * Detects locally installed AI CLI tools (Claude Code, Codex CLI, Kiro IDE,
  * OpenClaw, OpenCode) that are missing the VibeMon hook files, and — after explicit
- * user confirmation — runs the official docs.vibemon.io/install.py installer
+ * user confirmation — runs the official vibemon.io/install/install.py installer
  * to set them up. The script is downloaded over HTTPS and piped to
  * `python3 -` via stdin instead of a `curl | python3` shell pipe, so
  * arguments never pass through a shell.
@@ -24,8 +24,7 @@ const { findPython, SPAWN_DEFAULTS, IS_WINDOWS } = require('./python-runtime.cjs
 const DOCS_BASE = DOCS_BASE_URL.replace(/\/+$/, '');
 const SETUP_GUIDE_URL = `${DOCS_BASE}/setup.md`;
 
-// install.py is a few KB; this just bounds worst-case memory if the
-// response is ever unexpectedly large.
+// Bound the installer and manifest before buffering their full contents.
 const MAX_SCRIPT_SIZE = 1024 * 1024;
 
 // install.py's own output is bounded (it caps each file diff at 50 lines),
@@ -62,7 +61,7 @@ function scriptErrorDetail({ stdout = '', stderr = '' }) {
 }
 
 function verifyInstallerScript(script, expectedHash) {
-  if (!expectedHash) return true;
+  if (typeof expectedHash !== 'string' || !/^[0-9a-f]{64}$/.test(expectedHash)) return false;
   const actualHash = crypto.createHash('sha256').update(script, 'utf8').digest('hex');
   return actualHash === expectedHash;
 }
@@ -291,7 +290,7 @@ function normalizeOpenCodePlugin(source) {
 }
 
 // Per tool, `files` lists every file install.py copies verbatim (local
-// install path ↔ path under docs.vibemon.io), used to detect drift against
+// install path ↔ path under vibemon.io/install), used to detect drift against
 // the published manifest.json. OpenCode's plugin supplies a normalizer for
 // its installer-adapted path literals. Merged config files (settings.json,
 // hooks.json, ...) and platform-adapted configs are excluded — their installed
@@ -394,6 +393,9 @@ const TOOLS = [
     sharedAssets: true,
     files: [
       { local: homePath('.vibemon', 'usage.py'), remote: 'vibemon/usage.py' },
+      { local: homePath('.vibemon', 'http_client.py'), remote: 'vibemon/http_client.py' },
+      { local: homePath('.vibemon', 'cache_io.py'), remote: 'vibemon/cache_io.py' },
+      { local: homePath('.vibemon', 'account_context.py'), remote: 'vibemon/account_context.py' },
       { local: homePath('.vibemon', 'usage_cache.py'), remote: 'vibemon/usage_cache.py' },
       { local: homePath('.vibemon', 'vibemon_core.py'), remote: 'vibemon/vibemon_core.py' }
     ]
@@ -597,40 +599,43 @@ class HookInstaller {
     );
   }
 
-  /**
-   * Download install.py over HTTPS and verify it against expectedHash.
-   * @param {string} [expectedHash] - sha256 the script must match (from
-   *   resolveInstallerHash()); when omitted, verification is skipped
-   * @returns {Promise<string>} script source
-   */
-  downloadScript(expectedHash) {
+  /** Download bounded text and settle stalled or interrupted requests. */
+  downloadText(relativePath) {
     return new Promise((resolve, reject) => {
-      const req = https.get(`${DOCS_BASE}/install.py`, { timeout: 30000 }, (res) => {
+      const req = https.get(`${DOCS_BASE}/${relativePath}`, { timeout: 30000 }, res => {
         if (res.statusCode !== 200) {
           res.resume();
           reject({ reason: 'download-failed', statusCode: res.statusCode });
           return;
         }
-
-        let script = '';
+        let text = '';
+        let bytes = 0;
+        let failed = false;
         res.setEncoding('utf8');
-        res.on('data', (chunk) => {
-          script += chunk;
-          if (script.length > MAX_SCRIPT_SIZE) {
+        res.on('data', chunk => {
+          if (failed) return;
+          bytes += Buffer.byteLength(chunk, 'utf8');
+          if (bytes > MAX_SCRIPT_SIZE) {
+            failed = true;
             res.destroy();
             reject({ reason: 'download-too-large' });
-          }
+          } else text += chunk;
         });
-        res.on('end', () => {
-          if (!verifyInstallerScript(script, expectedHash)) {
-            reject({ reason: 'integrity-check-failed' });
-            return;
-          }
-          resolve(script);
-        });
+        res.on('error', () => reject({ reason: 'network-error', error: 'Download stream failed' }));
+        res.on('aborted', () => reject({ reason: 'network-error', error: 'Download interrupted' }));
+        res.on('end', () => { if (!failed) resolve(text); });
       });
-      req.on('error', (err) => reject({ reason: 'network-error', error: err.message }));
+      req.on('timeout', () => req.destroy(new Error('Download timed out')));
+      req.on('error', error => reject({ reason: 'network-error', error: error.message }));
     });
+  }
+
+  /** Download install.py only with a valid integrity reference. */
+  async downloadScript(expectedHash) {
+    if (typeof expectedHash !== 'string' || !/^[0-9a-f]{64}$/.test(expectedHash)) throw { reason: 'integrity-reference-missing' };
+    const script = await this.downloadText('install.py');
+    if (!verifyInstallerScript(script, expectedHash)) throw { reason: 'integrity-check-failed' };
+    return script;
   }
 
   /**
@@ -659,41 +664,13 @@ class HookInstaller {
    * install.py copies verbatim), published next to install.py.
    * @returns {Promise<{files: Object<string, string>}>}
    */
-  downloadManifest() {
-    return new Promise((resolve, reject) => {
-      const req = https.get(`${DOCS_BASE}/manifest.json`, { timeout: 30000 }, (res) => {
-        if (res.statusCode !== 200) {
-          res.resume();
-          reject({ reason: 'download-failed', statusCode: res.statusCode });
-          return;
-        }
-
-        let body = '';
-        res.setEncoding('utf8');
-        res.on('data', (chunk) => {
-          body += chunk;
-          if (body.length > MAX_SCRIPT_SIZE) {
-            res.destroy();
-            reject({ reason: 'download-too-large' });
-          }
-        });
-        res.on('end', () => {
-          let manifest;
-          try {
-            manifest = JSON.parse(body);
-          } catch {
-            reject({ reason: 'invalid-manifest' });
-            return;
-          }
-          if (!isValidManifest(manifest)) {
-            reject({ reason: 'invalid-manifest' });
-            return;
-          }
-          resolve(manifest);
-        });
-      });
-      req.on('error', (err) => reject({ reason: 'network-error', error: err.message }));
-    });
+  async downloadManifest() {
+    const body = await this.downloadText('manifest.json');
+    let manifest;
+    try { manifest = JSON.parse(body); }
+    catch { throw { reason: 'invalid-manifest' }; }
+    if (!isValidManifest(manifest)) throw { reason: 'invalid-manifest' };
+    return manifest;
   }
 
   /**
@@ -728,10 +705,11 @@ class HookInstaller {
    * @param {string[]} flags - e.g. ['--claude']
    * @returns {Promise<{ok: boolean, reason?: string, [key: string]: any}>}
    */
-  runScript(script, python, flags) {
+  runScript(script, python, flags, token) {
     return new Promise((resolve) => {
       const child = spawn(python.command, [...python.prefixArgs, '-', ...flags], {
         stdio: ['pipe', 'pipe', 'pipe'],
+        env: { ...process.env, VIBEMON_DOCS_URL: DOCS_BASE, ...(token ? { VIBEMON_WRITE_TOKEN: token } : {}) },
         ...SPAWN_DEFAULTS
       });
       let stdout = '';
@@ -762,9 +740,8 @@ class HookInstaller {
    * download fails the whole batch (nothing to run); an individual script
    * run failing does not stop the remaining tools.
    * @param {Array} tools
-   * @param {string|null} token - VibeMon account token; when set (and
-   *   well-formed), passed to install.py as `--token` so a fresh install
-   *   seeds ~/.vibemon/config.json with the same token the app reports with
+   * @param {string|null} token - Optional generated hook write credential,
+   *   passed only through the child environment. Never use the App read token.
    * @param {{showSummary?: boolean}} [options] - showSummary: whether to show
    *   the native result dialog when finished (default true). The Settings
    *   window's Install/Reinstall button passes false since it already shows
@@ -797,13 +774,9 @@ class HookInstaller {
         }
 
         if (script !== null) {
-          // Guard the format locally: install.py rejects a malformed --token
-          // at argparse level (exit 2), which would fail the whole install.
-          const tokenFlags = typeof token === 'string' && /^[a-z0-9_-]{8,64}$/.test(token)
-            ? ['--token', token]
-            : [];
+          const writeToken = typeof token === 'string' && /^vm_[a-f0-9]{60}$/.test(token) ? token : undefined;
           for (const tool of tools) {
-            const result = await this.runScript(script, python, [tool.flag, ...tokenFlags]);
+            const result = await this.runScript(script, python, [tool.flag], writeToken);
             results.push({ tool, result });
           }
         }
@@ -821,7 +794,7 @@ class HookInstaller {
    * Detect missing tools and, if any, ask the user for confirmation before
    * installing hooks for them. No-op when nothing is missing or an install
    * is already in progress.
-   * @param {string|null} token - VibeMon account token (shared with the WebSocket client)
+   * @param {string|null} token - Optional hook write token; never use the cloud read token
    */
   async checkAndPrompt(token) {
     if (this.isRunning) {

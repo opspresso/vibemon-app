@@ -1,8 +1,8 @@
 /**
  * Registry cache (CommonJS)
  *
- * Canonical state/character registries live in the vibemon-static repository
- * and are served from STATIC_BASE_URL (static.vibemon.io). This module
+ * Canonical state/character registries live in the the public App distribution repository
+ * and are served from STATIC_BASE_URL (vibemon.io/static). This module
  * resolves the registries synchronously at startup — last cached remote copy
  * (validated) first, bundled data/*.json as fallback — and exposes refresh()
  * to fetch/validate/cache the remote copies in the background. A refreshed
@@ -18,11 +18,13 @@
 
 const fs = require('fs');
 const path = require('path');
+const { readJsonResponse } = require('./json-response.cjs');
+const { REGISTRY_MAX_RESPONSE_BYTES } = require('./constants.cjs');
 
 const bundledStates = require('./data/states.json');
 const bundledCharacters = require('./data/characters.json');
 
-const STATIC_BASE_URL = (process.env.VIBEMON_STATIC_URL || 'https://static.vibemon.io').replace(/\/+$/, '');
+const STATIC_BASE_URL = (process.env.VIBEMON_STATIC_URL || 'https://vibemon.io/static').replace(/\/+$/, '');
 
 const FETCH_TIMEOUT_MS = 5000;
 
@@ -76,7 +78,7 @@ function sanitizeStatesRegistry(json) {
     return null;
   }
 
-  const states = {};
+  const states = Object.create(null);
   for (const [name, entry] of Object.entries(json.states)) {
     const required = REQUIRED_STATES.includes(name);
     const valid =
@@ -152,7 +154,7 @@ function sanitizeCharactersRegistry(json) {
     return null;
   }
 
-  const characters = {};
+  const characters = Object.create(null);
   for (const [name, entry] of Object.entries(json.characters)) {
     if (!REGISTRY_NAME.test(name) || !entry || typeof entry !== 'object') continue;
 
@@ -194,7 +196,7 @@ function sanitizeCharactersRegistry(json) {
     }
   }
 
-  if (typeof json.default !== 'string' || !characters[json.default]) {
+  if (typeof json.default !== 'string' || !Object.hasOwn(characters, json.default)) {
     return null;
   }
 
@@ -234,7 +236,7 @@ async function fetchJson(url) {
   if (!res.ok) {
     throw new Error(`HTTP ${res.status}`);
   }
-  return res.json();
+  return readJsonResponse(res, REGISTRY_MAX_RESPONSE_BYTES);
 }
 
 function writeFileAtomic(file, data) {

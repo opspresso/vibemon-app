@@ -1,0 +1,62 @@
+"""Five instant aggregate queries; pod/node series stay inside Prometheus."""
+import math
+from concurrent.futures import ThreadPoolExecutor
+from urllib.parse import urlencode
+from .domain import Sample
+
+QUERIES = {
+    "cpuPercent": '100 * (1 - avg(rate(node_cpu_seconds_total{mode="idle"}[2m])))',
+    "memoryPercent": '100 * (1 - sum(node_memory_MemAvailable_bytes) / sum(node_memory_MemTotal_bytes))',
+    "nodesReady": 'sum(max by (node) (kube_node_status_condition{condition="Ready",status="true"}))',
+    "nodesTotal": 'count(max by (node) (kube_node_info))',
+    "podsUnhealthy": 'sum(max by (namespace,pod) (kube_pod_status_phase{phase=~"Pending|Failed|Unknown"}) + on(namespace,pod) ((1 - max by (namespace,pod) (kube_pod_status_ready{condition="true"})) * max by (namespace,pod) (kube_pod_status_phase{phase="Running"})))',
+}
+
+
+def scalar_summary(response, now):
+    if not isinstance(response, dict) or response.get("status") != "success":
+        raise ValueError("Prometheus query failed")
+    data = response.get("data", {})
+    if not isinstance(data, dict) or data.get("resultType") != "vector":
+        raise ValueError("Expected an aggregate instant vector")
+    rows = data.get("result", [])
+    if not isinstance(rows, list):
+        raise ValueError("Invalid aggregate result")
+    if not rows:
+        return None
+    if len(rows) != 1 or not isinstance(rows[0], dict) or rows[0].get("metric") != {}:
+        raise ValueError("Query must return a single unlabelled summary")
+    observed_at, raw = rows[0]["value"]
+    timestamp = float(observed_at)
+    if not math.isfinite(timestamp) or abs(now - timestamp) > 120:
+        return None
+    value = float(raw)
+    return value if math.isfinite(value) and value >= 0 else None
+
+
+class PrometheusSampler:
+    def __init__(self, url, client, metrics, clock):
+        self.url, self.client, self.metrics, self.clock = url, client, metrics, clock
+
+    def sample(self):
+        values = {}
+        failed = False
+        now = self.clock()
+        def query(key):
+            try:
+                response = self.client.request(f"{self.url}/api/v1/query?{urlencode({'query': QUERIES[key], 'time': now})}")
+                value = scalar_summary(response, now)
+                if value is not None and key.endswith("Percent") and value > 100:
+                    raise ValueError("Percentage out of range")
+                return key, value, False
+            except (OSError, ValueError, KeyError, TypeError):
+                return key, None, True
+        # Query latency is bounded by one request timeout, not five serial waits.
+        with ThreadPoolExecutor(max_workers=len(self.metrics)) as executor:
+            for key, value, error in executor.map(query, self.metrics):
+                values[key] = value
+                failed |= error
+        missing = any(value is None for value in values.values())
+        unhealthy = (values.get("podsUnhealthy") or 0) > 0 or (values.get("nodesReady") is not None and values.get("nodesTotal") is not None and values["nodesReady"] < values["nodesTotal"])
+        health = "error" if failed else "unknown" if missing else "warning" if unhealthy else "ok"
+        return Sample(values, health)

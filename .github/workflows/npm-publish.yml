@@ -5,6 +5,9 @@ on:
     tags:
       - 'v*'
 
+permissions:
+  contents: read
+
 jobs:
   publish:
     runs-on: ubuntu-latest
@@ -24,19 +27,29 @@ jobs:
         run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
 
       - name: Update package.json version
-        run: |
-          npm version ${{ steps.version.outputs.VERSION }} --no-git-tag-version --allow-same-version
+        env:
+          RELEASE_VERSION: ${{ steps.version.outputs.VERSION }}
+        run: npm version "$RELEASE_VERSION" --no-git-tag-version --allow-same-version
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 12.10.1
 
       - name: Install dependencies
-        run: npm install
+        run: pnpm install --frozen-lockfile
 
       - name: Validate
         run: |
-          npm run lint
-          npm run test:coverage -- --runInBand
-          npm run check:registry
+          pnpm lint
+          pnpm exec jest --coverage --runInBand
+          pnpm check:registry
+          pnpm check:distribution
+
+      - name: Prepare npm launcher
+        run: pnpm prepare:npm
 
       - name: Publish to npm
+        working-directory: dist/npm
         run: npm publish --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

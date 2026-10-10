@@ -1,0 +1,9 @@
+{
+  "debug": false,
+  "cache_path": "~/.vibemon/cache/projects.json",
+  "auto_launch": true,
+  "http_urls": [],
+  "serial_port": null,
+  "vibemon_token": "",
+  "vibemon_url": "https://vibemon.io"
+}

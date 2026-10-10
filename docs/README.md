@@ -1,27 +1,25 @@
-# Documentation
+# Desktop documentation
 
-## Quick Start
+## Use the App
 
-```bash
-npx vibemon
-```
+- [Install and connect](../README.md#install-and-start) — Packages, cloud connection, and local hooks.
+- [Cloud monitoring](monitoring.md) — Read tokens, resource/account selection, metrics, trends, and connection failures.
+- [Desktop features](features.md) — Character states, animations, settings, and tray controls.
+- [Web connection guide](https://vibemon.io/docs) — Google login, tokens, collectors, and coding accounts.
 
-The desktop app launches in the system tray and listens on `http://127.0.0.1:19280`.
+## Integrate and develop
 
-For the ESP32 hardware display, see [vibemon-esp32](https://github.com/opspresso/vibemon-esp32).
+- [Local HTTP API](api.md) — The App's loopback endpoints on port 19280.
+- [Web Monitoring API](https://vibemon.io/docs/api/monitoring) — Authenticated cloud endpoints; separate from the local API.
+- [Hook installation](../public/install/setup.md) and [hook reference](hooks.md) — Canonical public integration source.
+- [Resource collector](../collector/README.md) — Public host/Spark/Kubernetes collector.
+- [Distribution ownership](distribution.md) — App source, pinned Web snapshots, and standalone validation.
+- [Build and packaging](build.md) — Dependencies, validation, canonical assets, signing, and publication.
+- [Overlay verification](overlay-interaction.md) — Character/bubble input, movement, and display scaling.
+- [Pet proposal](milestone/vibemon-pet-development-spec.md) — Future design only; not implemented behavior.
 
-## Guides
+## Documentation maintenance
 
-- **[Features](features.md)** - States, animations, character window behavior
-- **[HTTP API Reference](api.md)** - Complete API documentation for all endpoints
+Edit Desktop behavior here. App owns hooks, public distributions, and Desktop behavior; Web owns cloud API and authentication contracts. Web publishes a pinned App snapshot alongside its own guides. Markdown uses English and lowercase-hyphen filenames, except existing Korean design and verification documents.
 
-## Conventions
-
-- File names: lowercase-hyphen.md
-- Language: English
-
-## Links
-
-- [Main README](../README.md) - Project overview
-- [npm Package](https://www.npmjs.com/package/vibemon) - Desktop app on npm
-- [vibemon.io/docs](https://vibemon.io/docs) - Full documentation site
+[Repository overview](../README.md) · [npm package](https://www.npmjs.com/package/vibemon) · [Downloads](https://github.com/opspresso/vibemon-app/releases/latest)

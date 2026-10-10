@@ -11,6 +11,9 @@ on:
         required: true
         default: 'v0.0.0'
 
+permissions:
+  contents: read
+
 jobs:
   build:
     runs-on: ${{ matrix.os }}
@@ -31,44 +34,28 @@ jobs:
         with:
           node-version: '24'
 
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 12.10.1
+
       - name: Install dependencies
-        run: npm install
+        run: pnpm install --frozen-lockfile
 
       - name: Validate
         if: matrix.os == 'macos-latest'
         run: |
-          npm run lint
-          npm run test:coverage -- --runInBand
-          npm run check:registry
+          pnpm lint
+          pnpm exec jest --coverage --runInBand
+          pnpm check:registry
+          pnpm check:distribution
 
       - name: Sync version from tag
         shell: bash
+        env:
+          RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.version || github.ref_name }}
         run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            TAG_VERSION="${{ inputs.version }}"
-          else
-            TAG_VERSION="${{ github.ref_name }}"
-          fi
-          VERSION="${TAG_VERSION#v}"
-          npm version "$VERSION" --no-git-tag-version --allow-same-version
-
-      - name: Move electron to devDependencies for packaging
-        shell: bash
-        run: |
-          # electron-builder refuses to build unless "electron" is a devDependency,
-          # but bin/cli.js requires('electron') at runtime so npx installs need it
-          # under "dependencies". Rewrite it here only for this CI build; the
-          # committed package.json (used by npm/npx) is never touched.
-          node -e "
-            const fs = require('fs');
-            const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
-            if (pkg.dependencies && pkg.dependencies.electron) {
-              pkg.devDependencies = pkg.devDependencies || {};
-              pkg.devDependencies.electron = pkg.dependencies.electron;
-              delete pkg.dependencies.electron;
-              fs.writeFileSync('package.json', JSON.stringify(pkg, null, 2) + '\n');
-            }
-          "
+          node -e "if (!/^v?[0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z.-]+)?$/.test(process.env.RELEASE_TAG)) throw new Error('Invalid release version')"
+          npm version "${RELEASE_TAG#v}" --no-git-tag-version --allow-same-version
 
       - name: Import macOS codesign certificate
         if: matrix.os == 'macos-latest'
@@ -80,25 +67,42 @@ jobs:
       - name: Prepare for app notarization
         if: matrix.os == 'macos-latest'
         shell: bash
+        env:
+          API_KEY_SECRET: ${{ secrets.API_KEY_SECRET }}
+          API_KEY_ID: ${{ secrets.API_KEY_ID }}
+          API_KEY_ISSUER_ID: ${{ secrets.API_KEY_ISSUER_ID }}
         run: |
-          mkdir -p "$HOME/private_keys/"
-          echo '${{ secrets.API_KEY_SECRET }}' > "$HOME/private_keys/AuthKey_${{ secrets.API_KEY_ID }}.p8"
-
-          echo "APPLE_API_KEY=$HOME/private_keys/AuthKey_${{ secrets.API_KEY_ID }}.p8" >> "$GITHUB_ENV"
-          echo "APPLE_API_KEY_ID=${{ secrets.API_KEY_ID }}" >> "$GITHUB_ENV"
-          echo "APPLE_API_ISSUER=${{ secrets.API_KEY_ISSUER_ID }}" >> "$GITHUB_ENV"
+          umask 077
+          KEY_PATH="$RUNNER_TEMP/notarization-key.p8"
+          printf '%s' "$API_KEY_SECRET" > "$KEY_PATH"
+          echo "APPLE_API_KEY=$KEY_PATH" >> "$GITHUB_ENV"
+          echo "APPLE_API_KEY_ID=$API_KEY_ID" >> "$GITHUB_ENV"
+          echo "APPLE_API_ISSUER=$API_KEY_ISSUER_ID" >> "$GITHUB_ENV"
 
       - name: Build Electron app on macOS
         if: matrix.os == 'macos-latest'
-        run: npx electron-builder --mac --publish never
+        run: pnpm exec electron-builder --mac --publish never
 
       - name: Build Electron app on Windows
         if: matrix.os == 'windows-latest'
         shell: bash
-        run: npx electron-builder --win --publish never
+        run: pnpm exec electron-builder --win --publish never --config.forceCodeSigning=true
         env:
           CSC_LINK: ${{ secrets.WINDOWS_CERTS }}
           CSC_KEY_PASSWORD: ${{ secrets.WINDOWS_CERTS_PASSWORD }}
+
+      - name: Verify trusted Windows signatures
+        if: matrix.os == 'windows-latest'
+        shell: pwsh
+        run: |
+          $installers = @(Get-ChildItem dist -Filter *.exe)
+          if ($installers.Count -eq 0) { throw 'No Windows installer produced' }
+          foreach ($installer in $installers) {
+            $signature = Get-AuthenticodeSignature $installer.FullName
+            if ($signature.Status -ne 'Valid') {
+              throw "Trusted Authenticode signature required for $($installer.Name): $($signature.Status)"
+            }
+          }
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v7
@@ -130,12 +134,9 @@ jobs:
       - name: Resolve release tag
         id: release_tag
         shell: bash
-        run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            echo "tag=${{ inputs.version }}" >> "$GITHUB_OUTPUT"
-          else
-            echo "tag=${{ github.ref_name }}" >> "$GITHUB_OUTPUT"
-          fi
+        env:
+          RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.version || github.ref_name }}
+        run: echo "tag=$RELEASE_TAG" >> "$GITHUB_OUTPUT"
 
       - name: Get tag message
         id: tag_message

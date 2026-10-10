@@ -30,7 +30,7 @@ class SettingsWindowManager {
     this.hookInstaller = hookInstaller;
     this.vibemonConfigManager = vibemonConfigManager;
     this.updateChecker = updateChecker;
-    this.wsClient = null;
+    this.monitoringClient = null;
     // Set by main.js to refresh the tray icon/menu after a settings change.
     this.onSettingsChanged = null;
     this.window = null;
@@ -39,11 +39,21 @@ class SettingsWindowManager {
   }
 
   /**
-   * Set WebSocket client reference (created after app ready, like the tray's)
-   * @param {WsClient} wsClient
+   * Set HTTPS monitoring client reference (created after app ready, like the tray's)
+   * @param {MonitoringClient} monitoringClient
    */
-  setWsClient(wsClient) {
-    this.wsClient = wsClient;
+  setMonitoringClient(monitoringClient, openMonitoring) {
+    this.openMonitoring = openMonitoring;
+    this.monitoringClient = monitoringClient;
+  }
+
+  notifyCloudStateChanged() {
+    if (this.window && !this.window.isDestroyed()) {
+      this.window.webContents.send('settings:cloud-state', {
+        status: this.monitoringClient?.getStatus() || 'not-configured',
+        tokenConfigured: Boolean(this.monitoringClient?.hasToken())
+      });
+    }
   }
 
   notifyChanged() {
@@ -76,7 +86,9 @@ class SettingsWindowManager {
    * @returns {object}
    */
   getVibemonConfigView() {
-    return { ...this.vibemonConfigManager.read(), status: this.vibemonConfigManager.getStatus() };
+    const config = this.vibemonConfigManager.read();
+    const display = Object.fromEntries(['debug', 'auto_launch', 'http_urls', 'serial_port', 'vibemon_url'].map(key => [key, config[key]]));
+    return { ...display, status: this.vibemonConfigManager.getStatus() };
   }
 
   /**
@@ -96,9 +108,9 @@ class SettingsWindowManager {
       edgeMargin: this.windowManager.getEdgeMargin(),
       devMode: this.windowManager.getDevMode(),
       openAtLogin: this.app.getLoginItemSettings().openAtLogin,
-      ws: {
-        status: this.wsClient ? this.wsClient.getStatus() : 'not-configured',
-        tokenConfigured: Boolean(this.wsClient && this.wsClient.getToken())
+      cloud: {
+        status: this.monitoringClient ? this.monitoringClient.getStatus() : 'not-configured',
+        tokenConfigured: Boolean(this.monitoringClient && this.monitoringClient.hasToken())
       },
       hooks: this.toHookView(this.hookInstaller.getCachedStatuses()),
       vibemonConfig: this.getVibemonConfigView(),
@@ -114,85 +126,82 @@ class SettingsWindowManager {
   }
 
   setupIpc() {
-    ipcMain.handle('settings:get-all', () => this.getSnapshot());
+    const handle = (channel, handler) => ipcMain.handle(channel, (event, ...args) => {
+      if (!this.window || this.window.isDestroyed() || event?.sender !== this.window.webContents || event.senderFrame !== this.window.webContents.mainFrame) throw new Error('Untrusted settings request');
+      return handler(event, ...args);
+    });
+    handle('settings:get-all', () => this.getSnapshot());
 
-    ipcMain.handle('settings:set-character-lock', (_event, character) => {
+    handle('settings:set-character-lock', (_event, character) => {
       if (character !== 'auto' && !CHARACTER_NAMES.includes(character)) return false;
       this.windowManager.setCharacterLock(character);
       this.notifyChanged();
       return true;
     });
 
-    ipcMain.handle('settings:set-render-mode', (_event, mode) => {
+    handle('settings:set-render-mode', (_event, mode) => {
       if (mode !== '2d' && mode !== '3d') return false;
       this.windowManager.setRenderMode(mode);
       this.notifyChanged();
       return true;
     });
 
-    ipcMain.handle('settings:set-always-on-top-mode', (_event, mode) => {
+    handle('settings:set-always-on-top-mode', (_event, mode) => {
       if (!Object.prototype.hasOwnProperty.call(ALWAYS_ON_TOP_MODES, mode)) return false;
       this.windowManager.setAlwaysOnTopMode(mode);
       this.notifyChanged();
       return true;
     });
 
-    ipcMain.handle('settings:set-speech-bubble-field', (_event, field, enabled) => {
+    handle('settings:set-speech-bubble-field', (_event, field, enabled) => {
       if (!SPEECH_BUBBLE_FIELDS.includes(field)) return false;
       this.windowManager.setSpeechBubbleField(field, Boolean(enabled));
       this.notifyChanged();
       return true;
     });
 
-    ipcMain.handle('settings:set-character-scale', (_event, scale) => {
+    handle('settings:set-character-scale', (_event, scale) => {
       if (!CHARACTER_SCALES.includes(scale)) return false;
       this.windowManager.setCharacterScale(scale);
       this.notifyChanged();
       return true;
     });
 
-    ipcMain.handle('settings:set-edge-margin', (_event, margin) => {
+    handle('settings:set-edge-margin', (_event, margin) => {
       if (!EDGE_MARGINS.includes(margin)) return false;
       this.windowManager.setEdgeMargin(margin);
       this.notifyChanged();
       return true;
     });
 
-    ipcMain.handle('settings:set-dock-auto-scale', (_event, enabled) => {
+    handle('settings:set-dock-auto-scale', (_event, enabled) => {
       if (typeof enabled !== 'boolean') return false;
       this.windowManager.setDockAutoScale(enabled);
       this.notifyChanged();
       return true;
     });
 
-    ipcMain.handle('settings:set-dev-mode', (_event, enabled) => {
+    handle('settings:set-dev-mode', (_event, enabled) => {
       this.windowManager.setDevMode(Boolean(enabled));
       this.notifyChanged();
       return true;
     });
 
-    ipcMain.handle('settings:set-open-at-login', (_event, enabled) => {
+    handle('settings:set-open-at-login', (_event, enabled) => {
       this.app.setLoginItemSettings({ openAtLogin: Boolean(enabled) });
       this.notifyChanged();
       return true;
     });
 
-    ipcMain.handle('settings:set-token', (_event, token) => {
-      if (typeof token !== 'string' || !this.wsClient) return false;
-      const trimmed = token.trim();
-      this.wsClient.setToken(trimmed);
-      this.vibemonConfigManager.write({ vibemon_token: trimmed });
-      this.notifyChanged();
-      return true;
-    });
+    handle('settings:open-monitoring', () => { this.openMonitoring?.(); return true; });
 
-    ipcMain.handle('settings:reset-hook-prompts', () => {
+    handle('settings:reset-hook-prompts', () => {
       this.hookInstaller.clearDismissed();
       this.notifyChanged();
       return this.toHookView(this.hookInstaller.getCachedStatuses());
     });
 
-    ipcMain.handle('settings:refresh-hook-statuses', async () => {
+    handle('settings:refresh-hook-statuses', async () => {
       // Re-fetches the manifest too, so Refresh re-verifies file hashes and
       // not just existence.
       await this.hookInstaller.checkForChanges();
@@ -200,11 +209,10 @@ class SettingsWindowManager {
       return this.toHookView(this.hookInstaller.getCachedStatuses());
     });
 
-    ipcMain.handle('settings:install-hook', async (_event, flag) => {
-      const token = this.wsClient ? this.wsClient.getToken() : null;
+    handle('settings:install-hook', async (_event, flag) => {
       // No result dialog — the Settings window already shows the outcome
       // inline via the row's badge/button state.
-      const results = await this.hookInstaller.installByFlag(flag, token, { showSummary: false });
+      const results = await this.hookInstaller.installByFlag(flag, null, { showSummary: false });
       this.notifyChanged();
       const failure = results.find(r => !r.result.ok);
       if (failure || results.length === 0) {
@@ -215,56 +223,58 @@ class SettingsWindowManager {
       return this.toHookView(this.hookInstaller.getCachedStatuses());
     });
 
-    ipcMain.handle('settings:repair-vibemon-config', () => {
-      const token = this.wsClient ? this.wsClient.getToken() : null;
-      this.vibemonConfigManager.ensureDesktopUrl(token);
+    handle('settings:repair-vibemon-config', () => {
+      this.vibemonConfigManager.ensureDesktopUrl(null);
+      const result = this.getVibemonConfigView();
+      if (!result.status.hasDesktopUrl) throw new Error('Unable to repair hook config. Check its JSON format and file permissions.');
       this.notifyChanged();
-      return this.getVibemonConfigView();
+      return result;
     });
 
-    ipcMain.handle('settings:set-vibemon-config', (_event, partial) => {
-      if (!partial || typeof partial !== 'object') return this.getVibemonConfigView();
+    handle('settings:set-vibemon-config', (_event, partial) => {
+      if (!partial || typeof partial !== 'object' || Array.isArray(partial)) throw new Error('Config changes must be a JSON object');
+      if (Object.hasOwn(partial, 'vibemon_token')) throw new Error('Configure hook write tokens with the installer or hook config');
       this.vibemonConfigManager.write(partial);
       this.notifyChanged();
       return this.getVibemonConfigView();
     });
 
-    ipcMain.handle('settings:add-http-url', (_event, url) => {
+    handle('settings:add-http-url', (_event, url) => {
       if (typeof url !== 'string') return this.getVibemonConfigView();
       this.vibemonConfigManager.addHttpUrl(url);
       this.notifyChanged();
       return this.getVibemonConfigView();
     });
 
-    ipcMain.handle('settings:remove-http-url', (_event, url) => {
+    handle('settings:remove-http-url', (_event, url) => {
       if (typeof url !== 'string') return this.getVibemonConfigView();
       this.vibemonConfigManager.removeHttpUrl(url);
       this.notifyChanged();
       return this.getVibemonConfigView();
     });
 
-    ipcMain.handle('settings:check-for-updates', async () => {
+    handle('settings:check-for-updates', async () => {
       await this.updateChecker.checkForUpdates({ notifyOnError: true });
       return this.updateChecker.getState();
     });
 
-    ipcMain.handle('settings:download-update', (_event) => {
+    handle('settings:download-update', (_event) => {
       const { status, version } = this.updateChecker.getState();
       if (status !== 'available') return this.updateChecker.getState();
       this.updateChecker.downloadAndInstall(version);
       return this.updateChecker.getState();
     });
 
-    ipcMain.handle('settings:install-downloaded', () => {
+    handle('settings:install-downloaded', () => {
       const { status } = this.updateChecker.getState();
       if (status !== 'downloaded') return false;
       this.updateChecker.installDownloaded();
       return true;
     });
 
-    ipcMain.handle('settings:open-external', (_event, key) => {
+    handle('settings:open-external', (_event, key) => {
+      if (!Object.hasOwn(EXTERNAL_LINKS, key)) return false;
       const url = EXTERNAL_LINKS[key];
-      if (!url) return false;
       shell.openExternal(url);
       return true;
     });

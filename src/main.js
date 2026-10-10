@@ -11,10 +11,16 @@
 
 // Load environment variables from .env.local or .env
 const path = require('path');
-require('dotenv').config({ path: path.join(__dirname, '..', '.env.local') });
-require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
+const Store = require('electron-store');
+for (const name of ['.env.local', '.env']) {
+  try { process.loadEnvFile(path.join(__dirname, '..', name)); }
+  catch (error) { if (error.code !== 'ENOENT') throw error; }
+}
 
-const { app, BrowserWindow, ipcMain, dialog, powerMonitor, screen } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, powerMonitor, screen, safeStorage } = require('electron');
+const { MonitoringClient } = require('./monitoring/client.cjs');
+const { CredentialStore } = require('./monitoring/credential-store.cjs');
+const { MonitoringWindow } = require('./monitoring/window.cjs');
 const { exec } = require('child_process');
 
 // Modules
@@ -24,7 +30,6 @@ const { BubbleWindowManager } = require('./modules/bubble-window-manager.cjs');
 const { DockMonitor } = require('./modules/dock-monitor.cjs');
 const { TrayManager } = require('./modules/tray-manager.cjs');
 const { HttpServer } = require('./modules/http-server.cjs');
-const { WsClient } = require('./modules/ws-client.cjs');
 const { HookInstaller } = require('./modules/hook-installer.cjs');
 const { VibemonConfigManager } = require('./modules/vibemon-config-manager.cjs');
 const { UpdateChecker } = require('./modules/update-checker.cjs');
@@ -66,7 +71,8 @@ const usageRefresher = new UsageRefresher();
 let trayManager = null;
 let settingsWindowManager = null;
 let httpServer = null;
-let wsClient = null;
+let monitoringClient = null;
+let monitoringWindow = null;
 let hookCheckTimer = null;
 let updateCheckTimer = null;
 let usageRefreshTimer = null;
@@ -162,33 +168,32 @@ windowManager.onWindowClosed = (projectId) => {
 };
 
 /**
- * Handle status update from WebSocket
+ * Handle status update from cloud
  * Reuses the same logic as HTTP POST /status
  * @param {Object} data - status payload
- * @param {{auto?: boolean}} [meta] - auto:true marks a clock-driven
- *   transition from the server's state-transition Lambda; like local state
- *   timeouts it must not move focus to (or open a window for) a background
- *   project.
+ * @param {{auto?: boolean, sourceId?: string}} [meta] - Preserve focus when
+ *   another project is already shown. sourceId separates cloud identities
+ *   from local project labels.
  */
-function handleWsStatusUpdate(data, meta = {}) {
+function handleCloudStatusUpdate(data, meta = {}) {
   // Validate payload
   const validation = validateStatusPayload(data);
   if (!validation.valid) {
-    console.error('WebSocket invalid payload:', validation.error);
+    console.error('cloud invalid payload:', validation.error);
     return;
   }
 
   // Validate and normalize state data via stateManager
   const stateValidation = stateManager.validateStateData(data);
   if (!stateValidation.valid) {
-    console.error('WebSocket invalid state data:', stateValidation.error);
+    console.error('cloud invalid state data:', stateValidation.error);
     return;
   }
   const stateData = stateValidation.data;
 
   // A status without a project name has nothing meaningful to display — drop it.
   if (!stateData.project) return;
-  const projectId = stateData.project;
+  const projectId = meta.sourceId ? `cloud:${meta.sourceId}` : stateData.project;
 
   const routeResult = windowManager.routeStatusUpdate(projectId, stateData, {
     preserveFocus: meta.auto === true
@@ -223,18 +228,18 @@ function handleWsStatusUpdate(data, meta = {}) {
 }
 
 /**
- * Handle project deletion from WebSocket ({type: 'delete', data: {project}}).
+ * Remove a deleted, deselected, or disconnected cloud source.
  * Closes the window when it follows the deleted project; windowManager
  * .onWindowClosed cascades into stateManager.cleanupProject and tray
  * refresh, so no extra bookkeeping is needed here. No-op when the window
  * follows another project.
  */
-function handleWsStatusDelete(projectId) {
+function removeCloudProject(projectId) {
   if (typeof projectId !== 'string' || projectId.length === 0) {
     return;
   }
   stateManager.cleanupProject(projectId);
-  windowManager.removeProject(projectId);
+  windowManager.removeProject(projectId, { forgetLastState: true });
   if (windowManager.getWindow(projectId)) windowManager.closeWindow(projectId);
 }
 
@@ -265,7 +270,7 @@ ipcMain.handle('get-version', () => {
 });
 
 // Character registry for the renderer's engine setup (canonical:
-// vibemon-static, resolved by registry-cache.cjs — cached remote copy or
+// the public App distribution, resolved by registry-cache.cjs — cached remote copy or
 // bundled fallback). staticBaseUrl lets the renderer build remote-first
 // image URLs.
 ipcMain.handle('get-character-registry', () => {
@@ -276,7 +281,7 @@ ipcMain.handle('get-character-registry', () => {
   };
 });
 
-// State registry for the renderer's engine setup (canonical: vibemon-static,
+// State registry for the renderer's engine setup (canonical: the public App distribution,
 // resolved by registry-cache.cjs)
 ipcMain.handle('get-state-registry', () => {
   return registryCache.statesRegistry;
@@ -451,6 +456,29 @@ app.whenReady().then(() => {
   trayManager.setSettingsWindowManager(settingsWindowManager);
   trayManager.setShowCharacterHandler(showCharacterAgain);
 
+  const monitoringStore = new Store({ name: 'monitoring' });
+  monitoringClient = new MonitoringClient({ preferences: monitoringStore, credentials: new CredentialStore(monitoringStore, safeStorage), allowLocalHttp: !app.isPackaged });
+  monitoringWindow = new MonitoringWindow(monitoringClient);
+  trayManager.openMonitoring = () => monitoringWindow.open();
+  const seenObservations = new Map();
+  monitoringClient.on('sources', sources => {
+    const selected = new Set(sources.filter(source => source.kind === 'agent').map(source => source.sourceId));
+    for (const sourceId of seenObservations.keys()) {
+      if (!selected.has(sourceId)) { removeCloudProject(`cloud:${sourceId}`); seenObservations.delete(sourceId); }
+    }
+    for (const source of sources) {
+      if (source.kind !== 'agent' || !source.agent || source.stale || seenObservations.get(source.sourceId) === source.observedAt) continue;
+      seenObservations.set(source.sourceId, source.observedAt);
+      const data = { ...source.agent };
+      for (const [metric, field] of [['contextPercent', 'memory'], ['usageSessionPercent', 'usage5h'], ['usageWeekPercent', 'usageWeek']]) {
+        if (source.metrics[metric] !== null) data[field] = Math.round(source.metrics[metric]);
+      }
+      handleCloudStatusUpdate(data, { auto: Boolean(windowManager.getFocusedProjectId()), sourceId: source.sourceId });
+    }
+  });
+  monitoringClient.start();
+
+
   // Start HTTP server
   httpServer = new HttpServer(stateManager, windowManager, app);
   httpServer.onStateUpdate = (menuOnly) => {
@@ -474,25 +502,14 @@ app.whenReady().then(() => {
   };
   httpServer.start();
 
-  // Start WebSocket client (if configured)
-  wsClient = new WsClient();
-  wsClient.onStatusUpdate = (data, meta) => {
-    handleWsStatusUpdate(data, meta);
-  };
-  wsClient.onStatusDelete = (projectId) => {
-    handleWsStatusDelete(projectId);
-  };
-  wsClient.onConnectionChange = () => {
-    if (trayManager) {
-      trayManager.updateMenu();
-    }
-  };
-
-  // Set wsClient reference in trayManager for status display
-  trayManager.setWsClient(wsClient);
+  trayManager.setMonitoringClient(monitoringClient);
   trayManager.setHookInstaller(hookInstaller);
   trayManager.setUpdateChecker(updateChecker);
-  settingsWindowManager.setWsClient(wsClient);
+  settingsWindowManager.setMonitoringClient(monitoringClient, () => monitoringWindow.open());
+  monitoringClient.on('change', () => {
+    settingsWindowManager.notifyChanged();
+    settingsWindowManager.notifyCloudStateChanged();
+  });
   updateChecker.onStateChanged = () => {
     if (trayManager) {
       trayManager.updateIcon();
@@ -503,8 +520,6 @@ app.whenReady().then(() => {
     }
   };
 
-  wsClient.connect();
-
   // Detect AI tools missing VibeMon hooks: once shortly after startup, then
   // periodically so tools installed later are picked up too. Also keeps
   // ~/.vibemon/config.json pointed at this app, since a hook file can be
@@ -513,8 +528,8 @@ app.whenReady().then(() => {
   // surfaces drift as badges (tray icon dot, tray submenu, Settings AI Tools
   // tab) — no dialog.
   const runHookCheck = () => {
-    vibemonConfigManager.ensureDesktopUrl(wsClient.getToken());
-    hookInstaller.checkAndPrompt(wsClient.getToken())
+    vibemonConfigManager.ensureDesktopUrl(null);
+    hookInstaller.checkAndPrompt(null)
       .catch((err) => console.error('Hook check failed:', err));
     hookInstaller.checkForChanges()
       .then(() => {
@@ -551,7 +566,7 @@ app.whenReady().then(() => {
   setTimeout(refreshUsageAndUpdateTray, USAGE_REFRESH_INITIAL_DELAY_MS);
   usageRefreshTimer = setInterval(refreshUsageAndUpdateTray, USAGE_REFRESH_INTERVAL_MS);
 
-  // Refresh the canonical registry cache from vibemon-static: once shortly
+  // Refresh the canonical registry cache from the public App distribution: once shortly
   // after startup, then periodically. A refreshed registry applies on the
   // next launch (startup resolves cache → bundled synchronously).
   setTimeout(() => registryCache.refresh(), UPDATE_CHECK_INITIAL_DELAY_MS);
@@ -623,13 +638,12 @@ app.on('before-quit', () => {
   if (trayManager) {
     trayManager.cleanup();
   }
+  if (monitoringClient) monitoringClient.stop();
+  if (monitoringWindow) monitoringWindow.cleanup();
   if (settingsWindowManager) {
     settingsWindowManager.cleanup();
   }
   if (httpServer) {
     httpServer.stop();
-  }
-  if (wsClient) {
-    wsClient.cleanup();
   }
 });

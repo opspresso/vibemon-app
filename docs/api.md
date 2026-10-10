@@ -1,6 +1,6 @@
 # HTTP API Reference
 
-Default port: `19280`
+This reference describes the Desktop App's local HTTP server on `127.0.0.1:19280`. Cloud ingestion, token management, and trends use the separate [Web Monitoring API](https://vibemon.io/docs/api/monitoring).
 
 > For the ESP32 device API, see [vibemon-esp32](https://github.com/opspresso/vibemon-esp32).
 
@@ -97,7 +97,7 @@ Agent bridges usually set `character` automatically:
 - `opencode` for OpenCode (currently rendered as `vibemon` because `opencode` is absent from the canonical character registry)
 - bridges without their own character fall back to `vibemon`
 
-Unknown character names are accepted and normalized to `vibemon`; they do not reject the status update or become Character Lock options. OpenCode uses the same `POST /status` endpoint and cloud relay payload as the other bridges. Its adapter sends `memory: 0` and omits plan-usage fields because it does not collect usage metrics.
+Unknown character names are accepted and normalized to `vibemon`; they do not reject the status update or become Character Lock options. OpenCode uses the same `POST /status` endpoint and cloud relay payload as the other bridges. Its adapter omits context and plan-usage fields because it does not collect usage metrics.
 
 **Response:**
 ```json

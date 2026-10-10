@@ -1,0 +1,104 @@
+{
+  "id": "vibemon-bridge",
+  "name": "VibeMon Bridge",
+  "description": "Real-time status bridge for VibeMon (ESP32/Desktop)",
+  "version": "1.2.0",
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "projectName": {
+        "type": "string",
+        "default": "OpenClaw",
+        "description": "Project name displayed on VibeMon"
+      },
+      "character": {
+        "type": "string",
+        "default": "claw",
+        "description": "Character to display (vibemon, clawd, codex, kiro, claw, opencode, daangni)"
+      },
+      "serialEnabled": {
+        "type": "boolean",
+        "description": "Enable serial output to ESP32 (unset: on when serial_port is set in ~/.vibemon/config.json)"
+      },
+      "serialPort": {
+        "type": ["string", "null"],
+        "description": "ESP32 serial port, wildcard supported (unset: serial_port from ~/.vibemon/config.json)"
+      },
+      "httpEnabled": {
+        "type": "boolean",
+        "description": "Enable HTTP output to VibeMon Desktop (unset: on when http_urls in ~/.vibemon/config.json is non-empty)"
+      },
+      "httpUrls": {
+        "type": "array",
+        "items": { "type": "string" },
+        "description": "VibeMon HTTP URLs (unset: http_urls from ~/.vibemon/config.json)"
+      },
+      "autoLaunch": {
+        "type": "boolean",
+        "default": false,
+        "description": "Auto-launch Desktop App via npx if not running"
+      },
+      "vibemonUrl": {
+        "type": ["string", "null"],
+        "description": "VibeMon API URL (unset: vibemon_url from ~/.vibemon/config.json)"
+      },
+      "vibemonToken": {
+        "type": ["string", "null"],
+        "description": "VibeMon API access token (unset: vibemon_token from ~/.vibemon/config.json)"
+      },
+      "debug": {
+        "type": "boolean",
+        "default": false,
+        "description": "Enable debug logging"
+      }
+    }
+  },
+  "uiHints": {
+    "projectName": {
+      "label": "Project Name",
+      "help": "Name shown on VibeMon display"
+    },
+    "character": {
+      "label": "Character",
+      "help": "vibemon (purple), clawd (orange), codex (blue), kiro (white), claw (red), opencode (default VibeMon fallback), daangni (peach)"
+    },
+    "serialEnabled": {
+      "label": "Serial Output",
+      "help": "Send status to ESP32 via USB serial (leave unset to follow ~/.vibemon/config.json)"
+    },
+    "serialPort": {
+      "label": "Serial Port",
+      "help": "ESP32 serial port, wildcard supported (leave unset to follow ~/.vibemon/config.json)",
+      "advanced": true
+    },
+    "httpEnabled": {
+      "label": "HTTP Output",
+      "help": "Send status to VibeMon Desktop app (leave unset to follow ~/.vibemon/config.json)"
+    },
+    "httpUrls": {
+      "label": "HTTP URLs",
+      "help": "List of VibeMon HTTP URLs (leave unset to follow ~/.vibemon/config.json)",
+      "advanced": true
+    },
+    "autoLaunch": {
+      "label": "Auto Launch",
+      "help": "Auto-launch Desktop App via npx if not running"
+    },
+    "vibemonUrl": {
+      "label": "VibeMon API URL",
+      "help": "URL for VibeMon cloud service (leave unset to follow ~/.vibemon/config.json)",
+      "advanced": true
+    },
+    "vibemonToken": {
+      "label": "VibeMon API Token",
+      "help": "Your token (leave unset to follow ~/.vibemon/config.json)",
+      "advanced": true
+    },
+    "debug": {
+      "label": "Debug Mode",
+      "help": "Enable verbose logging",
+      "advanced": true
+    }
+  }
+}

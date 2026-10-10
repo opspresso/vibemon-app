@@ -61,3 +61,8 @@ out/
 
 # Playwright
 .playwright-mcp
+
+# Public Python collectors and hooks
+*.egg-info/
+collector/build/
+collector/dist/

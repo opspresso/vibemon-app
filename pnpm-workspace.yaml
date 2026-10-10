@@ -1,7 +1,8 @@
 allowBuilds:
+  electron: true
   canvas: true
   electron-winstaller: true
 
 overrides:
-  'js-yaml@^3.0.0': 3.15.1
-  'js-yaml@^4.0.0': 4.3.1
+  'js-yaml@^3.0.0': ^3.15.2
+  'js-yaml@^4.0.0': ^4.3.2
