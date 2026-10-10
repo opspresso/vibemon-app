@@ -113,6 +113,7 @@ class CharacterWindowManager {
 
     this.onWindowClosed = null;  // callback: (projectId) => void
     this.onStateUpdated = null;  // callback: (projectId) => void, fires after state/info changes
+    this.onRegistryChanged = null;  // callback: (projectId) => void, including background projects
     this.onAlwaysOnTopChanged = null;  // callback: (projectId) => void, fires after the always-on-top flag changes
     this.onWindowMoved = null;  // callback: (projectId) => void
     this.onDisplayModeChanged = null;  // callback: () => void, fires after speech bubble field toggles
@@ -1208,6 +1209,7 @@ class CharacterWindowManager {
       this.focusedProjectId = null;
       this.focusedLastActiveAt = 0;
     }
+    if (removed) this.onRegistryChanged?.(projectId);
     return removed;
   }
 
@@ -1310,6 +1312,10 @@ class CharacterWindowManager {
     // Delete-then-set moves projectId to the end of the Map's insertion
     // order, so pruneStateRegistry() evicts the least-recently-updated
     // project first rather than whichever happened to be added earliest.
+    const previous = this.stateRegistry.get(projectId);
+    const changed = !previous || Object.keys(previous).length !== Object.keys(stateData).length ||
+      Object.entries(stateData).some(([key, value]) => previous[key] !== value);
+    const previousFocus = this.focusedProjectId;
     this.stateRegistry.delete(projectId);
     this.stateRegistry.set(projectId, stateData);
     this.pruneStateRegistry();
@@ -1317,6 +1323,7 @@ class CharacterWindowManager {
     const focusedProjectId = preserveFocus
       ? this.focusedProjectId
       : this.selectFocus(projectId, stateData.state);
+    if (changed || previousFocus !== focusedProjectId) this.onRegistryChanged?.(projectId);
 
     if (focusedProjectId !== projectId) {
       // Focus stayed on a different (still-active) project — state was

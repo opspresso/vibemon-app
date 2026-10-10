@@ -22,6 +22,7 @@ const { MonitoringClient } = require('./monitoring/client.cjs');
 const { CredentialStore } = require('./monitoring/credential-store.cjs');
 const { WorkspaceWindow } = require('./workspace/window.cjs');
 const { WorkspaceSettings } = require('./workspace/settings.cjs');
+const { localActivity } = require('./workspace/activity.cjs');
 const { getUsageSnapshot } = require('./modules/usage-cache-reader.cjs');
 const { exec } = require('child_process');
 
@@ -87,8 +88,8 @@ function getBubbleOptions(projectId) {
 }
 
 // Refresh the speech bubble whenever the followed project's state/info changes
+windowManager.onRegistryChanged = () => workspaceWindow?.notify('activity');
 windowManager.onStateUpdated = (projectId) => {
-  workspaceWindow?.notify('activity');
   bubbleWindowManager.update(projectId, getBubbleOptions(projectId))
     .catch((err) => console.error('Bubble update failed:', err));
 };
@@ -455,10 +456,7 @@ app.whenReady().then(() => {
   workspaceWindow = new WorkspaceWindow({
     monitoring: monitoringClient,
     settings: workspaceSettings,
-    getActivity: () => Object.entries(windowManager.getRegisteredStates()).filter(([id]) => !id.startsWith('cloud:')).map(([id, state]) => ({
-      id, focused: windowManager.getFocusedProjectId() === id,
-      ...Object.fromEntries(['project', 'state', 'character', 'tool', 'model', 'memory', 'usage5h', 'usageWeek'].filter(key => state[key] !== undefined).map(key => [key, state[key]]))
-    })),
+    getActivity: () => localActivity(windowManager.getRegisteredStates(), windowManager.getWindowCount() ? windowManager.getFocusedProjectId() : null),
     getUsage: () => getUsageSnapshot(),
     showCompanion: showCharacterAgain,
     reportError: error => dialog.showErrorBox('VibeMon workspace could not open', error.message)

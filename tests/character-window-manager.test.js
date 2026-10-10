@@ -1174,3 +1174,26 @@ describe('drag source lifecycle', () => {
     expect(character.listenerCount('closed')).toBe(0);
   });
 });
+
+test('background registry changes notify the workspace without retargeting the companion', () => {
+  const manager = new CharacterWindowManager();
+  manager.stateRegistry.set('front', { project: 'front', state: 'working', character: 'codex' });
+  manager.focusedProjectId = 'front';
+  manager.entry = { projectId: 'front', state: manager.stateRegistry.get('front') };
+  manager.onRegistryChanged = jest.fn();
+  manager.onStateUpdated = jest.fn();
+  const ensure = jest.spyOn(manager, 'ensureWindow');
+  const background = { project: 'background', state: 'thinking', character: 'clawd' };
+  const result = manager.routeStatusUpdate('background', background);
+  expect(result.updateResult.updated).toBe(false);
+  expect(manager.getFocusedProjectId()).toBe('front');
+  expect(manager.getRegisteredState('background')).toEqual(background);
+  expect(manager.onRegistryChanged).toHaveBeenCalledWith('background');
+  expect(manager.onStateUpdated).not.toHaveBeenCalled();
+  expect(ensure).not.toHaveBeenCalled();
+  manager.routeStatusUpdate('background', { ...background });
+  expect(manager.onRegistryChanged).toHaveBeenCalledTimes(1);
+  manager.removeProject('background');
+  expect(manager.onRegistryChanged).toHaveBeenCalledTimes(2);
+  manager.cleanup();
+});
