@@ -637,6 +637,26 @@ describe('restoreLastWindow', () => {
     expect(manager.onStateUpdated).toHaveBeenCalledWith('proj-a');
   });
 
+  test.each(['project', null])('closing the companion lets %p expire without reopening it', project => {
+    const manager = new CharacterWindowManager();
+    const window = makeMockWindow();
+    const { BrowserWindow } = require('electron');
+    BrowserWindow.mockImplementationOnce(() => window);
+    manager.routeStatusUpdate(project, { project, state: 'working', character: 'codex' });
+    window.on.mock.calls.find(([event]) => event === 'closed')[1]();
+    expect(manager.getWindowCount()).toBe(0);
+    expect(manager.getFocusedProjectId()).toBeNull();
+    const creations = BrowserWindow.mock.calls.length;
+    manager.routeStatusUpdate(project, { project, state: 'idle', character: 'codex' }, { preserveFocus: true });
+    expect(manager.getRegisteredState(project).state).toBe('idle');
+    expect(BrowserWindow).toHaveBeenCalledTimes(creations);
+    manager.routeStatusUpdate(project, { project, state: 'sleep', character: 'codex' }, { preserveFocus: true });
+    manager.removeProject(project);
+    BrowserWindow.mockImplementationOnce(() => makeMockWindow());
+    expect(manager.restoreLastWindow().stateData.state).toBe('sleep');
+    manager.cleanup();
+  });
+
   test('restores the source identity independently of its label, then forgets deselected sources', () => {
     const manager = new CharacterWindowManager();
     const id = 'cloud:account-work';

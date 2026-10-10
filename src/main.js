@@ -165,7 +165,7 @@ stateManager.onWindowCloseTimeout = (projectId) => {
 // Set up window manager callback for when the window is closed
 windowManager.onWindowClosed = (projectId) => {
   workspaceWindow?.notify('activity');
-  stateManager.cleanupProject(projectId);
+  // Activity expires independently of the companion's visibility.
   bubbleWindowManager.destroy(projectId);
   if (trayManager) {
     trayManager.updateMenu();

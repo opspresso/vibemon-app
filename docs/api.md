@@ -139,6 +139,7 @@ curl http://127.0.0.1:19280/status
 
 Close the character window (only succeeds when it currently follows the
 given project). It reappears on the next status update.
+Local activity keeps its normal idle/sleep timeouts while the companion is closed; those timers do not reopen it.
 
 ```bash
 curl -X POST http://127.0.0.1:19280/close \
@@ -153,7 +154,7 @@ curl -X POST http://127.0.0.1:19280/close \
 
 ### POST /show
 
-Show the character window.
+Show an existing character window. Use **Show companion** in the App to recreate a closed window.
 
 ```bash
 # Show the window regardless of which project it follows
