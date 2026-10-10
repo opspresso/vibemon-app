@@ -3,6 +3,7 @@
  */
 
 const { REQUEST_TIMEOUT_MS } = require('../shared/config.cjs');
+const LOCAL_ORIGIN = /^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/;
 
 /**
  * Set CORS headers on response
@@ -13,7 +14,7 @@ const { REQUEST_TIMEOUT_MS } = require('../shared/config.cjs');
 function setCorsHeaders(res, req) {
   const origin = req?.headers?.origin || '';
   // Allow localhost origins only (IPv4, IPv6, with various port numbers)
-  const isLocalhost = /^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/.test(origin);
+  const isLocalhost = LOCAL_ORIGIN.test(origin);
 
   if (isLocalhost) {
     res.setHeader('Access-Control-Allow-Origin', origin);
@@ -24,7 +25,13 @@ function setCorsHeaders(res, req) {
 
 function isAllowedOrigin(req) {
   const origin = req?.headers?.origin;
-  return !origin || /^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/.test(origin);
+  return !origin || LOCAL_ORIGIN.test(origin);
+}
+
+function isAllowedHost(req) {
+  const host = req?.headers?.host;
+  // Browsers always send Host, including same-origin reads without Origin.
+  return host === undefined || typeof host === 'string' && /^(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/i.test(host);
 }
 
 function hasJsonContentType(req) {
@@ -117,6 +124,7 @@ function parseJsonBody(req, maxSize, timeout = REQUEST_TIMEOUT_MS) {
 module.exports = {
   setCorsHeaders,
   isAllowedOrigin,
+  isAllowedHost,
   hasJsonContentType,
   sendJson,
   sendError,

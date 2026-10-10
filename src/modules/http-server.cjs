@@ -5,7 +5,7 @@
 const http = require('http');
 const { URL } = require('url');
 const { HTTP_PORT, MAX_PAYLOAD_SIZE, RATE_LIMIT, RATE_WINDOW_MS, CHARACTER_NAMES } = require('../shared/config.cjs');
-const { setCorsHeaders, isAllowedOrigin, hasJsonContentType, sendJson, sendError, parseJsonBody } = require('./http-utils.cjs');
+const { setCorsHeaders, isAllowedOrigin, isAllowedHost, hasJsonContentType, sendJson, sendError, parseJsonBody } = require('./http-utils.cjs');
 const { validateStatusPayload } = require('./validators.cjs');
 
 // Rate limiting: cleanup when the per-IP map exceeds this size
@@ -120,8 +120,8 @@ class HttpServer {
   }
 
   async handleRequest(req, res) {
-    if (!isAllowedOrigin(req)) {
-      sendError(res, 403, 'Origin not allowed');
+    if (!isAllowedOrigin(req) || !isAllowedHost(req)) {
+      sendError(res, 403, 'Request host or origin is not allowed');
       return;
     }
     setCorsHeaders(res, req);

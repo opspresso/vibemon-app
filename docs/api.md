@@ -12,6 +12,7 @@ This reference describes the Desktop App's local HTTP server on `127.0.0.1:19280
 | Rate limit | 600 req/min | Per IP address |
 | Request timeout | 30 sec | Prevents Slowloris attacks |
 | Browser origin | localhost only | Requests with a non-local browser `Origin` are rejected |
+| Request host | loopback only | A supplied `Host` must name `localhost`, `127.0.0.1`, or `[::1]`, with an optional port |
 | Content type | `application/json` | Required for JSON mutation endpoints |
 
 ### Input Validation
@@ -298,7 +299,7 @@ curl -X POST http://127.0.0.1:19280/quit
 |------|-------------|
 | `200` | Success |
 | `400` | Bad request (validation error) |
-| `403` | Browser origin is not localhost |
+| `403` | Request host or browser origin is not local |
 | `404` | Not found |
 | `408` | Request timeout |
 | `413` | Payload too large (>10KB) |
