@@ -5,6 +5,7 @@ export function setupDetail({ getFrame, request, run }) {
   const dialog = $('detail-dialog');
   let selected = null;
   let points = [];
+  let historyMetrics = null;
   let generation = 0;
   let timer = null;
   let visible = true;
@@ -14,7 +15,7 @@ export function setupDetail({ getFrame, request, run }) {
   }
   function draw() {
     const key = $('trend-metric').value;
-    const metric = selected.displayMetrics.find((item) => item.key === key);
+    const metric = (historyMetrics || selected.displayMetrics).find((item) => item.key === key);
     const chart = $('chart');
     chart.replaceChildren();
     if (!metric) {
@@ -84,8 +85,8 @@ export function setupDetail({ getFrame, request, run }) {
       });
       if (requestGeneration !== generation || !dialog.open) return;
       const choice = $('trend-metric').value;
-      selected = { ...selected, displayMetrics: result.displayMetrics };
-      const options = metrics(selected);
+      historyMetrics = result.displayMetrics;
+      const options = metrics({ displayMetrics: historyMetrics });
       choices(
         $('trend-metric'),
         options.map((metric) => [metric.key, metric.label]),
@@ -111,7 +112,7 @@ export function setupDetail({ getFrame, request, run }) {
     text($('detail-title'), source.displayName);
     text(
       $('detail-type'),
-      source.isAccount ? `${providerName(source.provider)} ACCOUNT` : resourceType(source)
+      source.isAccount ? `${providerName(source.provider)} · ${source.sourceId.slice(source.provider.length + 1)}` : resourceType(source)
     );
     const status = el('span');
     badge(status, source.stale ? 'stale' : source.agent?.state || source.health);
@@ -149,10 +150,11 @@ export function setupDetail({ getFrame, request, run }) {
       }
     );
     const choice = $('trend-metric').value;
+    const options = historyMetrics ? metrics({ displayMetrics: historyMetrics }) : selectedMetrics;
     choices(
       $('trend-metric'),
-      selectedMetrics.map((metric) => [metric.key, metric.label]),
-      selectedMetrics.some((metric) => metric.key === choice) ? choice : selectedMetrics[0]?.key || ''
+      options.map((metric) => [metric.key, metric.label]),
+      options.some((metric) => metric.key === choice) ? choice : options[0]?.key || ''
     );
     $('detail-history').hidden = !source.displayMetrics.length;
     $('edit-resource').hidden = source.isAccount;
@@ -161,6 +163,7 @@ export function setupDetail({ getFrame, request, run }) {
     stop();
     selected = source;
     points = [];
+    historyMetrics = null;
     dialog.querySelector('.dialog-error').hidden = true;
     renderSource(source);
     $('chart').replaceChildren();
@@ -176,6 +179,7 @@ export function setupDetail({ getFrame, request, run }) {
     stop();
     selected = null;
     points = [];
+    historyMetrics = null;
     for (const id of ['detail-readings', 'detail-members', 'chart']) {
       $(id).replaceChildren();
       $(id)._items = new Map();

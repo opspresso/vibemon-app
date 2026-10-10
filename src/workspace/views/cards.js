@@ -132,7 +132,7 @@ export function renderCards(
       card._source = source;
       const parts = card._parts;
       text(parts.name, source.displayName);
-      text(parts.type, source.isAccount ? providerName(source.provider) : resourceType(source));
+      text(parts.type, source.isAccount ? `${providerName(source.provider)} · ${source.sourceId.slice(source.provider.length + 1)}` : resourceType(source));
       const identity = source.isAccount ? source.agent?.character : source.kind;
       if (parts.image.dataset.identity !== identity) {
         if (source.isAccount) {

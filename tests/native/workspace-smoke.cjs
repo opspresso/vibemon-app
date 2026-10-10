@@ -82,10 +82,22 @@ startFixture().then(async fixture => {
   state.sources = originalSources;
   await client.poll(true);
 
+  const originalTrend = state.trend;
+  state.trend = item => ({ ...originalTrend(item), metricDefinitions: { latency: { label: 'Temperature', unit: '°C', display: 'gauge', min: -40, max: 20 } }, metricOrder: ['latency'], points: [{ timestamp: new Date().toISOString(), average: { latency: -12 }, maximum: { latency: -12 }, samples: 1, expiresAt: Date.now() / 1000 + 86400 }] });
+  await click('[aria-label="View Cache service details"]');
+  await until(async () => (await text('#chart')).includes('-40°C'), 'history uses its returned signed metric schema');
+  await client.poll(true); await delay(150);
+  assert.ok((await text('#chart')).includes('-40°C'), 'a latest-state poll cannot relabel historical values');
+  assert.ok(Math.abs(await ui('Number(document.querySelector("#chart circle").getAttribute("cy"))') - 115.333333) < 0.000001);
+  await click('[data-close-dialog="detail-dialog"]');
+  state.trend = originalTrend;
+
   await navigate('agents');
   assert.equal(await ui('document.querySelectorAll("#agent-cards .card").length'), 4);
   await input('#agent-filter', 'codex');
   assert.deepEqual(await ui('[...document.querySelectorAll("#agent-cards h3")].map(node => node.textContent)'), ['Engineering', 'Personal projects']);
+  assert.ok((await text('#agent-cards')).includes('Codex · team'));
+  assert.ok((await text('#agent-cards')).includes('Codex · personal'));
   await input('#agent-filter', 'kiro');
   assert.ok((await text('#agent-cards')).includes('Needs input'));
   assert.ok((await text('#agent-cards')).includes('—'), 'unreported provider quota is not zero');
