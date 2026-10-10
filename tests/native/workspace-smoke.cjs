@@ -25,18 +25,42 @@ startFixture().then(async fixture => {
   const text = selector => ui(`document.querySelector(${JSON.stringify(selector)}).textContent`);
   const input = (selector, value, event = 'input') => ui(`(() => { const input = document.querySelector(${JSON.stringify(selector)}); input.value = ${JSON.stringify(value)}; input.dispatchEvent(new Event(${JSON.stringify(event)}, { bubbles: true })); })()`);
   const visible = selector => ui(`Boolean(document.querySelector(${JSON.stringify(selector)})?.checkVisibility())`);
+  const verifyContrast = async () => {
+    const ratios = await ui(`(() => {
+      function luminance(color) {
+        if (!/^rgb/.test(color)) throw new Error('Unresolved color: ' + color);
+        const channels = color.match(/[\\d.]+/g).slice(0, 3).map(value => {
+          const channel = Number(value) / 255;
+          return channel <= 0.04045 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4;
+        });
+        return channels[0] * 0.2126 + channels[1] * 0.7152 + channels[2] * 0.0722;
+      }
+      return [['body', 'body'], ['#page-description', 'body'], ['.project-tag', '.project-tag'], ['#save-connection', '#save-connection'], ['.chip.good', '.chip.good'], ['.chip.warning', '.chip.warning']].map(([foreground, background]) => {
+        const a = luminance(getComputedStyle(document.querySelector(foreground)).color);
+        const b = luminance(getComputedStyle(document.querySelector(background)).backgroundColor);
+        return { selector: foreground, ratio: (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05) };
+      });
+    })()`);
+    for (const entry of ratios) assert.ok(entry.ratio >= 4.5, `text contrast ${entry.selector}: ${entry.ratio.toFixed(2)}`);
+  };
   const navigate = async route => {
     view.open(route);
     await until(() => visible(`[data-page="${route}"]`), `${route} page visible`);
   };
   const screenshot = async name => {
     await until(() => ui('document.getElementById("toast").hidden'), 'transient feedback completed');
-    await ui('Promise.all(document.getAnimations().map(animation => animation.finished))');
+    await ui(`Promise.all(document.getAnimations().filter(animation => {
+      const target = animation.effect?.target;
+      if (!(target instanceof Element) || !target.checkVisibility({ contentVisibilityAuto: true }) || animation.effect.getTiming().iterations === Infinity) return false;
+      const bounds = target.getBoundingClientRect();
+      return bounds.bottom > 0 && bounds.top < innerHeight && bounds.right > 0 && bounds.left < innerWidth;
+    }).map(animation => animation.finished))`);
     await ui('new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))');
     fs.writeFileSync(path.join(output, `${name}.png`), (await web.capturePage()).toPNG());
   };
   await until(() => ui('document.querySelectorAll("#overview-resources .card").length === 3'), 'populated overview');
   await until(() => view.window.isVisible(), 'workspace shown');
+  await until(() => ui('document.hasFocus()'), 'workspace accepts keyboard input');
   await ui('new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))');
   assert.equal(client.getStatus(), 'connected');
   assert.ok(!JSON.stringify(view.snapshot()).includes(TOKEN), 'snapshots omit read credentials');
@@ -52,6 +76,7 @@ startFixture().then(async fixture => {
   await screenshot('overview-dark');
 
   await navigate('resources');
+  await ui('window.focusTrace = []; for (const type of ["focusin", "focusout"]) document.addEventListener(type, event => window.focusTrace.push({ type, id: event.target.id, page: document.documentElement.dataset.page }));');
   assert.equal(await ui('document.querySelectorAll("#resource-cards .card").length'), 4);
   assert.ok((await text('#resource-cards')).includes('Unified memory'));
   assert.ok((await text('#resource-cards')).includes('Stale'));
@@ -59,7 +84,9 @@ startFixture().then(async fixture => {
   await ui('window.originalCard = [...document.querySelectorAll("#resource-cards .card")].find(card => card.textContent.includes("Cache service")); document.getElementById("resource-search").focus();');
   await input('#resource-search', 'Cache');
   await ui('document.getElementById("resource-search").setSelectionRange(1, 3)');
+  assert.equal(await ui('document.activeElement.id'), 'resource-search', 'the search field has focus before polling');
   await client.poll(true); await delay(150);
+  if (await ui('document.activeElement.id') !== 'resource-search') console.log('Focus diagnostic:', await ui('({ page: document.documentElement.dataset.page, active: document.activeElement.tagName, visible: document.visibilityState, focused: document.hasFocus(), events: window.focusTrace })'));
   assert.deepEqual(await ui('({ same: window.originalCard === document.querySelector("#resource-cards .card"), focused: document.activeElement.id, start: document.activeElement.selectionStart, end: document.activeElement.selectionEnd })'), { same: true, focused: 'resource-search', start: 1, end: 3 });
   await input('#resource-search', 'no matching resource');
   assert.equal(await text('#resource-cards h3'), 'No matching resources');
@@ -109,6 +136,7 @@ startFixture().then(async fixture => {
   assert.ok((await text('#agent-cards')).includes('—'), 'unreported provider quota is not zero');
   await input('#agent-filter', 'all');
   await screenshot('coding-accounts');
+  await verifyContrast();
   await click('[data-page="agents"] [data-selection]');
   await until(() => visible('#selection-dialog'), 'selection dialog');
   const chosenMetrics = await ui('document.querySelectorAll("#metric-choices input:checked").length');
@@ -161,6 +189,7 @@ startFixture().then(async fixture => {
   await until(() => ports.appearance.CharacterScale === 80, 'scale preference saved');
   await input('#theme', 'light', 'change');
   await navigate('overview');
+  await verifyContrast();
   await screenshot('overview-light');
   await navigate('companion');
   assert.equal(await value('#render-mode'), '2d');

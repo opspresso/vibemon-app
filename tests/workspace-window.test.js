@@ -23,13 +23,14 @@ beforeEach(() => {
   native.webContents = Object.assign(new EventEmitter(), {
     mainFrame: {}, send: jest.fn(), setWindowOpenHandler: jest.fn()
   });
-  let visible = false, destroyed = false;
+  let visible = false, destroyed = false, focused = false;
   Object.assign(native, {
     isDestroyed: () => destroyed, isVisible: () => visible, isMinimized: jest.fn(() => false),
-    show: jest.fn(() => { visible = true; native.emit('show'); }),
-    hide: jest.fn(() => { visible = false; native.emit('hide'); }),
+    isFocused: jest.fn(() => focused),
+    show: jest.fn(() => { visible = true; focused = true; native.emit('show'); }),
+    hide: jest.fn(() => { visible = false; focused = false; native.emit('hide'); }),
     destroy: jest.fn(() => { destroyed = true; native.emit('closed'); }),
-    focus: jest.fn(), restore: jest.fn(), loadFile: jest.fn(() => Promise.resolve())
+    focus: jest.fn(() => { focused = true; }), restore: jest.fn(), loadFile: jest.fn(() => Promise.resolve())
   });
   BrowserWindow.mockImplementation(() => native);
   const monitoring = Object.assign(new EventEmitter(), {
@@ -64,6 +65,11 @@ test('one sandboxed window serves navigation and denies external window navigati
   expect(BrowserWindow).toHaveBeenCalledTimes(1);
   expect(native.restore).toHaveBeenCalledTimes(1);
   expect(view.snapshot().route).toBe('companion');
+  expect(native.show).toHaveBeenCalledTimes(1);
+  expect(native.focus).not.toHaveBeenCalled();
+  native.isFocused.mockReturnValue(false);
+  view.open('resources');
+  expect(native.show).toHaveBeenCalledTimes(2);
 });
 
 test('only the workspace main frame may request data or perform actions', async () => {

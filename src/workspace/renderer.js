@@ -18,6 +18,7 @@ const settingsPages = new Set(['connections', 'companion', 'integrations', 'abou
 let frame = null;
 let toastTimer = null;
 let visible = true;
+let pageFocusPending = false;
 let preferences, selection, detail;
 document.documentElement.dataset.platform = api.platform;
 hydrateIcons();
@@ -106,6 +107,8 @@ selection = setupSelection(shared);
 detail = setupDetail(shared);
 
 function accept(value) {
+  const pageChanged = Boolean(frame && frame.route !== value.route);
+  if (pageChanged) pageFocusPending = true;
   if (frame && frame.cloud.connectionRevision !== value.cloud.connectionRevision) {
     detail.close();
     selection.close();
@@ -123,9 +126,20 @@ function accept(value) {
     $('main').scrollTop = 0;
   }
   frame = value;
-  if (visible) render(value);
+  if (visible) {
+    render(value);
+    focusPage();
+  }
   detail.changed(value);
 }
+
+function focusPage() {
+  if (pageFocusPending && visible && document.hasFocus()) {
+    pageFocusPending = false;
+    $('page-title').focus({ preventScroll: true });
+  }
+}
+window.addEventListener('focus', focusPage);
 
 function render(value) {
   const { cloud, settings, activity, usage } = value;
@@ -133,6 +147,7 @@ function render(value) {
   document.documentElement.dataset.page = route;
   configureSprites(settings.options.characters);
   text($('page-title'), pages[route][0]);
+  $('page-title').setAttribute('aria-label', settingsPages.has(route) ? `Settings: ${route.charAt(0).toUpperCase()}${route.slice(1)}` : pages[route][0]);
   text($('page-description'), pages[route][1]);
   text($('breadcrumb'), settingsPages.has(route) ? 'PREFERENCES' : 'WORKSPACE');
   for (const section of document.querySelectorAll('[data-page]'))
@@ -340,21 +355,13 @@ $('show-companion').addEventListener('click', () =>
 $('dismiss-error').addEventListener('click', () => {
   $('error').hidden = true;
 });
-document.addEventListener('keydown', (event) => {
-  if ((event.metaKey || event.ctrlKey) && !event.altKey) {
-    const route = { 1: 'overview', 2: 'resources', 3: 'agents', ',': 'companion' }[event.key];
-    if (route) {
-      event.preventDefault();
-      navigate(route);
-    }
-  }
-});
 const stopChanges = api.onChange(accept);
 const stopVisibility = api.onVisibility((value) => {
   visible = value;
   detail.visibility(value);
   if (value && frame) render(frame);
   else preferences.leave();
+  if (value) focusPage();
 });
 request('snapshot').then(accept).catch(fail);
 window.addEventListener('beforeunload', () => {

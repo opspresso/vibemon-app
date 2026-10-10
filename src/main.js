@@ -23,6 +23,7 @@ const { CredentialStore } = require('./monitoring/credential-store.cjs');
 const { WorkspaceWindow } = require('./workspace/window.cjs');
 const { WorkspaceSettings } = require('./workspace/settings.cjs');
 const { localActivity } = require('./workspace/activity.cjs');
+const { installWorkspaceMenu } = require('./workspace/menu.cjs');
 const { getUsageSnapshot } = require('./modules/usage-cache-reader.cjs');
 const { exec } = require('child_process');
 
@@ -467,6 +468,7 @@ app.whenReady().then(() => {
   };
   trayManager.openDashboard = () => workspaceWindow.open('overview');
   trayManager.openSettings = page => workspaceWindow.open(page || 'companion');
+  installWorkspaceMenu({ open: page => workspaceWindow.open(page), showCompanion: showCharacterAgain });
   trayManager.setShowCharacterHandler(showCharacterAgain);
   trayManager.createTray();
   const seenObservations = new Map();

@@ -4,6 +4,7 @@ const { URL } = require('node:url');
 const { MonitoringClient } = require('../../src/monitoring/client.cjs');
 const { WorkspaceSettings } = require('../../src/workspace/settings.cjs');
 const { WorkspaceWindow } = require('../../src/workspace/window.cjs');
+const { installWorkspaceMenu } = require('../../src/workspace/menu.cjs');
 const { TOKEN, memoryStore, sources, createPorts, trend } = require('../fixtures/workspace.cjs');
 
 const directory = process.env.VIBEMON_TEST_USER_DATA;
@@ -57,6 +58,7 @@ async function startFixture() {
   }
   app.once('before-quit', cleanup);
   await client.configure({ url: 'https://vibemon.io', token: TOKEN });
+  installWorkspaceMenu({ open: page => view.open(page), showCompanion: ports.showCompanion });
   view.open('overview');
   view.window.webContents.on('console-message', details => {
     if (details.level === 'error') errors.push(details.message);

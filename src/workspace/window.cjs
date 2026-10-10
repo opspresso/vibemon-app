@@ -97,12 +97,14 @@ class WorkspaceWindow {
     this.navigate(route);
     if (this.window && !this.window.isDestroyed()) {
       if (this.window.isMinimized()) this.window.restore();
-      this.window.show(); this.window.focus(); this.publish();
+      if (!this.window.isVisible() || !this.window.isFocused()) this.window.show();
+      this.publish();
       return;
     }
     const window = new BrowserWindow({
       width: 1220, height: 830, minWidth: 820, minHeight: 600, show: false,
       title: 'VibeMon', backgroundColor: '#f6f8fb',
+      autoHideMenuBar: process.platform !== 'darwin',
       ...(process.platform === 'darwin' ? { titleBarStyle: 'hiddenInset', trafficLightPosition: { x: 18, y: 16 } } : {}),
       webPreferences: { preload: path.join(__dirname, 'preload.cjs'), contextIsolation: true, nodeIntegration: false, sandbox: true }
     });
@@ -111,7 +113,7 @@ class WorkspaceWindow {
     window.webContents.on('will-navigate', event => event.preventDefault());
     window.once('ready-to-show', () => {
       if (window.isDestroyed() || this.disposed) return;
-      centerOnCursorDisplay(window); window.show(); window.focus(); this.publish();
+      centerOnCursorDisplay(window); window.show(); this.publish();
     });
     window.on('close', event => {
       if (!this.disposed) { event.preventDefault(); window.hide(); }
