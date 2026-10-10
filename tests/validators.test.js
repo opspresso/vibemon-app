@@ -90,7 +90,7 @@ describe('validateProject', () => {
     expect(result.error).toContain('must be a string');
   });
 
-  test('accepts project name at the cloud API limit (128)', () => {
+  test('accepts project name at the local hook limit (128)', () => {
     const result = validateProject('a'.repeat(128));
     expect(result.valid).toBe(true);
   });
@@ -204,7 +204,7 @@ describe('validateTool', () => {
     expect(result.error).toContain('must be a string');
   });
 
-  test('accepts tool name at the cloud API limit (64)', () => {
+  test('accepts tool name at the local hook limit (64)', () => {
     const result = validateTool('a'.repeat(64));
     expect(result.valid).toBe(true);
   });
@@ -232,7 +232,7 @@ describe('validateModel', () => {
     expect(result.valid).toBe(false);
   });
 
-  test('accepts model name at the cloud API limit (64)', () => {
+  test('accepts model name at the local hook limit (64)', () => {
     const result = validateModel('a'.repeat(64));
     expect(result.valid).toBe(true);
   });

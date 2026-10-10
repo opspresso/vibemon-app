@@ -4,10 +4,8 @@
 
 const { VALID_STATES } = require('../shared/config.cjs');
 
-// Validation limits. project/tool/model match the cloud API's
-// STATUS_FIELD_LIMITS (vibemon src/lib/validation.ts): anything the cloud
-// accepts may reach this app through cloud polling, and a stricter limit
-// here would silently drop the whole update.
+// Local hook payload limits. Cloud source validation lives in
+// monitoring/domain.cjs and uses the cloud API's source contract.
 const PROJECT_MAX_LENGTH = 128;
 const TOOL_MAX_LENGTH = 64;
 const MODEL_MAX_LENGTH = 64;
@@ -82,16 +80,7 @@ function validateProject(project) {
  * @returns {{valid: boolean, error: string|null}}
  */
 function validateMemory(memory) {
-  if (memory === undefined || memory === null || memory === '') {
-    return { valid: true, error: null };
-  }
-  if (typeof memory !== 'number') {
-    return { valid: false, error: 'Memory must be a number' };
-  }
-  if (!Number.isInteger(memory) || memory < 0 || memory > 100) {
-    return { valid: false, error: 'Memory must be an integer between 0 and 100' };
-  }
-  return { valid: true, error: null };
+  return validateUsage(memory, 'Memory');
 }
 
 /**
