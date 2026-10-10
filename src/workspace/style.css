@@ -1606,3 +1606,55 @@ dialog::backdrop {
     scroll-behavior: auto !important;
   }
 }
+
+/* Small displays keep both monitoring categories in the initial overview. */
+@media (max-width: 1100px) {
+  #overview-resources > .card:nth-child(n + 3),
+  #overview-accounts > .card:nth-child(n + 3) {
+    display: none;
+  }
+}
+@media (max-height: 760px) {
+  [data-page='overview'] .main {
+    padding-top: 20px;
+  }
+  [data-page='overview'] .page-header {
+    margin-bottom: 16px;
+  }
+  [data-page='overview'] .page-header .eyebrow,
+  [data-page='overview'] .page-header p,
+  [data-page='overview'] .summary > .small,
+  [data-page='overview'] .section-heading .small,
+  [data-page='overview'] .compact-card .card-message {
+    display: none;
+  }
+  [data-page='overview'] .summary-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    margin-bottom: 14px;
+  }
+  [data-page='overview'] .summary {
+    padding: 10px 13px;
+  }
+  [data-page='overview'] .summary-symbol {
+    display: none;
+  }
+  [data-page='overview'] .summary strong {
+    font-size: 22px;
+    margin: 4px 0 0;
+  }
+  [data-page='overview'] .section-heading {
+    margin: 16px 0 9px;
+  }
+  .compact-card {
+    padding: 12px;
+  }
+  .compact-card .card-heading {
+    margin-bottom: 10px;
+  }
+  .compact-card .card-message {
+    margin-bottom: 8px;
+  }
+  .compact-card .card-footer {
+    padding-top: 8px;
+  }
+}

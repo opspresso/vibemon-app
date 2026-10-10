@@ -185,6 +185,10 @@ startFixture().then(async fixture => {
   await client.configure({ url: 'https://vibemon.io', token: TOKEN });
   await navigate('overview');
   await until(async () => (await text('#summary-resources')) === '3', 'hidden window receives latest state with the saved selection');
+  await ui('new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))');
+  const compactBounds = await ui('({ bottom: document.querySelector("#overview-accounts .card").getBoundingClientRect().bottom, viewport: innerHeight })');
+  await screenshot('compact-overview');
+  assert.ok(compactBounds.bottom < compactBounds.viewport, `both categories fit the minimum window: ${JSON.stringify(compactBounds)}`);
   assert.deepEqual(errors, [], 'no renderer or loading errors');
   console.log('PASS native workspace: navigation, custom metrics, multiple accounts, focus, selection, preferences, credential boundaries, recovery, resizing and visibility.');
   app.quit();
