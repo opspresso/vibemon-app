@@ -709,7 +709,7 @@ class HookInstaller {
     return new Promise((resolve) => {
       const child = spawn(python.command, [...python.prefixArgs, '-', ...flags], {
         stdio: ['pipe', 'pipe', 'pipe'],
-        env: { ...process.env, ...(token ? { VIBEMON_WRITE_TOKEN: token } : {}) },
+        env: { ...process.env, VIBEMON_DOCS_URL: DOCS_BASE, ...(token ? { VIBEMON_WRITE_TOKEN: token } : {}) },
         ...SPAWN_DEFAULTS
       });
       let stdout = '';

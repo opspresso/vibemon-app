@@ -45,7 +45,8 @@ import shutil
 import subprocess
 import sys
 from pathlib import Path
-from urllib.request import urlopen
+from urllib.parse import urlsplit
+from urllib.request import HTTPRedirectHandler, build_opener
 from urllib.error import URLError
 
 
@@ -118,6 +119,27 @@ def setup_tty_input():
 
 # VibeMon install files base URL
 DOCS_BASE_URL = "https://vibemon.io/install"
+MAX_DOWNLOAD_BYTES = 1024 * 1024
+
+
+def checked_download_url(value: str) -> str:
+    try:
+        url = urlsplit(value)
+        local = os.environ.get("VIBEMON_ALLOW_HTTP_LOCAL") == "1" and url.scheme == "http" and url.hostname in {"localhost", "127.0.0.1", "::1"}
+        if any(ord(character) <= 32 for character in value) or (url.scheme != "https" and not local) or not url.hostname or url.username is not None or url.password is not None or "?" in value or "#" in value:
+            raise ValueError()
+        _ = url.port
+    except ValueError:
+        raise ValueError("Use an HTTPS installer URL without credentials, query, or fragment") from None
+    return value.rstrip("/")
+
+
+class NoRedirect(HTTPRedirectHandler):
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        return None
+
+
+urlopen = build_opener(NoRedirect()).open
 
 # Shared configuration example file
 CONFIG_EXAMPLE_FILE = "vibemon/config.example.json"
@@ -201,7 +223,7 @@ TOKEN_PATTERN = re.compile(r"^vm_[a-f0-9]{60}$")
 def validate_token(token: str) -> None:
     """Accept only the server-generated API credential format."""
     if not TOKEN_PATTERN.fullmatch(token):
-        raise ValueError("Enter a generated write token from https://vibemon.io/account")
+        raise ValueError("Enter a generated write token from your Web Account page")
 
 
 def configure_token(config: dict, cli_token: str = None) -> dict:
@@ -210,7 +232,7 @@ def configure_token(config: dict, cli_token: str = None) -> dict:
     current_token = config.get("vibemon_token", "")
 
     print(f"\n{colored('VibeMon API Token Configuration:', 'cyan')}")
-    print("  Create a write token at https://vibemon.io/account")
+    print("  Create a write token in Account on the Web service you want to use")
 
     supplied = cli_token or os.environ.get("VIBEMON_WRITE_TOKEN")
     if supplied:
@@ -367,8 +389,11 @@ def load_json_or_backup(path: Path) -> dict:
 def download_file(url: str) -> str:
     """Download a file from URL and return its content."""
     try:
-        with urlopen(url, timeout=30) as response:
-            return response.read().decode("utf-8")
+        with urlopen(checked_download_url(url), timeout=30) as response:
+            raw = response.read(MAX_DOWNLOAD_BYTES + 1)
+            if len(raw) > MAX_DOWNLOAD_BYTES:
+                raise RuntimeError("Installer download exceeds the 1 MiB limit")
+            return raw.decode("utf-8")
     except (URLError, OSError) as e:
         # URLError is an OSError subclass, but a stalled read raises the bare
         # OSError/TimeoutError. Both must reach the integrity failure path.
@@ -381,6 +406,7 @@ MANIFEST_PATH = "manifest.json"
 # Local checkouts are read directly. Remote source requires a valid manifest.
 REMOTE_MANIFEST = {}
 _MANIFEST_LOADED = False
+_MANIFEST_BASE = None
 
 
 class IntegrityError(RuntimeError):
@@ -389,19 +415,20 @@ class IntegrityError(RuntimeError):
 
 def load_manifest(source) -> dict:
     """Require a complete integrity reference before downloading remote files."""
-    global _MANIFEST_LOADED, REMOTE_MANIFEST
+    global _MANIFEST_LOADED, _MANIFEST_BASE, REMOTE_MANIFEST
     if not source.is_online:
         return {}
-    if _MANIFEST_LOADED:
+    if _MANIFEST_LOADED and _MANIFEST_BASE == source.base_url:
         return REMOTE_MANIFEST
     try:
-        files = json.loads(download_file(f"{DOCS_BASE_URL}/{MANIFEST_PATH}"))["files"]
+        files = json.loads(download_file(f"{source.base_url}/{MANIFEST_PATH}"))["files"]
         if not isinstance(files, dict) or not files or any(not isinstance(key, str) or not isinstance(digest, str) or not re.fullmatch(r"[0-9a-f]{64}", digest) for key, digest in files.items()):
             raise ValueError("Invalid manifest")
     except (RuntimeError, ValueError, KeyError, TypeError) as error:
         raise IntegrityError("Cannot verify installation files. Publish the source and manifest together, then retry.") from error
     REMOTE_MANIFEST = files
     _MANIFEST_LOADED = True
+    _MANIFEST_BASE = source.base_url
     print(f"  {colored('✓', 'green')} manifest loaded ({len(files)} files)")
     return files
 
@@ -945,6 +972,7 @@ class FileSource:
     def __init__(self, local_dir: Path = None):
         self.local_dir = local_dir
         self.is_online = True
+        self.base_url = checked_download_url(os.environ.get("VIBEMON_DOCS_URL") or DOCS_BASE_URL)
 
         if local_dir is not None:
             # Check if running from local directory with install files
@@ -963,7 +991,7 @@ class FileSource:
         """
         if self.is_online:
             load_manifest(self)
-            url = f"{DOCS_BASE_URL}/{path}"
+            url = f"{self.base_url}/{path}"
             content = download_file(url)
             verify_content(path, content)
             return content
@@ -994,6 +1022,16 @@ def configure_vibemon_config(source: FileSource, cli_token: str = None) -> str:
 
     print("\nConfiguring VibeMon:")
     config = load_or_create_config(config_path, config_content)
+
+    origin = os.environ.get("VIBEMON_URL")
+    if origin:
+        origin = checked_download_url(origin)
+        if urlsplit(origin).path not in ("", "/"):
+            raise ValueError("VIBEMON_URL must be a Web origin without a path")
+        previous = str(config.get("vibemon_url", "")).rstrip("/")
+        if origin != previous and config.get("vibemon_token") and not (cli_token or os.environ.get("VIBEMON_WRITE_TOKEN")):
+            raise ValueError("Changing VIBEMON_URL requires a matching VIBEMON_WRITE_TOKEN")
+        config["vibemon_url"] = origin
 
     if not config_path.exists():
         print("  Creating new config at ~/.vibemon/config.json")

@@ -29,7 +29,7 @@ function Install-VibeMon {
     $ErrorActionPreference = 'Stop'
     $ProgressPreference = 'SilentlyContinue'
 
-    $docsBaseUrl = 'https://vibemon.io/install'
+    $docsBaseUrl = Get-VibeMonDocsBaseUrl
 
     # Windows PowerShell 5.1 still negotiates SSL3/TLS1.0 by default on some
     # builds, which docs.vibemon.io refuses.
@@ -57,7 +57,7 @@ Settings > Apps > Advanced app settings > App execution aliases.
 
     $tempScript = Join-Path ([IO.Path]::GetTempPath()) "vibemon-install-$PID.py"
     try {
-        Invoke-WebRequest -Uri "$docsBaseUrl/install.py" -OutFile $tempScript -UseBasicParsing -TimeoutSec 30
+        Invoke-WebRequest -Uri "$docsBaseUrl/install.py" -OutFile $tempScript -UseBasicParsing -TimeoutSec 30 -MaximumRedirection 0
 
         $expected = Get-VibeMonInstallerHash -DocsBaseUrl $docsBaseUrl
         $actual = (Get-FileHash -Path $tempScript -Algorithm SHA256).Hash
@@ -113,6 +113,19 @@ function Find-VibeMonPython {
     return $null
 }
 
+function Get-VibeMonDocsBaseUrl {
+    $value = if ($env:VIBEMON_DOCS_URL) { $env:VIBEMON_DOCS_URL } else { 'https://vibemon.io/install' }
+    $uri = $null
+    if (-not [Uri]::TryCreate($value, [UriKind]::Absolute, [ref]$uri)) {
+        throw 'Use an HTTPS installer URL without credentials, query, or fragment.'
+    }
+    $localHttp = $env:VIBEMON_ALLOW_HTTP_LOCAL -eq '1' -and $uri.Scheme -eq 'http' -and $uri.Host -in @('localhost', '127.0.0.1', '[::1]', '::1')
+    if (($uri.Scheme -ne 'https' -and -not $localHttp) -or -not $uri.Host -or $uri.UserInfo -or $value -match '[\s?#]') {
+        throw 'Use an HTTPS installer URL without credentials, query, or fragment.'
+    }
+    return $value.TrimEnd('/')
+}
+
 function Get-VibeMonInstallerHash {
     <#
     .SYNOPSIS
@@ -124,7 +137,7 @@ function Get-VibeMonInstallerHash {
     #>
     param([Parameter(Mandatory)][string]$DocsBaseUrl)
 
-    $manifest = Invoke-RestMethod -Uri "$DocsBaseUrl/manifest.json" -UseBasicParsing -TimeoutSec 30
+    $manifest = Invoke-RestMethod -Uri "$DocsBaseUrl/manifest.json" -UseBasicParsing -TimeoutSec 30 -MaximumRedirection 0
     if ($manifest.installer -isnot [string] -or $manifest.installer -notmatch '^[a-fA-F0-9]{64}$') {
         throw 'manifest.json must contain a valid installer SHA-256. Nothing was run.'
     }

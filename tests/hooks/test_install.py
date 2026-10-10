@@ -1221,6 +1221,17 @@ class TokenEnvironmentTest(unittest.TestCase):
 
 
 class ManifestAvailabilityTest(unittest.TestCase):
+    def test_custom_source_binds_manifest_and_files_to_the_same_base(self):
+        content = 'print("custom")\n'
+        digest = hashlib.sha256(content.encode()).hexdigest()
+        def download(url):
+            if url.endswith('/manifest.json'):
+                return json.dumps({'files': {'claude/statusline.py': digest}})
+            return content
+        with mock.patch.object(install, '_MANIFEST_LOADED', False), mock.patch.dict(os.environ, {'VIBEMON_DOCS_URL': 'https://custom.example/install/'}), mock.patch.object(install, 'download_file', side_effect=download) as fetch:
+            self.assertEqual(install.FileSource().get_file('claude/statusline.py'), content)
+            self.assertEqual(fetch.call_args_list, [mock.call('https://custom.example/install/manifest.json'), mock.call('https://custom.example/install/claude/statusline.py')])
+
     def test_remote_manifest_failure_stops_before_any_file_download(self):
         with mock.patch.object(install, '_MANIFEST_LOADED', False), mock.patch.object(install, 'download_file', side_effect=RuntimeError('unavailable')) as download:
             with self.assertRaises(install.IntegrityError):

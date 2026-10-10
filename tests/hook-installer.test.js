@@ -775,6 +775,7 @@ describe('HookInstaller', () => {
         expect.objectContaining({ stdio: ['pipe', 'pipe', 'pipe'] })
       );
       expect(spawn.mock.calls[0][2].shell).toBeUndefined();
+      expect(spawn.mock.calls[0][2].env.VIBEMON_DOCS_URL).toBe('https://docs.example.test');
       expect(fakeChild.stdin.write).toHaveBeenCalledWith('print(1)');
       expect(fakeChild.stdin.end).toHaveBeenCalled();
     });

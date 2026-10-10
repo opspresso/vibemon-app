@@ -49,6 +49,21 @@ All remote scripts and configuration templates require a matching [manifest.json
 
 The installer backs up modified configuration to `.bak`, writes atomically, and preserves unrelated hooks. Exit code `0` means every attempted installation succeeded. Undetected tools are skipped; a failure or a run with no installed tool returns `1`.
 
+## Self-hosted installation
+
+`VIBEMON_DOCS_URL` selects the installer file base, including its manifest and every helper/template. `VIBEMON_URL` selects the Web API origin and is saved in hook configuration when supplied. The two can use different hosts, for example when installation files are served by a CDN.
+
+```sh
+export VIBEMON_DOCS_URL=https://monitor.example/install
+export VIBEMON_URL=https://monitor.example
+# Supply VIBEMON_WRITE_TOKEN from that Web account through your secret manager.
+curl -fsSL "$VIBEMON_DOCS_URL/install.py" | python3 - --codex
+```
+
+PowerShell uses the same environment variables; download `install.ps1` from the chosen file base. The Python installer and PowerShell wrapper reject redirects, credentials in URLs, query strings, and fragments. Python file downloads are limited to 1 MiB. HTTPS certificate verification stays enabled. For isolated loopback development only, `VIBEMON_ALLOW_HTTP_LOCAL=1` permits HTTP on localhost addresses.
+
+Changing the API origin while a write token is saved requires an explicitly supplied `VIBEMON_WRITE_TOKEN`. The installer never moves a saved credential to a new host automatically. Without these overrides, the existing API configuration is preserved and installation files come from `https://vibemon.io/install`.
+
 ## 3. Configure delivery and account identity
 
 Shared transmission settings are in `~/.vibemon/config.json`:
