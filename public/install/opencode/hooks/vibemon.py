@@ -4,7 +4,7 @@ VibeMon Hook for opencode
 Desktop App + ESP32 (USB Serial / HTTP)
 Note: opencode has no Claude Code-style hooks. The opencode plugin
 (~/.config/opencode/plugins/vibemon.js) bridges opencode events to these
-hook events, and opencode does not report usage, so memory stays 0.
+hook events. Unsupported context and plan usage are omitted.
 Shared transport lives in vibemon_core.py (~/.vibemon/vibemon_core.py).
 """
 
@@ -14,7 +14,7 @@ import sys
 from pathlib import Path
 from typing import Any
 
-# Locate vibemon_core.py: repo checkout first (docs/vibemon/), then the
+# Locate vibemon_core.py: repo checkout first (public/install/vibemon/), then the
 # installed copy (~/.vibemon/).
 for _core_dir in (
     Path(__file__).resolve().parent.parent.parent / "vibemon",
