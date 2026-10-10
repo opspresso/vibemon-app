@@ -461,8 +461,8 @@
       <p class="notice danger dialog-error" role="alert" hidden></p>
       <p class="muted">Your choices only affect this desktop.</p>
       <div class="selection-toolbar">
-        <button id="select-all" class="text-button">Select all</button
-        ><button id="select-none" class="text-button">Clear selection</button
+        <button id="select-all" class="text-button">All sources</button
+        ><button id="select-none" class="text-button">Clear sources</button
         ><button id="discover" class="text-button"><span data-icon="refresh"></span>Discover sources</button>
       </div>
       <form id="selection-form">
@@ -478,6 +478,10 @@
         </div>
         <details class="advanced">
           <summary>Visible metrics</summary>
+          <div class="selection-toolbar">
+            <button type="button" id="all-metrics" class="text-button">All metrics</button>
+            <button type="button" id="clear-metrics" class="text-button">Clear metrics</button>
+          </div>
           <div id="metric-choices" class="choice-grid"></div>
         </details>
         <div class="dialog-footer">

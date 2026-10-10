@@ -111,6 +111,17 @@ startFixture().then(async fixture => {
   await screenshot('coding-accounts');
   await click('[data-page="agents"] [data-selection]');
   await until(() => visible('#selection-dialog'), 'selection dialog');
+  const chosenMetrics = await ui('document.querySelectorAll("#metric-choices input:checked").length');
+  await click('#select-none');
+  assert.equal(await ui('document.querySelectorAll("#source-choices input:checked, #account-choices input:checked").length'), 0);
+  assert.equal(await ui('document.querySelectorAll("#metric-choices input:checked").length'), chosenMetrics, 'clearing sources preserves metric preferences');
+  await click('#select-all');
+  await click('#selection-dialog details summary');
+  await click('#clear-metrics');
+  assert.equal(await ui('document.querySelectorAll("#metric-choices input:checked").length'), 0);
+  assert.equal(await ui('document.querySelectorAll("#source-choices input:checked, #account-choices input:checked").length'), 8, 'clearing metrics preserves source choices');
+  await click('#all-metrics');
+  await click('#selection-dialog details summary');
   await click('#source-choices input[value="production"]');
   await client.poll(true); await delay(150);
   assert.equal(await ui('document.querySelector("#source-choices input[value=production]").checked'), false, 'polling preserves selection drafts');

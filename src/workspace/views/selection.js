@@ -77,14 +77,14 @@ export function setupSelection({ getFrame, request, navigate, run, notify }) {
     });
     if (!dialog.open) dialog.showModal();
   }
-  $('select-all').addEventListener('click', () => {
-    for (const input of dialog.querySelectorAll('input[type=checkbox]')) input.checked = true;
+  function mark(ids, checked) {
+    for (const id of ids) for (const input of $(id).querySelectorAll('input[type=checkbox]')) input.checked = checked;
     count();
-  });
-  $('select-none').addEventListener('click', () => {
-    for (const input of dialog.querySelectorAll('input[type=checkbox]')) input.checked = false;
-    count();
-  });
+  }
+  $('select-all').addEventListener('click', () => mark(['source-choices', 'account-choices'], true));
+  $('select-none').addEventListener('click', () => mark(['source-choices', 'account-choices'], false));
+  $('all-metrics').addEventListener('click', () => mark(['metric-choices'], true));
+  $('clear-metrics').addEventListener('click', () => mark(['metric-choices'], false));
   $('discover').addEventListener('click', () =>
     run($('discover'), async () => {
       const saved = draft();
