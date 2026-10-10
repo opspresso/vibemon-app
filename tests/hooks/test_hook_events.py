@@ -134,6 +134,68 @@ def test_shared_serial_command_uses_locked_transport():
         assert json.loads(send.call_args.args[1]) == {"state": "done"}
 
 
+def test_cloud_bridge_process_preserves_accounts_and_machine_identity(tmp_path):
+    received = []
+
+    class Cloud(BaseHTTPRequestHandler):
+        def do_POST(self):
+            received.append((self.path, self.headers.get('Authorization'), json.loads(self.rfile.read(int(self.headers['Content-Length'])))))
+            self.send_response(200)
+            self.end_headers()
+
+        def log_message(self, *_):
+            pass
+
+    server = ThreadingHTTPServer(('127.0.0.1', 0), Cloud)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    payload = {'state': 'working', 'character': 'codex', 'project': 'Same gateway', 'memory': 0}
+    env = {
+        **os.environ, 'HOME': str(tmp_path), 'USERPROFILE': str(tmp_path),
+        'VIBEMON_URL': f'http://127.0.0.1:{server.server_port}', 'VIBEMON_TOKEN': 'fixture-write',
+        'VIBEMON_ALLOW_HTTP_LOCAL': '1', 'VIBEMON_HTTP_URLS': '', 'VIBEMON_SERIAL_PORT': '', 'DEBUG': '0',
+    }
+    try:
+        for identity in ['work', 'personal']:
+            for instance in ['one', 'two']:
+                for state in ['working', 'done']:
+                    result = subprocess.run(
+                        [sys.executable, str(DOCS / 'vibemon/vibemon_core.py'), '--send-cloud', 'openclaw'],
+                        input=json.dumps({**payload, 'state': state}), capture_output=True, text=True, timeout=10, cwd=tmp_path,
+                        env={**env, 'VIBEMON_OPENCLAW_ACCOUNT_ID': identity, 'VIBEMON_OPENCLAW_ACCOUNT_NAME': identity.title(), 'VIBEMON_INSTANCE_ID': instance},
+                    )
+                    assert result.returncode == 0, result.stderr
+                    assert 'fixture-write' not in result.stdout + result.stderr
+                assert received[-1][2]['sourceId'] == received[-2][2]['sourceId']
+        assert len(received) == 8
+        assert len({body['sourceId'] for _, _, body in received}) == 4
+        assert {body['account']['id'] for _, _, body in received} == {'work', 'personal'}
+        for endpoint, auth, body in received:
+            assert endpoint == '/api/status'
+            assert auth == 'Bearer fixture-write'
+            assert body['account']['provider'] == 'openclaw', 'character appearance does not select the provider'
+            assert body['account']['displayName'] == body['account']['id'].title()
+            assert body['observedAt'].endswith('Z')
+            assert body['character'] == 'codex'
+            assert body['memory'] == 0
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=2)
+
+
+def test_invalid_cloud_account_never_sends_credentials():
+    config = core.Config((), None, '', False, 'https://cloud.example', 'fixture-write')
+    with (
+        patch.dict(os.environ, {'VIBEMON_OPENCLAW_ACCOUNT_ID': 'invalid account'}),
+        patch.object(sys, 'stdin', io.StringIO('{"state":"working","project":"gateway"}')),
+        patch.object(core, 'get_config', return_value=config),
+        patch.object(core, 'open_credential_request') as network,
+    ):
+        assert core.handle_command('--send-cloud', ['openclaw']) is False
+        network.assert_not_called()
+
+
 @pytest.mark.skipif(os.name == "nt", reason="POSIX serial transport")
 def test_stalled_stty_is_bounded(tmp_path):
     port = tmp_path / "device"
