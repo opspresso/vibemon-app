@@ -83,7 +83,7 @@ class WorkspaceSettings {
       update: this.updateChecker.getState(),
       options: {
         alwaysOnTopModes: ALWAYS_ON_TOP_MODES,
-        characters: CHARACTER_NAMES.map(name => ({ name, displayName: CHARACTER_CONFIG[name].displayName })),
+        characters: CHARACTER_NAMES.map(name => ({ name, displayName: CHARACTER_CONFIG[name].displayName, image: CHARACTER_CONFIG[name].image })),
         speechBubbleFields: SPEECH_BUBBLE_FIELDS,
         characterScales: CHARACTER_SCALES,
         edgeMargins: EDGE_MARGINS

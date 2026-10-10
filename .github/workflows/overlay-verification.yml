@@ -5,6 +5,7 @@ on:
     paths:
       - 'src/**'
       - 'tests/native/**'
+      - 'tests/fixtures/**'
       - 'package.json'
       - 'pnpm-lock.yaml'
       - '.github/workflows/overlay-verification.yml'
@@ -30,6 +31,8 @@ jobs:
         with:
           version: '12.10.1'
       - run: pnpm install --frozen-lockfile
+      - name: Verify desktop workspace
+        run: pnpm test:workspace
       - name: Verify native display scaling
         run: pnpm test:overlays
       - name: Verify fractional display scaling on Windows
@@ -45,4 +48,6 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: overlays-${{ matrix.os }}
-          path: out/overlay-tests/
+          path: |
+            out/overlay-tests/
+            out/workspace-tests/

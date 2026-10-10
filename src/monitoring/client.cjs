@@ -40,7 +40,7 @@ class MonitoringClient extends EventEmitter {
     return {
       url: this.preferences.get('url') || 'https://vibemon.io',
       tokenConfigured: this.credentials.has(), status: this.status,
-      lastSyncedAt: this.lastSyncedAt,
+      lastSyncedAt: this.lastSyncedAt, connectionRevision: this.generation,
       selectedSources, selectedAccounts, accountCatalog: this.accountCatalog,
       accounts: groupAccounts(sources),
       selectedMetrics,
