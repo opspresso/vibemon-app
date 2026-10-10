@@ -14,6 +14,8 @@ from typing import Any
 
 from cache_io import update_json_cache
 
+MAX_CLOCK_SKEW_SECONDS = 30
+
 
 def reverse_jsonl(path: str):
     """Read complete JSONL records from at most the newest 1 MiB."""
@@ -205,7 +207,8 @@ def provider_updated_at(cache: dict[str, Any] | None, provider: str) -> float:
     data = cache.get(cache_key(provider))
     if isinstance(data, dict):
         try:
-            return float(data.get("updated_at", cache.get("ts", 0)))
+            observed_at = float(data.get("updated_at", cache.get("ts", 0)))
+            return observed_at if math.isfinite(observed_at) else 0
         except (TypeError, ValueError):
             return 0
     return 0
@@ -224,7 +227,7 @@ def get_fresh_provider(
         return None
     current_time = time.time() if now is None else now
     observed_at = provider_updated_at(cache, provider)
-    if observed_at <= 0 or current_time - observed_at > max_age_seconds:
+    if observed_at <= 0 or observed_at > current_time + MAX_CLOCK_SKEW_SECONDS or current_time - observed_at > max_age_seconds:
         return None
 
     fresh = dict(data)
@@ -238,7 +241,9 @@ def get_fresh_provider(
             bucket_updated_at = 0
         resets_at = parse_epoch(bucket.get("resets_at"))
         if (
-            bucket_updated_at <= 0
+            not math.isfinite(bucket_updated_at)
+            or bucket_updated_at <= 0
+            or bucket_updated_at > current_time + MAX_CLOCK_SKEW_SECONDS
             or current_time - bucket_updated_at > max_age_seconds
             or (resets_at is not None and resets_at <= current_time)
         ):
@@ -275,7 +280,7 @@ def save_usage_cache(
             if not isinstance(value, dict):
                 continue
             observed_at = parse_epoch(value.get("updated_at", updated_at))
-            if observed_at is None or observed_at <= 0 or observed_at > updated_at + 30:
+            if observed_at is None or observed_at <= 0 or observed_at > updated_at + MAX_CLOCK_SKEW_SECONDS:
                 continue
             existing = payload.get(provider)
             merged = dict(existing) if isinstance(existing, dict) else {}
