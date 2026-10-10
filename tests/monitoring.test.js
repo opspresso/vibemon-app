@@ -56,6 +56,76 @@ describe('cloud monitoring', () => {
     expect(fetchImpl).toHaveBeenCalledTimes(2);
     expect(client.snapshot().sources).toEqual([]);
   });
+  test('discovery waits for a selected-source poll and coalesces catalog refreshes', async () => {
+    const { client, preferences, fetchImpl } = fixture();
+    await client.poll(true);
+    preferences.set('selectedSources', ['spark']);
+    preferences.set('selectedAccounts', []);
+    fetchImpl.mockClear();
+    let complete;
+    fetchImpl.mockReturnValueOnce(new Promise(resolve => { complete = resolve; }));
+    fetchImpl.mockResolvedValueOnce(okResponse({ sources: [source(1000000), { ...source(1000000), sourceId: 'cluster-two' }] }));
+    const selected = client.poll();
+    const first = client.poll(true), second = client.poll(true);
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+    complete(okResponse({ sources: [source(1000000)] }));
+    const [, a, b] = await Promise.all([selected, first, second]);
+    expect(fetchImpl.mock.calls.map(([url]) => url)).toEqual(['https://web.example/api/v1/sources?ids=spark', 'https://web.example/api/v1/sources']);
+    expect(a.catalog.map(item => item.sourceId)).toEqual(['spark', 'cluster-two']);
+    expect(b.catalog).toEqual(a.catalog);
+    expect(a.selectedSources).toEqual(['spark']);
+  });
+  test('disconnect cancels a queued catalog discovery', async () => {
+    const { client, fetchImpl } = fixture();
+    let complete;
+    fetchImpl.mockReturnValueOnce(new Promise(resolve => { complete = resolve; }));
+    const selected = client.poll();
+    const discovery = client.poll(true);
+    await client.disconnect();
+    complete(okResponse({ sources: [source(1000000)] }));
+    await selected;
+    expect(await discovery).toMatchObject({ status: 'not-configured', catalog: [], lastSyncedAt: null });
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+  });
+  test('last sync records successful reads rather than attempts or selection changes', async () => {
+    let now = 1000000;
+    const { client, preferences, fetchImpl } = fixture(now);
+    client.now = () => now;
+    expect(client.snapshot().lastSyncedAt).toBeNull();
+    await client.poll();
+    const synchronized = new Date(now).toISOString();
+    now += 30000;
+    fetchImpl.mockResolvedValue({ ok: false, status: 503 });
+    await client.poll();
+    expect(client.snapshot().lastSyncedAt).toBe(synchronized);
+    preferences.set('selectedSources', []); preferences.set('selectedAccounts', []);
+    await client.poll();
+    expect(client.snapshot().lastSyncedAt).toBe(synchronized);
+    await client.disconnect();
+    expect(client.snapshot().lastSyncedAt).toBeNull();
+  });
+  test('a first connection is visible while the response is pending', async () => {
+    const { client, fetchImpl } = fixture();
+    let complete;
+    fetchImpl.mockReturnValueOnce(new Promise(resolve => { complete = resolve; }));
+    const changed = jest.fn(); client.on('change', changed);
+    const pending = client.poll(true);
+    expect(changed.mock.calls.at(-1)[0]).toMatchObject({ status: 'connecting', lastSyncedAt: null });
+    complete(okResponse({ sources: [source(1000000)] }));
+    await pending;
+    expect(changed.mock.calls.at(-1)[0].status).toBe('connected');
+  });
+  test('changing connections clears the previous workspace before validation finishes', async () => {
+    const { client, fetchImpl } = fixture();
+    await client.poll(true);
+    let complete;
+    fetchImpl.mockReturnValueOnce(new Promise(resolve => { complete = resolve; }));
+    const changed = jest.fn(); client.on('change', changed);
+    const pending = client.configure({ url: 'https://other.example', token: 'vm_' + '2'.repeat(60) });
+    expect(changed.mock.calls.at(-1)[0]).toMatchObject({ url: 'https://other.example', status: 'connecting', sources: [], catalog: [], lastSyncedAt: null });
+    complete(okResponse({ sources: [] }));
+    await pending;
+  });
   test.each([[401, 'token-expired'], [403, 'permission-denied'], [503, 'connection-error']])('distinguishes HTTP %s', async (status, expected) => {
     const { client, fetchImpl } = fixture();
     await client.poll();
@@ -87,6 +157,15 @@ describe('cloud monitoring', () => {
     fetchImpl.mockResolvedValue(okResponse({ points: [] }));
     await client.trend('spark'); expect(fetchImpl.mock.calls[0][0]).toBe('https://web.example/api/v1/sources/spark/trend?hours=1');
     await expect(client.trend('../other')).rejects.toThrow('Invalid source ID');
+  });
+  test('history from a previous connection cannot be delivered after disconnect', async () => {
+    const { client, fetchImpl } = fixture();
+    let complete;
+    fetchImpl.mockReturnValueOnce(new Promise(resolve => { complete = resolve; }));
+    const history = client.trend('spark');
+    await client.disconnect();
+    complete(okResponse({ points: [] }));
+    await expect(history).rejects.toThrow('connection changed');
   });
   test('rejects invalid server data and unsafe transport origins', () => {
     expect(() => validateSources([{ ...source(1000000), metrics: { cpuPercent: 101 } }])).toThrow();

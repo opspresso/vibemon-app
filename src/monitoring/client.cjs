@@ -17,6 +17,8 @@ class MonitoringClient extends EventEmitter {
     this.status = 'not-configured';
     this.generation = 0;
     this.inflight = null;
+    this.inflightDiscovery = false;
+    this.lastSyncedAt = null;
     this.timer = null;
   }
   getStatus() { return this.status; }
@@ -38,6 +40,7 @@ class MonitoringClient extends EventEmitter {
     return {
       url: this.preferences.get('url') || 'https://vibemon.io',
       tokenConfigured: this.credentials.has(), status: this.status,
+      lastSyncedAt: this.lastSyncedAt,
       selectedSources, selectedAccounts, accountCatalog: this.accountCatalog,
       accounts: groupAccounts(sources),
       selectedMetrics,
@@ -54,8 +57,10 @@ class MonitoringClient extends EventEmitter {
     this.sources = [];
     this.catalog = [];
     this.accountCatalog = [];
+    this.lastSyncedAt = null;
     this.status = 'connecting';
     this.emit('sources', []);
+    this.emit('change', this.snapshot());
     if (this.inflight) await this.inflight;
     return this.poll(true);
   }
@@ -65,6 +70,7 @@ class MonitoringClient extends EventEmitter {
     this.sources = [];
     this.catalog = [];
     this.accountCatalog = [];
+    this.lastSyncedAt = null;
     this.status = 'not-configured';
     this.emit('sources', []);
     this.emit('change', this.snapshot());
@@ -93,8 +99,16 @@ class MonitoringClient extends EventEmitter {
     return readJsonResponse(response, CLOUD_MAX_RESPONSE_BYTES);
   }
   poll(discover = false) {
-    if (this.inflight) return this.inflight;
-    this.inflight = this.fetchSources(discover).finally(() => { this.inflight = null; });
+    if (this.inflight) {
+      if (discover && !this.inflightDiscovery) {
+        const generation = this.generation;
+        // A selected-source poll cannot satisfy a request for the full catalog.
+        return this.inflight.then(() => generation === this.generation ? this.poll(true) : this.snapshot());
+      }
+      return this.inflight;
+    }
+    this.inflightDiscovery = discover;
+    this.inflight = this.fetchSources(discover).finally(() => { this.inflight = null; this.inflightDiscovery = false; });
     return this.inflight;
   }
   async fetchSources(discover) {
@@ -111,6 +125,10 @@ class MonitoringClient extends EventEmitter {
         if (!this.credentials.has()) this.status = 'not-configured';
         this.emit('sources', []);
       } else {
+        if (!this.lastSyncedAt && this.credentials.has() && this.status !== 'connecting') {
+          this.status = 'connecting';
+          this.emit('change', this.snapshot());
+        }
         const parts = [];
         if (ids.length) parts.push(`ids=${encodeURIComponent(ids.join(','))}`);
         if (accountIds.length) parts.push(`accounts=${encodeURIComponent(accountIds.join(','))}`);
@@ -130,6 +148,7 @@ class MonitoringClient extends EventEmitter {
             this.accountCatalog = this.accountCatalog.map(account => accountUpdates.get(account.accountId) || account);
           }
           this.status = 'connected';
+          this.lastSyncedAt = new Date(this.now()).toISOString();
           this.emit('sources', this.snapshot().sources);
         }
       }
@@ -145,10 +164,12 @@ class MonitoringClient extends EventEmitter {
       ...(source.metricDefinitions ? { resourceType: source.resourceType, metricDefinitions: source.metricDefinitions, metricOrder: source.metricOrder } : {}) };
   }
   async trend(target) {
+    const generation = this.generation;
     const sourceId = typeof target === 'string' ? target : target?.id;
     const account = typeof target === 'object' && target?.kind === 'account';
     if (!(account ? validAccountId(sourceId) : validId(sourceId))) throw new Error('Invalid source ID');
     const data = await this.request(`/api/v1/${account ? 'accounts' : 'sources'}/${encodeURIComponent(sourceId)}/trend?hours=1`);
+    if (generation !== this.generation) throw new Error('The workspace connection changed; reopen this history');
     const definitions = data.metricDefinitions === undefined ? METRICS : validateDefinitions(data.metricDefinitions);
     const points = validateTrend(data.points, definitions);
     const metrics = data.metricDefinitions === undefined
