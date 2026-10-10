@@ -2,7 +2,7 @@
 // Speaks the Chrome DevTools Protocol directly over Node's built-in
 // WebSocket and fetch (Node >= 22).
 //
-// One-shot (agent path) — commands run in order, the app is closed at the end:
+// One-shot manual mode — commands run in order, the app is closed at the end:
 //
 //   node .claude/skills/run-desktop/driver.mjs \
 //     "launch 3d" "lock codex" "status working" "ss codex-3d" "logs"
@@ -17,6 +17,8 @@ import * as net from 'node:net';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import * as readline from 'node:readline';
+import { createRequire } from 'node:module';
+import { pathToFileURL } from 'node:url';
 
 const APP_DIR = path.resolve(import.meta.dirname, '../../..');
 const HTTP = 'http://127.0.0.1:19280';
@@ -25,9 +27,7 @@ const USER_DATA_ROOT = process.env.VIBEMON_TEST_USER_DATA || path.join(os.tmpdir
 
 fs.mkdirSync(SHOT_DIR, { recursive: true });
 
-const electronBin = process.platform === 'darwin'
-  ? path.join(APP_DIR, 'node_modules/electron/dist/Electron.app/Contents/MacOS/Electron')
-  : path.join(APP_DIR, 'node_modules/electron/dist/electron');
+const electronBin = createRequire(import.meta.url)('electron');
 
 let proc = null;      // Electron child process
 let cdp = null;       // browser-level CDP connection
@@ -137,9 +137,9 @@ async function attach(targetId) {
 }
 
 function windowByKind(kind) {
-  const suffix = kind === 'bubble' ? 'bubble.html' : 'index.html';
+  const url = pathToFileURL(path.join(APP_DIR, 'src', kind === 'bubble' ? 'bubble.html' : 'index.html')).href;
   for (const session of sessions.values()) {
-    if (session.sessionId && session.url.endsWith(suffix)) return session;
+    if (session.sessionId && session.url === url) return session;
   }
   return null;
 }
