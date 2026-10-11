@@ -1,30 +1,27 @@
 :root {
-  color-scheme: light dark;
-  --bg: light-dark(#f6f8fb, #111722);
-  --surface: light-dark(#fff, #192231);
-  --surface-raised: light-dark(#fff, #202b3d);
-  --ink: light-dark(#1d2939, #e7edf7);
-  --muted: light-dark(#606e83, #9caac0);
-  --line: light-dark(#e3e8ef, #2c374a);
-  --subtle: light-dark(#f0f3f8, #202b3d);
-  --accent: light-dark(#6558d9, #a69afa);
-  --accent-ink: light-dark(#fff, #17132d);
-  --accent-soft: light-dark(#efedfd, #302b4b);
-  --good: light-dark(#08796d, #79d8bc);
-  --good-soft: light-dark(#e6f5ef, #193a34);
-  --warn: light-dark(#926116, #ecc478);
-  --warn-soft: light-dark(#fff4db, #41361f);
-  --bad: light-dark(#bd3858, #f7a0b6);
-  --bad-soft: light-dark(#fff0f3, #462735);
-  --blue: light-dark(#4575b5, #9abff0);
-  --blue-soft: light-dark(#e9f1ff, #21354e);
-  --sidebar: #111a2b;
-  --sidebar-ink: #d7dfef;
-  --shadow: 0 2px 8px light-dark(#17233b05, #00000012), 0 14px 32px light-dark(#17233b03, #00000012);
-  font: 13px/1.5 -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --bg: var(--vm-background);
+  --surface: var(--vm-surface);
+  --surface-raised: var(--vm-surface-raised);
+  --ink: var(--vm-foreground);
+  --muted: var(--vm-muted);
+  --line: var(--vm-border);
+  --subtle: var(--vm-subtle);
+  --accent: var(--vm-accent);
+  --accent-ink: var(--vm-accent-foreground);
+  --accent-soft: var(--vm-accent-soft);
+  --good: var(--vm-good);
+  --good-soft: var(--vm-good-soft);
+  --warn: var(--vm-warning);
+  --warn-soft: var(--vm-warning-soft);
+  --bad: var(--vm-danger);
+  --bad-soft: var(--vm-danger-soft);
+  --blue: var(--vm-info);
+  --blue-soft: var(--vm-info-soft);
+  --sidebar: var(--vm-sidebar);
+  --sidebar-ink: var(--vm-sidebar-foreground);
+  --shadow: var(--vm-shadow);
+  font: 14px/1.5 var(--vm-font);
 }
-:root[data-theme='light'] { color-scheme: light; }
-:root[data-theme='dark'] { color-scheme: dark; }
 * {
   box-sizing: border-box;
 }
@@ -121,7 +118,7 @@ h3 {
   font-size: 11px;
 }
 .eyebrow {
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 650;
   letter-spacing: 1.6px;
   color: var(--muted);
@@ -143,7 +140,7 @@ h3 {
 }
 .app-shell {
   display: grid;
-  grid-template-columns: 212px 1fr;
+  grid-template-columns: var(--vm-sidebar-width) 1fr;
   height: 100vh;
 }
 [data-platform='darwin'] .app-shell {
@@ -168,10 +165,10 @@ h3 {
 }
 .brand-caption {
   display: block;
-  font-size: 9px;
+  font-size: 11px;
   letter-spacing: 0.1px;
   font-weight: 400;
-  color: #9eaec8;
+  color: var(--vm-sidebar-muted);
   margin-top: 3px;
 }
 .brand-mark {
@@ -179,17 +176,12 @@ h3 {
   place-items: center;
   width: 33px;
   height: 36px;
-  color: #a99bff;
-}
-.brand-mark .icon {
-  width: 33px;
-  height: 33px;
-  stroke-width: 1.4;
+  color: var(--vm-sidebar-accent);
 }
 .nav-label {
-  font-size: 9px;
+  font-size: 11px;
   letter-spacing: 1.5px;
-  color: #8597b5;
+  color: var(--vm-sidebar-muted);
   font-weight: 650;
   padding: 8px 13px;
 }
@@ -204,7 +196,7 @@ h3 {
   width: 100%;
   background: none;
   border: 0;
-  color: #aebbd0;
+  color: var(--vm-sidebar-muted);
   border-radius: 8px;
   padding: 11px 13px;
   text-align: left;
@@ -212,23 +204,23 @@ h3 {
   font-weight: 540;
 }
 .sidebar nav button:hover {
-  background: #1b2940;
+  background: var(--vm-sidebar-hover);
   color: #fff;
 }
 .sidebar nav button[aria-current='page'] {
-  background: #2b2d50;
+  background: var(--vm-sidebar-active);
   color: #e8e3ff;
 }
 .sidebar nav button[aria-current='page'] > .icon {
-  color: #b5a7ff;
+  color: var(--vm-sidebar-accent);
 }
 .nav-count {
-  font-size: 10px;
+  font-size: 12px;
   margin-left: auto;
   padding: 1px 6px;
   border-radius: 4px;
   background: #ffffff0c;
-  color: #aebbd0;
+  color: var(--vm-sidebar-muted);
 }
 .sidebar-bottom {
   margin-top: auto;
@@ -256,9 +248,9 @@ h3 {
 }
 .companion-shortcut .small {
   display: block;
-  font-size: 9px;
+  font-size: 11px;
   line-height: 1.5;
-  color: #a4b2c9;
+  color: var(--vm-sidebar-muted);
   margin-top: 3px;
 }
 .companion-shortcut > .icon {
@@ -270,7 +262,7 @@ h3 {
   gap: 9px;
   align-items: center;
   border: 0;
-  border-top: 1px solid #2a3549;
+  border-top: 1px solid var(--vm-sidebar-border);
   margin-top: 15px;
   padding: 17px 7px 5px;
   width: 100%;
@@ -283,13 +275,13 @@ h3 {
   max-width: 133px;
   overflow: hidden;
   text-overflow: ellipsis;
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 500;
 }
 .workspace-connection .small {
   display: block;
-  color: #94a6c3;
-  font-size: 9px;
+  color: var(--vm-sidebar-muted);
+  font-size: 11px;
 }
 .workspace-connection > .icon {
   width: 12px;
@@ -343,7 +335,7 @@ h3 {
   gap: 6px;
   white-space: nowrap;
   border-radius: 6px;
-  font-size: 10px;
+  font-size: 12px;
   line-height: 1.4;
   font-weight: 560;
   padding: 4px 8px;
@@ -386,7 +378,7 @@ h3 {
   color: var(--muted);
   display: inline-grid;
   place-items: center;
-  border-radius: 7px;
+  border-radius: var(--vm-radius-control);
   padding: 0;
   flex: none;
 }
@@ -398,8 +390,9 @@ h3 {
   border: 1px solid transparent;
   background: var(--accent);
   color: var(--accent-ink);
-  border-radius: 7px;
+  border-radius: var(--vm-radius-control);
   padding: 9px 13px;
+  min-height: var(--vm-control-height);
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -482,7 +475,7 @@ h3 {
 .summary {
   position: relative;
   border: 1px solid var(--line);
-  border-radius: 11px;
+  border-radius: var(--vm-radius-panel);
   padding: 18px;
   background: var(--surface);
   box-shadow: var(--shadow);
@@ -500,7 +493,7 @@ h3 {
   font-variant-numeric: tabular-nums;
 }
 .summary .small {
-  font-size: 10px;
+  font-size: 12px;
 }
 .summary-symbol {
   position: absolute;
@@ -510,7 +503,7 @@ h3 {
   place-items: center;
   width: 25px;
   height: 25px;
-  border-radius: 7px;
+  border-radius: var(--vm-radius-control);
 }
 .summary-symbol .icon {
   width: 15px;
@@ -553,7 +546,7 @@ h3 {
 }
 .card {
   border: 1px solid var(--line);
-  border-radius: 11px;
+  border-radius: var(--vm-radius-panel);
   padding: 19px;
   background: var(--surface);
   box-shadow: var(--shadow);
@@ -592,14 +585,14 @@ h3 {
 }
 .card-heading .small {
   display: block;
-  font-size: 10px;
+  font-size: 12px;
   margin-top: 2px;
   overflow-wrap: anywhere;
 }
 .card-heading > .chip {
   margin-left: auto;
   padding: 4px 6px;
-  font-size: 9px;
+  font-size: 11px;
   max-width: 100%;
   white-space: normal;
   overflow-wrap: anywhere;
@@ -670,13 +663,13 @@ h3 {
   gap: 8px;
   padding-top: 17px;
   margin-top: auto;
-  font-size: 9px;
+  font-size: 11px;
   color: var(--muted);
 }
 .card-footer button {
   border: 0;
   background: none;
-  font-size: 10px;
+  font-size: 12px;
   color: var(--accent);
   padding: 3px 0;
 }
@@ -691,7 +684,7 @@ h3 {
   margin-top: 13px;
 }
 .project-tag {
-  font-size: 9px;
+  font-size: 11px;
   color: var(--muted);
   padding: 3px 6px;
   border-radius: 4px;
@@ -709,7 +702,7 @@ h3 {
 .panel {
   padding: 22px;
   border: 1px solid var(--line);
-  border-radius: 11px;
+  border-radius: var(--vm-radius-panel);
   background: var(--surface);
   box-shadow: var(--shadow);
   min-width: 0;
@@ -754,12 +747,12 @@ h3 {
 }
 .activity-content .small {
   display: block;
-  font-size: 10px;
+  font-size: 12px;
   margin-top: 2px;
   overflow-wrap: anywhere;
 }
 .activity-row > .chip {
-  font-size: 9px;
+  font-size: 11px;
 }
 .usage-provider + .usage-provider {
   border-top: 1px solid var(--line);
@@ -774,14 +767,14 @@ h3 {
   margin-top: 12px;
 }
 .usage-reset {
-  font-size: 9px;
+  font-size: 11px;
   color: var(--muted);
   margin-top: 4px;
 }
 .empty {
   grid-column: 1/-1;
   border: 1px dashed var(--line);
-  border-radius: 11px;
+  border-radius: var(--vm-radius-panel);
   padding: 30px;
   text-align: center;
   background: var(--surface);
@@ -825,7 +818,7 @@ h3 {
   gap: 8px;
   border: 1px solid var(--line);
   background: var(--surface);
-  border-radius: 7px;
+  border-radius: var(--vm-radius-control);
   padding: 0 10px;
   flex: 1;
   min-width: 120px;
@@ -844,7 +837,7 @@ h3 {
 input,
 select {
   border: 1px solid var(--line);
-  border-radius: 7px;
+  border-radius: var(--vm-radius-control);
   background: var(--surface);
   color: var(--ink);
   padding: 9px 11px;
@@ -866,7 +859,7 @@ input::placeholder {
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  font-size: 9px;
+  font-size: 11px;
   color: var(--muted);
   margin: 30px 0 4px;
 }
@@ -947,7 +940,7 @@ input::placeholder {
   display: flex;
   align-items: center;
   gap: 6px;
-  font-size: 10px;
+  font-size: 12px;
   color: var(--muted);
   margin-top: 10px;
 }
@@ -1046,7 +1039,7 @@ input::placeholder {
   background: var(--bg);
   padding: 13px 6px 9px;
   color: var(--muted);
-  font-size: 10px;
+  font-size: 12px;
 }
 .character-tile img {
   width: 42px;
@@ -1204,7 +1197,7 @@ dialog {
   color: var(--ink);
   background: var(--surface);
   border: 1px solid var(--line);
-  border-radius: 15px;
+  border-radius: var(--vm-radius-dialog);
   box-shadow: 0 30px 100px #0004;
   padding: 26px;
   max-height: calc(100vh - 56px);
@@ -1250,11 +1243,11 @@ dialog::backdrop {
 }
 .selection-columns .choice .small {
   display: block;
-  font-size: 9px;
+  font-size: 11px;
   color: var(--muted);
 }
 .provider-heading {
-  font-size: 10px;
+  font-size: 12px;
   color: var(--muted);
   text-transform: uppercase;
   letter-spacing: 0.7px;
@@ -1316,7 +1309,7 @@ dialog::backdrop {
 }
 .detail-reading > span {
   display: block;
-  font-size: 10px;
+  font-size: 12px;
   color: var(--muted);
 }
 .detail-reading > strong {
@@ -1349,7 +1342,7 @@ dialog::backdrop {
 }
 #chart text {
   fill: var(--muted);
-  font-size: 10px;
+  font-size: 12px;
 }
 #chart line {
   stroke: var(--line);
@@ -1408,7 +1401,7 @@ dialog::backdrop {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  font-size: 10px;
+  font-size: 12px;
   margin-bottom: 10px;
 }
 .compact-card .metrics {
@@ -1417,7 +1410,7 @@ dialog::backdrop {
 }
 .compact-card .metric-line {
   display: block;
-  font-size: 9px;
+  font-size: 11px;
 }
 .compact-card .metric-line strong {
   display: block;
@@ -1449,7 +1442,7 @@ dialog::backdrop {
     padding-inline: 8px;
   }
   .brand-caption {
-    font-size: 8px;
+    font-size: 11px;
   }
   .card-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1467,7 +1460,7 @@ dialog::backdrop {
     height: 21px;
   }
   .summary > .small {
-    font-size: 9px;
+    font-size: 11px;
   }
   .toolbar {
     flex-wrap: wrap;
@@ -1495,7 +1488,7 @@ dialog::backdrop {
     padding: 17px;
   }
   .settings-intro > .button {
-    font-size: 10px;
+    font-size: 12px;
   }
   .settings-intro {
     gap: 10px;
@@ -1522,9 +1515,6 @@ dialog::backdrop {
   }
   .brand-mark {
     width: 25px;
-  }
-  .brand-mark .icon {
-    width: 26px;
   }
   .nav-count {
     padding: 1px 4px;
@@ -1557,7 +1547,7 @@ dialog::backdrop {
     gap: 5px;
   }
   .header-actions > .chip {
-    font-size: 9px;
+    font-size: 11px;
   }
   .overview-bottom {
     grid-template-columns: 1fr;
@@ -1590,7 +1580,7 @@ dialog::backdrop {
     max-width: 104px;
   }
   .companion-shortcut {
-    font-size: 10px;
+    font-size: 12px;
   }
 }
 @media (prefers-reduced-motion: reduce) {
@@ -1616,7 +1606,6 @@ dialog::backdrop {
   [data-page='overview'] .page-header {
     margin-bottom: 12px;
   }
-  [data-page='overview'] .page-header .eyebrow,
   [data-page='overview'] .page-header p,
   [data-page='overview'] .summary > .small,
   [data-page='overview'] .section-heading .small,

@@ -46,6 +46,8 @@
     "public/static/js/vibemon-bubble.js": "src/bubble/vibemon-bubble.js",
     "public/static/js/vibemon-engine-3d.js": "src/engine/vibemon-engine-3d.js",
     "public/static/js/vibemon-engine.d.ts": "src/engine/vibemon-engine.d.ts",
-    "public/static/js/vibemon-engine.js": "src/engine/vibemon-engine.js"
+    "public/static/js/vibemon-engine.js": "src/engine/vibemon-engine.js",
+    "public/static/design/tokens.css": "src/shared/design/tokens.css",
+    "public/static/design/brand-mark.svg": "src/shared/design/brand-mark.svg"
   }
 }

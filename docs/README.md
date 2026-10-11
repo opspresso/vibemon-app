@@ -13,6 +13,7 @@
 - [Web Monitoring API](https://vibemon.io/docs/api/monitoring) — Authenticated cloud endpoints; separate from the local API.
 - [Hook installation](../public/install/setup.md) and [hook reference](hooks.md) — Canonical public integration source.
 - [Resource collector](../collector/README.md) — Public host/Spark/Kubernetes collector.
+- [Product design](design-system.md) — Shared App/Web tokens, navigation, states, and verification.
 - [Distribution ownership](distribution.md) — App source, pinned Web snapshots, and standalone validation.
 - [Build and packaging](build.md) — Dependencies, validation, canonical assets, signing, and publication.
 - [Overlay verification](overlay-interaction.md) — Character/bubble input, movement, and display scaling.

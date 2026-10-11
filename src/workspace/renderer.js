@@ -149,7 +149,6 @@ function render(value) {
   text($('page-title'), pages[route][0]);
   $('page-title').setAttribute('aria-label', settingsPages.has(route) ? `Settings: ${route.charAt(0).toUpperCase()}${route.slice(1)}` : pages[route][0]);
   text($('page-description'), pages[route][1]);
-  text($('breadcrumb'), settingsPages.has(route) ? 'PREFERENCES' : 'WORKSPACE');
   for (const section of document.querySelectorAll('[data-page]'))
     section.hidden = section.dataset.page !== route;
   for (const button of document.querySelectorAll('[data-page-link]')) {

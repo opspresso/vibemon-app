@@ -1,5 +1,4 @@
 const paths = {
-  logo: ['M4 6.5 12 2l8 4.5v11L12 22l-8-4.5z', 'm4 6.5 8 4.5 8-4.5M12 11v11', 'm8 4 8 4.5v5'],
   overview: ['M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3zM14 14h7v7h-7z'],
   resources: ['M4 3h16v7H4zM4 14h16v7H4zM7 6.5h.01M7 17.5h.01M16 6.5h1M16 17.5h1'],
   agents: ['M8 4h8l1 3h3v12H4V7h3zM9 12h.01M15 12h.01M9 16h6M12 1v3'],

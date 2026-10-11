@@ -8,6 +8,7 @@
     />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
     <title>VibeMon</title>
+    <link rel="stylesheet" href="../shared/design/tokens.css" />
     <link rel="stylesheet" href="style.css" />
   </head>
   <body>
@@ -15,7 +16,7 @@
     <div class="app-shell">
       <aside class="sidebar">
         <a class="brand" href="#overview" data-page-link="overview"
-          ><span class="brand-mark" data-icon="logo"></span
+          ><span class="brand-mark vm-brand-mark" aria-hidden="true"></span
           ><span>VibeMon<span class="brand-caption">Your workspace, in view</span></span></a
         >
         <div class="nav-label">WORKSPACE</div>
@@ -56,7 +57,6 @@
       <main class="main" id="main">
         <header class="page-header">
           <div>
-            <div id="breadcrumb" class="eyebrow">WORKSPACE</div>
             <h1 id="page-title" tabindex="-1">Overview</h1>
             <p id="page-description" class="muted">A clear view of your systems and coding activity.</p>
           </div>
