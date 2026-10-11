@@ -556,9 +556,8 @@ class CharacterWindowManager {
 
   /**
    * Force the window to display one character regardless of what incoming
-   * status updates specify ('auto' restores each project's own character on
-   * its next status update — the currently shown character isn't
-   * retroactively corrected, since the original isn't tracked separately).
+   * status updates specify. Auto immediately restores the latest reported
+   * character; appearance preferences never overwrite the project registry.
    * @param {'auto'|string} character
    */
   setCharacterLock(character) {
@@ -567,15 +566,13 @@ class CharacterWindowManager {
     this.characterLock = character;
     this.store.set('characterLock', character);
 
-    if (character === 'auto') return;
-
-    // Immediately reflect the lock in the open window instead of waiting
-    // for the next status update.
-    if (this.entry && this.entry.state && this.entry.state.character !== character) {
+    if (this.entry?.state) {
       const projectId = this.entry.projectId;
-      const newState = { ...this.entry.state, character };
-      this.updateState(projectId, newState);
-      this.sendToWindow(projectId, 'state-update', newState);
+      const reported = this.stateRegistry.get(projectId) || this.entry.state;
+      const displayed = character === 'auto' ? reported : { ...reported, character };
+      if (this.updateState(projectId, displayed, reported).updated) {
+        this.sendToWindow(projectId, 'state-update', displayed);
+      }
     }
   }
 
@@ -999,12 +996,14 @@ class CharacterWindowManager {
    * @param {Object} newState
    * @returns {{updated: boolean, stateChanged: boolean, infoChanged: boolean}}
    */
-  updateState(projectId, newState) {
+  updateState(projectId, newState, reportedState = newState) {
     if (!this.entry || this.entry.projectId !== projectId) {
       return { updated: false, stateChanged: false, infoChanged: false };
     }
 
     const oldState = this.entry.state || {};
+    this.lastWindowState = { ...reportedState };
+    this.lastWindowProjectId = projectId;
 
     const stateChanged = oldState.state !== newState.state;
 
@@ -1032,8 +1031,6 @@ class CharacterWindowManager {
     }
 
     this.entry.state = { ...newState };
-    this.lastWindowState = { ...newState };
-    this.lastWindowProjectId = projectId;
     if (this.onStateUpdated) {
       this.onStateUpdated(projectId);
     }
@@ -1292,14 +1289,6 @@ class CharacterWindowManager {
       };
     }
 
-    // Character Lock overrides whatever character the incoming status
-    // specifies — reassign the local reference to a new object (not the
-    // caller's) so every downstream use (stateRegistry, window state, the
-    // 'state-update' IPC payload the caller sends afterward) stays in sync.
-    if (this.characterLock !== 'auto') {
-      stateData = { ...stateData, character: this.characterLock };
-    }
-
     // terminalId only arrives via local HTTP — the cloud API neither stores
     // nor rebroadcasts it — so a remote copy of a locally-posted status
     // would otherwise wipe the terminal reference and break click-to-focus.
@@ -1340,8 +1329,9 @@ class CharacterWindowManager {
     }
 
     const { switchedProject } = this.ensureWindow(focusedProjectId);
-    const updateResult = this.updateState(focusedProjectId, stateData);
-    return { switchedProject, updateResult, stateData };
+    const displayed = this.characterLock === 'auto' ? stateData : { ...stateData, character: this.characterLock };
+    const updateResult = this.updateState(focusedProjectId, displayed, stateData);
+    return { switchedProject, updateResult, stateData: displayed };
   }
 
   // ============================================================================

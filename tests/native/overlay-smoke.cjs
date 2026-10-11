@@ -372,6 +372,19 @@ async function verifyDockSettings() {
     }, 'Dock size settings rendered');
   }
   await openSettings();
+  const reported = { ...characterManager.getState('test') };
+  const toolState = { ...reported, character: 'codex' };
+  const routed = characterManager.routeStatusUpdate('test', toolState);
+  characterManager.sendToWindow('test', 'state-update', routed.stateData);
+  for (const [choice, expected] of [['kiro', 'kiro'], ['auto', 'codex']]) {
+    await settingsManager.window.webContents.executeJavaScript(`(() => { const select = document.getElementById('character-lock'); select.value = '${choice}'; select.dispatchEvent(new Event('change')); })()`);
+    await until(() => characterManager.getState('test').character === expected, 'character preference updates the current project without another report');
+    await until(() => ready('character-lock'), 'character preference saved');
+    assert.equal(characterManager.getRegisteredState('test').character, 'codex', 'local activity keeps its reported character');
+    assert.equal(await characterManager.entry.window.webContents.executeJavaScript('(() => { let value; const stop = window.electronAPI.onStateUpdate(state => { value = state.character; }); stop(); return value; })()'), expected);
+  }
+  const restored = characterManager.routeStatusUpdate('test', reported);
+  characterManager.sendToWindow('test', 'state-update', restored.stateData);
   const readChoice = () => settingsManager.window.webContents.executeJavaScript('document.getElementById("dock-corner-size").value');
   assert.equal(await readChoice(), 'keep');
   for (const choice of ['shrink', 'keep']) {

@@ -195,8 +195,8 @@ curl http://127.0.0.1:19280/character-lock
 
 Force the window to show one character regardless of what each project's
 status reports (`auto`, or one of `vibemon`, `clawd`, `codex`, `kiro`, `claw`,
-`daangni`). `auto` restores each project's own character on its next status
-update.
+`daangni`). `auto` immediately restores the focused project's latest reported
+character. The project registry retains each tool's reported character.
 
 ```bash
 curl -X POST http://127.0.0.1:19280/character-lock \
