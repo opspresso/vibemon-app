@@ -78,7 +78,7 @@ startFixture().then(async fixture => {
   await click('#overview-attention');
   assert.equal(await ui('document.getElementById("overview-attention").getAttribute("aria-pressed")'), 'true');
   assert.equal(await ui('[...document.querySelectorAll("#overview-resources .card, #overview-accounts .card")].some(card => card.classList.contains("compact-card"))'), false, 'attention view expands every reused card');
-  assert.deepEqual(await ui('[...document.querySelectorAll("#overview-resources .card h3")].map(node => node.textContent)'), ['Cache service', 'Build runner']);
+  assert.deepEqual(await ui('[...document.querySelectorAll("#overview-resources .card h3")].map(node => node.textContent)'), ['Build runner', 'Cache service']);
   assert.deepEqual(await ui('[...document.querySelectorAll("#overview-accounts .card h3")].map(node => node.textContent)'), ['Research lab']);
   await client.poll(true); await delay(150);
   assert.equal(await ui('document.querySelectorAll("#overview-accounts .card").length'), 1, 'background refresh preserves the attention filter');
@@ -92,6 +92,13 @@ startFixture().then(async fixture => {
   assert.ok((await text('#resource-cards')).includes('Unified memory'));
   assert.ok((await text('#resource-cards')).includes('Stale'));
   assert.ok((await text('#resource-cards')).includes('—'), 'missing readings remain unavailable');
+  const orderingSources = state.sources;
+  await ui('document.querySelector(\'[aria-label="View Production cluster details"]\').focus()');
+  state.sources = () => orderingSources().map(source => source.sourceId === 'production' ? { ...source, health: 'error' } : source);
+  await client.poll(true); await delay(150);
+  assert.equal(await ui('document.activeElement.getAttribute("aria-label")'), 'View Production cluster details', 'attention reordering preserves keyboard focus');
+  state.sources = orderingSources; await client.poll(true);
+
   await ui('window.originalCard = [...document.querySelectorAll("#resource-cards .card")].find(card => card.textContent.includes("Cache service")); document.getElementById("resource-search").focus();');
   await input('#resource-search', 'Cache');
   await ui('document.getElementById("resource-search").setSelectionRange(1, 3)');
@@ -354,7 +361,7 @@ startFixture().then(async fixture => {
   assert.ok((await text('#error')).includes('active read token'));
   assert.equal(await value('#read-token'), '');
   await input('#read-token', TOKEN); await click('#save-connection');
-  await until(async () => client.getStatus() === 'connected' && await ui('!document.getElementById("save-connection").disabled'), 'token recovery');
+  await until(async () => client.getStatus() === 'connected' && ui('!document.getElementById("save-connection").disabled'), 'token recovery');
   fixture.corruptCredential(); await client.poll(true);
   await until(async () => (await text('#connection-chip')).includes('Replace saved token'), 'corrupt credential recovery');
   await input('#read-token', TOKEN); await click('#save-connection');

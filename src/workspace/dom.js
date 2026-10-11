@@ -73,7 +73,10 @@ export function keyed(parent, items, keyOf, create, update) {
       cache.set(key, node);
     }
     update(node, item);
-    if (node !== cursor) parent.insertBefore(node, cursor);
+    if (node !== cursor) {
+      if (node.parentNode === parent && parent.isConnected) parent.moveBefore(node, cursor);
+      else parent.insertBefore(node, cursor);
+    }
     cursor = node.nextElementSibling;
   }
   for (const [key, node] of cache)

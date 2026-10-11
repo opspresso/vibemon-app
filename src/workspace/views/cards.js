@@ -90,7 +90,8 @@ export function renderCards(
     emptyAction = 'Customize view'
   } = {}
 ) {
-  const shown = limit ? sources.slice(0, limit) : sources;
+  const ordered = [...sources].sort((a, b) => Number(needsAttention(b)) - Number(needsAttention(a)) || a.displayName.localeCompare(b.displayName));
+  const shown = limit ? ordered.slice(0, limit) : ordered;
   if (!shown.length) {
     container._emptyAction = navigate;
     if (!container._empty) {
