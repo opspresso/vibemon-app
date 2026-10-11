@@ -75,6 +75,16 @@ startFixture().then(async fixture => {
   assert.ok(overviewBounds.bottom < overviewBounds.viewport, `account metrics fit in the initial viewport: ${JSON.stringify(overviewBounds)}`);
   assert.equal(state.requests.some(url => url.endsWith('/trend')), false, 'history is not prefetched');
   await screenshot('overview-dark');
+  await click('#overview-attention');
+  assert.equal(await ui('document.getElementById("overview-attention").getAttribute("aria-pressed")'), 'true');
+  assert.equal(await ui('[...document.querySelectorAll("#overview-resources .card, #overview-accounts .card")].some(card => card.classList.contains("compact-card"))'), false, 'attention view expands every reused card');
+  assert.deepEqual(await ui('[...document.querySelectorAll("#overview-resources .card h3")].map(node => node.textContent)'), ['Cache service', 'Build runner']);
+  assert.deepEqual(await ui('[...document.querySelectorAll("#overview-accounts .card h3")].map(node => node.textContent)'), ['Research lab']);
+  await client.poll(true); await delay(150);
+  assert.equal(await ui('document.querySelectorAll("#overview-accounts .card").length'), 1, 'background refresh preserves the attention filter');
+  await click('#overview-attention');
+  assert.equal(await ui('document.querySelectorAll("#overview-accounts .card").length'), 3);
+
 
   await navigate('resources');
   await ui('window.focusTrace = []; for (const type of ["focusin", "focusout"]) document.addEventListener(type, event => window.focusTrace.push({ type, id: event.target.id, page: document.documentElement.dataset.page }));');

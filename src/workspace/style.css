@@ -473,6 +473,8 @@ h3 {
   margin-bottom: 31px;
 }
 .summary {
+  text-align: left;
+  color: var(--ink);
   position: relative;
   border: 1px solid var(--line);
   border-radius: var(--vm-radius-panel);
@@ -480,6 +482,8 @@ h3 {
   background: var(--surface);
   box-shadow: var(--shadow);
 }
+.summary[aria-pressed="true"] { border-color: var(--warn); }
+.summary:is(button):hover { border-color: var(--accent); }
 .summary > span:nth-child(2) {
   font-size: 11px;
 }
@@ -580,7 +584,7 @@ h3 {
   image-rendering: pixelated;
 }
 .card-heading h3 {
-  font-size: 13px;
+  font-size: 14px;
   overflow-wrap: anywhere;
 }
 .card-heading .small {
@@ -624,7 +628,7 @@ h3 {
   color: var(--muted);
 }
 .metric-line strong {
-  font-size: 14px;
+  font-size: 15px;
   font-weight: 620;
   color: var(--ink);
   font-variant-numeric: tabular-nums;
@@ -632,6 +636,10 @@ h3 {
   margin-left: auto;
   overflow-wrap: anywhere;
   text-align: right;
+}
+.metric-unit {
+  font-size: 11px;
+  font-weight: 500;
 }
 .metric-label {
   overflow-wrap: anywhere;
@@ -651,10 +659,10 @@ h3 {
   transition: width 0.2s;
 }
 .metric-bar[data-tone='warning'] > span {
-  background: #c69948;
+  background: var(--warn);
 }
 .metric-bar[data-tone='danger'] > span {
-  background: #d66d87;
+  background: var(--bad);
 }
 .card-footer {
   display: flex;
@@ -667,6 +675,9 @@ h3 {
   color: var(--muted);
 }
 .card-footer button {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
   border: 0;
   background: none;
   font-size: 12px;
@@ -1408,20 +1419,27 @@ dialog::backdrop {
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 10px;
 }
+.compact-card .metric {
+  display: grid;
+  grid-template-rows: subgrid;
+  grid-row: span 3;
+  row-gap: 6px;
+}
 .compact-card .metric-line {
-  display: block;
+  display: contents;
   font-size: 11px;
 }
 .compact-card .metric-line strong {
   display: block;
-  font-size: 13px;
-  margin-top: 4px;
+  font-size: 15px;
+  margin: 0;
+  text-align: left;
   white-space: normal;
   overflow-wrap: anywhere;
 }
 .compact-card .metric-bar {
-  margin-top: 6px;
-  height: 3px;
+  margin-top: 0;
+  height: 4px;
 }
 .compact-card .card-footer {
   padding-top: 12px;
@@ -1594,8 +1612,8 @@ dialog::backdrop {
 
 /* Small displays keep both monitoring categories in the initial overview. */
 @media (max-width: 1100px) {
-  #overview-resources > .card:nth-child(n + 3),
-  #overview-accounts > .card:nth-child(n + 3) {
+  :root:not([data-overview-filter="attention"]) #overview-resources > .card:nth-child(n + 3),
+  :root:not([data-overview-filter="attention"]) #overview-accounts > .card:nth-child(n + 3) {
     display: none;
   }
 }

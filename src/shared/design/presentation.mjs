@@ -24,10 +24,11 @@ export const stateTone = state => statePresentation(state)[1];
 const decimal = new Intl.NumberFormat(undefined, { maximumFractionDigits: 1 });
 const small = new Intl.NumberFormat(undefined, { maximumSignificantDigits: 2 });
 const precise = new Intl.NumberFormat(undefined, { maximumSignificantDigits: 6 });
+export const measurementUnit = unit => `${!unit || /^[%°]/.test(unit) ? '' : ' '}${unit}`;
 export function formatMeasurement(value, unit = '', exact = false, unavailable = '—') {
   if (typeof value !== 'number' || !Number.isFinite(value)) return unavailable;
   const formatter = exact ? precise : value !== 0 && Math.abs(value) < 1 ? small : decimal;
-  return `${formatter.format(value)}${!unit || /^[%°]/.test(unit) ? '' : ' '}${unit}`;
+  return `${formatter.format(value)}${measurementUnit(unit)}`;
 }
 export function observationAge(timestamp, now = Date.now()) {
   if (!timestamp || !Number.isFinite(Date.parse(timestamp))) return 'Not reported';

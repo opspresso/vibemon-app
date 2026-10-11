@@ -19,6 +19,7 @@ let frame = null;
 let toastTimer = null;
 let visible = true;
 let pageFocusPending = false;
+let overviewAttention = false;
 let preferences, selection, detail;
 document.documentElement.dataset.platform = api.platform;
 hydrateIcons();
@@ -110,6 +111,7 @@ function accept(value) {
   const pageChanged = Boolean(frame && frame.route !== value.route);
   if (pageChanged) pageFocusPending = true;
   if (frame && frame.cloud.connectionRevision !== value.cloud.connectionRevision) {
+    overviewAttention = false;
     detail.close();
     selection.close();
     for (const id of ['overview-resources', 'overview-accounts', 'resource-cards', 'agent-cards']) {
@@ -204,7 +206,9 @@ function render(value) {
       : 'Connect an account to get started'
   );
   text($('summary-local-note'), `${active.length} active on this device`);
-  text($('summary-attention-note'), attention ? 'Review highlighted sources' : 'No reported issues');
+  text($('summary-attention-note'), overviewAttention ? 'Showing sources to review' : attention ? 'Review highlighted sources' : 'No reported issues');
+  $('overview-attention').setAttribute('aria-pressed', String(overviewAttention));
+  document.documentElement.dataset.overviewFilter = overviewAttention ? 'attention' : 'all';
   $('settings-attention').hidden =
     !settings.vibemonConfig.status.error &&
     !settings.hooks.some((tool) => tool.present && (tool.broken || tool.changed)) &&
@@ -232,15 +236,21 @@ function render(value) {
     emptyAction: cloud.tokenConfigured ? 'Choose accounts' : 'Connect workspace'
   };
   if (route === 'overview') {
-    renderCards($('overview-resources'), resources, selectedMetrics, detail.open, choose, {
-      ...resourceEmpty,
-      limit: 3,
-      compact: true
+    const clearAttention = () => { overviewAttention = false; render(frame); };
+    const attentionEmpty = (kind) => ({
+      emptyTitle: `No ${kind} need attention`,
+      emptyDescription: 'Your selected cloud sources have no reported issues.',
+      emptyAction: 'Show all sources'
     });
-    renderCards($('overview-accounts'), accounts, selectedMetrics, detail.open, choose, {
-      ...accountEmpty,
-      limit: 3,
-      compact: true
+    renderCards($('overview-resources'), overviewAttention ? resources.filter(needsAttention) : resources, selectedMetrics, detail.open, overviewAttention ? clearAttention : choose, {
+      ...(overviewAttention ? attentionEmpty('resources') : resourceEmpty),
+      limit: overviewAttention ? undefined : 3,
+      compact: !overviewAttention
+    });
+    renderCards($('overview-accounts'), overviewAttention ? accounts.filter(needsAttention) : accounts, selectedMetrics, detail.open, overviewAttention ? clearAttention : choose, {
+      ...(overviewAttention ? attentionEmpty('accounts') : accountEmpty),
+      limit: overviewAttention ? undefined : 3,
+      compact: !overviewAttention
     });
     renderActivity($('overview-activity'), activity, true);
     renderUsage($('overview-usage'), usage);
@@ -342,6 +352,10 @@ for (const id of ['resource-search', 'resource-filter', 'agent-search', 'agent-f
   $(id).addEventListener('input', () => {
     if (frame) render(frame);
   });
+$('overview-attention').addEventListener('click', () => {
+  overviewAttention = !overviewAttention;
+  if (frame) render(frame);
+});
 $('refresh').addEventListener('click', () =>
   run($('refresh'), async () => {
     const cloud = await request('refresh');

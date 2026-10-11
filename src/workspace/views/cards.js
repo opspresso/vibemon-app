@@ -1,4 +1,4 @@
-import { dominantState, needsAttention as attentionState } from '../../shared/design/presentation.mjs';
+import { dominantState, measurementUnit, needsAttention as attentionState } from '../../shared/design/presentation.mjs';
 import {
   el,
   text,
@@ -39,18 +39,22 @@ export function createMetric() {
   const label = el('div', undefined, 'metric-line');
   const name = el('span', undefined, 'metric-label');
   const value = el('strong');
+  const amount = el('span');
+  const unit = el('span', undefined, 'metric-unit');
+  value.append(amount, unit);
   label.append(name, value);
   const bar = el('div', undefined, 'metric-bar');
   const fill = el('span');
   bar.append(fill);
   node.append(label, bar);
-  node._parts = { name, value, bar, fill };
+  node._parts = { name, value, amount, unit, bar, fill };
   return node;
 }
 export function updateMetric(node, { metric, value, label, precise = false }) {
-  const { name, value: output, bar, fill } = node._parts;
+  const { name, value: output, amount, unit, bar, fill } = node._parts;
   text(name, label || metric.label);
-  text(output, reading(value, metric.unit, precise));
+  text(amount, reading(value, '', precise));
+  text(unit, typeof value === 'number' && Number.isFinite(value) ? measurementUnit(metric.unit) : '');
   output.title = reading(value, metric.unit, true);
   const available = typeof value === 'number' && Number.isFinite(value);
   bar.hidden = !available || metric.display !== 'gauge';
@@ -113,7 +117,7 @@ export function renderCards(
     shown,
     (source) => `${source.isAccount ? 'account' : 'resource'}:${source.sourceId}`,
     () => {
-      const card = el('article', undefined, compact ? 'card compact-card' : 'card');
+      const card = el('article', undefined, 'card');
       const heading = el('div', undefined, 'card-heading');
       const image = el('div', undefined, 'source-icon');
       const titles = el('div', undefined, 'card-title-group');
@@ -127,7 +131,8 @@ export function renderCards(
       const members = el('div', undefined, 'card-members');
       const footer = el('div', undefined, 'card-footer');
       const received = el('time');
-      const details = button('Details', () => openDetail(card._source), '', 'arrow');
+      const details = button('Details', () => openDetail(card._source), '');
+      details.append(icon('arrow'));
       footer.append(received, details);
       card.append(heading, message, metrics, members, footer);
       card._parts = { name, type, image, status, message, metrics, members, received, details };
@@ -135,6 +140,8 @@ export function renderCards(
     },
     (card, source) => {
       card._source = source;
+      card.classList.toggle('compact-card', compact);
+      card.setAttribute('aria-label', source.displayName);
       const parts = card._parts;
       text(parts.name, source.displayName);
       text(parts.type, source.isAccount ? `${providerName(source.provider)} · ${source.sourceId.slice(source.provider.length + 1)}` : resourceType(source));
