@@ -1,3 +1,6 @@
+import { formatMeasurement, observationAge, providerLabel, stateLabel, stateTone } from '../shared/design/presentation.mjs';
+export { formatMeasurement as reading, observationAge as ago, providerLabel as providerName, stateLabel, stateTone };
+
 const paths = {
   overview: ['M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3zM14 14h7v7h-7z'],
   resources: ['M4 3h16v7H4zM4 14h16v7H4zM7 6.5h.01M7 17.5h.01M16 6.5h1M16 17.5h1'],
@@ -99,34 +102,12 @@ export function choices(select, entries, selected) {
   }
   if (document.activeElement !== select) select.value = String(selected);
 }
-const decimalFormat = new Intl.NumberFormat(undefined, { maximumFractionDigits: 1 });
-const smallFormat = new Intl.NumberFormat(undefined, { maximumSignificantDigits: 2 });
-const preciseFormat = new Intl.NumberFormat(undefined, { maximumSignificantDigits: 6 });
-export const number = (value) => {
-  if (typeof value !== 'number' || !Number.isFinite(value)) return '—';
-  return (value !== 0 && Math.abs(value) < 1 ? smallFormat : decimalFormat).format(value);
-};
-export function reading(value, unit = '', precise = false) {
-  return typeof value === 'number' && Number.isFinite(value)
-    ? `${precise ? preciseFormat.format(value) : number(value)}${unit ? (['%', '°C', '°F'].includes(unit) ? '' : ' ') + unit : ''}`
-    : '—';
-}
-export function ago(timestamp, now = Date.now()) {
-  if (!timestamp || !Number.isFinite(Date.parse(timestamp))) return 'Not reported';
-  const seconds = Math.max(0, Math.floor((now - Date.parse(timestamp)) / 1000));
-  if (seconds < 15) return 'Just now';
-  if (seconds < 60) return `${seconds}s ago`;
-  if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
-  return `${Math.floor(seconds / 3600)}h ago`;
-}
 export function remaining(seconds) {
   const minutes = Math.max(0, Math.ceil((seconds * 1000 - Date.now()) / 60000));
   if (minutes < 60) return `${minutes}m`;
   if (minutes < 1440) return `${Math.floor(minutes / 60)}h ${minutes % 60}m`;
   return `${Math.floor(minutes / 1440)}d ${Math.floor((minutes % 1440) / 60)}h`;
 }
-const providerLabels = { claude: 'Claude', codex: 'Codex', kiro: 'Kiro', openclaw: 'OpenClaw', opencode: 'OpenCode' };
-export const providerName = provider => Object.hasOwn(providerLabels, provider) ? providerLabels[provider] : provider;
 let characterImages = new Map([['vibemon', 'vibemon.png']]);
 export function configureSprites(characters) {
   characterImages = new Map(
@@ -137,37 +118,6 @@ export function configureSprites(characters) {
 }
 export function sprite(character) {
   return `../assets/characters/${characterImages.get(character) || characterImages.get('vibemon') || 'vibemon.png'}`;
-}
-export function stateLabel(state) {
-  const labels = {
-    ok: 'Healthy',
-    warning: 'Attention',
-    error: 'Collection error',
-    unknown: 'Awaiting data',
-    stale: 'Stale',
-    working: 'Working',
-    thinking: 'Thinking',
-    planning: 'Planning',
-    packing: 'Compacting',
-    notification: 'Needs input',
-    alert: 'Needs attention',
-    idle: 'Idle',
-    sleep: 'Resting',
-    done: 'Done',
-    start: 'Starting'
-  };
-  return Object.hasOwn(labels, state) ? labels[state] : state;
-}
-export function stateTone(state) {
-  return ['stale', 'warning', 'notification'].includes(state)
-    ? 'warning'
-    : ['error', 'alert'].includes(state)
-      ? 'danger'
-      : ['ok', 'done'].includes(state)
-        ? 'good'
-        : ['working', 'thinking', 'planning', 'packing', 'start'].includes(state)
-          ? 'active'
-          : 'neutral';
 }
 export function badge(node, state) {
   node.className = `chip ${stateTone(state)}`;

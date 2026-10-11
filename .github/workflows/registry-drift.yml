@@ -14,6 +14,7 @@ jobs:
       - uses: actions/setup-node@v6
         with:
           node-version-file: '.nvmrc'
+      - run: node --test tests/design.test.mjs
       - run: node scripts/check-registry.mjs
       - run: node scripts/export-web.mjs --write
       - uses: actions/upload-artifact@v7

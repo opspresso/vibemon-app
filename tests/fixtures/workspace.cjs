@@ -45,7 +45,7 @@ function createPorts() {
   return {
     calls, appearance, config,
     windowManager: companion,
-    app: { getVersion: () => '3.0.1', isPackaged: false, getLoginItemSettings: () => ({ openAtLogin: login }), setLoginItemSettings: settings => { login = settings.openAtLogin; } },
+    app: { getVersion: () => require('../../package.json').version, isPackaged: false, getLoginItemSettings: () => ({ openAtLogin: login }), setLoginItemSettings: settings => { login = settings.openAtLogin; } },
     hookInstaller: {
       getCachedStatuses: () => hooks,
       clearDismissed() { for (const hook of hooks) hook.dismissed = false; },

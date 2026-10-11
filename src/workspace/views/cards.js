@@ -1,3 +1,4 @@
+import { dominantState, needsAttention as attentionState } from '../../shared/design/presentation.mjs';
 import {
   el,
   text,
@@ -25,14 +26,13 @@ export const accountCard = (account) => ({
   provider: account.provider,
   members: account.sources
 });
-const attentionStates = ['error', 'alert', 'notification', 'warning', 'stale'];
 export function sourceState(source) {
   const states = (source.members || [source]).flatMap(member =>
     member.stale ? ['stale'] : [member.health, member.agent?.state]
   );
-  return attentionStates.find(state => states.includes(state)) || source.agent?.state || source.health;
+  return dominantState(states, source.agent?.state || source.health);
 }
-export const needsAttention = source => attentionStates.includes(sourceState(source));
+export const needsAttention = source => attentionState(sourceState(source));
 
 export function createMetric() {
   const node = el('div', undefined, 'metric');

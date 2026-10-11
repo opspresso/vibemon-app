@@ -35,7 +35,7 @@ jobs:
           version: '12.10.1'
       - run: pnpm install --frozen-lockfile
       - name: Lint and unit regressions
-        run: pnpm lint && pnpm exec jest --coverage --runInBand
+        run: pnpm lint && pnpm test:design && pnpm exec jest --coverage --runInBand
       - name: Verify desktop workspace
         timeout-minutes: 2
         run: pnpm test:workspace
