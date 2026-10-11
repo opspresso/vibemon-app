@@ -82,6 +82,11 @@ function debug(message) {
   }
 }
 
+function targetLabel(value) {
+  try { return new URL(value).origin; }
+  catch { return "invalid address"; }
+}
+
 /**
  * (Re)load ~/.vibemon/config.json if it changed on disk (mtime check).
  * Returns true when sharedConfig was updated.
@@ -108,7 +113,7 @@ function loadSharedConfig() {
     const json = JSON.parse(fs.readFileSync(SHARED_CONFIG_PATH, "utf-8"));
     sharedConfig = json && typeof json === "object" && !Array.isArray(json) ? json : {};
   } catch (err) {
-    debug(`Failed to read shared config: ${err.message}`);
+    debug(`Failed to read shared config: ${err.name}`);
     sharedConfig = {};
   }
   return true;
@@ -462,13 +467,13 @@ async function sendHttpToUrl(url, payload) {
     });
 
     if (!response.ok) {
-      debug(`HTTP failed (${url}): ${response.status}`);
+      debug(`HTTP failed (${targetLabel(url)}): ${response.status}`);
       return false;
     }
     debug(`HTTP sent: ${response.status}`);
     return true;
   } catch (err) {
-    debug(`HTTP error (${url}): ${err.message}`);
+    debug(`HTTP error (${targetLabel(url)}): ${err.name}`);
     return false;
   }
 }
@@ -550,7 +555,7 @@ function enqueueSend(key, send) {
     while (lane.pending) {
       const next = lane.pending;
       lane.pending = null;
-      try { await next(); } catch (err) { debug(`Send failed: ${err.message}`); }
+      try { await next(); } catch (err) { debug(`Send failed: ${err.name}`); }
     }
     sendLanes.delete(key);
   })();
@@ -605,15 +610,15 @@ const plugin = {
     api.logger.info(`[vibemon] Project: ${config.projectName}, Character: ${config.character}`);
     api.logger.info(`[vibemon] Serial: ${config.serialEnabled}, HTTP: ${config.httpEnabled} (${config.httpUrls.length} URLs), AutoLaunch: ${config.autoLaunch}`);
     if (config.httpEnabled && config.httpUrls.length > 0) {
-      api.logger.info(`[vibemon] HTTP URLs: ${config.httpUrls.join(", ")}`);
+      api.logger.info(`[vibemon] HTTP origins: ${config.httpUrls.map(targetLabel).join(", ")}`);
     }
     // Log VibeMon API configuration
     // Never log token content: tokens can be as short as 8 chars, so even a
     // prefix can be the whole credential.
     if (config.vibemonUrl && config.vibemonToken) {
-      api.logger.info(`[vibemon] VibeMon API: ${config.vibemonUrl} (token: set)`);
+      api.logger.info(`[vibemon] VibeMon API: ${targetLabel(config.vibemonUrl)} (token: set)`);
     } else {
-      api.logger.info(`[vibemon] VibeMon API: disabled (url: ${config.vibemonUrl || "not set"}, token: ${config.vibemonToken ? "set" : "not set"})`);
+      api.logger.info(`[vibemon] VibeMon API: disabled (url: ${config.vibemonUrl ? targetLabel(config.vibemonUrl) : "not set"}, token: ${config.vibemonToken ? "set" : "not set"})`);
     }
 
     // Find TTY device at startup
