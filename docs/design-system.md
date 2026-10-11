@@ -8,6 +8,8 @@ VibeMon Desktop and Web share one visual language. Desktop adds local activity a
 
 Use violet for actions and active work, teal for healthy states, amber for attention, and rose for errors. A measurement's magnitude does not imply failure: only plan limits have usage thresholds. Always pair color with a state label. Unavailable measurements are distinct from zero. Trend selectors show units once; axis labels use scientific notation for very large or tiny values, while readings and tooltips retain their precision. Stale observations retain their receipt time.
 
+App icons and Web favicons derive from the same brand mark and fixed sidebar colors. On macOS, run `node assets/generators/generate-icons.js` after changing those sources. It writes the PNG, Windows ICO, macOS ICNS, and Web favicon files together. Small frames use a thicker stroke for legibility. Commit the generated assets and sync the public App revision into Web.
+
 ## Workspace
 
 Keep primary navigation in this order: **Overview**, **Resources**, **Coding agents**. Put account or device settings below it. The page header names the current task and provides its primary action. **Customize view** controls source and metric selection without occupying the monitoring canvas.
