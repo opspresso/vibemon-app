@@ -329,6 +329,10 @@ h3 {
   align-items: center;
   gap: 10px;
 }
+.header-actions > .button {
+  min-height: 32px;
+  padding: 6px 10px;
+}
 .chip {
   display: inline-flex;
   align-items: center;

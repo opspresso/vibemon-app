@@ -161,6 +161,7 @@ function render(value) {
     else button.removeAttribute('aria-current');
   }
   $('settings-tabs').hidden = !settingsPages.has(route);
+  $('header-customize').hidden = route !== 'overview';
   const [label, description, tone] = connection(cloud.status);
   text($('connection-chip'), label);
   $('connection-chip').className = `chip ${tone}`;
