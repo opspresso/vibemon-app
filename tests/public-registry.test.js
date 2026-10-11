@@ -32,6 +32,7 @@ test('rejects a missing character map or inherited default', () => {
 });
 test('rejects an invalid character image instead of publishing an unusable asset', () => {
   const root = fixture();
-  writeFileSync(join(root, 'src/assets/characters/vibemon.png'), 'invalid image');
+  const registry = JSON.parse(readFileSync(join(root, 'src/shared/data/characters.json'), 'utf8'));
+  writeFileSync(join(root, 'src/assets/characters', registry.characters.vibemon.image), 'invalid image');
   expect(validate(root)).toBe(1);
 });

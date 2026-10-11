@@ -16,6 +16,8 @@ App icons and Web favicons derive from the same geometry and fixed sidebar color
 
 The default VibeMon companion shares the logo's silhouette in 2D and 3D. Its 128px sprite has 14×24px eyes starting at (39, 60) and (75, 60). These are top-left bounds, not eye centers. The generator verifies the registry against the shared geometry; blink, closed-eye, happy-eye, and glasses overlays use those bounds. The 3D rig maps the same anchors onto its beveled face. Other provider characters keep their existing artwork, eye coordinates, and 3D rig.
 
+The new sprite is `vibemon-v2.png`. The public `characters/vibemon.png` URL retains the previous artwork for clients using older eye anchors. When changing artwork or anchors, use a new image filename and increase `characters.json.revision`. Desktop ignores cached revisions older than its bundle and never refreshes to an older revision, so an upgrade cannot combine old coordinates with new artwork.
+
 ![VibeMon ready, working, and resting in 2D and 3D](images/companion-identity.png)
 
 ## Workspace

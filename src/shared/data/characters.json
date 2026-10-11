@@ -1,11 +1,12 @@
 {
+  "revision": 1,
   "default": "vibemon",
   "characters": {
     "vibemon": {
       "displayName": "VibeMon",
       "color": "#8B7CF6",
       "eyeColor": "#241B3A",
-      "image": "vibemon.png",
+      "image": "vibemon-v2.png",
       "eyes": { "left": { "x": 39, "y": 60 }, "right": { "x": 75, "y": 60 }, "w": 14, "h": 24 },
       "effect": { "x": 56, "y": 6 },
       "theme": { "body": "#8B7CF6", "belly": "#EDE9FF", "accent": "#C4B5FD", "eye": "#241B3A", "blush": "#FF9EC4", "flame": "#7DF9FF" }

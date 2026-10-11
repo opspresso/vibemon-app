@@ -107,7 +107,7 @@ describe('engine drawing', () => {
     const canvas = createCanvas(128, 128);
     const context = canvas.getContext('2d');
     const renderer = new CharacterRenderer(context);
-    renderer.characterImages.vibemon = await loadImage(path.join(__dirname, '../src/assets/characters/vibemon.png'));
+    renderer.characterImages.vibemon = await loadImage(path.join(__dirname, '../src/assets/characters', charactersRegistry.characters.vibemon.image));
     const character = makeEngine().characters.vibemon;
     const pixel = (x, y) => Array.from(context.getImageData(x, y, 1, 1).data);
     const ink = [36, 27, 58, 255], body = [139, 124, 246, 255];

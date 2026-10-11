@@ -4,7 +4,7 @@
  * Canonical state/character registries live in this repository and are
  * served from STATIC_BASE_URL (vibemon.io/static). This module
  * resolves the registries synchronously at startup — last cached remote copy
- * (validated) first, bundled data/*.json as fallback — and exposes refresh()
+ * (validated and no older than the bundle) first, bundled data/*.json as fallback — and exposes refresh()
  * to fetch/validate/cache the remote copies in the background. A refreshed
  * registry applies on the next launch; character images are remote-first at
  * render time independently of this cache.
@@ -145,7 +145,7 @@ function sanitizeTheme(theme) {
 
 /**
  * Validate and sanitize a remote characters registry. Returns a
- * `{ default, characters }` object in the bundled file's shape, or null
+ * `{ revision, default, characters }` object in the bundled file's shape, or null
  * when unusable. Invalid entries are dropped (character removal is a
  * legitimate registry change, so no superset rule here); the file is rejected if its default is missing or invalid.
  */
@@ -153,6 +153,7 @@ function sanitizeCharactersRegistry(json) {
   if (!json || typeof json !== 'object' || !json.characters || typeof json.characters !== 'object') {
     return null;
   }
+  if (json.revision !== undefined && (!Number.isSafeInteger(json.revision) || json.revision < 0)) return null;
 
   const characters = Object.create(null);
   for (const [name, entry] of Object.entries(json.characters)) {
@@ -200,7 +201,7 @@ function sanitizeCharactersRegistry(json) {
     return null;
   }
 
-  return { default: json.default, characters };
+  return { revision: json.revision ?? 0, default: json.default, characters };
 }
 
 function readJsonSafe(file) {
@@ -212,8 +213,8 @@ function readJsonSafe(file) {
 }
 
 /**
- * Resolve the registries synchronously: validated cached remote copy first,
- * bundled data second. Called once at module load.
+ * Resolve synchronously. Cached character metadata must be at least as new
+ * as the bundled artwork; states retain their compatible cache-first rule.
  */
 function loadRegistries() {
   const dir = getCacheDir();
@@ -222,7 +223,9 @@ function loadRegistries() {
 
   if (dir) {
     states = sanitizeStatesRegistry(readJsonSafe(path.join(dir, 'states.json')));
-    characters = sanitizeCharactersRegistry(readJsonSafe(path.join(dir, 'characters.json')));
+    const cached = sanitizeCharactersRegistry(readJsonSafe(path.join(dir, 'characters.json')));
+    // An App upgrade must not pair its new artwork with older cached anchors.
+    if (cached && cached.revision >= (bundledCharacters.revision ?? 0)) characters = cached;
   }
 
   return {
@@ -265,6 +268,11 @@ async function refresh() {
     const characters = sanitizeCharactersRegistry(charactersJson);
     if (!states || !characters) {
       console.warn('Registry refresh: remote registry failed validation, keeping current cache');
+      return false;
+    }
+    const cached = sanitizeCharactersRegistry(readJsonSafe(path.join(dir, 'characters.json')));
+    if (characters.revision < Math.max(bundledCharacters.revision ?? 0, cached?.revision ?? 0)) {
+      console.warn('Registry refresh: keeping newer bundled or cached character artwork');
       return false;
     }
 

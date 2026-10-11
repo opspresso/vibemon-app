@@ -66,7 +66,7 @@ async function main() {
   const spriteCanvas = createCanvas(128, 128);
   spriteCanvas.getContext('2d').drawImage(sprite, 0, 0);
   fs.writeFileSync(path.join(design, 'brand-mark.svg'), mark);
-  fs.writeFileSync(path.join(root, 'src/assets/characters/vibemon.png'), spriteCanvas.toBuffer('image/png'));
+  fs.writeFileSync(path.join(root, 'src/assets/characters', character.image), spriteCanvas.toBuffer('image/png'));
   const frames = new Map(await Promise.all([16, 24, 32, 48, 64, 128, 256, 512, 1024].map(async size => [size, await draw(size, mark)])));
   const temporary = fs.mkdtempSync(path.join(os.tmpdir(), 'vibemon-icons-'));
   try {
