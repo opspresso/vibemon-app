@@ -447,7 +447,7 @@ app.whenReady().then(() => {
     app.dock.hide();
   }
 
-  // The tray opens the workspace; status ingress creates the companion on demand.
+  // Tray menu actions open the workspace; status ingress creates the companion on demand.
   trayManager = new TrayManager(windowManager, app);
 
   const cloudDelivery = new HookCloudDelivery({ configManager: vibemonConfigManager, allowLocalHttp: !app.isPackaged });

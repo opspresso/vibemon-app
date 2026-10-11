@@ -32,7 +32,7 @@ Open the installed VibeMon application. It starts in the system tray and listens
 
 1. Sign in to [VibeMon Account](https://vibemon.io/account) with Google.
 2. Create a **Read** token and select **Show token** to copy it. Tokens can be retrieved again; deleting one stops its API access.
-3. Click the App tray icon and open **Settings → Connections**. Enter the Web origin and read token, then select **Save and connect**.
+3. Click the App tray icon, select **Settings…**, then open **Connections**. Enter the Web origin and read token, then select **Save and connect**.
 4. Open **Customize view**, select resources, provider accounts, and metrics, then select **Save view**.
 
 A source appears after its collector or hook sends the first report. Follow the [connection guide](https://vibemon.io/docs) to set up separate write tokens, custom resources, or several accounts for one provider. Provider credentials remain on the source machine.

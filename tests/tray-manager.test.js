@@ -40,18 +40,23 @@ async function onPlatform(platform, check) {
   try { await check(); } finally { Object.defineProperty(process, 'platform', descriptor); }
 }
 
-test.each(['darwin', 'win32'])('%s primary click opens the workspace; the secondary menu is built on demand', async platform => {
+test.each(['darwin', 'win32'])('%s tray clicks open only the menu; Dashboard opens the workspace', async platform => {
   await onPlatform(platform, async () => {
     manager.createTray(); await flush();
-    events.get('click')();
-    expect(manager.openDashboard).toHaveBeenCalledTimes(1);
-    expect(native.popUpContextMenu).not.toHaveBeenCalled();
     for (let i = 0; i < 250; i++) manager.updateMenu();
     expect(Menu.buildFromTemplate).not.toHaveBeenCalled();
     expect(native.setContextMenu).not.toHaveBeenCalled();
-    events.get('right-click')();
-    expect(Menu.buildFromTemplate).toHaveBeenCalledTimes(1);
-    expect(native.popUpContextMenu).toHaveBeenCalledTimes(1);
+    for (const event of ['click', 'right-click']) {
+      events.get(event)();
+      expect(manager.openDashboard).not.toHaveBeenCalled();
+      expect(manager.openSettings).not.toHaveBeenCalled();
+      const menu = native.popUpContextMenu.mock.calls.at(-1)[0];
+      expect(menu.template.map(item => item.label)).toContain('Dashboard');
+    }
+    expect(Menu.buildFromTemplate).toHaveBeenCalledTimes(2);
+    expect(native.popUpContextMenu).toHaveBeenCalledTimes(2);
+    native.popUpContextMenu.mock.calls[0][0].template.find(item => item.label === 'Dashboard').click();
+    expect(manager.openDashboard).toHaveBeenCalledTimes(1);
   });
 });
 
@@ -61,7 +66,11 @@ test('Linux installs its static navigation menu once', async () => {
     for (let i = 0; i < 250; i++) manager.updateMenu();
     expect(Menu.buildFromTemplate).toHaveBeenCalledTimes(1);
     expect(native.setContextMenu).toHaveBeenCalledTimes(1);
+    expect(events.has('click')).toBe(false);
     expect(events.has('right-click')).toBe(false);
+    expect(manager.openDashboard).not.toHaveBeenCalled();
+    native.setContextMenu.mock.calls[0][0].template.find(item => item.label === 'Dashboard').click();
+    expect(manager.openDashboard).toHaveBeenCalledTimes(1);
   });
 });
 
