@@ -92,6 +92,14 @@ startFixture().then(async fixture => {
   assert.ok((await text('#resource-cards')).includes('Unified memory'));
   assert.ok((await text('#resource-cards')).includes('Stale'));
   assert.ok((await text('#resource-cards')).includes('—'), 'missing readings remain unavailable');
+  const uneditedSources = state.sources;
+  state.sources = () => uneditedSources().map(source => source.sourceId === 'gpu-workstation' ? {
+    ...source, resourceType: 'DGX Spark', metricDefinitions: { memoryPercent: { label: 'Shared memory ratio', unit: 'ratio', display: 'number' } }, metricOrder: ['memoryPercent'], metrics: { memoryPercent: 0.123456 }
+  } : source);
+  await client.poll(true); await delay(150);
+  assert.ok((await text('#resource-cards')).includes('Shared memory ratio'), 'saved labels override preset labels');
+  assert.ok((await text('#resource-cards')).includes('0.123456'), 'edited presets retain custom precision');
+  state.sources = uneditedSources; await client.poll(true);
   const orderingSources = state.sources;
   await ui('document.querySelector(\'[aria-label="View Production cluster details"]\').focus()');
   state.sources = () => orderingSources().map(source => source.sourceId === 'production' ? { ...source, health: 'error' } : source);

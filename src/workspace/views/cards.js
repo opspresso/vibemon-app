@@ -174,9 +174,7 @@ export function renderCards(
       const metrics = (compact ? visible.slice(0, 3) : visible).map((metric) => ({
         metric,
         value: source.metrics[metric.key],
-        precise: !compact && metric.selectionKey.startsWith('resource:'),
-        label:
-          metric.key === 'memoryPercent' && source.memoryType === 'unified' ? 'Unified memory' : metric.label
+        precise: !compact && metric.selectionKey.startsWith('resource:')
       }));
       keyed(parts.metrics, metrics, (entry) => entry.metric.key, createMetric, updateMetric);
       const projects = source.isAccount && !compact ? source.members.slice(0, 3) : [];
