@@ -28,11 +28,14 @@ function loadModule(relPath, sandbox, exportNames) {
 const monsterStates = loadModule('src/engine/monster-states.js', {}, [
   'JOINTS', 'MOVES', 'STATE_ANIMATIONS', 'getStateAnimation', 'getCharacterTheme', 'lerp', 'dampFactor'
 ]);
+const companion = loadModule('src/engine/vibemon-companion.mjs', {}, [
+  'COMPANION_SIZE', 'COMPANION_OUTLINE', 'COMPANION_EYES'
+]);
 
-const { VibeMonEngine3D, CONSTANTS, REST_POSE, MOVE_FNS } = loadModule(
+const { VibeMonEngine3D, createVibeMonEngine, CONSTANTS, REST_POSE, MOVE_FNS, buildMonster } = loadModule(
   'src/engine/vibemon-engine-3d.js',
-  { THREE: {}, ...monsterStates },
-  ['VibeMonEngine3D', 'CONSTANTS', 'REST_POSE', 'MOVE_FNS']
+  { THREE: {}, ...monsterStates, ...companion },
+  ['VibeMonEngine3D', 'createVibeMonEngine', 'CONSTANTS', 'REST_POSE', 'MOVE_FNS', 'buildMonster']
 );
 
 // container=null: the constructor doesn't touch the DOM; init() (which does)
@@ -75,6 +78,34 @@ describe('engine state/character selection', () => {
 });
 
 describe('rig conformance', () => {
+  test('the V companion uses matching face anchors and switching disposes its geometry', () => {
+    const THREE = require('three');
+    const engine = createVibeMonEngine(null, { THREE, characters: charactersRegistry.characters, defaultCharacter: 'vibemon' });
+    engine.scene = new THREE.Scene();
+    engine.rig = buildMonster(true);
+    engine.scene.add(engine.rig.group);
+    const face = engine.rig;
+    expect(face.eyes.left.group.position.toArray()).toEqual([-0.45, -0.2, 0.37]);
+    expect(face.eyes.right.group.position.toArray()).toEqual([0.45, -0.2, 0.37]);
+    const geometry = face.joints.body.children.find(child => child.geometry?.type === 'ExtrudeGeometry').geometry;
+    const disposed = jest.spyOn(geometry, 'dispose');
+    engine.setState({ character: 'clawd' });
+    expect(disposed).toHaveBeenCalledTimes(1);
+    expect(engine.rig.attentive).toBe(false);
+    expect(engine.scene.children).toEqual([engine.rig.group]);
+    const previous = engine.rig;
+    engine.setState({ character: 'codex' });
+    expect(engine.rig).toBe(previous);
+    engine.setState({ character: 'vibemon', state: 'sleep' });
+    expect(engine.rig.attentive).toBe(true);
+    expect(engine.scene.children).toEqual([engine.rig.group]);
+    engine._applyFrame(1);
+    expect(engine.rig.eyes.left.group.scale.y).toBeLessThan(0.1);
+    expect(engine.rig.eyes.left.glint.visible).toBe(false);
+    expect(engine.rig.eyes.right.glint2.visible).toBe(false);
+    engine.cleanup();
+    expect(engine.scene.children).toHaveLength(0);
+  });
   test('reduced motion uses the current state pose without time-driven movement', () => {
     const { Group } = require('three');
     const engine = makeEngine();

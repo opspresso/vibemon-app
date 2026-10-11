@@ -43,7 +43,7 @@ On Windows, the installer pins the Python interpreter in the plugin; custom conf
 
 | Character | Color | Description | Auto-selected for |
 |-----------|-------|-------------|-------------------|
-| `vibemon` | Purple | Robot with antenna, default character | Any bridge without its own character |
+| `vibemon` | Purple | Rounded V companion with two watchful eyes | Any bridge without its own character |
 | `clawd` | Orange | Four-legged friend | Claude Code |
 | `codex` | Navy | Cloud character with light eyes on a dark screen | Codex CLI |
 | `kiro` | White | Ghost character | Kiro |
@@ -61,7 +61,7 @@ Characters are defined in `src/shared/data/characters.json`: display name, accen
 **Settings → Companion → Render style** switches the character window between the two engines; the choice persists and the open window reloads into it.
 
 - `2d` (default): the pixel-art sprite described above
-- `3d`: a procedurally rendered pet (three.js) — no images are used. The rig is the same for every character; each one is tinted by its registry `theme` (`body`/`belly`/`accent`/`eye`/`blush`/`flame`), so Character Lock and per-project switching behave identically to 2D.
+- `3d`: a procedurally rendered pet (three.js) — no images are used. VibeMon uses the rounded V silhouette and eye anchors shared with its logo and 2D sprite. Other characters retain the horned rig, tinted by their registry `theme` (`body`/`belly`/`accent`/`eye`/`blush`/`flame`). Character Lock and per-project switching work in both modes.
 
 **Settings → Companion → Size** offers 100% through 30% in 10-point steps. The choice applies to both render modes and persists across restarts. The 3D canvas uses the largest uniform scale that fits each pose about the camera center, leaving a 2px margin. It recalculates before rendering each frame, including state transitions, and uses higher WebGL resolution for sharp enlargement. The 2D presentation is unchanged.
 

@@ -46,7 +46,7 @@
 .vm-brand-mark {
   display: inline-block;
   width: 32px;
-  height: 36px;
+  height: 32px;
   flex: none;
   background: currentColor;
   mask: url('./brand-mark.svg') center / contain no-repeat;

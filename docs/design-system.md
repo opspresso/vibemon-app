@@ -2,13 +2,23 @@
 
 VibeMon Desktop and Web share one visual language. Desktop adds local activity and companion settings. Web adds account, token, and collection management.
 
+![VibeMon identity in light, dark, App, and small-icon treatments](images/brand-identity.png)
+
 ## Shared foundation
 
-`src/shared/design/tokens.css` owns the product palette, typography family, radii, control height, sidebar width, and motion duration. `brand-mark.svg` owns the product mark. `presentation.mjs` owns state priority, labels, provider names, numeric precision, and relative observation times. These files are public exports in `web-distribution.json`. Web imports a pinned copy; change the App source and sync the Web snapshot before changing either client.
+`src/shared/design/tokens.css` owns the product palette, typography family, radii, control height, sidebar width, and motion duration. `src/engine/vibemon-companion.mjs` owns the V silhouette and eye bounds; `brand-mark.svg` is its generated product mark. `presentation.mjs` owns state priority, labels, provider names, numeric precision, and relative observation times. These files are public exports in `web-distribution.json`. Web imports a pinned copy; change the App source and sync the Web snapshot before changing either client.
 
 Use violet for actions and active work, teal for healthy states, amber for attention, and rose for errors. A measurement's magnitude does not imply failure: only plan limits have usage thresholds. Always pair color with a state label. Unavailable measurements are distinct from zero. Trend selectors show units once; axis labels use scientific notation for very large or tiny values, while readings and tooltips retain their precision. Stale observations retain their receipt time.
 
-App icons and Web favicons derive from the same brand mark and fixed sidebar colors. On macOS, run `node assets/generators/generate-icons.js` after changing those sources. It writes the PNG, Windows ICO, macOS ICNS, and Web favicon files together. Small frames use a thicker stroke for legibility. Commit the generated assets and sync the public App revision into Web.
+The brand mark is an attentive companion shaped around the initial **V**. Two eyes are cut out of a single rounded silhouette, so the mark keeps its expression in one color and against either theme. The upward tips suggest awareness; the rounded base connects the technical workspace to its friendly desktop companion. Keep the square view box and transparent eye apertures. Do not add outlines, enclosing cubes, or state-dependent details to the mark.
+
+App icons and Web favicons derive from the same geometry and fixed sidebar colors. On macOS, run `node assets/generators/generate-icons.js` after changing those sources. It writes the SVG mark, 128px VibeMon sprite, App PNG, Windows ICO, macOS ICNS, and Web favicon files together. Small frames enlarge the filled mark within the tile; they do not depend on fine strokes. Inspect the eye openings at 16px and 32px, then commit the generated assets and sync the public App revision into Web.
+
+The default VibeMon companion shares the logo's silhouette in 2D and 3D. Its 128px sprite has 14×24px eyes starting at (39, 60) and (75, 60). These are top-left bounds, not eye centers. The generator verifies the registry against the shared geometry; blink, closed-eye, happy-eye, and glasses overlays use those bounds. The 3D rig maps the same anchors onto its beveled face. Other provider characters keep their existing artwork, eye coordinates, and 3D rig.
+
+The new sprite is `vibemon-v2.png`. The public `characters/vibemon.png` URL retains the previous artwork for clients using older eye anchors. When changing artwork or anchors, use a new image filename and increase `characters.json.revision`. Desktop ignores cached revisions older than its bundle and never refreshes to an older revision, so an upgrade cannot combine old coordinates with new artwork.
+
+![VibeMon ready, working, and resting in 2D and 3D](images/companion-identity.png)
 
 ## Workspace
 

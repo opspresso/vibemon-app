@@ -66,6 +66,9 @@ describe('sanitizeStatesRegistry', () => {
 });
 
 describe('sanitizeCharactersRegistry', () => {
+  test.each([-1, 1.5, '1', null])('rejects invalid artwork revision %p', revision => {
+    expect(sanitizeCharactersRegistry({ ...clone(bundledCharacters), revision })).toBeNull();
+  });
   test('accepts the bundled registry unchanged', () => {
     expect(sanitizeCharactersRegistry(clone(bundledCharacters))).toEqual(bundledCharacters);
   });
@@ -172,6 +175,46 @@ describe('loadRegistries (cache → bundled fallback)', () => {
     expect(registryCache.statesRegistry.states.idle.text).toBe('Standby');
     // No cached characters file -> bundled fallback
     expect(registryCache.charactersRegistry).toEqual(bundledCharacters);
+  });
+
+  test('an upgrade replaces unversioned cached eye anchors with bundled artwork metadata', () => {
+    const old = clone(bundledCharacters);
+    delete old.revision;
+    old.characters.vibemon.image = 'vibemon.png';
+    old.characters.vibemon.eyes = { left: { x: 44, y: 52 }, right: { x: 76, y: 52 }, w: 8, h: 12 };
+    fs.writeFileSync(path.join(tmpDir, 'characters.json'), JSON.stringify(old));
+    const registry = loadWithCacheDir(tmpDir).charactersRegistry;
+    expect(registry.characters.vibemon.image).toBe('vibemon-v2.png');
+    expect(registry.characters.vibemon.eyes.left).toEqual({ x: 39, y: 60 });
+  });
+
+  test('retains a newer valid cached registry', () => {
+    const next = clone(bundledCharacters);
+    next.revision += 1;
+    next.characters.vibemon.displayName = 'Updated companion';
+    fs.writeFileSync(path.join(tmpDir, 'characters.json'), JSON.stringify(next));
+    expect(loadWithCacheDir(tmpDir).charactersRegistry).toEqual(next);
+  });
+
+  test.each([[2, 0], [2, 1], [null, 0]])('refresh updates states while preserving artwork at revision %s against %s', async (cachedRevision, revision) => {
+    const current = clone(bundledCharacters);
+    if (cachedRevision !== null) current.revision = cachedRevision;
+    const file = path.join(tmpDir, 'characters.json');
+    if (cachedRevision !== null) fs.writeFileSync(file, JSON.stringify(current));
+    const states = clone(bundledStates);
+    states.states.idle.text = 'Standby';
+    const originalFetch = global.fetch;
+    const warning = jest.spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      global.fetch = jest.fn(async url => new global.Response(JSON.stringify(url.endsWith('/states.json') ? states : { ...bundledCharacters, revision })));
+      expect(await loadWithCacheDir(tmpDir).refresh()).toBe(true);
+      jest.resetModules();
+      const refreshed = loadWithCacheDir(tmpDir);
+      expect(refreshed.statesRegistry.states.idle.text).toBe('Standby');
+      expect(refreshed.charactersRegistry).toEqual(current);
+      if (cachedRevision === null) expect(fs.existsSync(file)).toBe(false);
+      else expect(JSON.parse(fs.readFileSync(file, 'utf8'))).toEqual(current);
+    } finally { global.fetch = originalFetch; warning.mockRestore(); }
   });
 
   test('falls back to bundled data when the cached copy is invalid', () => {

@@ -111,7 +111,7 @@ export function remaining(seconds) {
   if (minutes < 1440) return `${Math.floor(minutes / 60)}h ${minutes % 60}m`;
   return `${Math.floor(minutes / 1440)}d ${Math.floor((minutes % 1440) / 60)}h`;
 }
-let characterImages = new Map([['vibemon', 'vibemon.png']]);
+let characterImages = new Map([['vibemon', 'vibemon-v2.png']]);
 export function configureSprites(characters) {
   characterImages = new Map(
     characters
@@ -120,7 +120,7 @@ export function configureSprites(characters) {
   );
 }
 export function sprite(character) {
-  return `../assets/characters/${characterImages.get(character) || characterImages.get('vibemon') || 'vibemon.png'}`;
+  return `../assets/characters/${characterImages.get(character) || characterImages.get('vibemon') || 'vibemon-v2.png'}`;
 }
 export function badge(node, state) {
   node.className = `chip ${stateTone(state)}`;

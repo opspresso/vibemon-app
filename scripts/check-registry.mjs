@@ -48,6 +48,7 @@ if (isRecord(states)) {
 
 // --- characters.json ---
 const charsDoc = loadJson('characters.json');
+check(Number.isSafeInteger(charsDoc?.revision) && charsDoc.revision >= 0, 'characters.json revision must be a non-negative integer');
 const characters = charsDoc?.characters;
 check(isRecord(characters) && Object.keys(characters).length > 0, 'characters.json: characters must be a non-empty object');
 if (charsDoc) {
