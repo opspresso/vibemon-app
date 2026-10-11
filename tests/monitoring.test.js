@@ -11,14 +11,14 @@ function okResponse(value) {
 
 function store(initial = {}) {
   const values = new Map(Object.entries(initial));
-  return { get: key => values.get(key), set: (key, value) => values.set(key, value), delete: key => values.delete(key), values };
+  return { get: key => values.get(key), set: (key, value) => typeof key === 'object' ? Object.entries(key).forEach(([name, entry]) => values.set(name, entry)) : values.set(key, value), delete: key => values.delete(key), values };
 }
 const source = now => ({ sourceId: 'spark', kind: 'host', displayName: 'Spark', health: 'ok', stale: false, observedAt: new Date(now).toISOString(), receivedAt: new Date(now).toISOString(), metrics: { cpuPercent: 35, memoryPercent: 72, gpuTemperatureC: 40, gpuPercent: null }, memoryType: 'unified' });
 function fixture(now = 1000000) {
   const preferences = store({ url: 'https://web.example' });
   const secrets = store();
   let value = rawToken;
-  const credentials = { has: () => Boolean(value), get: () => value, set: token => { value = token; }, clear: () => { value = null; } };
+  const credentials = { has: () => Boolean(value), get: () => value, set: (token, origin) => { value = token; if (origin) preferences.set('url', origin); }, clear: () => { value = null; } };
   const fetchImpl = jest.fn().mockResolvedValue(okResponse({ sources: [source(now)] }));
   return { client: new MonitoringClient({ preferences, credentials, fetchImpl, now: () => now }), preferences, secrets, fetchImpl };
 }
@@ -115,16 +115,19 @@ describe('cloud monitoring', () => {
     await pending;
     expect(changed.mock.calls.at(-1)[0].status).toBe('connected');
   });
-  test('changing connections clears the previous workspace before validation finishes', async () => {
+  test('a candidate connection replaces the previous workspace only after validation', async () => {
     const { client, fetchImpl } = fixture();
     await client.poll(true);
     let complete;
     fetchImpl.mockReturnValueOnce(new Promise(resolve => { complete = resolve; }));
     const changed = jest.fn(); client.on('change', changed);
     const pending = client.configure({ url: 'https://other.example', token: 'vm_' + '2'.repeat(60) });
-    expect(changed.mock.calls.at(-1)[0]).toMatchObject({ url: 'https://other.example', status: 'connecting', sources: [], catalog: [], lastSyncedAt: null });
+    expect(changed).not.toHaveBeenCalled();
+    expect(client.snapshot()).toMatchObject({ url: 'https://web.example', status: 'connected' });
+    expect(client.snapshot().sources).toHaveLength(1);
     complete(okResponse({ sources: [] }));
     await pending;
+    expect(client.snapshot()).toMatchObject({ url: 'https://other.example', status: 'connected', sources: [] });
   });
   test.each([[401, 'token-expired'], [403, 'permission-denied'], [503, 'connection-error']])('distinguishes HTTP %s', async (status, expected) => {
     const { client, fetchImpl } = fixture();
@@ -316,4 +319,48 @@ describe('custom resource definitions', () => {
     expect(() => validateSources([{ ...custom('sensor'), metricOrder: ['unknown'] }])).toThrow('exactly once');
     expect(() => validateSources([{ ...custom('sensor'), metricOrder: ['value', 'value'] }])).toThrow('exactly once');
   });
+});
+
+test.each([401, 403, 503])('a rejected replacement (%s) preserves the saved connection and data', async status => {
+  const { client, preferences, fetchImpl } = fixture();
+  await client.poll(true);
+  const before = client.snapshot();
+  fetchImpl.mockResolvedValueOnce({ ok: false, status });
+  await expect(client.configure({ url: 'https://other.example', token: 'vm_' + '2'.repeat(60) })).rejects.toThrow();
+  expect(client.credentials.get()).toBe(rawToken);
+  expect(preferences.get('url')).toBe('https://web.example');
+  expect(client.snapshot()).toEqual(before);
+});
+test('invalid response data and storage failures cannot publish a new connection', async () => {
+  const { client, fetchImpl } = fixture();
+  await client.poll(true);
+  const before = client.snapshot();
+  fetchImpl.mockResolvedValueOnce(okResponse({ sources: 'invalid' }));
+  await expect(client.configure({ url: 'https://other.example', token: rawToken })).rejects.toThrow('Invalid source');
+  client.credentials.set = () => { throw new Error('Storage failed'); };
+  fetchImpl.mockResolvedValueOnce(okResponse({ sources: [] }));
+  await expect(client.configure({ url: 'https://other.example', token: rawToken })).rejects.toThrow('Storage failed');
+  expect(client.snapshot()).toEqual(before);
+});
+test('late candidate checks cannot overwrite a newer choice or undo disconnect', async () => {
+  const { client, fetchImpl } = fixture();
+  let complete;
+  fetchImpl.mockReturnValueOnce(new Promise(resolve => { complete = resolve; }));
+  const old = client.configure({ url: 'https://old.example', token: rawToken });
+  await client.configure({ url: 'https://new.example', token: 'vm_' + '2'.repeat(60) });
+  complete(okResponse({ sources: [] }));
+  await expect(old).rejects.toThrow('connection changed');
+  expect(client.snapshot().url).toBe('https://new.example');
+  fetchImpl.mockReturnValueOnce(new Promise(resolve => { complete = resolve; }));
+  const cancelled = client.configure({ url: 'https://old.example', token: rawToken });
+  await client.disconnect(); complete(okResponse({ sources: [] }));
+  await expect(cancelled).rejects.toThrow('connection changed');
+  expect(client.hasToken()).toBe(false);
+});
+test('the credential adapter commits encrypted token and origin together', () => {
+  const storage = { set: jest.fn(), get: jest.fn() };
+  const vault = new CredentialStore(storage, { isEncryptionAvailable: () => true, encryptString: () => Buffer.from('encrypted') });
+  vault.set(rawToken, 'https://new.example');
+  expect(storage.set).toHaveBeenCalledTimes(1);
+  expect(storage.set).toHaveBeenCalledWith({ credential: Buffer.from('encrypted').toString('base64'), url: 'https://new.example' });
 });

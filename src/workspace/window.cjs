@@ -79,6 +79,12 @@ class WorkspaceWindow {
         return { result, frame: this.snapshot() };
       }
       case 'show-companion': this.showCompanion(); return true;
+      case 'open-write-token-account': {
+        if (typeof args[0] !== 'string') throw new Error('Enter a valid Web address');
+        const origin = webOrigin(args[0], this.monitoring.allowLocalHttp);
+        await this.openExternal(new URL('/account?purpose=write', origin).href);
+        return true;
+      }
       case 'open-web': {
         const [destination, sourceId] = args;
         let pathname = Object.hasOwn(WEB_PATHS, destination) ? WEB_PATHS[destination] : null;

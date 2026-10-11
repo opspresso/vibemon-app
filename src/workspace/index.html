@@ -8,6 +8,7 @@
     />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
     <title>VibeMon</title>
+    <link rel="stylesheet" href="../shared/design/tokens.css" />
     <link rel="stylesheet" href="style.css" />
   </head>
   <body>
@@ -15,7 +16,7 @@
     <div class="app-shell">
       <aside class="sidebar">
         <a class="brand" href="#overview" data-page-link="overview"
-          ><span class="brand-mark" data-icon="logo"></span
+          ><span class="brand-mark vm-brand-mark" aria-hidden="true"></span
           ><span>VibeMon<span class="brand-caption">Your workspace, in view</span></span></a
         >
         <div class="nav-label">WORKSPACE</div>
@@ -56,11 +57,11 @@
       <main class="main" id="main">
         <header class="page-header">
           <div>
-            <div id="breadcrumb" class="eyebrow">WORKSPACE</div>
             <h1 id="page-title" tabindex="-1">Overview</h1>
             <p id="page-description" class="muted">A clear view of your systems and coding activity.</p>
           </div>
           <div class="header-actions">
+            <button id="header-customize" class="button secondary" data-selection>Customize view</button>
             <span id="connection-chip" class="chip neutral" role="status">Not connected</span
             ><button
               id="refresh"
@@ -104,11 +105,11 @@
               ><span class="muted">Local projects</span><strong id="summary-local">0</strong
               ><span id="summary-local-note" class="small muted">Activity on this device</span>
             </div>
-            <div class="summary">
+            <button class="summary" id="overview-attention" aria-pressed="false" title="Filter cloud sources needing attention">
               <span class="summary-symbol amber" data-icon="attention"></span
               ><span class="muted">Need attention</span><strong id="summary-attention">0</strong
               ><span id="summary-attention-note" class="small muted">No reported issues</span>
-            </div>
+            </button>
           </div>
           <div class="section-heading">
             <div>
@@ -344,8 +345,8 @@
           <div class="panel settings-panel">
             <h3>Application</h3>
             <div class="setting-row">
-              <label for="theme">Workspace appearance</label
-              ><select id="theme">
+              <div><label for="theme">Workspace appearance</label><p id="theme-storage-status" class="small muted" role="status" hidden></p></div>
+              <select id="theme">
                 <option value="system">Use system setting</option>
                 <option value="light">Light</option>
                 <option value="dark">Dark</option>
@@ -378,6 +379,24 @@
               <span data-icon="refresh"></span>Check installations
             </button>
           </div>
+          <form id="cloud-delivery-form" class="panel settings-panel">
+            <div class="panel-heading">
+              <div><h3>Send activity to Web</h3><p class="muted">Connect local coding hooks to the same Google workspace you follow in the dashboard.</p></div>
+              <span id="cloud-delivery-status" class="chip neutral" role="status">No saved write token</span>
+            </div>
+            <label class="form-label" for="cloud-delivery-url">Web address</label>
+            <input id="cloud-delivery-url" type="url" required autocomplete="url" placeholder="https://vibemon.io" />
+            <label class="form-label" for="cloud-write-token">Write token<span id="cloud-token-state" class="small muted"></span></label>
+            <input id="cloud-write-token" type="password" autocomplete="off" spellcheck="false" placeholder="Paste a write token from Web Account" />
+            <p class="field-help">Shared defaults for local hooks. Agent environment or plugin settings can override them.</p>
+            <p id="cloud-delivery-error" class="notice danger" role="alert" hidden></p>
+            <div class="form-actions">
+              <button id="save-cloud-delivery" class="button">Save and verify</button>
+              <button id="check-cloud-delivery" type="button" class="button secondary">Check saved connection</button>
+              <button id="disconnect-cloud-delivery" type="button" class="button quiet-danger">Remove saved write token</button>
+            </div>
+            <div class="field-help cloud-delivery-help"><span id="cloud-delivery-help">Local activity stays available in the App.</span><button type="button" class="text-button" id="open-write-token-account">Open Web Account<span data-icon="external"></span></button></div>
+          </form>
           <p id="integration-progress" class="field-help" role="status" hidden>Installation in progress. Other install actions will be available when it finishes.</p>
           <div id="hook-list" class="integration-grid"></div>
           <button id="hooks-reset-prompts" class="text-button" hidden>Re-enable installation prompts</button>
@@ -405,9 +424,6 @@
             <div class="setting-row">
               <label for="vibemon-serial-port">Serial device</label
               ><input id="vibemon-serial-port" type="text" placeholder="No serial device" />
-            </div>
-            <div class="setting-row">
-              <label for="vibemon-url">Collector Web address</label><input id="vibemon-url" type="url" />
             </div>
             <div class="setting-row">
               <label for="vibemon-auto-launch">Open the installed App on session start</label
@@ -515,9 +531,12 @@
           <h3>Recent hour</h3>
           <select id="trend-metric" aria-label="History metric"></select>
         </div>
+        <p id="trend-error" class="notice danger" role="alert" hidden></p>
+        <button id="retry-trend" class="text-button" hidden>Retry history<span data-icon="refresh"></span></button>
         <p id="trend-state" class="small muted" role="status"></p>
-        <svg id="chart" viewBox="0 0 600 240" role="img" aria-label="One hour metric history"></svg>
-        <p class="small muted">Window averages. Gaps mean no recorded measurement.</p>
+        <div id="chart-legend" class="chart-legend" hidden><span>Average</span><span class="maximum">Maximum</span></div>
+        <svg id="chart" viewBox="0 0 600 240" role="img" aria-label="Average and maximum over the recent hour" aria-describedby="trend-state"></svg>
+        <p class="small muted">Minute averages and maxima. Gaps mean no recorded measurement.</p>
       </div>
       <button id="edit-resource" class="button secondary">
         Edit resource on Web<span data-icon="external"></span>

@@ -76,7 +76,7 @@ Forces the character window to always show one character, ignoring whatever char
 - `auto` (default): each project shows its own character
 - Any character name: that character is always shown instead, applied immediately to the open window
 - Choose **Settings → Companion → Character** or use `POST /character-lock`
-- Switching back to `auto` doesn't retroactively fix the open window — it picks up each project's real character again on its next status update
+- Switching back to `auto` immediately restores the focused project's latest reported character. Local activity keeps the original tool identity even while a fixed companion is selected.
 
 ## States
 

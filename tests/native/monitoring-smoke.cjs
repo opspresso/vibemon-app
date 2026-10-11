@@ -74,12 +74,8 @@ app.whenReady().then(async () => {
     console.log('PASS native resource selection: real Spark and Kubernetes summaries');
   }
   await view.window.webContents.executeJavaScript('document.querySelector("[data-close-dialog=detail-dialog]").click();');
-  await client.configure({ url: snapshot.url, token: 'vm_' + '0'.repeat(60) });
-  await until(() => view.window.webContents.executeJavaScript('document.getElementById("connection-chip").textContent.includes("Token not accepted") && !document.getElementById("connection-notice").hidden'));
-  await client.select({ sources: [], accounts: [], metrics: [] });
-  assert.equal(client.getStatus(), 'token-expired');
-  await client.configure({ url: snapshot.url, token: fixture.readToken });
-  assert.equal(client.getStatus(), 'connected');
+  await assert.rejects(client.configure({ url: snapshot.url, token: 'vm_' + '0'.repeat(60) }));
+  assert.equal(client.getStatus(), 'connected', 'rejected candidates preserve a working read connection');
   preferences.set('credential', 'corrupt');
   await client.poll(true);
   assert.equal(client.getStatus(), 'credential-unavailable');

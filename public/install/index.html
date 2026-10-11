@@ -5,17 +5,20 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>VibeMon documentation</title>
   <link rel="canonical" href="https://vibemon.io/docs">
+  <link rel="stylesheet" href="/static/design/tokens.css">
   <style>
-    body { color: #172033; background: #f7f8fa; font: 16px/1.7 system-ui, sans-serif; margin: 0; }
+    body { color: var(--vm-foreground); background: var(--vm-background); font: 16px/1.7 var(--vm-font); margin: 0; }
     main { max-width: 620px; margin: 12vh auto; padding: 32px; }
     h1 { font-size: 2.4rem; letter-spacing: -.04em; line-height: 1.2; }
-    a { color: #9a4c00; text-underline-offset: .2em; }
+    .brand { display: flex; align-items: center; gap: 12px; font-weight: 650; }
+    .vm-brand-mark, a { color: var(--vm-accent); }
+    a { text-underline-offset: .2em; }
     li { margin: .6rem 0; }
   </style>
 </head>
 <body>
   <main>
-    <p>VibeMon / Documentation</p>
+    <p class="brand"><span class="vm-brand-mark" aria-hidden="true"></span>VibeMon / Documentation</p>
     <h1>Connect your workspace</h1>
     <p>The current guides cover Google login, tokens, custom resources, coding accounts, and the Desktop App.</p>
     <p><a href="https://vibemon.io/docs">Open VibeMon documentation →</a></p>

@@ -1,3 +1,4 @@
+import { dominantState, measurementUnit, needsAttention as attentionState } from '../../shared/design/presentation.mjs';
 import {
   el,
   text,
@@ -25,32 +26,35 @@ export const accountCard = (account) => ({
   provider: account.provider,
   members: account.sources
 });
-const attentionStates = ['error', 'alert', 'notification', 'warning', 'stale'];
 export function sourceState(source) {
   const states = (source.members || [source]).flatMap(member =>
     member.stale ? ['stale'] : [member.health, member.agent?.state]
   );
-  return attentionStates.find(state => states.includes(state)) || source.agent?.state || source.health;
+  return dominantState(states, source.agent?.state || source.health);
 }
-export const needsAttention = source => attentionStates.includes(sourceState(source));
+export const needsAttention = source => attentionState(sourceState(source));
 
 export function createMetric() {
   const node = el('div', undefined, 'metric');
   const label = el('div', undefined, 'metric-line');
   const name = el('span', undefined, 'metric-label');
   const value = el('strong');
+  const amount = el('span');
+  const unit = el('span', undefined, 'metric-unit');
+  value.append(amount, unit);
   label.append(name, value);
   const bar = el('div', undefined, 'metric-bar');
   const fill = el('span');
   bar.append(fill);
   node.append(label, bar);
-  node._parts = { name, value, bar, fill };
+  node._parts = { name, value, amount, unit, bar, fill };
   return node;
 }
 export function updateMetric(node, { metric, value, label, precise = false }) {
-  const { name, value: output, bar, fill } = node._parts;
+  const { name, value: output, amount, unit, bar, fill } = node._parts;
   text(name, label || metric.label);
-  text(output, reading(value, metric.unit, precise));
+  text(amount, reading(value, '', precise));
+  text(unit, typeof value === 'number' && Number.isFinite(value) ? measurementUnit(metric.unit) : '');
   output.title = reading(value, metric.unit, true);
   const available = typeof value === 'number' && Number.isFinite(value);
   bar.hidden = !available || metric.display !== 'gauge';
@@ -86,7 +90,8 @@ export function renderCards(
     emptyAction = 'Customize view'
   } = {}
 ) {
-  const shown = limit ? sources.slice(0, limit) : sources;
+  const ordered = [...sources].sort((a, b) => Number(needsAttention(b)) - Number(needsAttention(a)) || a.displayName.localeCompare(b.displayName));
+  const shown = limit ? ordered.slice(0, limit) : ordered;
   if (!shown.length) {
     container._emptyAction = navigate;
     if (!container._empty) {
@@ -113,7 +118,7 @@ export function renderCards(
     shown,
     (source) => `${source.isAccount ? 'account' : 'resource'}:${source.sourceId}`,
     () => {
-      const card = el('article', undefined, compact ? 'card compact-card' : 'card');
+      const card = el('article', undefined, 'card');
       const heading = el('div', undefined, 'card-heading');
       const image = el('div', undefined, 'source-icon');
       const titles = el('div', undefined, 'card-title-group');
@@ -127,7 +132,8 @@ export function renderCards(
       const members = el('div', undefined, 'card-members');
       const footer = el('div', undefined, 'card-footer');
       const received = el('time');
-      const details = button('Details', () => openDetail(card._source), '', 'arrow');
+      const details = button('Details', () => openDetail(card._source), '');
+      details.append(icon('arrow'));
       footer.append(received, details);
       card.append(heading, message, metrics, members, footer);
       card._parts = { name, type, image, status, message, metrics, members, received, details };
@@ -135,6 +141,8 @@ export function renderCards(
     },
     (card, source) => {
       card._source = source;
+      card.classList.toggle('compact-card', compact);
+      card.setAttribute('aria-label', source.displayName);
       const parts = card._parts;
       text(parts.name, source.displayName);
       text(parts.type, source.isAccount ? `${providerName(source.provider)} · ${source.sourceId.slice(source.provider.length + 1)}` : resourceType(source));
@@ -166,9 +174,7 @@ export function renderCards(
       const metrics = (compact ? visible.slice(0, 3) : visible).map((metric) => ({
         metric,
         value: source.metrics[metric.key],
-        precise: !compact && metric.selectionKey.startsWith('resource:'),
-        label:
-          metric.key === 'memoryPercent' && source.memoryType === 'unified' ? 'Unified memory' : metric.label
+        precise: !compact && metric.selectionKey.startsWith('resource:')
       }));
       keyed(parts.metrics, metrics, (entry) => entry.metric.key, createMetric, updateMetric);
       const projects = source.isAccount && !compact ? source.members.slice(0, 3) : [];

@@ -38,3 +38,7 @@ Windows release builds require `WINDOWS_CERTS` (base64 PKCS#12) and `WINDOWS_CER
 The current OpsPresso Windows certificate is self-signed. Windows may show an unknown-publisher warning. The App keeps Windows update signature verification enabled, so automatic installation requires Windows to trust the publisher; use manual downloads where it does not. This release check does not claim public-CA trust.
 
 macOS releases require code-signature, notarization ticket, and Gatekeeper verification. Every release builds the commit referenced by its tag and requires the tag to match `package.json`. Both platform builds and signature checks must pass before GitHub publication. Windows blockmaps are published with the installers; failed Homebrew dispatches fail the workflow.
+
+## Cloud connection checks
+
+Publish Web with `GET /api/v1/connection?scope=write` before distributing an App that uses **Save and verify** for hook delivery. Older Web servers return an explicit upgrade message; the App does not write a synthetic observation to probe permissions. Existing hook delivery continues independently of this setup check.

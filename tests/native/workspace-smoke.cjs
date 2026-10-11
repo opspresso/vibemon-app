@@ -73,8 +73,18 @@ startFixture().then(async fixture => {
   assert.equal(await text('#summary-attention'), '3');
   const overviewBounds = await ui('({ bottom: document.querySelector("#overview-accounts .card").getBoundingClientRect().bottom, viewport: innerHeight })');
   assert.ok(overviewBounds.bottom < overviewBounds.viewport, `account metrics fit in the initial viewport: ${JSON.stringify(overviewBounds)}`);
-  assert.equal(state.requests.some(url => url.endsWith('/trend')), false, 'history is not prefetched');
+  assert.equal(state.requests.some(url => url.includes('/trend?')), false, 'history is not prefetched');
   await screenshot('overview-dark');
+  await click('#overview-attention');
+  assert.equal(await ui('document.getElementById("overview-attention").getAttribute("aria-pressed")'), 'true');
+  assert.equal(await ui('[...document.querySelectorAll("#overview-resources .card, #overview-accounts .card")].some(card => card.classList.contains("compact-card"))'), false, 'attention view expands every reused card');
+  assert.deepEqual(await ui('[...document.querySelectorAll("#overview-resources .card h3")].map(node => node.textContent)'), ['Build runner', 'Cache service']);
+  assert.deepEqual(await ui('[...document.querySelectorAll("#overview-accounts .card h3")].map(node => node.textContent)'), ['Research lab']);
+  await client.poll(true); await delay(150);
+  assert.equal(await ui('document.querySelectorAll("#overview-accounts .card").length'), 1, 'background refresh preserves the attention filter');
+  await click('#overview-attention');
+  assert.equal(await ui('document.querySelectorAll("#overview-accounts .card").length'), 3);
+
 
   await navigate('resources');
   await ui('window.focusTrace = []; for (const type of ["focusin", "focusout"]) document.addEventListener(type, event => window.focusTrace.push({ type, id: event.target.id, page: document.documentElement.dataset.page }));');
@@ -82,6 +92,21 @@ startFixture().then(async fixture => {
   assert.ok((await text('#resource-cards')).includes('Unified memory'));
   assert.ok((await text('#resource-cards')).includes('Stale'));
   assert.ok((await text('#resource-cards')).includes('—'), 'missing readings remain unavailable');
+  const uneditedSources = state.sources;
+  state.sources = () => uneditedSources().map(source => source.sourceId === 'gpu-workstation' ? {
+    ...source, resourceType: 'DGX Spark', metricDefinitions: { memoryPercent: { label: 'Shared memory ratio', unit: 'ratio', display: 'number' } }, metricOrder: ['memoryPercent'], metrics: { memoryPercent: 0.123456 }
+  } : source);
+  await client.poll(true); await delay(150);
+  assert.ok((await text('#resource-cards')).includes('Shared memory ratio'), 'saved labels override preset labels');
+  assert.ok((await text('#resource-cards')).includes('0.123456'), 'edited presets retain custom precision');
+  state.sources = uneditedSources; await client.poll(true);
+  const orderingSources = state.sources;
+  await ui('document.querySelector(\'[aria-label="View Production cluster details"]\').focus()');
+  state.sources = () => orderingSources().map(source => source.sourceId === 'production' ? { ...source, health: 'error' } : source);
+  await client.poll(true); await delay(150);
+  assert.equal(await ui('document.activeElement.getAttribute("aria-label")'), 'View Production cluster details', 'attention reordering preserves keyboard focus');
+  state.sources = orderingSources; await client.poll(true);
+
   await ui('window.originalCard = [...document.querySelectorAll("#resource-cards .card")].find(card => card.textContent.includes("Cache service")); document.getElementById("resource-search").focus();');
   await input('#resource-search', 'Cache');
   await ui('document.getElementById("resource-search").setSelectionRange(1, 3)');
@@ -99,6 +124,20 @@ startFixture().then(async fixture => {
   assert.ok((await text('#detail-message')).includes('Latency is above'));
   assert.equal(await ui('document.activeElement.getAttribute("aria-label")'), 'Close source details');
   await screenshot('resource-detail');
+  assert.equal(await ui('document.querySelectorAll("#chart path.average, #chart path.maximum").length'), 2, 'history renders averages and maxima');
+  await ui('window.chartMutations = 0; window.chartObserver = new MutationObserver(() => window.chartMutations++); window.chartObserver.observe(document.getElementById("chart"), { childList: true, subtree: true });');
+  for (let index = 0; index < 3; index++) { view.notify('activity'); await delay(150); }
+  assert.equal(await ui('window.chartMutations'), 0, 'local activity does not redraw unchanged cloud history');
+  await ui('window.chartObserver.disconnect()');
+  state.trendStatus = 503;
+  await ui('document.dispatchEvent(new Event("visibilitychange"))');
+  await until(() => visible('#trend-error'), 'history failure remains separate from retained chart data');
+  await client.poll(true); await delay(150);
+  assert.equal(await visible('#trend-error'), true, 'latest-state polling cannot hide history failures');
+  state.trendStatus = 200;
+  await click('#retry-trend');
+  await until(async () => !(await visible('#trend-error')), 'history retry clears only the recovered error');
+
   const originalSources = state.sources;
   state.sources = () => originalSources().map(source => source.sourceId === 'cache' ? { ...source, metrics: { ...source.metrics, latency: 12.3456 } } : source);
   await client.poll(true);
@@ -119,9 +158,9 @@ startFixture().then(async fixture => {
   const originalTrend = state.trend;
   state.trend = item => ({ ...originalTrend(item), metricDefinitions: { latency: { label: 'Temperature', unit: '°C', display: 'gauge', min: -40, max: 20 } }, metricOrder: ['latency'], points: [{ timestamp: new Date().toISOString(), average: { latency: -12 }, maximum: { latency: -12 }, samples: 1, expiresAt: Date.now() / 1000 + 86400 }] });
   await click('[aria-label="View Cache service details"]');
-  await until(async () => (await text('#chart')).includes('-40°C'), 'history uses its returned signed metric schema');
+  await until(async () => (await text('#chart')).includes('-40') && (await text('#trend-metric')).includes('Temperature (°C)'), 'history uses its returned signed metric schema');
   await client.poll(true); await delay(150);
-  assert.ok((await text('#chart')).includes('-40°C'), 'a latest-state poll cannot relabel historical values');
+  assert.ok((await text('#chart')).includes('-40') && (await text('#trend-metric')).includes('Temperature (°C)'), 'a latest-state poll cannot relabel historical values');
   assert.ok(Math.abs(await ui('Number(document.querySelector("#chart circle").getAttribute("cy"))') - 115.333333) < 0.000001);
   await click('[data-close-dialog="detail-dialog"]');
   state.trend = originalTrend;
@@ -151,6 +190,16 @@ startFixture().then(async fixture => {
   assert.ok((await text('#agent-cards')).includes('Needs input'));
   assert.ok((await text('#agent-cards')).includes('—'), 'unreported provider quota is not zero');
   await input('#agent-filter', 'all');
+  const beforeMetricSelection = client.snapshot();
+  await client.select({ sources: beforeMetricSelection.selectedSources, accounts: beforeMetricSelection.selectedAccounts, metrics: [] });
+  await delay(150);
+  const historyRequests = state.requests.filter(url => url.includes('/trend?')).length;
+  await click('#agent-cards [aria-label="View Engineering details"]');
+  await delay(150);
+  assert.equal(state.requests.filter(url => url.includes('/trend?')).length, historyRequests, 'hidden metrics do not cause unused history requests');
+  assert.ok((await text('#trend-state')).includes('Choose a visible metric'));
+  await click('[data-close-dialog="detail-dialog"]');
+  await client.select({ sources: beforeMetricSelection.selectedSources, accounts: beforeMetricSelection.selectedAccounts, metrics: beforeMetricSelection.selectedMetrics });
   await screenshot('coding-accounts');
   await verifyContrast();
   await click('[data-page="agents"] [data-selection]');
@@ -203,7 +252,14 @@ startFixture().then(async fixture => {
   await until(() => !ports.appearance.SpeechBubbleFields.status, 'bubble preference saved');
   await input('#character-scale', '80', 'change');
   await until(() => ports.appearance.CharacterScale === 80, 'scale preference saved');
+  await ui('window.originalStorageWrite = Storage.prototype.setItem; Storage.prototype.setItem = function() { throw new Error("Storage denied"); }; void 0;');
   await input('#theme', 'light', 'change');
+  assert.equal(await ui('document.documentElement.dataset.theme'), 'light', 'appearance still works without persistence');
+  assert.ok((await text('#theme-storage-status')).includes('this session'));
+  await ui('Storage.prototype.setItem = window.originalStorageWrite; delete window.originalStorageWrite;');
+  await input('#theme', 'light', 'change');
+  assert.equal(await visible('#theme-storage-status'), false);
+
   await navigate('overview');
   await verifyContrast();
   await screenshot('overview-light');
@@ -213,6 +269,29 @@ startFixture().then(async fixture => {
   assert.equal(await value('#character-scale'), '80');
   await screenshot('companion-settings');
   await navigate('integrations');
+  assert.equal(await value('#cloud-write-token'), '');
+  await input('#cloud-write-token', TOKEN);
+  await click('#save-cloud-delivery');
+  await until(() => visible('#cloud-delivery-error'), 'read-only token rejected for cloud delivery');
+  assert.ok((await text('#cloud-delivery-error')).includes('write permission'));
+  assert.equal(await visible('#error'), false, 'delivery errors appear once, inside their form');
+  assert.equal(ports.config.vibemon_token, 'fixture-secret-must-not-cross-IPC', 'failed check preserves saved configuration');
+  const writeToken = 'vm_' + 'a'.repeat(60);
+  await input('#cloud-write-token', writeToken);
+  await click('#save-cloud-delivery');
+  await until(async () => (await text('#cloud-delivery-status')) === 'Write access verified', 'cloud write access verified');
+  assert.equal(ports.config.vibemon_token, writeToken);
+  assert.equal(await value('#cloud-write-token'), '');
+  assert.ok(!JSON.stringify(view.snapshot()).includes(writeToken), 'write credential never returns over IPC');
+  await screenshot('cloud-delivery');
+  await click('#disconnect-cloud-delivery');
+  await until(async () => (await text('#cloud-delivery-status')) === 'No saved write token', 'shared cloud credential removed');
+  assert.equal(ports.config.vibemon_token, '');
+  assert.equal(client.hasToken(), true, 'stopping publication retains the independent read connection');
+  assert.ok(ports.config.http_urls.includes('http://127.0.0.1:19280'));
+  ports.config.vibemon_token = 'fixture-secret-must-not-cross-IPC';
+  view.notify('settings');
+
   const installByFlag = ports.hookInstaller.installByFlag;
   let finishInstallation;
   const installation = new Promise(resolve => { finishInstallation = resolve; });
@@ -285,11 +364,12 @@ startFixture().then(async fixture => {
   await input('#web-url', 'https://vibemon.io');
   await input('#read-token', 'vm_' + '0'.repeat(60));
   await click('#save-connection');
-  await until(() => client.getStatus() === 'token-expired', 'rejected token');
-  await until(async () => (await text('#connection-chip')).includes('Token not accepted'), 'token failure shown');
+  await until(() => visible('#error'), 'rejected replacement explained');
+  assert.equal(client.getStatus(), 'connected', 'a rejected replacement preserves the working connection');
+  assert.ok((await text('#error')).includes('active read token'));
   assert.equal(await value('#read-token'), '');
   await input('#read-token', TOKEN); await click('#save-connection');
-  await until(() => client.getStatus() === 'connected', 'token recovery');
+  await until(async () => client.getStatus() === 'connected' && ui('!document.getElementById("save-connection").disabled'), 'token recovery');
   fixture.corruptCredential(); await client.poll(true);
   await until(async () => (await text('#connection-chip')).includes('Replace saved token'), 'corrupt credential recovery');
   await input('#read-token', TOKEN); await click('#save-connection');

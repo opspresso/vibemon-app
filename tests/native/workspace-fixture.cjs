@@ -5,6 +5,7 @@ const { MonitoringClient } = require('../../src/monitoring/client.cjs');
 const { WorkspaceSettings } = require('../../src/workspace/settings.cjs');
 const { WorkspaceWindow } = require('../../src/workspace/window.cjs');
 const { installWorkspaceMenu } = require('../../src/workspace/menu.cjs');
+const { HookCloudDelivery } = require('../../src/modules/hook-cloud-delivery.cjs');
 const { TrayManager } = require('../../src/modules/tray-manager.cjs');
 const { TOKEN, memoryStore, sources, createPorts, trend } = require('../fixtures/workspace.cjs');
 
@@ -15,15 +16,22 @@ app.setPath('userData', directory);
 async function startFixture() {
   await app.whenReady();
   const ports = createPorts();
-  const state = { sources, status: 200, requests: [], trendDelayMs: 0, trend };
+  const state = { sources, status: 200, requests: [], trendStatus: 200, trendDelayMs: 0, trend };
   const server = http.createServer((request, response) => {
     response.setHeader('Content-Type', 'application/json');
     state.requests.push(request.url);
+    if (request.url === '/api/v1/connection?scope=write') {
+      const accepted = request.headers.authorization === `Bearer ${'vm_' + 'a'.repeat(60)}`;
+      response.writeHead(accepted ? 200 : 403);
+      response.end(JSON.stringify(accepted ? { connected: true, scope: 'write' } : { error: 'Write permission required' }));
+      return;
+    }
     if (request.headers.authorization !== `Bearer ${TOKEN}`) { response.writeHead(401); response.end('{}'); return; }
     if (state.status !== 200) { response.writeHead(state.status); response.end('{}'); return; }
     const url = new URL(request.url, 'http://localhost');
     const data = state.sources();
     if (url.pathname.endsWith('/trend')) {
+      if (state.trendStatus !== 200) { response.writeHead(state.trendStatus); response.end('{}'); return; }
       const id = decodeURIComponent(url.pathname.split('/').at(-2));
       const item = data.find(item => item.sourceId === id || item.account && `${item.account.provider}:${item.account.id}` === id);
       const payload = JSON.stringify(item ? state.trend(item) : { points: [] });
@@ -46,14 +54,16 @@ async function startFixture() {
       if (corrupt) throw Object.assign(new Error('Test credential unavailable'), { code: 'credential-unavailable' });
       return token;
     },
-    set(value) { token = value; corrupt = false; },
+    set(value, url) { token = value; corrupt = false; if (url) preferences.set('url', url); },
     clear() { token = null; corrupt = false; }
   };
   const client = new MonitoringClient({ preferences, credentials, fetchImpl: (url, options) => fetch(origin + new URL(url).pathname + new URL(url).search, options) });
-  const settings = new WorkspaceSettings(ports);
+  const cloudDelivery = new HookCloudDelivery({ configManager: ports.vibemonConfigManager, fetchImpl: (url, options) => fetch(origin + new URL(url).pathname + new URL(url).search, options) });
+  const settings = new WorkspaceSettings({ ...ports, cloudDelivery });
   const errors = [];
   const view = new WorkspaceWindow({ monitoring: client, settings, ...ports, reportError: error => { errors.push(error.message); } });
   settings.onSettingsChanged = () => view.notify('settings');
+  cloudDelivery.onChange = () => settings.notifyChanged();
   ports.hookInstaller.onStateChanged = () => view.notify('settings');
   const trayManager = new TrayManager({ getProjectIds: () => [], getState: () => null }, app, client);
   trayManager.openDashboard = () => view.open('overview');

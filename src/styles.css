@@ -60,3 +60,7 @@ html, body {
   image-rendering: pixelated;
   transition: top 0.1s ease-out, left 0.1s ease-out;
 }
+
+@media (prefers-reduced-motion: reduce) {
+  .vibemon-display .vibemon-canvas { transition: none; }
+}

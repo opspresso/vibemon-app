@@ -19,6 +19,7 @@ let frame = null;
 let toastTimer = null;
 let visible = true;
 let pageFocusPending = false;
+let overviewAttention = false;
 let preferences, selection, detail;
 document.documentElement.dataset.platform = api.platform;
 hydrateIcons();
@@ -54,7 +55,7 @@ function fail(error) {
     $('error').hidden = false;
   }
 }
-async function run(control, action) {
+async function run(control, action, onError = fail) {
   if (control?.dataset.busy) return;
   const hadFocus = control && document.activeElement === control;
   if (control) {
@@ -67,7 +68,7 @@ async function run(control, action) {
   try {
     return await action();
   } catch (error) {
-    fail(error);
+    onError(error);
   } finally {
     if (control) {
       delete control.dataset.busy;
@@ -110,6 +111,7 @@ function accept(value) {
   const pageChanged = Boolean(frame && frame.route !== value.route);
   if (pageChanged) pageFocusPending = true;
   if (frame && frame.cloud.connectionRevision !== value.cloud.connectionRevision) {
+    overviewAttention = false;
     detail.close();
     selection.close();
     for (const id of ['overview-resources', 'overview-accounts', 'resource-cards', 'agent-cards']) {
@@ -149,7 +151,6 @@ function render(value) {
   text($('page-title'), pages[route][0]);
   $('page-title').setAttribute('aria-label', settingsPages.has(route) ? `Settings: ${route.charAt(0).toUpperCase()}${route.slice(1)}` : pages[route][0]);
   text($('page-description'), pages[route][1]);
-  text($('breadcrumb'), settingsPages.has(route) ? 'PREFERENCES' : 'WORKSPACE');
   for (const section of document.querySelectorAll('[data-page]'))
     section.hidden = section.dataset.page !== route;
   for (const button of document.querySelectorAll('[data-page-link]')) {
@@ -160,6 +161,7 @@ function render(value) {
     else button.removeAttribute('aria-current');
   }
   $('settings-tabs').hidden = !settingsPages.has(route);
+  $('header-customize').hidden = route !== 'overview';
   const [label, description, tone] = connection(cloud.status);
   text($('connection-chip'), label);
   $('connection-chip').className = `chip ${tone}`;
@@ -186,12 +188,13 @@ function render(value) {
   const attention =
     resources.filter(needsAttention).length +
     accounts.filter((account) => account.members.some(needsAttention)).length;
-  text($('nav-resources'), resources.length);
-  text($('nav-agents'), accounts.length);
-  text($('summary-resources'), resources.length);
-  text($('summary-accounts'), accounts.length);
+  const receivedCloudData = Boolean(cloud.lastSyncedAt) || !cloud.tokenConfigured;
+  text($('nav-resources'), receivedCloudData ? resources.length : '—');
+  text($('nav-agents'), receivedCloudData ? accounts.length : '—');
+  text($('summary-resources'), receivedCloudData ? resources.length : '—');
+  text($('summary-accounts'), receivedCloudData ? accounts.length : '—');
   text($('summary-local'), activity.length);
-  text($('summary-attention'), attention);
+  text($('summary-attention'), receivedCloudData ? attention : '—');
   text(
     $('summary-resource-note'),
     resources.length
@@ -205,9 +208,12 @@ function render(value) {
       : 'Connect an account to get started'
   );
   text($('summary-local-note'), `${active.length} active on this device`);
-  text($('summary-attention-note'), attention ? 'Review highlighted sources' : 'No reported issues');
+  text($('summary-attention-note'), overviewAttention ? 'Showing sources to review' : attention ? 'Review highlighted sources' : 'No reported issues');
+  $('overview-attention').setAttribute('aria-pressed', String(overviewAttention));
+  document.documentElement.dataset.overviewFilter = overviewAttention ? 'attention' : 'all';
   $('settings-attention').hidden =
     !settings.vibemonConfig.status.error &&
+    settings.cloudDelivery.status !== 'error' &&
     !settings.hooks.some((tool) => tool.present && (tool.broken || tool.changed)) &&
     !['available', 'downloaded'].includes(settings.update.status);
   text(
@@ -218,7 +224,8 @@ function render(value) {
   );
   text($('footer-version'), settings.version);
   const selectedMetrics = new Set(cloud.selectedMetrics);
-  const choose = () => (cloud.tokenConfigured ? selection.open() : navigate('connections'));
+  const canChoose = cloud.status === 'connected' || cloud.catalog.length > 0;
+  const choose = () => (canChoose ? selection.open() : navigate('connections'));
   const resourceEmpty = {
     emptyTitle:
       cloud.status === 'not-configured' ? 'Bring your resources into view' : 'No resources in this view',
@@ -232,16 +239,29 @@ function render(value) {
     emptyDescription: 'Connect provider accounts on Web, then choose the ones to follow here.',
     emptyAction: cloud.tokenConfigured ? 'Choose accounts' : 'Connect workspace'
   };
-  if (route === 'overview') {
-    renderCards($('overview-resources'), resources, selectedMetrics, detail.open, choose, {
-      ...resourceEmpty,
-      limit: 3,
-      compact: true
+  if (!canChoose && cloud.tokenConfigured) {
+    for (const emptyState of [resourceEmpty, accountEmpty]) Object.assign(emptyState, {
+      emptyTitle: cloud.status === 'connecting' ? 'Connecting your workspace' : 'Workspace data is unavailable',
+      emptyDescription: connection(cloud.status)[1],
+      emptyAction: 'Connection settings'
     });
-    renderCards($('overview-accounts'), accounts, selectedMetrics, detail.open, choose, {
-      ...accountEmpty,
-      limit: 3,
-      compact: true
+  }
+  if (route === 'overview') {
+    const clearAttention = () => { overviewAttention = false; render(frame); };
+    const attentionEmpty = (kind) => ({
+      emptyTitle: `No ${kind} need attention`,
+      emptyDescription: 'Your selected cloud sources have no reported issues.',
+      emptyAction: 'Show all sources'
+    });
+    renderCards($('overview-resources'), overviewAttention ? resources.filter(needsAttention) : resources, selectedMetrics, detail.open, overviewAttention ? clearAttention : choose, {
+      ...(overviewAttention ? attentionEmpty('resources') : resourceEmpty),
+      limit: overviewAttention ? undefined : 3,
+      compact: !overviewAttention
+    });
+    renderCards($('overview-accounts'), overviewAttention ? accounts.filter(needsAttention) : accounts, selectedMetrics, detail.open, overviewAttention ? clearAttention : choose, {
+      ...(overviewAttention ? attentionEmpty('accounts') : accountEmpty),
+      limit: overviewAttention ? undefined : 3,
+      compact: !overviewAttention
     });
     renderActivity($('overview-activity'), activity, true);
     renderUsage($('overview-usage'), usage);
@@ -343,6 +363,10 @@ for (const id of ['resource-search', 'resource-filter', 'agent-search', 'agent-f
   $(id).addEventListener('input', () => {
     if (frame) render(frame);
   });
+$('overview-attention').addEventListener('click', () => {
+  overviewAttention = !overviewAttention;
+  if (frame) render(frame);
+});
 $('refresh').addEventListener('click', () =>
   run($('refresh'), async () => {
     const cloud = await request('refresh');

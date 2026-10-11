@@ -36,6 +36,7 @@ const { TrayManager } = require('./modules/tray-manager.cjs');
 const { HttpServer } = require('./modules/http-server.cjs');
 const { HookInstaller } = require('./modules/hook-installer.cjs');
 const { VibemonConfigManager } = require('./modules/vibemon-config-manager.cjs');
+const { HookCloudDelivery } = require('./modules/hook-cloud-delivery.cjs');
 const { UpdateChecker } = require('./modules/update-checker.cjs');
 const { UsageRefresher } = require('./modules/usage-refresher.cjs');
 const { validateStatusPayload } = require('./modules/validators.cjs');
@@ -68,7 +69,7 @@ const bubbleWindowManager = new BubbleWindowManager(
 );
 dockMonitor.onChange = () => windowManager.refreshDockLayout();
 const hookInstaller = new HookInstaller();
-const vibemonConfigManager = new VibemonConfigManager();
+const vibemonConfigManager = new VibemonConfigManager({ allowLocalHttp: !app.isPackaged });
 const updateChecker = new UpdateChecker();
 const usageRefresher = new UsageRefresher();
 let trayManager = null;
@@ -236,10 +237,8 @@ function handleCloudStatusUpdate(data, meta = {}) {
 
 /**
  * Remove a deleted, deselected, or disconnected cloud source.
- * Closes the window when it follows the deleted project; windowManager
- * .onWindowClosed cascades into stateManager.cleanupProject and tray
- * refresh, so no extra bookkeeping is needed here. No-op when the window
- * follows another project.
+ * Activity timers and remembered state are removed explicitly. The companion
+ * closes only when it follows this source; other focused projects stay visible.
  */
 function removeCloudProject(projectId) {
   if (typeof projectId !== 'string' || projectId.length === 0) {
@@ -451,7 +450,8 @@ app.whenReady().then(() => {
   // The tray opens the workspace; status ingress creates the companion on demand.
   trayManager = new TrayManager(windowManager, app);
 
-  workspaceSettings = new WorkspaceSettings({ windowManager, app, hookInstaller, vibemonConfigManager, updateChecker, openExternal: url => shell.openExternal(url) });
+  const cloudDelivery = new HookCloudDelivery({ configManager: vibemonConfigManager, allowLocalHttp: !app.isPackaged });
+  workspaceSettings = new WorkspaceSettings({ windowManager, app, hookInstaller, vibemonConfigManager, updateChecker, cloudDelivery, openExternal: url => shell.openExternal(url) });
   const monitoringStore = new Store({ name: 'monitoring' });
   monitoringClient = new MonitoringClient({ preferences: monitoringStore, credentials: new CredentialStore(monitoringStore, safeStorage), allowLocalHttp: !app.isPackaged });
   workspaceWindow = new WorkspaceWindow({
@@ -466,6 +466,7 @@ app.whenReady().then(() => {
     workspaceWindow.notify('settings');
     trayManager.updateIcon();
   };
+  cloudDelivery.onChange = () => workspaceSettings.notifyChanged();
   trayManager.openDashboard = () => workspaceWindow.open('overview');
   trayManager.openSettings = page => workspaceWindow.open(page || 'companion');
   installWorkspaceMenu({ open: page => workspaceWindow.open(page), showCompanion: showCharacterAgain });

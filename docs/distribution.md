@@ -6,6 +6,7 @@ VibeMon is maintained in two repositories: public `vibemon-app` and private `vib
 | --- | --- | --- |
 | Hook installer, adapters, templates, manifest | `public/install/` | `/install/*` |
 | State and character registries | `src/shared/data/` | `/static/data/*` |
+| Product design tokens and mark | `src/shared/design/` | `/static/design/*` |
 | Character images | `src/assets/characters/` | `/static/characters/*` |
 | Shared renderers and resource schema | `src/engine/`, `src/bubble/`, `src/shared/resource-schema.*` | `/static/js/*`, `/static/css/*` |
 | Hook and collector guides | `docs/hooks.md`, `collector/README.md` | `/docs/hooks`, `/docs/collector` |

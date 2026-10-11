@@ -505,6 +505,23 @@ describe('routeStatusUpdate', () => {
     };
   }
 
+  test('Auto immediately restores the latest reported character without changing project identity', () => {
+    const manager = new CharacterWindowManager();
+    stubWindow(manager, 'a');
+    manager.routeStatusUpdate('a', { state: 'working', project: 'a', character: 'codex' });
+    manager.setCharacterLock('kiro');
+    expect(manager.getState('a').character).toBe('kiro');
+    const report = { state: 'thinking', project: 'a', character: 'clawd' };
+    manager.routeStatusUpdate('a', report);
+    manager.setCharacterLock('auto');
+    expect(manager.getState('a').character).toBe('clawd');
+    expect(manager.getRegisteredState('a').character).toBe('clawd');
+    expect(manager.lastWindowState.character).toBe('clawd');
+    expect(manager.entry.window.webContents.send).toHaveBeenLastCalledWith('state-update', expect.objectContaining({ character: 'clawd' }));
+    expect(report.character).toBe('clawd');
+    expect(manager.getFocusedProjectId()).toBe('a');
+  });
+
   test('records state for an unfocused project without touching the window', () => {
     const manager = new CharacterWindowManager();
     stubWindow(manager, 'a');
@@ -564,7 +581,7 @@ describe('routeStatusUpdate', () => {
     expect(manager.getRegisteredState('b').state).toBe('sleep');
   });
 
-  test('character lock overrides the incoming character everywhere downstream', () => {
+  test('character lock overrides presentation while preserving the reported character', () => {
     const manager = new CharacterWindowManager();
     stubWindow(manager, 'a');
     manager.setCharacterLock('kiro');
@@ -572,7 +589,7 @@ describe('routeStatusUpdate', () => {
     const result = manager.routeStatusUpdate('a', { state: 'working', project: 'a', character: 'clawd' });
 
     expect(result.stateData.character).toBe('kiro');
-    expect(manager.getRegisteredState('a').character).toBe('kiro');
+    expect(manager.getRegisteredState('a').character).toBe('clawd');
     expect(manager.getState('a').character).toBe('kiro');
   });
 });

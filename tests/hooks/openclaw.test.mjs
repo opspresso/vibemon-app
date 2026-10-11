@@ -4,6 +4,18 @@ import { openclaw } from "./plugin_harness.mjs";
 
 const ctx = { runId: "r", sessionId: "s", sessionKey: "agent:main:s" };
 
+test("connection diagnostics omit URL credentials, query secrets and raw transport errors", async () => {
+  const h = await openclaw({
+    pluginConfig: { debug: true, httpUrls: ["http://user:fixture-password@monitor/?key=fixture-query"], vibemonUrl: "https://user:fixture-password@cloud.example/?key=fixture-query", vibemonToken: "fixture-write" },
+    fetch: async () => { throw new Error("fixture-private-transport-detail"); },
+  });
+  await h.emit("before_agent_run", {}, ctx);
+  const output = h.logs.join("\n");
+  for (const secret of ["fixture-password", "fixture-query", "fixture-write", "fixture-private-transport-detail"]) assert.ok(!output.includes(secret));
+  assert.ok(output.includes("http://monitor"));
+  assert.ok(output.includes("https://cloud.example"));
+});
+
 test("cloud delivery uses shared account identity without putting credentials in arguments", async () => {
   const h = await openclaw({
     env: { VIBEMON_OPENCLAW_ACCOUNT_ID: "work" },

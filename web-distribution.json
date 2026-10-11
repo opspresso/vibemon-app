@@ -40,12 +40,21 @@
     "public/static/favicon.ico": "assets/web/favicon.ico",
     "public/static/index.html": "assets/web/index.html",
     "public/static/js/monster-states.js": "src/engine/monster-states.js",
+    "public/static/js/animation-policy.js": "src/engine/animation-policy.js",
+    "public/static/js/animation-policy.d.ts": "src/engine/animation-policy.d.ts",
     "public/static/js/resource-schema.cjs": "src/shared/resource-schema.cjs",
     "public/static/js/resource-schema.d.cts": "src/shared/resource-schema.d.cts",
     "public/static/js/vibemon-bubble.d.ts": "src/bubble/vibemon-bubble.d.ts",
     "public/static/js/vibemon-bubble.js": "src/bubble/vibemon-bubble.js",
     "public/static/js/vibemon-engine-3d.js": "src/engine/vibemon-engine-3d.js",
     "public/static/js/vibemon-engine.d.ts": "src/engine/vibemon-engine.d.ts",
-    "public/static/js/vibemon-engine.js": "src/engine/vibemon-engine.js"
+    "public/static/js/vibemon-engine.js": "src/engine/vibemon-engine.js",
+    "public/static/design/tokens.css": "src/shared/design/tokens.css",
+    "public/static/design/brand-mark.svg": "src/shared/design/brand-mark.svg",
+    "public/static/design/app-icon.png": "assets/icon.png",
+    "public/static/design/icon-16.png": "assets/web/icon-16.png",
+    "public/static/design/icon-32.png": "assets/web/icon-32.png",
+    "public/static/design/presentation.mjs": "src/shared/design/presentation.mjs",
+    "public/static/design/presentation.d.mts": "src/shared/design/presentation.d.mts"
   }
 }

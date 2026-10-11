@@ -37,6 +37,7 @@ function fixture() {
       downloadUpdate: jest.fn(async () => { update = { ...update, status: 'downloaded' }; }),
       installDownloaded: jest.fn()
     },
+    cloudDelivery: { snapshot: () => ({ status: 'not-verified', tokenConfigured: true }), configure: jest.fn(), check: jest.fn(), disconnect: jest.fn() },
     openExternal: jest.fn(async () => {})
   };
   const settings = new WorkspaceSettings(dependencies);
@@ -86,7 +87,7 @@ test('hook writes are limited to the settings surface and preserve write credent
   const { settings, dependencies } = fixture();
   settings.invoke('set-vibemon-config', { debug: true });
   expect(dependencies.vibemonConfigManager.read()).toMatchObject({ debug: true, vibemon_token: 'never expose' });
-  for (const payload of [null, [], { vibemon_token: 'replace' }, { cache_path: '/other' }]) {
+  for (const payload of [null, [], { vibemon_token: 'replace' }, { cache_path: '/other' }, { vibemon_url: 'https://other.example' }]) {
     expect(() => settings.invoke('set-vibemon-config', payload)).toThrow();
   }
   expect(dependencies.vibemonConfigManager.write).toHaveBeenCalledTimes(1);

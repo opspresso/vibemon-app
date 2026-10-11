@@ -13,13 +13,14 @@ const EXTERNAL_LINKS = {
 };
 
 class WorkspaceSettings {
-  constructor({ windowManager, app, hookInstaller, vibemonConfigManager, updateChecker, openExternal }) {
+  constructor({ windowManager, app, hookInstaller, vibemonConfigManager, updateChecker, openExternal, cloudDelivery }) {
     this.windowManager = windowManager;
     this.app = app;
     this.hookInstaller = hookInstaller;
     this.vibemonConfigManager = vibemonConfigManager;
     this.updateChecker = updateChecker;
     this.openExternal = openExternal;
+    this.cloudDelivery = cloudDelivery;
     // The composition root subscribes without coupling settings to a window.
     this.onSettingsChanged = null;
 
@@ -57,7 +58,7 @@ class WorkspaceSettings {
    */
   getVibemonConfigView() {
     const config = this.vibemonConfigManager.read();
-    const display = Object.fromEntries(['debug', 'auto_launch', 'http_urls', 'serial_port', 'vibemon_url'].map(key => [key, config[key]]));
+    const display = Object.fromEntries(['debug', 'auto_launch', 'http_urls', 'serial_port'].map(key => [key, config[key]]));
     return { ...display, status: this.vibemonConfigManager.getStatus() };
   }
 
@@ -82,6 +83,7 @@ class WorkspaceSettings {
       installing: Boolean(this.hookInstaller.isRunning),
       vibemonConfig: this.getVibemonConfigView(),
       update: this.updateChecker.getState(),
+      cloudDelivery: this.cloudDelivery.snapshot(),
       options: {
         alwaysOnTopModes: ALWAYS_ON_TOP_MODES,
         characters: CHARACTER_NAMES.map(name => ({ name, displayName: CHARACTER_CONFIG[name].displayName, image: CHARACTER_CONFIG[name].image })),
@@ -165,12 +167,16 @@ class WorkspaceSettings {
 
     handle('set-vibemon-config', (partial) => {
       if (!partial || typeof partial !== 'object' || Array.isArray(partial)) throw new Error('Config changes must be a JSON object');
-      const editable = ['debug', 'auto_launch', 'http_urls', 'serial_port', 'vibemon_url'];
+      const editable = ['debug', 'auto_launch', 'http_urls', 'serial_port'];
       if (Object.keys(partial).some(key => !editable.includes(key))) throw new Error('This hook setting cannot be changed from the workspace');
       this.vibemonConfigManager.write(partial);
       this.notifyChanged();
       return this.getVibemonConfigView();
     });
+
+    handle('configure-cloud-delivery', value => this.cloudDelivery.configure(value));
+    handle('check-cloud-delivery', () => this.cloudDelivery.check());
+    handle('disconnect-cloud-delivery', () => this.cloudDelivery.disconnect());
 
     handle('add-http-url', (url) => {
       if (typeof url !== 'string') throw new Error('Enter a valid HTTP URL');

@@ -1,0 +1,87 @@
+const { HookCloudDelivery } = require('../src/modules/hook-cloud-delivery.cjs');
+const token = 'vm_' + 'a'.repeat(60);
+function response(value = { connected: true, scope: 'write' }) {
+  let read = false;
+  return { ok: true, body: { getReader: () => ({ read: async () => read ? { done: true } : (read = true, { done: false, value: Buffer.from(JSON.stringify(value)) }), releaseLock() {}, cancel: jest.fn() }) } };
+}
+function fixture() {
+  const config = { vibemon_url: 'https://vibemon.io', vibemon_token: token, http_urls: ['http://localhost:19280'] };
+  const configManager = { read: () => ({ ...config }), write: jest.fn(value => Object.assign(config, value)) };
+  const fetchImpl = jest.fn(async () => response());
+  const delivery = new HookCloudDelivery({ configManager, fetchImpl, now: () => 1000000 });
+  return { config, configManager, fetchImpl, delivery };
+}
+test('verifies write access before saving and never exposes stored credentials', async () => {
+  const { delivery, fetchImpl, configManager } = fixture();
+  await delivery.configure({ url: 'https://vibemon.io/', token: '' });
+  expect(fetchImpl).toHaveBeenCalledWith('https://vibemon.io/api/v1/connection?scope=write', expect.objectContaining({ redirect: 'error', headers: { Authorization: `Bearer ${token}` } }));
+  expect(configManager.write).toHaveBeenCalledWith({ vibemon_url: 'https://vibemon.io', vibemon_token: token });
+  expect(delivery.snapshot()).toMatchObject({ status: 'verified', checkedAt: new Date(1000000).toISOString(), tokenConfigured: true });
+  expect(JSON.stringify(delivery.snapshot())).not.toContain(token);
+});
+test.each([[401, 'rejected'], [403, 'write permission'], [404, 'Update Web'], [503, 'service is available']])('failed verification (%s) cannot replace a working credential', async (status, message) => {
+  const { delivery, fetchImpl, configManager } = fixture();
+  fetchImpl.mockResolvedValue({ ok: false, status });
+  await expect(delivery.configure({ url: 'https://vibemon.io', token: 'vm_' + 'b'.repeat(60) })).rejects.toThrow(message);
+  expect(configManager.write).not.toHaveBeenCalled();
+  expect(delivery.snapshot().busy).toBe(false);
+});
+test('requires explicit replacement before sending a saved token to another origin', async () => {
+  const { delivery, fetchImpl } = fixture();
+  await expect(delivery.configure({ url: 'https://other.example', token: '' })).rejects.toThrow('new write token');
+  expect(fetchImpl).not.toHaveBeenCalled();
+  await delivery.configure({ url: 'https://other.example', token: 'vm_' + 'b'.repeat(60) });
+  expect(fetchImpl.mock.calls[0][0]).toBe('https://other.example/api/v1/connection?scope=write');
+});
+test.each(['http://remote.example', 'https://user:secret@example.com', 'https://example.com/api', 'https://example.com?secret=x'])('rejects unsafe origins before transmitting credentials: %s', async url => {
+  const { delivery, fetchImpl } = fixture();
+  await expect(delivery.configure({ url, token })).rejects.toThrow('HTTPS Web origin');
+  expect(fetchImpl).not.toHaveBeenCalled();
+});
+test('rejects unexpected or oversized success responses instead of claiming verification', async () => {
+  const { delivery, fetchImpl } = fixture();
+  fetchImpl.mockResolvedValueOnce(response({ connected: true, scope: 'read' }));
+  await expect(delivery.check()).rejects.toThrow('Unexpected connection response');
+  fetchImpl.mockResolvedValueOnce(response({ connected: true, scope: 'write', padding: 'x'.repeat(5000) }));
+  await expect(delivery.check()).rejects.toThrow('size limit');
+  expect(delivery.snapshot().status).toBe('error');
+});
+test('connection failures do not leak request details through the workspace', async () => {
+  const { delivery, fetchImpl } = fixture();
+  fetchImpl.mockRejectedValue(new Error(`private request ${token}`));
+  await expect(delivery.check()).rejects.toThrow('Cannot reach Web');
+  expect(JSON.stringify(delivery.snapshot())).not.toContain(token);
+});
+test('rejects concurrent changes and preserves externally updated credentials', async () => {
+  const { delivery, fetchImpl, config, configManager } = fixture();
+  let finish;
+  fetchImpl.mockReturnValue(new Promise(resolve => { finish = resolve; }));
+  const save = delivery.configure({ url: 'https://vibemon.io', token });
+  await expect(delivery.check()).rejects.toThrow('already in progress');
+  expect(() => delivery.disconnect()).toThrow('Wait');
+  config.vibemon_token = 'vm_' + 'c'.repeat(60);
+  finish(response());
+  await expect(save).rejects.toThrow('changed while checking');
+  expect(configManager.write).not.toHaveBeenCalled();
+});
+test('stopping cloud delivery preserves local routing and invalidates its verification', async () => {
+  const { delivery, config } = fixture();
+  await delivery.check();
+  delivery.disconnect();
+  expect(config.http_urls).toEqual(['http://localhost:19280']);
+  expect(delivery.snapshot()).toMatchObject({ tokenConfigured: false, status: 'not-configured', checkedAt: null });
+});
+
+test('equivalent URL spellings retain the same credential boundary', async () => {
+  const { delivery, config } = fixture();
+  config.vibemon_url = 'https://VIBEMON.IO:443/';
+  await delivery.configure({ url: 'https://vibemon.io', token: '' });
+  expect(delivery.snapshot().status).toBe('verified');
+});
+
+test('malformed saved addresses cannot disclose embedded credentials to the renderer', () => {
+  const { delivery, config } = fixture();
+  config.vibemon_url = 'https://user:private-password@example.com';
+  expect(delivery.snapshot()).toMatchObject({ status: 'error', url: '' });
+  expect(JSON.stringify(delivery.snapshot())).not.toContain('private-password');
+});

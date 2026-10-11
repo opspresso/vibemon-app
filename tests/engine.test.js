@@ -52,6 +52,17 @@ function makeEngine() {
 }
 
 describe('engine state selection', () => {
+  test('reduced motion resets floating and blinking while still rendering status changes', () => {
+    const engine = makeEngine();
+    engine.canvas = { style: {} };
+    engine.characterRenderer = { drawCharacter: jest.fn() };
+    engine.animFrame = 12; engine.blinkFrame = CONSTANTS.BLINK_START_FRAME;
+    engine.setReducedMotion(true);
+    engine.setState({ state: 'working' }); engine.render();
+    expect(engine.canvas.style).toEqual({ left: CONSTANTS.CHAR_X_BASE + 'px', top: CONSTANTS.CHAR_Y_BASE + 'px' });
+    expect(engine.animFrame).toBe(0); expect(engine.blinkFrame).toBe(0);
+    expect(engine.characterRenderer.drawCharacter.mock.calls[0].slice(0, 2)).toEqual([STATE_CONFIG.working.eyeType, STATE_CONFIG.working.effect]);
+  });
   test('idle injects the blink eyeType on the blink frame only', () => {
     const engine = makeEngine();
     engine.characterRenderer = { drawCharacter: jest.fn() };

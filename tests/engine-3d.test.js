@@ -75,6 +75,25 @@ describe('engine state/character selection', () => {
 });
 
 describe('rig conformance', () => {
+  test('reduced motion uses the current state pose without time-driven movement', () => {
+    const { Group } = require('three');
+    const engine = makeEngine();
+    engine.rig = {
+      joints: Object.fromEntries(monsterStates.JOINTS.map(joint => [joint, new Group()])),
+      eyes: Object.fromEntries(['left', 'right'].map(key => [key, { group: new Group(), ball: {}, glint: {}, glint2: {}, happy: {} }]))
+    };
+    engine.renderer = { render: jest.fn() };
+    engine.setReducedMotion(true);
+    engine.setState({ state: 'sleep' }); engine.render();
+    const frame = () => Object.values(engine.rig.joints).map(joint => [...joint.position.toArray(), ...joint.rotation.toArray(), ...joint.scale.toArray()]);
+    const still = frame();
+    engine.t = 100; engine.render();
+    expect(frame()).toEqual(still);
+    expect(engine.eyeOpenness).toBe(0);
+    engine.setState({ state: 'working' }); engine.render();
+    expect(engine.eyeOpenness).toBe(1);
+    expect(frame()).not.toEqual(still);
+  });
   test('every declared move has an implementation', () => {
     for (const move of monsterStates.MOVES) {
       expect(typeof MOVE_FNS[move]).toBe('function');

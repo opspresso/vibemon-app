@@ -1,6 +1,6 @@
 # Desktop workspace
 
-Click the VibeMon menu-bar or tray icon to open **Overview**. Resources and coding accounts appear together; local projects and available plan usage appear below them. Use the sidebar for **Resources**, **Coding agents**, or **Settings**. Closing the workspace keeps the companion and local hooks running. **Show companion** restores the character to the desktop.
+Click the VibeMon menu-bar or tray icon to open **Overview**. Resources and coding accounts appear together; local projects and available plan usage appear below them. Use the sidebar for **Resources**, **Coding agents**, or **Settings**. Select **Need attention** in Overview to show selected cloud sources with warnings, errors, stale data, or projects waiting for input. Select it again to restore the overview. Closing the workspace keeps the companion and local hooks running. **Show companion** restores the character to the desktop.
 
 The secondary tray menu provides Dashboard, Settings, Show companion, Integrations, About, and Quit. The application menu uses the same workspace pages. On Windows, press `Alt` to reveal the menu bar. Preferences live in the workspace. Keyboard shortcuts are `Cmd/Ctrl+1` for Overview, `Cmd/Ctrl+2` for Resources, `Cmd/Ctrl+3` for Coding agents, and `Cmd/Ctrl+,` for Companion settings. `Cmd/Ctrl+W` closes the workspace window without quitting the App.
 
@@ -12,7 +12,7 @@ The secondary tray menu provides Dashboard, Settings, Show companion, Integratio
 2. Open **Settings → Connections** in Desktop. Enter the Web address and read token, then select **Save and connect**.
 3. Open **Customize view**. Select resources, provider accounts, and visible metrics, then select **Save view**. **Discover sources** refreshes the available list without discarding unsaved choices.
 
-The read token is encrypted with Electron `safeStorage`, backed by the operating system keychain or secret service. The saved value never returns to the renderer. Linux `basic_text` storage is rejected. Unlock or configure secure storage if the App cannot save a token. **Disconnect this device** removes the local credential and displayed cloud data. Delete the token in Web Account to revoke it for every client. Dashboard read tokens are never copied to hook configuration.
+A replacement read token is verified before it replaces the saved connection. Failed checks preserve the current workspace and credential. The read token is encrypted with Electron `safeStorage`, backed by the operating system keychain or secret service. The saved value never returns to the renderer. Linux `basic_text` storage is rejected. Unlock or configure secure storage if the App cannot save a token. **Disconnect this device** removes the local credential and displayed cloud data. Delete the token in Web Account to revoke it for every client. Dashboard read tokens are never copied to hook configuration.
 
 Latest state is polled every 30 seconds, restricted to the saved selection. Selecting no sources pauses data requests and preserves the connection result. The local project and usage panels work without a cloud connection. HTTPS is required; an unpackaged development App also accepts loopback HTTP for isolated tests.
 
@@ -27,6 +27,14 @@ Use **Add resource** to define a database, queue, sensor, or another resource on
 **Details** shows current readings, collection status, and the recent hour. History loads on demand and refreshes every minute while visible. Closing the detail dialog or hiding the workspace stops its refresh timer. Signed values and measurements outside a display range remain visible in the chart. Historical values use the definitions returned with their history response.
 
 Chart gaps mean no recorded measurement. Resource heartbeats include fresh measurements and add minute samples. Agent heartbeats refresh status without adding activity samples. A single observed minute appears as a point. Web retains visible trends for 24 hours; Desktop requests the recent hour. A status-only resource has no numeric history.
+
+History details show minute averages and maxima with gaps for unavailable observations. A failed history request keeps its error visible until a successful retry. Hidden metrics do not trigger history requests.
+
+## Send local activity to Web
+
+Open **Settings → Integrations → Send activity to Web**. Enter the Web origin and a token with **write** permission from the same Google account as your dashboard, then select **Save and verify**. Verification checks permissions without creating a source or test observation. Only a successful check replaces the saved connection; the next real hook event sends data.
+
+**Check saved connection** checks the current token again. Rejected, read-only, unreachable, and unsupported servers have separate messages. The displayed check time is explicit; it is not a continuous delivery guarantee. A different Web origin requires a new write token. **Remove saved write token** removes the shared hook credential while preserving local delivery and the independent read connection. Agent environment variables and OpenClaw plugin settings can override these shared defaults. Stored write tokens never return to the settings renderer.
 
 ## Coding accounts and local activity
 

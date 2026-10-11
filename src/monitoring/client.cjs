@@ -16,6 +16,7 @@ class MonitoringClient extends EventEmitter {
     this.accountCatalog = [];
     this.status = 'not-configured';
     this.generation = 0;
+    this.configurationAttempt = 0;
     this.inflight = null;
     this.inflightDiscovery = false;
     this.lastSyncedAt = null;
@@ -50,21 +51,26 @@ class MonitoringClient extends EventEmitter {
   async configure({ url, token }) {
     const origin = webOrigin(url, this.allowLocalHttp);
     if (typeof token !== 'string' || (token && !/^vm_[a-f0-9]{60}$/.test(token))) throw new Error('Enter a generated read token');
-    if (token) this.credentials.set(token);
     if (origin !== this.preferences.get('url') && !token && this.credentials.has()) throw new Error('Enter a token when changing the Web address');
-    this.preferences.set('url', origin);
+    const candidate = token || this.credentials.get();
+    const attempt = ++this.configurationAttempt;
+    const data = await this.requestWith(origin, candidate, '/api/v1/sources');
+    const sources = validateSources(data.sources);
+    if (attempt !== this.configurationAttempt) throw new Error('The connection changed while checking. Try again');
+    if (token) this.credentials.set(token, origin);
+    else this.preferences.set('url', origin);
     this.generation++;
-    this.sources = [];
-    this.catalog = [];
-    this.accountCatalog = [];
-    this.lastSyncedAt = null;
-    this.status = 'connecting';
-    this.emit('sources', []);
+    this.sources = sources;
+    this.catalog = sources.map(source => this.catalogEntry(source));
+    this.accountCatalog = groupAccounts(sources).map(({ accountId, displayName, provider }) => ({ accountId, displayName, provider }));
+    this.lastSyncedAt = new Date(this.now()).toISOString();
+    this.status = 'connected';
+    this.emit('sources', this.snapshot().sources);
     this.emit('change', this.snapshot());
-    if (this.inflight) await this.inflight;
-    return this.poll(true);
+    return this.snapshot();
   }
   async disconnect() {
+    this.configurationAttempt++;
     this.generation++;
     this.credentials.clear();
     this.sources = [];
@@ -88,13 +94,18 @@ class MonitoringClient extends EventEmitter {
     return this.poll();
   }
   async request(path) {
-    const token = this.credentials.get();
-    if (!token) throw Object.assign(new Error('Configure a read token'), { code: 'not-configured' });
     const origin = webOrigin(this.preferences.get('url') || 'https://vibemon.io', this.allowLocalHttp);
-    const response = await this.fetch(`${origin}${path}`, {
-      headers: { Authorization: `Bearer ${token}` }, redirect: 'error',
-      signal: AbortSignal.timeout(CLOUD_REQUEST_TIMEOUT_MS)
-    });
+    return this.requestWith(origin, this.credentials.get(), path);
+  }
+  async requestWith(origin, token, path) {
+    if (!token) throw Object.assign(new Error('Configure a read token'), { code: 'not-configured' });
+    let response;
+    try {
+      response = await this.fetch(`${origin}${path}`, {
+        headers: { Authorization: `Bearer ${token}` }, redirect: 'error',
+        signal: AbortSignal.timeout(CLOUD_REQUEST_TIMEOUT_MS)
+      });
+    } catch { throw Object.assign(new Error('Cannot reach Web'), { code: 'connection-error' }); }
     if (!response.ok) throw Object.assign(new Error('Web request failed'), { code: response.status === 401 ? 'token-expired' : response.status === 403 ? 'permission-denied' : 'connection-error' });
     return readJsonResponse(response, CLOUD_MAX_RESPONSE_BYTES);
   }
@@ -185,6 +196,7 @@ class MonitoringClient extends EventEmitter {
   stop() {
     if (this.timer) clearInterval(this.timer);
     this.timer = null;
+    this.configurationAttempt++;
     this.generation++;
   }
 }

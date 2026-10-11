@@ -94,14 +94,16 @@ export async function loadPlugin(relativePath, options = {}) {
 export async function openclaw(options = {}) {
   const harness = await loadPlugin("../../public/install/openclaw/extensions/index.mjs", options);
   const hooks = new Map();
+  const logs = [];
   harness.exports.default.register({
-    logger: { info() {}, warn() {}, error() {} },
+    logger: Object.fromEntries(["info", "warn", "error"].map(level => [level, message => logs.push(message)])),
     pluginConfig: { httpUrls: ["http://monitor"], ...options.pluginConfig },
     config: options.config || {},
     on: (name, callback) => hooks.set(name, callback),
   });
   return {
     ...harness,
+    logs,
     async emit(name, event = {}, ctx = {}) {
       if (!hooks.has(name)) throw new Error(`Hook not registered: ${name}`);
       await hooks.get(name)(event, ctx);

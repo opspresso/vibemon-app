@@ -1507,7 +1507,7 @@ def ensure_plugin_path_registered(config: dict, plugin_dir: str) -> bool:
     return True
 
 
-def refresh_openclaw_plugin_registry() -> None:
+def refresh_openclaw_plugin_registry() -> bool:
     """Rebuild OpenClaw's persisted plugin registry.
 
     The OpenClaw gateway boots from a persisted registry snapshot; installing
@@ -1519,23 +1519,23 @@ def refresh_openclaw_plugin_registry() -> None:
     if shutil.which("openclaw") is None:
         print(f"  {colored('!', 'yellow')} openclaw CLI not found in PATH")
         print(manual_hint)
-        return
+        return False
     try:
         result = subprocess.run(
             ["openclaw", "plugins", "registry", "--refresh"],
             capture_output=True, text=True, timeout=120,
         )
     except (OSError, subprocess.TimeoutExpired) as e:
-        print(f"  {colored('✗', 'red')} plugin registry refresh failed: {e}")
+        print(f"  {colored('✗', 'red')} plugin registry refresh failed ({type(e).__name__})")
         print(manual_hint)
-        return
+        return False
     if result.returncode == 0:
         print(f"  {colored('✓', 'green')} plugin registry refreshed")
+        return True
     else:
-        detail = (result.stderr or result.stdout or "").strip().splitlines()
-        print(f"  {colored('✗', 'red')} plugin registry refresh failed (exit {result.returncode})"
-              + (f": {detail[-1]}" if detail else ""))
+        print(f"  {colored('✗', 'red')} plugin registry refresh failed (exit {result.returncode})")
         print(manual_hint)
+        return False
 
 
 def install_openclaw(source: FileSource, cli_token: str = None) -> bool:
@@ -1648,10 +1648,10 @@ def install_openclaw(source: FileSource, cli_token: str = None) -> bool:
     # Without a registry refresh the gateway keeps booting from a stale
     # plugin-registry snapshot and the plugin's hooks never run.
     print("\nRefreshing OpenClaw plugin registry:")
-    refresh_openclaw_plugin_registry()
+    ok = refresh_openclaw_plugin_registry() and ok
 
     if not ok:
-        print(f"\n{colored('✗ OpenClaw installation finished with errors — some files were not written.', 'red')}")
+        print(f"\n{colored('✗ OpenClaw installation is incomplete. Resolve the errors above and retry.', 'red')}")
         return False
 
     print(f"\n{colored('OpenClaw installation complete!', 'green')}")
@@ -1915,7 +1915,9 @@ def uninstall_openclaw(source: FileSource = None, cli_token: str = None) -> bool
             raise RuntimeError("Could not remove the VibeMon OpenClaw plugin") from e
 
     print("\nRefreshing OpenClaw plugin registry:")
-    refresh_openclaw_plugin_registry()
+    if not refresh_openclaw_plugin_registry():
+        print(f"\n{colored('✗ OpenClaw cleanup is incomplete. Refresh the plugin registry and retry.', 'red')}")
+        return False
     print(f"\n{colored('OpenClaw cleanup complete!', 'green')}")
     return True
 

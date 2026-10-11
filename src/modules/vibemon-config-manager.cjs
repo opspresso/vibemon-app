@@ -11,6 +11,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { HTTP_PORT } = require('../shared/config.cjs');
+const { webOrigin, sameWebOrigin } = require('../shared/web-origin.cjs');
 
 function homePath(...segments) {
   return path.join(os.homedir(), ...segments);
@@ -56,6 +57,7 @@ function readRawConfig() {
 }
 
 class VibemonConfigManager {
+  constructor({ allowLocalHttp = false } = {}) { this.allowLocalHttp = allowLocalHttp; }
   /**
    * Read-only check of ~/.vibemon/config.json. Cheap synchronous file I/O
    * (no subprocess), so this is never cached — every call re-reads the file.
@@ -132,6 +134,10 @@ class VibemonConfigManager {
       }
     }
 
+    if (Object.hasOwn(partial, 'vibemon_url')) {
+      next.vibemon_url = webOrigin(next.vibemon_url, this.allowLocalHttp);
+      if (current.vibemon_token && !sameWebOrigin(next.vibemon_url, current.vibemon_url, this.allowLocalHttp) && !String(partial.vibemon_token || '').trim()) throw new Error('Enter a new write token when changing the Web address');
+    }
     if (!this.persist(next)) throw new Error('Unable to save ~/.vibemon/config.json');
     return next;
   }
