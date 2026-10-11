@@ -174,8 +174,8 @@ h3 {
 .brand-mark {
   display: grid;
   place-items: center;
-  width: 33px;
-  height: 36px;
+  width: 32px;
+  height: 32px;
   color: var(--vm-sidebar-accent);
 }
 .nav-label {
@@ -1537,6 +1537,7 @@ dialog::backdrop {
   }
   .brand-mark {
     width: 25px;
+    height: 25px;
   }
   .nav-count {
     padding: 1px 4px;

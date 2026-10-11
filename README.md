@@ -1,3 +1,5 @@
+<img src="assets/icon.png" width="80" height="80" alt="VibeMon — the attentive V companion">
+
 # VibeMon Desktop
 
 [![Release](https://img.shields.io/github/v/release/opspresso/vibemon-app)](https://github.com/opspresso/vibemon-app/releases/latest)

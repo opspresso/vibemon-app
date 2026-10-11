@@ -8,7 +8,9 @@ VibeMon Desktop and Web share one visual language. Desktop adds local activity a
 
 Use violet for actions and active work, teal for healthy states, amber for attention, and rose for errors. A measurement's magnitude does not imply failure: only plan limits have usage thresholds. Always pair color with a state label. Unavailable measurements are distinct from zero. Trend selectors show units once; axis labels use scientific notation for very large or tiny values, while readings and tooltips retain their precision. Stale observations retain their receipt time.
 
-App icons and Web favicons derive from the same brand mark and fixed sidebar colors. On macOS, run `node assets/generators/generate-icons.js` after changing those sources. It writes the PNG, Windows ICO, macOS ICNS, and Web favicon files together. Small frames use a thicker stroke for legibility. Commit the generated assets and sync the public App revision into Web.
+The brand mark is an attentive companion shaped around the initial **V**. Two eyes are cut out of a single rounded silhouette, so the mark keeps its expression in one color and against either theme. The upward tips suggest awareness; the rounded base connects the technical workspace to its friendly desktop companion. Keep the square view box and transparent eye apertures. Do not add outlines, enclosing cubes, or state-dependent details to the mark.
+
+App icons and Web favicons derive from the same brand mark and fixed sidebar colors. On macOS, run `node assets/generators/generate-icons.js` after changing those sources. It writes the PNG, Windows ICO, macOS ICNS, and Web favicon files together. Small frames enlarge the filled mark within the tile; they do not depend on fine strokes. Inspect the eye openings at 16px and 32px, then commit the generated assets and sync the public App revision into Web. The agent character illustrations are separate from the product logo.
 
 ## Workspace
 

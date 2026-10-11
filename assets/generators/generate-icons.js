@@ -28,8 +28,7 @@ async function draw(size) {
   ctx.fill();
   const box = size * (size < 64 ? .9 : .78);
   const source = mark.replace('<svg ', `<svg width="${size}" height="${size}" `)
-    .replace('currentColor', token('--vm-sidebar-accent'))
-    .replace('stroke-width="1.6"', `stroke-width="${size < 32 ? 2.4 : 1.8}"`);
+    .replaceAll('currentColor', token('--vm-sidebar-accent'));
   const image = await loadImage(Buffer.from(source));
   ctx.drawImage(image, (size - box) / 2, (size - box) / 2, box, box);
   return canvas.toBuffer('image/png');
