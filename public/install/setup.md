@@ -114,7 +114,7 @@ Open [Custom resource](https://vibemon.io/resources/new) to define any resource 
 
 Send measurements with `kind: "resource"` to `/api/v1/ingest` using a write token. Web and App display the supplied definitions and status message. Use null for unavailable measurements. See the [custom-resource contract](https://vibemon.io/docs/api/monitoring#custom-resources) for JSON, limits, and history rules.
 
-On the Web dashboard, **Edit metrics** changes existing resource labels, units, display ranges, and order, including Spark and Kubernetes presets. In Desktop, open **Details → Edit resource on Web** to reach the editor. Reorder with the handles, arrow buttons, or Alt+Up/Down on a handle, then save. Both clients use the saved order; later collection does not overwrite it. New keys or units remain unavailable until the collector supplies matching definitions. Display-only edits do not change receipt time or erase retained measurements.
+On the Web dashboard, open resource **Details → Edit resource and metrics** to change labels, units, display ranges, and order, including Spark and Kubernetes presets. In Desktop, open **Details → Edit resource on Web** to reach the editor. Reorder with the handles, arrow buttons, or Alt+Up/Down on a handle, then select **Save changes**. Both clients use the saved order; later collection does not overwrite it. New keys or units remain unavailable until the collector supplies matching definitions. Display-only edits do not change receipt time or erase retained measurements.
 
 ## Repair or uninstall
 
