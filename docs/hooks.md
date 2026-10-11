@@ -123,7 +123,7 @@ On Windows PowerShell, run the same commands as
 
 Electron app with system tray for macOS, Windows, Linux. See [Installation](#installation) above to install.
 
-Read tokens are configured in **Settings → Connections**; hook write tokens are configured in **Settings → Integrations → Send activity to Web** or directly in the hook configuration. The menu-bar or tray icon opens the resource and coding-account dashboard.
+Read tokens are configured in **Settings → Connections**; hook write tokens are configured in **Settings → Integrations → Send activity to Web** or directly in the hook configuration. Select **Dashboard** from the menu-bar or tray menu to view resources and coding accounts.
 
 It shows a single character window with a speech bubble that follows it. The window retargets to whichever project is currently active instead of opening one window per project.
 

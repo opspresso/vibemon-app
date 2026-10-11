@@ -204,11 +204,12 @@ class TrayManager {
     this.updateMenu();
     this.updateIcon();
 
-    this.tray.on('click', () => this.openDashboard());
     if (process.platform !== 'linux') {
-      this.tray.on('right-click', () => {
+      const showMenu = () => {
         this.tray.popUpContextMenu(Menu.buildFromTemplate(this.buildMenuTemplate()));
-      });
+      };
+      this.tray.on('click', showMenu);
+      this.tray.on('right-click', showMenu);
     }
 
     return this.tray;

@@ -1,4 +1,5 @@
-const { app } = require('electron');
+const { app, Menu } = require('electron');
+const assert = require('node:assert/strict');
 const http = require('node:http');
 const { URL } = require('node:url');
 const { MonitoringClient } = require('../../src/monitoring/client.cjs');
@@ -77,12 +78,14 @@ async function startFixture() {
   app.once('before-quit', cleanup);
   await client.configure({ url: 'https://vibemon.io', token: TOKEN });
   installWorkspaceMenu({ open: page => view.open(page), showCompanion: ports.showCompanion });
-  // Exercise the production Tray event binding with the actual Electron Tray.
-  trayManager.tray.emit('click');
+  // Selecting the native menu action creates the workspace; the tray alone does not.
+  const selectDashboard = () => Menu.buildFromTemplate(trayManager.buildMenuTemplate()).items.find(item => item.label === 'Dashboard').click();
+  assert.equal(view.window, null, 'creating the tray does not open the workspace');
+  selectDashboard();
   view.window.webContents.on('console-message', details => {
     if (details.level === 'error') errors.push(details.message);
   });
   view.window.webContents.on('did-fail-load', (_event, code, description) => errors.push(`${code}: ${description}`));
-  return { ports, state, client, settings, view, trayManager, preferences, errors, cleanup, corruptCredential() { corrupt = true; } };
+  return { ports, state, client, settings, view, trayManager, selectDashboard, preferences, errors, cleanup, corruptCredential() { corrupt = true; } };
 }
 module.exports = { startFixture, TOKEN };
