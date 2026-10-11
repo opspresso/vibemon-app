@@ -54,7 +54,7 @@ async function startFixture() {
       if (corrupt) throw Object.assign(new Error('Test credential unavailable'), { code: 'credential-unavailable' });
       return token;
     },
-    set(value) { token = value; corrupt = false; },
+    set(value, url) { token = value; corrupt = false; if (url) preferences.set('url', url); },
     clear() { token = null; corrupt = false; }
   };
   const client = new MonitoringClient({ preferences, credentials, fetchImpl: (url, options) => fetch(origin + new URL(url).pathname + new URL(url).search, options) });

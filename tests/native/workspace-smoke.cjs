@@ -349,11 +349,12 @@ startFixture().then(async fixture => {
   await input('#web-url', 'https://vibemon.io');
   await input('#read-token', 'vm_' + '0'.repeat(60));
   await click('#save-connection');
-  await until(() => client.getStatus() === 'token-expired', 'rejected token');
-  await until(async () => (await text('#connection-chip')).includes('Token not accepted'), 'token failure shown');
+  await until(() => visible('#error'), 'rejected replacement explained');
+  assert.equal(client.getStatus(), 'connected', 'a rejected replacement preserves the working connection');
+  assert.ok((await text('#error')).includes('active read token'));
   assert.equal(await value('#read-token'), '');
   await input('#read-token', TOKEN); await click('#save-connection');
-  await until(() => client.getStatus() === 'connected', 'token recovery');
+  await until(async () => client.getStatus() === 'connected' && await ui('!document.getElementById("save-connection").disabled'), 'token recovery');
   fixture.corruptCredential(); await client.poll(true);
   await until(async () => (await text('#connection-chip')).includes('Replace saved token'), 'corrupt credential recovery');
   await input('#read-token', TOKEN); await click('#save-connection');

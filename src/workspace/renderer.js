@@ -188,12 +188,13 @@ function render(value) {
   const attention =
     resources.filter(needsAttention).length +
     accounts.filter((account) => account.members.some(needsAttention)).length;
-  text($('nav-resources'), resources.length);
-  text($('nav-agents'), accounts.length);
-  text($('summary-resources'), resources.length);
-  text($('summary-accounts'), accounts.length);
+  const receivedCloudData = Boolean(cloud.lastSyncedAt) || !cloud.tokenConfigured;
+  text($('nav-resources'), receivedCloudData ? resources.length : '—');
+  text($('nav-agents'), receivedCloudData ? accounts.length : '—');
+  text($('summary-resources'), receivedCloudData ? resources.length : '—');
+  text($('summary-accounts'), receivedCloudData ? accounts.length : '—');
   text($('summary-local'), activity.length);
-  text($('summary-attention'), attention);
+  text($('summary-attention'), receivedCloudData ? attention : '—');
   text(
     $('summary-resource-note'),
     resources.length
@@ -223,7 +224,8 @@ function render(value) {
   );
   text($('footer-version'), settings.version);
   const selectedMetrics = new Set(cloud.selectedMetrics);
-  const choose = () => (cloud.tokenConfigured ? selection.open() : navigate('connections'));
+  const canChoose = cloud.status === 'connected' || cloud.catalog.length > 0;
+  const choose = () => (canChoose ? selection.open() : navigate('connections'));
   const resourceEmpty = {
     emptyTitle:
       cloud.status === 'not-configured' ? 'Bring your resources into view' : 'No resources in this view',
@@ -237,6 +239,13 @@ function render(value) {
     emptyDescription: 'Connect provider accounts on Web, then choose the ones to follow here.',
     emptyAction: cloud.tokenConfigured ? 'Choose accounts' : 'Connect workspace'
   };
+  if (!canChoose && cloud.tokenConfigured) {
+    for (const emptyState of [resourceEmpty, accountEmpty]) Object.assign(emptyState, {
+      emptyTitle: cloud.status === 'connecting' ? 'Connecting your workspace' : 'Workspace data is unavailable',
+      emptyDescription: connection(cloud.status)[1],
+      emptyAction: 'Connection settings'
+    });
+  }
   if (route === 'overview') {
     const clearAttention = () => { overviewAttention = false; render(frame); };
     const attentionEmpty = (kind) => ({
