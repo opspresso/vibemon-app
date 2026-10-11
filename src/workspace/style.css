@@ -1668,3 +1668,11 @@ dialog::backdrop {
 #cloud-delivery-form .form-actions { flex-wrap: wrap; }
 #cloud-delivery-error { margin: 16px 0 0; }
 .cloud-delivery-help { flex-wrap: wrap; justify-content: space-between; gap: 12px; }
+
+.chart-legend { display: flex; gap: 18px; margin-top: 14px; color: var(--muted); font-size: 12px; }
+.chart-legend span { display: inline-flex; align-items: center; gap: 6px; }
+.chart-legend span::before { content: ''; width: 18px; border-top: 2px solid var(--accent); }
+.chart-legend .maximum::before { border-color: var(--blue); border-top-style: dashed; }
+#chart path.maximum { stroke: var(--blue); stroke-dasharray: 4 3; }
+#chart circle.maximum { fill: var(--blue); }
+#retry-trend { margin-bottom: 12px; }

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { dominantState, needsAttention, statePresentation, providerLabel, formatMeasurement, observationAge } from '../src/shared/design/presentation.mjs';
+import { dominantState, needsAttention, statePresentation, providerLabel, formatMeasurement, observationAge, formatAxisValue } from '../src/shared/design/presentation.mjs';
 
 test('an account surfaces attention from any reporting project', () => {
   assert.equal(dominantState(['working', 'notification'], 'working'), 'notification');
@@ -30,4 +30,11 @@ test('observation ages preserve old data and reject invalid timestamps', () => {
   assert.equal(observationAge('2026-10-11T09:56:00Z', now), '4m ago');
   assert.equal(observationAge('2026-10-09T10:00:00Z', now), '2d ago');
   assert.equal(observationAge('invalid', now), 'Not reported');
+});
+
+test('axis labels stay concise without rounding tiny readings to zero', () => {
+  assert.equal(formatAxisValue(1e9), '1.0e+9');
+  assert.equal(formatAxisValue(1e-8), '1.0e-8');
+  assert.equal(formatAxisValue(-12.345), '-12.3');
+  assert.equal(formatAxisValue(0), '0');
 });

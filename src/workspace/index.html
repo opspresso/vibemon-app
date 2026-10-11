@@ -531,9 +531,12 @@
           <h3>Recent hour</h3>
           <select id="trend-metric" aria-label="History metric"></select>
         </div>
+        <p id="trend-error" class="notice danger" role="alert" hidden></p>
+        <button id="retry-trend" class="text-button" hidden>Retry history<span data-icon="refresh"></span></button>
         <p id="trend-state" class="small muted" role="status"></p>
-        <svg id="chart" viewBox="0 0 600 240" role="img" aria-label="One hour metric history"></svg>
-        <p class="small muted">Window averages. Gaps mean no recorded measurement.</p>
+        <div id="chart-legend" class="chart-legend" hidden><span>Average</span><span class="maximum">Maximum</span></div>
+        <svg id="chart" viewBox="0 0 600 240" role="img" aria-label="Average and maximum over the recent hour" aria-describedby="trend-state"></svg>
+        <p class="small muted">Minute averages and maxima. Gaps mean no recorded measurement.</p>
       </div>
       <button id="edit-resource" class="button secondary">
         Edit resource on Web<span data-icon="external"></span>

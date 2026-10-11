@@ -9,3 +9,4 @@ export function stateTone(state: string): StateTone;
 export function measurementUnit(unit: string): string;
 export function formatMeasurement(value: unknown, unit?: string, exact?: boolean, unavailable?: string): string;
 export function observationAge(timestamp: string | null | undefined, now?: number): string;
+export function formatAxisValue(value: number): string;

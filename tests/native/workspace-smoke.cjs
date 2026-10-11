@@ -73,7 +73,7 @@ startFixture().then(async fixture => {
   assert.equal(await text('#summary-attention'), '3');
   const overviewBounds = await ui('({ bottom: document.querySelector("#overview-accounts .card").getBoundingClientRect().bottom, viewport: innerHeight })');
   assert.ok(overviewBounds.bottom < overviewBounds.viewport, `account metrics fit in the initial viewport: ${JSON.stringify(overviewBounds)}`);
-  assert.equal(state.requests.some(url => url.endsWith('/trend')), false, 'history is not prefetched');
+  assert.equal(state.requests.some(url => url.includes('/trend?')), false, 'history is not prefetched');
   await screenshot('overview-dark');
   await click('#overview-attention');
   assert.equal(await ui('document.getElementById("overview-attention").getAttribute("aria-pressed")'), 'true');
@@ -109,6 +109,20 @@ startFixture().then(async fixture => {
   assert.ok((await text('#detail-message')).includes('Latency is above'));
   assert.equal(await ui('document.activeElement.getAttribute("aria-label")'), 'Close source details');
   await screenshot('resource-detail');
+  assert.equal(await ui('document.querySelectorAll("#chart path.average, #chart path.maximum").length'), 2, 'history renders averages and maxima');
+  await ui('window.chartMutations = 0; window.chartObserver = new MutationObserver(() => window.chartMutations++); window.chartObserver.observe(document.getElementById("chart"), { childList: true, subtree: true });');
+  for (let index = 0; index < 3; index++) { view.notify('activity'); await delay(150); }
+  assert.equal(await ui('window.chartMutations'), 0, 'local activity does not redraw unchanged cloud history');
+  await ui('window.chartObserver.disconnect()');
+  state.trendStatus = 503;
+  await ui('document.dispatchEvent(new Event("visibilitychange"))');
+  await until(() => visible('#trend-error'), 'history failure remains separate from retained chart data');
+  await client.poll(true); await delay(150);
+  assert.equal(await visible('#trend-error'), true, 'latest-state polling cannot hide history failures');
+  state.trendStatus = 200;
+  await click('#retry-trend');
+  await until(async () => !(await visible('#trend-error')), 'history retry clears only the recovered error');
+
   const originalSources = state.sources;
   state.sources = () => originalSources().map(source => source.sourceId === 'cache' ? { ...source, metrics: { ...source.metrics, latency: 12.3456 } } : source);
   await client.poll(true);
@@ -129,9 +143,9 @@ startFixture().then(async fixture => {
   const originalTrend = state.trend;
   state.trend = item => ({ ...originalTrend(item), metricDefinitions: { latency: { label: 'Temperature', unit: '°C', display: 'gauge', min: -40, max: 20 } }, metricOrder: ['latency'], points: [{ timestamp: new Date().toISOString(), average: { latency: -12 }, maximum: { latency: -12 }, samples: 1, expiresAt: Date.now() / 1000 + 86400 }] });
   await click('[aria-label="View Cache service details"]');
-  await until(async () => (await text('#chart')).includes('-40°C'), 'history uses its returned signed metric schema');
+  await until(async () => (await text('#chart')).includes('-40') && (await text('#trend-metric')).includes('Temperature (°C)'), 'history uses its returned signed metric schema');
   await client.poll(true); await delay(150);
-  assert.ok((await text('#chart')).includes('-40°C'), 'a latest-state poll cannot relabel historical values');
+  assert.ok((await text('#chart')).includes('-40') && (await text('#trend-metric')).includes('Temperature (°C)'), 'a latest-state poll cannot relabel historical values');
   assert.ok(Math.abs(await ui('Number(document.querySelector("#chart circle").getAttribute("cy"))') - 115.333333) < 0.000001);
   await click('[data-close-dialog="detail-dialog"]');
   state.trend = originalTrend;
@@ -161,6 +175,16 @@ startFixture().then(async fixture => {
   assert.ok((await text('#agent-cards')).includes('Needs input'));
   assert.ok((await text('#agent-cards')).includes('—'), 'unreported provider quota is not zero');
   await input('#agent-filter', 'all');
+  const beforeMetricSelection = client.snapshot();
+  await client.select({ sources: beforeMetricSelection.selectedSources, accounts: beforeMetricSelection.selectedAccounts, metrics: [] });
+  await delay(150);
+  const historyRequests = state.requests.filter(url => url.includes('/trend?')).length;
+  await click('#agent-cards [aria-label="View Engineering details"]');
+  await delay(150);
+  assert.equal(state.requests.filter(url => url.includes('/trend?')).length, historyRequests, 'hidden metrics do not cause unused history requests');
+  assert.ok((await text('#trend-state')).includes('Choose a visible metric'));
+  await click('[data-close-dialog="detail-dialog"]');
+  await client.select({ sources: beforeMetricSelection.selectedSources, accounts: beforeMetricSelection.selectedAccounts, metrics: beforeMetricSelection.selectedMetrics });
   await screenshot('coding-accounts');
   await verifyContrast();
   await click('[data-page="agents"] [data-selection]');

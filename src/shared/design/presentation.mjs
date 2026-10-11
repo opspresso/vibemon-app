@@ -39,3 +39,9 @@ export function observationAge(timestamp, now = Date.now()) {
   if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`;
   return `${Math.floor(seconds / 86400)}d ago`;
 }
+
+export function formatAxisValue(value) {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return '—';
+  const absolute = Math.abs(value);
+  return absolute !== 0 && (absolute >= 1000000 || absolute < 0.001) ? value.toExponential(1) : formatMeasurement(value);
+}

@@ -6,7 +6,7 @@ VibeMon Desktop and Web share one visual language. Desktop adds local activity a
 
 `src/shared/design/tokens.css` owns the product palette, typography family, radii, control height, sidebar width, and motion duration. `brand-mark.svg` owns the product mark. `presentation.mjs` owns state priority, labels, provider names, numeric precision, and relative observation times. These files are public exports in `web-distribution.json`. Web imports a pinned copy; change the App source and sync the Web snapshot before changing either client.
 
-Use violet for actions and active work, teal for healthy states, amber for attention, and rose for errors. A measurement's magnitude does not imply failure: only plan limits have usage thresholds. Always pair color with a state label. Unavailable measurements are distinct from zero. Stale observations retain their receipt time.
+Use violet for actions and active work, teal for healthy states, amber for attention, and rose for errors. A measurement's magnitude does not imply failure: only plan limits have usage thresholds. Always pair color with a state label. Unavailable measurements are distinct from zero. Trend selectors show units once; axis labels use scientific notation for very large or tiny values, while readings and tooltips retain their precision. Stale observations retain their receipt time.
 
 ## Workspace
 

@@ -16,7 +16,7 @@ app.setPath('userData', directory);
 async function startFixture() {
   await app.whenReady();
   const ports = createPorts();
-  const state = { sources, status: 200, requests: [], trendDelayMs: 0, trend };
+  const state = { sources, status: 200, requests: [], trendStatus: 200, trendDelayMs: 0, trend };
   const server = http.createServer((request, response) => {
     response.setHeader('Content-Type', 'application/json');
     state.requests.push(request.url);
@@ -31,6 +31,7 @@ async function startFixture() {
     const url = new URL(request.url, 'http://localhost');
     const data = state.sources();
     if (url.pathname.endsWith('/trend')) {
+      if (state.trendStatus !== 200) { response.writeHead(state.trendStatus); response.end('{}'); return; }
       const id = decodeURIComponent(url.pathname.split('/').at(-2));
       const item = data.find(item => item.sourceId === id || item.account && `${item.account.provider}:${item.account.id}` === id);
       const payload = JSON.stringify(item ? state.trend(item) : { points: [] });
