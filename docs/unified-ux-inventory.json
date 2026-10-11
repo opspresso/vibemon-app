@@ -503,7 +503,7 @@
     },
     {
       "path": "package.json",
-      "sha256": "95eeb4eca4d4d76ed716fa11f6cb3cd34f776695fddfc150ce50927313116770",
+      "sha256": "c04a8cf706ea36b5aed0a99f3fb672d1d5192c55b7050aa20d9f685c4813c968",
       "disposition": "reviewed-changed",
       "boundary": "source-and-callers"
     },
@@ -1635,5 +1635,6 @@
       "disposition": "reviewed-changed",
       "boundary": "source-and-callers"
     }
-  ]
+  ],
+  "releaseVersion": "3.2.0"
 }
