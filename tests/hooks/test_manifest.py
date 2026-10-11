@@ -31,11 +31,11 @@ class ManifestTest(unittest.TestCase):
             self.assertTrue((DOCS_DIR / rel).is_file(), f"missing manifest source file: {rel}")
 
     def test_manifest_matches_files(self):
-        """docs/manifest.json must be regenerated whenever a listed file changes.
+        """public/install/manifest.json must be regenerated whenever a listed file changes.
 
         Run `python3 scripts/generate_manifest.py` to fix a failure here.
         """
-        self.assertTrue(MANIFEST_PATH.is_file(), "docs/manifest.json is missing")
+        self.assertTrue(MANIFEST_PATH.is_file(), "public/install/manifest.json is missing")
         on_disk = json.loads(MANIFEST_PATH.read_text(encoding="utf-8"))
         self.assertEqual(build_manifest(), on_disk)
 

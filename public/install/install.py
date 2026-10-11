@@ -591,13 +591,34 @@ def merge_hooks(existing: dict, new_hooks: dict) -> dict:
     return result
 
 
+def _command_tokens(command: str, windows: bool = None) -> list[str]:
+    if not isinstance(command, str):
+        return []
+    windows = IS_WINDOWS if windows is None else windows
+    try:
+        tokens = shlex.split(command, posix=not windows)
+    except ValueError:
+        return []
+    return [token[1:-1] if windows and len(token) > 1 and token[0] in "\"'" and token[-1] == token[0] else token for token in tokens]
+
+
 def _is_vibemon_hook(hook: dict) -> bool:
-    """True when a hook entry runs a VibeMon script (Claude/Codex or Kiro format)."""
-    if "vibemon.py" in hook.get("command", ""):
-        return True
-    if "vibemon.py" in hook.get("commandWindows", ""):
-        return True
-    return any("vibemon.py" in arg for arg in hook.get("args", []))
+    """Match the script filename, never a similarly named user hook."""
+    tokens = _command_tokens(hook.get("command", ""))
+    tokens += _command_tokens(hook.get("commandWindows", ""), windows=True)
+    tokens += hook.get("args", []) or []
+    return any(isinstance(token, str) and re.split(r"[\\/]", token)[-1] == "vibemon.py" for token in tokens)
+
+
+def _uses_installed_script(command: str, script: Path) -> bool:
+    for token in _command_tokens(command):
+        normalized = token.replace("\\", "/")
+        if normalized.split("/")[-1] != script.name:
+            continue
+        candidate = Path.home() / normalized[2:] if normalized.startswith("~/") else Path(normalized)
+        if candidate.resolve() == script.resolve():
+            return True
+    return False
 
 
 def _hook_identity(hook: dict) -> str:
@@ -1784,7 +1805,7 @@ def uninstall_claude(source: FileSource = None, cli_token: str = None) -> bool:
         # Only drop statusLine when it is still pointing at VibeMon's script —
         # a user who switched to their own statusline keeps it.
         status_line = settings.get("statusLine")
-        if isinstance(status_line, dict) and "statusline.py" in status_line.get("command", ""):
+        if isinstance(status_line, dict) and _uses_installed_script(status_line.get("command", ""), claude_home / "statusline.py"):
             del settings["statusLine"]
             changed.append("statusLine")
 

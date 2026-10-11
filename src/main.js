@@ -17,10 +17,14 @@ for (const name of ['.env.local', '.env']) {
   catch (error) { if (error.code !== 'ENOENT') throw error; }
 }
 
-const { app, BrowserWindow, ipcMain, dialog, powerMonitor, screen, safeStorage } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, powerMonitor, screen, safeStorage, shell } = require('electron');
 const { MonitoringClient } = require('./monitoring/client.cjs');
 const { CredentialStore } = require('./monitoring/credential-store.cjs');
-const { MonitoringWindow } = require('./monitoring/window.cjs');
+const { WorkspaceWindow } = require('./workspace/window.cjs');
+const { WorkspaceSettings } = require('./workspace/settings.cjs');
+const { localActivity } = require('./workspace/activity.cjs');
+const { installWorkspaceMenu } = require('./workspace/menu.cjs');
+const { getUsageSnapshot } = require('./modules/usage-cache-reader.cjs');
 const { exec } = require('child_process');
 
 // Modules
@@ -33,7 +37,6 @@ const { HttpServer } = require('./modules/http-server.cjs');
 const { HookInstaller } = require('./modules/hook-installer.cjs');
 const { VibemonConfigManager } = require('./modules/vibemon-config-manager.cjs');
 const { UpdateChecker } = require('./modules/update-checker.cjs');
-const { SettingsWindowManager } = require('./modules/settings-window-manager.cjs');
 const { UsageRefresher } = require('./modules/usage-refresher.cjs');
 const { validateStatusPayload } = require('./modules/validators.cjs');
 const registryCache = require('./shared/registry-cache.cjs');
@@ -69,10 +72,10 @@ const vibemonConfigManager = new VibemonConfigManager();
 const updateChecker = new UpdateChecker();
 const usageRefresher = new UsageRefresher();
 let trayManager = null;
-let settingsWindowManager = null;
+let workspaceSettings = null;
 let httpServer = null;
 let monitoringClient = null;
-let monitoringWindow = null;
+let workspaceWindow = null;
 let hookCheckTimer = null;
 let updateCheckTimer = null;
 let usageRefreshTimer = null;
@@ -86,6 +89,7 @@ function getBubbleOptions(projectId) {
 }
 
 // Refresh the speech bubble whenever the followed project's state/info changes
+windowManager.onRegistryChanged = () => workspaceWindow?.notify('activity');
 windowManager.onStateUpdated = (projectId) => {
   bubbleWindowManager.update(projectId, getBubbleOptions(projectId))
     .catch((err) => console.error('Bubble update failed:', err));
@@ -111,11 +115,12 @@ windowManager.onAlwaysOnTopChanged = (projectId) => {
 
 // Handle second instance launch attempt
 app.on('second-instance', () => {
-  windowManager.showActiveWindow();
+  workspaceWindow?.open('overview');
 });
 
 // Set up state manager callbacks
 stateManager.onStateTimeout = (projectId, newState) => {
+  workspaceWindow?.notify('activity');
   // Merge with the registry state so background projects expire too.
   const existingState = windowManager.getRegisteredState(projectId);
   if (!existingState) return;
@@ -150,6 +155,7 @@ stateManager.onWindowCloseTimeout = (projectId) => {
   windowManager.closeWindow(projectId);
   stateManager.cleanupProject(projectId);
   windowManager.removeProject(projectId);
+  workspaceWindow?.notify('activity');
   bubbleWindowManager.destroy(projectId);
   if (trayManager) {
     trayManager.updateMenu();
@@ -159,7 +165,8 @@ stateManager.onWindowCloseTimeout = (projectId) => {
 
 // Set up window manager callback for when the window is closed
 windowManager.onWindowClosed = (projectId) => {
-  stateManager.cleanupProject(projectId);
+  workspaceWindow?.notify('activity');
+  // Activity expires independently of the companion's visibility.
   bubbleWindowManager.destroy(projectId);
   if (trayManager) {
     trayManager.updateMenu();
@@ -441,25 +448,29 @@ app.whenReady().then(() => {
     app.dock.hide();
   }
 
-  // Create tray (the window is created on demand via HTTP /status endpoint)
-  trayManager = new TrayManager(windowManager, app, stateManager);
-  trayManager.createTray();
+  // The tray opens the workspace; status ingress creates the companion on demand.
+  trayManager = new TrayManager(windowManager, app);
 
-  // Settings window (opened from the tray menu)
-  settingsWindowManager = new SettingsWindowManager({ windowManager, app, hookInstaller, vibemonConfigManager, updateChecker });
-  settingsWindowManager.onSettingsChanged = () => {
-    if (trayManager) {
-      trayManager.updateMenu();
-      trayManager.updateIcon();
-    }
-  };
-  trayManager.setSettingsWindowManager(settingsWindowManager);
-  trayManager.setShowCharacterHandler(showCharacterAgain);
-
+  workspaceSettings = new WorkspaceSettings({ windowManager, app, hookInstaller, vibemonConfigManager, updateChecker, openExternal: url => shell.openExternal(url) });
   const monitoringStore = new Store({ name: 'monitoring' });
   monitoringClient = new MonitoringClient({ preferences: monitoringStore, credentials: new CredentialStore(monitoringStore, safeStorage), allowLocalHttp: !app.isPackaged });
-  monitoringWindow = new MonitoringWindow(monitoringClient);
-  trayManager.openMonitoring = () => monitoringWindow.open();
+  workspaceWindow = new WorkspaceWindow({
+    monitoring: monitoringClient,
+    settings: workspaceSettings,
+    getActivity: () => localActivity(windowManager.getRegisteredStates(), windowManager.getWindowCount() ? windowManager.getFocusedProjectId() : null),
+    getUsage: () => getUsageSnapshot(),
+    showCompanion: showCharacterAgain,
+    reportError: error => dialog.showErrorBox('VibeMon workspace could not open', error.message)
+  });
+  workspaceSettings.onSettingsChanged = () => {
+    workspaceWindow.notify('settings');
+    trayManager.updateIcon();
+  };
+  trayManager.openDashboard = () => workspaceWindow.open('overview');
+  trayManager.openSettings = page => workspaceWindow.open(page || 'companion');
+  installWorkspaceMenu({ open: page => workspaceWindow.open(page), showCompanion: showCharacterAgain });
+  trayManager.setShowCharacterHandler(showCharacterAgain);
+  trayManager.createTray();
   const seenObservations = new Map();
   monitoringClient.on('sources', sources => {
     const selected = new Set(sources.filter(source => source.kind === 'agent').map(source => source.sourceId));
@@ -482,6 +493,7 @@ app.whenReady().then(() => {
   // Start HTTP server
   httpServer = new HttpServer(stateManager, windowManager, app);
   httpServer.onStateUpdate = (menuOnly) => {
+    workspaceWindow.notify('activity');
     if (trayManager) {
       if (!menuOnly) {
         trayManager.updateIcon();
@@ -505,19 +517,14 @@ app.whenReady().then(() => {
   trayManager.setMonitoringClient(monitoringClient);
   trayManager.setHookInstaller(hookInstaller);
   trayManager.setUpdateChecker(updateChecker);
-  settingsWindowManager.setMonitoringClient(monitoringClient, () => monitoringWindow.open());
-  monitoringClient.on('change', () => {
-    settingsWindowManager.notifyChanged();
-    settingsWindowManager.notifyCloudStateChanged();
-  });
+  hookInstaller.onStateChanged = () => workspaceWindow?.notify('settings');
+
   updateChecker.onStateChanged = () => {
     if (trayManager) {
       trayManager.updateIcon();
       trayManager.updateMenu();
     }
-    if (settingsWindowManager) {
-      settingsWindowManager.notifyUpdateStateChanged();
-    }
+    workspaceWindow?.notify('settings');
   };
 
   // Detect AI tools missing VibeMon hooks: once shortly after startup, then
@@ -525,8 +532,7 @@ app.whenReady().then(() => {
   // ~/.vibemon/config.json pointed at this app, since a hook file can be
   // present while that shared config is missing or stale. The same cycle
   // compares installed hook/script files against the published manifest and
-  // surfaces drift as badges (tray icon dot, tray submenu, Settings AI Tools
-  // tab) — no dialog.
+  // surfaces drift in the tray badge and Settings > Integrations.
   const runHookCheck = () => {
     vibemonConfigManager.ensureDesktopUrl(null);
     hookInstaller.checkAndPrompt(null)
@@ -537,9 +543,7 @@ app.whenReady().then(() => {
           trayManager.updateIcon();
           trayManager.updateMenu();
         }
-        if (settingsWindowManager) {
-          settingsWindowManager.notifyHookStatusChanged();
-        }
+        workspaceWindow?.notify('settings');
       })
       .catch((err) => console.error('Hook change check failed:', err));
   };
@@ -547,24 +551,20 @@ app.whenReady().then(() => {
   hookCheckTimer = setInterval(runHookCheck, HOOK_CHECK_INTERVAL_MS);
 
   // Detect new VibeMon releases: once shortly after startup, then
-  // periodically. Installing only happens when the user clicks the tray's
-  // "Update to vX" item.
-  setTimeout(() => updateChecker.checkForUpdates(), UPDATE_CHECK_INITIAL_DELAY_MS);
-  updateCheckTimer = setInterval(() => updateChecker.checkForUpdates(), UPDATE_CHECK_INTERVAL_MS);
+  // periodically. Installing requires the update action in Settings > About.
+  const checkForUpdates = () => updateChecker.checkForUpdates().catch(error => console.error('Update check failed:', error.message));
+  setTimeout(checkForUpdates, UPDATE_CHECK_INITIAL_DELAY_MS);
+  updateCheckTimer = setInterval(checkForUpdates, UPDATE_CHECK_INTERVAL_MS);
 
   // Refresh the shared plan-usage cache (~/.vibemon/cache/usage.json) via
   // ~/.vibemon/usage.py: once shortly after startup, then periodically, so
   // usage data stays fresh even when no Claude Code session is running.
-  // The tray menu's Claude/Codex usage rows read that cache fresh on every
-  // build, so a successful refresh is followed by a menu rebuild to surface
-  // the new numbers right away.
-  const refreshUsageAndUpdateTray = () => usageRefresher.refresh().then((result) => {
-    if (result.ok && trayManager) {
-      trayManager.updateMenu();
-    }
+  // A successful refresh invalidates the visible workspace's usage snapshot.
+  const refreshUsage = () => usageRefresher.refresh().then((result) => {
+    if (result.ok) workspaceWindow?.notify('usage');
   });
-  setTimeout(refreshUsageAndUpdateTray, USAGE_REFRESH_INITIAL_DELAY_MS);
-  usageRefreshTimer = setInterval(refreshUsageAndUpdateTray, USAGE_REFRESH_INTERVAL_MS);
+  setTimeout(refreshUsage, USAGE_REFRESH_INITIAL_DELAY_MS);
+  usageRefreshTimer = setInterval(refreshUsage, USAGE_REFRESH_INTERVAL_MS);
 
   // Refresh the canonical registry cache from the public App distribution: once shortly
   // after startup, then periodically. A refreshed registry applies on the
@@ -595,7 +595,7 @@ app.whenReady().then(() => {
   dockMonitor.start(() => windowManager.isNearBottomCorner());
 
   app.on('activate', () => {
-    windowManager.showActiveWindow();
+    workspaceWindow.open('overview');
   });
 });
 
@@ -639,10 +639,7 @@ app.on('before-quit', () => {
     trayManager.cleanup();
   }
   if (monitoringClient) monitoringClient.stop();
-  if (monitoringWindow) monitoringWindow.cleanup();
-  if (settingsWindowManager) {
-    settingsWindowManager.cleanup();
-  }
+  if (workspaceWindow) workspaceWindow.cleanup();
   if (httpServer) {
     httpServer.stop();
   }

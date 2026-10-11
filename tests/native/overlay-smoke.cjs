@@ -10,7 +10,10 @@ const { createInterface } = require('node:readline');
 const { CharacterWindowManager } = require('../../src/modules/character-window-manager.cjs');
 const { BubbleWindowManager } = require('../../src/modules/bubble-window-manager.cjs');
 const { DockMonitor } = require('../../src/modules/dock-monitor.cjs');
-const { SettingsWindowManager } = require('../../src/modules/settings-window-manager.cjs');
+const { WorkspaceSettings } = require('../../src/workspace/settings.cjs');
+const { WorkspaceWindow } = require('../../src/workspace/window.cjs');
+const { MonitoringClient } = require('../../src/monitoring/client.cjs');
+const { memoryStore, createPorts } = require('../fixtures/workspace.cjs');
 const { dockCorner } = require('../../src/modules/dock-layout.cjs');
 const { getDockCandidates } = require('./dock-candidates.cjs');
 const characters = require('../../src/shared/data/characters.json');
@@ -324,15 +327,23 @@ function fullSizeWorkAreaPlacement(display) {
 
 async function verifyDockSettings() {
   characterManager.setDockAutoScale(false);
-  settingsManager = new SettingsWindowManager({
-    windowManager: characterManager,
-    app,
-    hookInstaller: { getCachedStatuses: () => [] },
-    vibemonConfigManager: { read: () => ({ http_urls: [] }), getStatus: () => ({ exists: false, hasDesktopUrl: false }) },
-    updateChecker: { getState: () => ({ status: null, version: null }) }
-  });
+  const ports = { ...createPorts(), windowManager: characterManager };
+  const settings = new WorkspaceSettings(ports);
+  const invoke = settings.invoke.bind(settings);
+  let finishScaleSave;
+  settings.invoke = async (action, ...args) => {
+    const result = await invoke(action, ...args);
+    if (action === 'set-character-scale' && args[0] === 30) {
+      await new Promise(resolve => { finishScaleSave = resolve; });
+    }
+    return result;
+  };
+  const monitoring = new MonitoringClient({ preferences: memoryStore(), credentials: { has: () => false, get: () => null } });
+  const ready = id => settingsManager.window.webContents.executeJavaScript(`!document.getElementById(${JSON.stringify(id)}).disabled`);
   async function openSettings() {
-    settingsManager.open();
+    settingsManager = new WorkspaceWindow({ monitoring, settings, ...ports, reportError: error => errors.push(error.message) });
+    settings.onSettingsChanged = () => settingsManager.notify('settings');
+    settingsManager.open('companion');
     await until(() => {
       if (settingsManager.window.webContents.isLoading()) return false;
       return settingsManager.window.webContents.executeJavaScript('document.getElementById("dock-corner-size").options.length === 2');
@@ -353,6 +364,7 @@ async function verifyDockSettings() {
       const bubble = bubbleManager.bubbleWindows.get('test').getBounds();
       return ['x', 'y', 'width', 'height'].every(key => character[key] === layout.character[key] && bubble[key] === layout.bubble[key]);
     }, 'setting reaches both live overlay windows');
+    await until(() => ready('dock-corner-size'), 'Dock preference save acknowledged');
     const restored = new CharacterWindowManager();
     assert.equal(restored.getDockAutoScale(), choice === 'shrink', 'Dock size preference survives manager recreation');
     restored.cleanup();
@@ -366,11 +378,15 @@ async function verifyDockSettings() {
   assert(scales.includes(30) && scales.includes(40), 'settings offer 30% and 40%');
   await settingsManager.window.webContents.executeJavaScript('(() => { const select = document.getElementById("character-scale"); select.value = "30"; select.dispatchEvent(new Event("change")); })()');
   await until(() => characterManager.getCharacterScale() === 30 && characterManager.entry.window.getBounds().width === 40, '30% selection resizes the character');
+  assert.equal(await ready('character-scale'), false, 'native geometry can change before the preference save is acknowledged');
+  finishScaleSave();
+  await until(() => ready('character-scale'), '30% preference save acknowledged');
   const restoredSize = new CharacterWindowManager();
   assert.equal(restoredSize.getCharacterScale(), 30, '30% size persists');
   restoredSize.cleanup();
   await settingsManager.window.webContents.executeJavaScript('(() => { const select = document.getElementById("character-scale"); select.value = "100"; select.dispatchEvent(new Event("change")); })()');
   await until(() => characterManager.getCharacterScale() === 100 && characterManager.entry.window.getBounds().width === 134, 'size restores to 100%');
+  await until(() => ready('character-scale'), '100% preference save acknowledged');
   await settingsManager.window.webContents.executeJavaScript('document.getElementById("dock-corner-size-row").scrollIntoView({ block: "center" })');
   fs.writeFileSync(path.join(output, 'dock-corner-settings.png'), (await settingsManager.window.webContents.capturePage()).toPNG());
   settingsManager.cleanup();

@@ -123,7 +123,7 @@ On Windows PowerShell, run the same commands as
 
 Electron app with system tray for macOS, Windows, Linux. See [Installation](#installation) above to install.
 
-Read tokens are configured in the desktop Monitoring window; hook write tokens use the hook configuration.
+Read tokens are configured in **Settings → Connections**; hook write tokens use the hook configuration. The menu-bar or tray icon opens the resource and coding-account dashboard.
 
 It shows a single character window with a speech bubble that follows it. The window retargets to whichever project is currently active instead of opening one window per project.
 
@@ -202,7 +202,7 @@ State reporting is edge-driven: a new state start replaces the previous state. C
 | message_sent | done fallback (only with no active run) |
 | session_end / gateway_stop | done |
 
-OpenClaw reads the active model and context usage from `llm_output`, resets them per run, and tracks parallel runs and tools. USB writes use the shared Python transport and file lock; each HTTP target serializes updates, coalesces pending states, and has a 2.5-second request deadline.
+OpenClaw reads the active model and context usage from `llm_output`, resets them per run, and tracks parallel runs and tools. Local HTTP targets serialize updates, keep the newest pending state, and have a 2.5-second request deadline. USB and cloud delivery use the shared Python transport with a five-second process limit. Cloud reports use the gateway's `VIBEMON_OPENCLAW_ACCOUNT_ID` / `VIBEMON_OPENCLAW_ACCOUNT_NAME` (or common account variables), instance identity, and working directory. Changing the displayed character does not change the OpenClaw account provider.
 
 ### opencode
 

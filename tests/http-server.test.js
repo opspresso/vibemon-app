@@ -63,6 +63,25 @@ function createServer() {
 }
 
 describe('HttpServer request boundaries', () => {
+  test('enforces the local hostname boundary over an actual loopback socket', async () => {
+    const { server: controller, windowManager } = createServer();
+    const server = http.createServer((req, res) => controller.handleRequest(req, res));
+    await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+    const port = server.address().port;
+    const read = host => new Promise((resolve, reject) => {
+      http.get({ hostname: '127.0.0.1', port, path: '/status', headers: { Host: host } }, res => {
+        const chunks = [];
+        res.on('data', chunk => chunks.push(chunk));
+        res.on('end', () => resolve({ status: res.statusCode, body: JSON.parse(Buffer.concat(chunks).toString()) }));
+      }).on('error', reject);
+    });
+    try {
+      expect((await read('untrusted.example')).status).toBe(403);
+      expect(windowManager.getRegisteredStates).not.toHaveBeenCalled();
+      expect(await read(`localhost:${port}`)).toEqual({ status: 200, body: { focusedProject: 'demo', projects: {} } });
+    } finally { await new Promise(resolve => server.close(resolve)); }
+  });
+
   test('rejects non-local browser origins before routing', async () => {
     const { server } = createServer();
     const res = response();
@@ -70,6 +89,14 @@ describe('HttpServer request boundaries', () => {
     await server.handleRequest(request('POST', '/quit', { headers: { origin: 'https://evil.example' } }), res);
 
     expect(res.statusCode).toBe(403);
+  });
+
+  test('rejects a non-local Host even when the request omits Origin', async () => {
+    const { server, windowManager } = createServer();
+    const res = response();
+    await server.handleRequest(request('GET', '/status', { headers: { host: 'untrusted.example:19280' } }), res);
+    expect(res.statusCode).toBe(403);
+    expect(windowManager.getRegisteredStates).not.toHaveBeenCalled();
   });
 
   test('requires JSON content type for status updates', async () => {
@@ -133,6 +160,20 @@ describe('HttpServer request boundaries', () => {
 
     expect(health.statusCode).toBe(200);
     expect(missing.statusCode).toBe(404);
+  });
+
+  test('the loopback root identifies the API without serving a duplicate desktop UI', async () => {
+    const { server, windowManager } = createServer();
+    const res = response();
+    await server.handleRequest(request('GET', '/'), res);
+    expect(res.statusCode).toBe(200);
+    expect(res.headers['Content-Type']).toContain('application/json');
+    expect(JSON.parse(res.body)).toEqual({
+      application: 'VibeMon Desktop', version: '0.0.0-test',
+      dashboard: 'Open the desktop workspace from the VibeMon tray icon.',
+      documentation: 'https://vibemon.io/docs'
+    });
+    expect(windowManager.getRegisteredStates).not.toHaveBeenCalled();
   });
 
   test('routes on the pathname, ignoring a query string', async () => {
@@ -376,6 +417,24 @@ describe('HttpServer request boundaries', () => {
   test('stop is a no-op before start', async () => {
     const { server } = createServer();
     await expect(server.stop()).resolves.toBeUndefined();
+  });
+
+  test('stop closes active connections after its grace period before resolving', async () => {
+    jest.useFakeTimers();
+    const { HTTP_CLOSE_TIMEOUT_MS } = require('../src/shared/config.cjs');
+    const { server } = createServer();
+    let closed;
+    const native = { close: callback => { closed = callback; }, closeAllConnections: jest.fn(() => closed()) };
+    server.server = native;
+    try {
+      const stopped = server.stop();
+      jest.advanceTimersByTime(HTTP_CLOSE_TIMEOUT_MS - 1);
+      expect(native.closeAllConnections).not.toHaveBeenCalled();
+      jest.advanceTimersByTime(1);
+      await stopped;
+      expect(native.closeAllConnections).toHaveBeenCalledTimes(1);
+      expect(server.server).toBeNull();
+    } finally { jest.useRealTimers(); }
   });
 
   test('rejects invalid JSON and missing JSON content types on mutation routes', async () => {

@@ -17,8 +17,8 @@
  * Characters are represented as color themes on the same rig (each registry
  * entry's `theme`), so Character Lock and bridge character switching keep
  * working. Public API mirrors the 2D engine so renderer.js is a drop-in,
- * plus the three.js namespace the consumer supplies — this repository ships
- * no dependencies, so the caller resolves three.js itself:
+ * plus the three.js namespace the consumer supplies. The exported engine
+ * has no package imports, so the caller resolves three.js itself:
  *
  *   const engine = createVibeMonEngine(container, {
  *     THREE,            // three.js namespace (required)

@@ -3,6 +3,7 @@
  */
 
 const { REQUEST_TIMEOUT_MS } = require('../shared/config.cjs');
+const LOCAL_ORIGIN = /^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/;
 
 /**
  * Set CORS headers on response
@@ -13,7 +14,7 @@ const { REQUEST_TIMEOUT_MS } = require('../shared/config.cjs');
 function setCorsHeaders(res, req) {
   const origin = req?.headers?.origin || '';
   // Allow localhost origins only (IPv4, IPv6, with various port numbers)
-  const isLocalhost = /^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/.test(origin);
+  const isLocalhost = LOCAL_ORIGIN.test(origin);
 
   if (isLocalhost) {
     res.setHeader('Access-Control-Allow-Origin', origin);
@@ -24,7 +25,13 @@ function setCorsHeaders(res, req) {
 
 function isAllowedOrigin(req) {
   const origin = req?.headers?.origin;
-  return !origin || /^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/.test(origin);
+  return !origin || LOCAL_ORIGIN.test(origin);
+}
+
+function isAllowedHost(req) {
+  const host = req?.headers?.host;
+  // Browsers always send Host, including same-origin reads without Origin.
+  return host === undefined || typeof host === 'string' && /^(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/i.test(host);
 }
 
 function hasJsonContentType(req) {
@@ -50,6 +57,7 @@ function sendJson(res, statusCode, data) {
  * @param {string} message
  */
 function sendError(res, statusCode, message) {
+  if (statusCode === 408 || statusCode === 413) res.setHeader('Connection', 'close');
   sendJson(res, statusCode, { error: message });
 }
 
@@ -70,7 +78,8 @@ function parseJsonBody(req, maxSize, timeout = REQUEST_TIMEOUT_MS) {
     const timer = setTimeout(() => {
       if (!aborted) {
         aborted = true;
-        req.destroy();
+        // Let the responder flush 408/413 before closing the connection.
+        req.pause();
         resolve({ data: null, error: 'Request timeout', statusCode: 408 });
       }
     }, timeout);
@@ -81,7 +90,7 @@ function parseJsonBody(req, maxSize, timeout = REQUEST_TIMEOUT_MS) {
       if (bodySize > maxSize) {
         aborted = true;
         clearTimeout(timer);
-        req.destroy();
+        req.pause();
         resolve({ data: null, error: 'Payload too large', statusCode: 413 });
         return;
       }
@@ -117,6 +126,7 @@ function parseJsonBody(req, maxSize, timeout = REQUEST_TIMEOUT_MS) {
 module.exports = {
   setCorsHeaders,
   isAllowedOrigin,
+  isAllowedHost,
   hasJsonContentType,
   sendJson,
   sendError,

@@ -1,0 +1,365 @@
+// Native contract tests use disposable data, the real preload, and a loopback HTTP API.
+const { app, nativeTheme } = require('electron');
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
+const { startFixture, TOKEN } = require('./workspace-fixture.cjs');
+const output = process.env.VIBEMON_TEST_ARTIFACTS || path.join(__dirname, '../../out/workspace-tests');
+fs.mkdirSync(output, { recursive: true });
+nativeTheme.themeSource = 'dark';
+const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
+async function until(check, label) {
+  const deadline = Date.now() + 10000;
+  while (Date.now() < deadline) { if (await check()) return; await delay(50); }
+  throw new Error(`Workspace condition failed: ${label}`);
+}
+
+let cleanup;
+startFixture().then(async fixture => {
+  cleanup = fixture.cleanup;
+  const { view, client, ports, state, errors, trayManager } = fixture;
+  const web = view.window.webContents;
+  const ui = code => web.executeJavaScript(code);
+  const click = selector => ui(`document.querySelector(${JSON.stringify(selector)}).click()`);
+  const value = selector => ui(`document.querySelector(${JSON.stringify(selector)}).value`);
+  const text = selector => ui(`document.querySelector(${JSON.stringify(selector)}).textContent`);
+  const input = (selector, value, event = 'input') => ui(`(() => { const input = document.querySelector(${JSON.stringify(selector)}); input.value = ${JSON.stringify(value)}; input.dispatchEvent(new Event(${JSON.stringify(event)}, { bubbles: true })); })()`);
+  const visible = selector => ui(`Boolean(document.querySelector(${JSON.stringify(selector)})?.checkVisibility())`);
+  const verifyContrast = async () => {
+    const ratios = await ui(`(() => {
+      function luminance(color) {
+        if (!/^rgb/.test(color)) throw new Error('Unresolved color: ' + color);
+        const channels = color.match(/[\\d.]+/g).slice(0, 3).map(value => {
+          const channel = Number(value) / 255;
+          return channel <= 0.04045 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4;
+        });
+        return channels[0] * 0.2126 + channels[1] * 0.7152 + channels[2] * 0.0722;
+      }
+      return [['body', 'body'], ['#page-description', 'body'], ['.project-tag', '.project-tag'], ['#save-connection', '#save-connection'], ['.chip.good', '.chip.good'], ['.chip.warning', '.chip.warning']].map(([foreground, background]) => {
+        const a = luminance(getComputedStyle(document.querySelector(foreground)).color);
+        const b = luminance(getComputedStyle(document.querySelector(background)).backgroundColor);
+        return { selector: foreground, ratio: (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05) };
+      });
+    })()`);
+    for (const entry of ratios) assert.ok(entry.ratio >= 4.5, `text contrast ${entry.selector}: ${entry.ratio.toFixed(2)}`);
+  };
+  const navigate = async route => {
+    view.open(route);
+    await until(() => visible(`section[data-page="${route}"]`), `${route} page visible`);
+  };
+  const screenshot = async name => {
+    await until(() => ui('document.getElementById("toast").hidden'), 'transient feedback completed');
+    await ui(`Promise.all(document.getAnimations().filter(animation => {
+      const target = animation.effect?.target;
+      if (!(target instanceof Element) || !target.checkVisibility({ contentVisibilityAuto: true }) || animation.effect.getTiming().iterations === Infinity) return false;
+      const bounds = target.getBoundingClientRect();
+      return bounds.bottom > 0 && bounds.top < innerHeight && bounds.right > 0 && bounds.left < innerWidth;
+    }).map(animation => animation.finished))`);
+    await ui('new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))');
+    fs.writeFileSync(path.join(output, `${name}.png`), (await web.capturePage()).toPNG());
+  };
+  await until(() => ui('document.querySelectorAll("#overview-resources .card").length === 3'), 'populated overview');
+  await until(() => view.window.isVisible(), 'workspace shown');
+  await until(() => ui('document.hasFocus()'), 'workspace accepts keyboard input');
+  await ui('new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))');
+  assert.equal(client.getStatus(), 'connected');
+  assert.ok(!JSON.stringify(view.snapshot()).includes(TOKEN), 'snapshots omit read credentials');
+  assert.ok(!JSON.stringify(view.snapshot()).includes(ports.config.vibemon_token), 'snapshots omit collector credentials');
+  assert.equal(await value('#read-token'), '');
+  assert.deepEqual(await ui('import("./dom.js").then(({ providerName, stateLabel }) => [providerName("constructor"), providerName("opencode"), stateLabel("constructor")])'), ['constructor', 'OpenCode', 'constructor']);
+  assert.equal(await text('#summary-resources'), '4');
+  assert.equal(await text('#summary-accounts'), '4');
+  assert.equal(await text('#summary-local'), '2');
+  assert.equal(await text('#summary-attention'), '3');
+  const overviewBounds = await ui('({ bottom: document.querySelector("#overview-accounts .card").getBoundingClientRect().bottom, viewport: innerHeight })');
+  assert.ok(overviewBounds.bottom < overviewBounds.viewport, `account metrics fit in the initial viewport: ${JSON.stringify(overviewBounds)}`);
+  assert.equal(state.requests.some(url => url.endsWith('/trend')), false, 'history is not prefetched');
+  await screenshot('overview-dark');
+
+  await navigate('resources');
+  await ui('window.focusTrace = []; for (const type of ["focusin", "focusout"]) document.addEventListener(type, event => window.focusTrace.push({ type, id: event.target.id, page: document.documentElement.dataset.page }));');
+  assert.equal(await ui('document.querySelectorAll("#resource-cards .card").length'), 4);
+  assert.ok((await text('#resource-cards')).includes('Unified memory'));
+  assert.ok((await text('#resource-cards')).includes('Stale'));
+  assert.ok((await text('#resource-cards')).includes('—'), 'missing readings remain unavailable');
+  await ui('window.originalCard = [...document.querySelectorAll("#resource-cards .card")].find(card => card.textContent.includes("Cache service")); document.getElementById("resource-search").focus();');
+  await input('#resource-search', 'Cache');
+  await ui('document.getElementById("resource-search").setSelectionRange(1, 3)');
+  assert.equal(await ui('document.activeElement.id'), 'resource-search', 'the search field has focus before polling');
+  await client.poll(true); await delay(150);
+  if (await ui('document.activeElement.id') !== 'resource-search') console.log('Focus diagnostic:', await ui('({ page: document.documentElement.dataset.page, active: document.activeElement.tagName, visible: document.visibilityState, focused: document.hasFocus(), events: window.focusTrace })'));
+  assert.deepEqual(await ui('({ same: window.originalCard === document.querySelector("#resource-cards .card"), focused: document.activeElement.id, start: document.activeElement.selectionStart, end: document.activeElement.selectionEnd })'), { same: true, focused: 'resource-search', start: 1, end: 3 });
+  await input('#resource-search', 'no matching resource');
+  assert.equal(await text('#resource-cards h3'), 'No matching resources');
+  await click('#resource-cards .empty button');
+  assert.equal(await value('#resource-search'), '');
+  assert.equal(await ui('document.querySelectorAll("#resource-cards .card").length'), 4);
+  await click('[aria-label="View Cache service details"]');
+  await until(() => ui('document.querySelectorAll("#chart circle").length > 0'), 'custom resource history');
+  assert.ok((await text('#detail-message')).includes('Latency is above'));
+  assert.equal(await ui('document.activeElement.getAttribute("aria-label")'), 'Close source details');
+  await screenshot('resource-detail');
+  const originalSources = state.sources;
+  state.sources = () => originalSources().map(source => source.sourceId === 'cache' ? { ...source, metrics: { ...source.metrics, latency: 12.3456 } } : source);
+  await client.poll(true);
+  await until(async () => (await text('#detail-readings')).includes('12.3456 ms'), 'custom detail keeps six significant digits');
+  assert.ok((await text('#resource-cards')).includes('12.3456 ms'), 'full resource cards retain custom metric precision');
+  state.sources = () => originalSources().map(source => source.sourceId === 'cache' ? { ...source, statusMessage: 'Recovered <script>window.injected=true</script>', metrics: { ...source.metrics, latency: 0 }, metricOrder: ['throughput', 'latency', 'connections'] } : source);
+  await client.poll(true);
+  await until(async () => (await text('#detail-readings')).includes('0 ms'), 'open detail reflects latest measurement');
+  assert.equal(await ui('window.injected'), undefined, 'untrusted text is never interpreted as HTML');
+  assert.equal(await text('#detail-readings .detail-reading span'), 'Throughput', 'custom metric ordering is preserved');
+  await click('[data-close-dialog="detail-dialog"]');
+  assert.equal(await ui('document.getElementById("detail-dialog").open'), false);
+  await input('#resource-search', 'Cache');
+  await screenshot('custom-resource');
+  state.sources = originalSources;
+  await client.poll(true);
+
+  const originalTrend = state.trend;
+  state.trend = item => ({ ...originalTrend(item), metricDefinitions: { latency: { label: 'Temperature', unit: '°C', display: 'gauge', min: -40, max: 20 } }, metricOrder: ['latency'], points: [{ timestamp: new Date().toISOString(), average: { latency: -12 }, maximum: { latency: -12 }, samples: 1, expiresAt: Date.now() / 1000 + 86400 }] });
+  await click('[aria-label="View Cache service details"]');
+  await until(async () => (await text('#chart')).includes('-40°C'), 'history uses its returned signed metric schema');
+  await client.poll(true); await delay(150);
+  assert.ok((await text('#chart')).includes('-40°C'), 'a latest-state poll cannot relabel historical values');
+  assert.ok(Math.abs(await ui('Number(document.querySelector("#chart circle").getAttribute("cy"))') - 115.333333) < 0.000001);
+  await click('[data-close-dialog="detail-dialog"]');
+  state.trend = originalTrend;
+
+  await navigate('agents');
+  assert.equal(await ui('document.querySelectorAll("#agent-cards .card").length'), 4);
+  state.sources = () => {
+    const data = originalSources();
+    const team = data.find(source => source.sourceId === 'codex-team');
+    return [...data, { ...team, sourceId: 'waiting-review', displayName: 'release-review', observedAt: new Date(Date.now() - 1000).toISOString(), agent: { ...team.agent, state: 'notification', project: 'release-review' } }];
+  };
+  await client.poll(true);
+  await until(() => ui('[...document.querySelectorAll("#agent-cards .card")].find(card => card.querySelector("h3").textContent === "Engineering").querySelector(".chip").textContent === "Needs input"'), 'account surfaces attention from an older reporting project');
+  await click('#agent-cards [aria-label="View Engineering details"]');
+  assert.equal(await text('#detail-status .chip'), 'Needs input');
+  assert.ok((await text('#detail-members')).includes('release-review'));
+  assert.ok((await text('#detail-readings')).includes('38%'), 'account usage still comes from its latest observation');
+  await click('[data-close-dialog="detail-dialog"]');
+  state.sources = originalSources;
+  await client.poll(true);
+  await until(() => ui('[...document.querySelectorAll("#agent-cards .card")].find(card => card.querySelector("h3").textContent === "Engineering").querySelector(".chip").textContent === "Working"'), 'account attention clears when the project no longer reports it');
+  await input('#agent-filter', 'codex');
+  assert.deepEqual(await ui('[...document.querySelectorAll("#agent-cards h3")].map(node => node.textContent)'), ['Engineering', 'Personal projects']);
+  assert.ok((await text('#agent-cards')).includes('Codex · team'));
+  assert.ok((await text('#agent-cards')).includes('Codex · personal'));
+  await input('#agent-filter', 'kiro');
+  assert.ok((await text('#agent-cards')).includes('Needs input'));
+  assert.ok((await text('#agent-cards')).includes('—'), 'unreported provider quota is not zero');
+  await input('#agent-filter', 'all');
+  await screenshot('coding-accounts');
+  await verifyContrast();
+  await click('[data-page="agents"] [data-selection]');
+  await until(() => visible('#selection-dialog'), 'selection dialog');
+  const chosenMetrics = await ui('document.querySelectorAll("#metric-choices input:checked").length');
+  await click('#select-none');
+  assert.equal(await ui('document.querySelectorAll("#source-choices input:checked, #account-choices input:checked").length'), 0);
+  assert.equal(await ui('document.querySelectorAll("#metric-choices input:checked").length'), chosenMetrics, 'clearing sources preserves metric preferences');
+  await click('#select-all');
+  await click('#selection-dialog details summary');
+  await click('#clear-metrics');
+  assert.equal(await ui('document.querySelectorAll("#metric-choices input:checked").length'), 0);
+  assert.equal(await ui('document.querySelectorAll("#source-choices input:checked, #account-choices input:checked").length'), 8, 'clearing metrics preserves source choices');
+  await click('#all-metrics');
+  await click('#selection-dialog details summary');
+  await click('#source-choices input[value="production"]');
+  await client.poll(true); await delay(150);
+  assert.equal(await ui('document.querySelector("#source-choices input[value=production]").checked'), false, 'polling preserves selection drafts');
+  state.status = 503;
+  await click('#discover');
+  await until(() => visible('#selection-dialog .dialog-error'), 'discovery failure is visible inside the modal');
+  assert.equal(await ui('document.querySelector("#source-choices input[value=production]").checked'), false);
+  state.status = 200;
+  await click('#discover');
+  await until(() => ui('!document.getElementById("discover").disabled'), 'discovery recovered');
+  assert.equal(await ui('document.querySelector("#source-choices input[value=production]").checked'), false);
+  await click('#save-selection');
+  await until(() => ui('!document.getElementById("selection-dialog").open'), 'selection saved');
+  assert.equal(client.snapshot().sources.some(source => source.sourceId === 'production'), false);
+
+  await navigate('companion');
+  await ui('document.getElementById("render-mode").focus()');
+  await input('#render-mode', '2d', 'change');
+  await until(() => ports.appearance.RenderMode === '2d', 'render mode saved');
+  await until(() => ui('!document.getElementById("render-mode").disabled'), 'render control ready');
+  assert.equal(await ui('document.activeElement.id'), 'render-mode', 'saving retains keyboard focus');
+  assert.equal(await value('#render-mode'), '2d', 'the save response contains authoritative preferences');
+  const setRenderMode = ports.windowManager.setRenderMode;
+  ports.windowManager.setRenderMode = () => { throw new Error('Unable to save render style'); };
+  await input('#render-mode', '3d', 'change');
+  await until(() => visible('#error'), 'failed preference shown');
+  await until(() => ui('!document.getElementById("render-mode").disabled'), 'failed control ready');
+  assert.equal(await value('#render-mode'), '2d', 'failed saves restore the persisted value');
+  assert.equal(await ui('document.activeElement.id'), 'render-mode');
+  ports.windowManager.setRenderMode = setRenderMode;
+  await click('#dismiss-error');
+  await click('[aria-label="Use Kiro character"]');
+  await until(() => ports.appearance.CharacterLock === 'kiro', 'character choice saved');
+  await click('#speech-bubble-fields input');
+  await until(() => !ports.appearance.SpeechBubbleFields.status, 'bubble preference saved');
+  await input('#character-scale', '80', 'change');
+  await until(() => ports.appearance.CharacterScale === 80, 'scale preference saved');
+  await input('#theme', 'light', 'change');
+  await navigate('overview');
+  await verifyContrast();
+  await screenshot('overview-light');
+  await navigate('companion');
+  assert.equal(await value('#render-mode'), '2d');
+  assert.equal(await value('#character-lock'), 'kiro');
+  assert.equal(await value('#character-scale'), '80');
+  await screenshot('companion-settings');
+  await navigate('integrations');
+  const installByFlag = ports.hookInstaller.installByFlag;
+  let finishInstallation;
+  const installation = new Promise(resolve => { finishInstallation = resolve; });
+  ports.hookInstaller.installByFlag = async flag => {
+    ports.hookInstaller.isRunning = true;
+    ports.hookInstaller.onStateChanged();
+    try {
+      await installation;
+      return await installByFlag(flag);
+    } finally {
+      ports.hookInstaller.isRunning = false;
+      ports.hookInstaller.onStateChanged();
+    }
+  };
+  await ui('[...document.querySelectorAll("#hook-list .integration-card")].find(card => card.textContent.includes("Codex CLI")).querySelector("button").click()');
+  await until(() => visible('#integration-progress'), 'installation progress announced');
+  assert.equal(await ui('document.getElementById("hooks-refresh").disabled'), true);
+  assert.deepEqual(await ui('[...document.querySelectorAll("#hook-list .integration-card button")].map(button => ({ label: button.textContent, disabled: button.disabled }))'), [
+    { label: 'Reinstall', disabled: true },
+    { label: 'Repair installation', disabled: true },
+    { label: 'Install integration', disabled: true },
+    { label: 'Setup guide', disabled: false },
+    { label: 'Setup guide', disabled: false },
+    { label: 'Reinstall', disabled: true }
+  ]);
+  finishInstallation();
+  await until(() => ports.calls.some(call => call[0] === 'install' && call[1] === '--codex'), 'integration repair');
+  await until(async () => !(await text('#hook-list')).includes('Update available'), 'integration repair reflected');
+  await until(async () => !(await visible('#integration-progress')), 'installation progress cleared');
+  assert.equal(await ui('document.querySelectorAll("#hook-list button:disabled").length'), 0);
+  ports.hookInstaller.installByFlag = installByFlag;
+  await screenshot('integration-settings');
+  await click('#local-routing summary');
+  const getConfigStatus = ports.vibemonConfigManager.getStatus;
+  ports.vibemonConfigManager.getStatus = () => ({ exists: true, hasDesktopUrl: false, error: 'Invalid field types in ~/.vibemon/config.json: http_urls.' });
+  view.notify('settings');
+  await until(() => visible('#routing-error'), 'invalid integration config explained');
+  assert.ok((await text('#routing-error')).includes('http_urls'));
+  assert.equal(await ui('document.getElementById("settings-attention").hidden'), false);
+  ports.vibemonConfigManager.getStatus = getConfigStatus;
+  view.notify('settings');
+  await input('#new-http-url', 'http://127.0.0.1:19999');
+  await click('#add-http-form button');
+  await until(() => ports.config.http_urls.includes('http://127.0.0.1:19999'), 'HTTP destination saved');
+  assert.equal(ports.config.vibemon_token, 'fixture-secret-must-not-cross-IPC');
+
+  ports.app.isPackaged = true;
+  let update = { status: null, version: null };
+  ports.updateChecker.getState = () => ({ ...update });
+  ports.updateChecker.checkForUpdates = async () => { update = { status: 'current', version: null }; };
+  ports.updateChecker.downloadUpdate = async () => { ports.calls.push(['download-update']); update = { status: 'downloaded', version: '3.1.0' }; };
+  ports.updateChecker.installDownloaded = () => ports.calls.push(['install-update']);
+  view.notify('settings');
+  await navigate('about');
+  await click('#check-updates');
+  await until(async () => (await text('#update-status')).includes('latest available version'), 'confirmed update check');
+  update = { status: 'available', version: '3.1.0' }; view.notify('settings');
+  await until(() => visible('#update-action'), 'update action shown');
+  assert.equal(await text('#update-action'), 'Download update');
+  await click('#update-action');
+  await until(async () => (await text('#update-action')) === 'Restart and install', 'downloaded update awaits restart');
+  assert.equal(ports.calls.some(call => call[0] === 'install-update'), false);
+  await click('#update-action');
+  await until(() => ports.calls.some(call => call[0] === 'install-update'), 'explicit install action');
+
+  await navigate('connections');
+  await input('#web-url', 'https://edited.example');
+  await client.poll(true); await delay(150);
+  assert.equal(await value('#web-url'), 'https://edited.example', 'polling preserves unsaved connection edits');
+  await input('#web-url', 'https://vibemon.io');
+  await input('#read-token', 'vm_' + '0'.repeat(60));
+  await click('#save-connection');
+  await until(() => client.getStatus() === 'token-expired', 'rejected token');
+  await until(async () => (await text('#connection-chip')).includes('Token not accepted'), 'token failure shown');
+  assert.equal(await value('#read-token'), '');
+  await input('#read-token', TOKEN); await click('#save-connection');
+  await until(() => client.getStatus() === 'connected', 'token recovery');
+  fixture.corruptCredential(); await client.poll(true);
+  await until(async () => (await text('#connection-chip')).includes('Replace saved token'), 'corrupt credential recovery');
+  await input('#read-token', TOKEN); await click('#save-connection');
+  await until(() => client.getStatus() === 'connected', 'credential replaced');
+  await screenshot('connection-settings');
+  await click('#disconnect');
+  await until(() => client.getStatus() === 'not-configured', 'disconnect');
+  await navigate('overview');
+  await until(async () => (await text('#summary-resources')) === '0', 'previous connection data cleared');
+  assert.equal(await ui('document.querySelectorAll("#resource-cards .card, #agent-cards .card").length'), 0);
+  assert.ok((await text('#overview-activity')).includes('web-console'), 'local activity survives cloud disconnect');
+  await screenshot('disconnected');
+
+  view.window.setSize(820, 600);
+  for (const route of ['overview', 'resources', 'agents', 'connections', 'companion', 'integrations', 'about']) {
+    await navigate(route);
+    assert.equal(await ui('document.getElementById("main").scrollWidth <= document.getElementById("main").clientWidth'), true, `${route} fits the minimum window width`);
+  }
+  await screenshot('minimum-window');
+  view.window.hide();
+  await client.configure({ url: 'https://vibemon.io', token: TOKEN });
+  trayManager.tray.emit('click');
+  await until(() => view.window.isVisible() && visible('section[data-page="overview"]'), 'tray activation restores the overview');
+  await until(async () => (await text('#summary-resources')) === '3', 'hidden window receives latest state with the saved selection');
+  await ui('new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))');
+  const compactBounds = await ui('({ bottom: document.querySelector("#overview-accounts .card").getBoundingClientRect().bottom, viewport: innerHeight })');
+  await screenshot('compact-overview');
+  assert.ok(compactBounds.bottom < compactBounds.viewport, `both categories fit the minimum window: ${JSON.stringify(compactBounds)}`);
+  // Exercise the API's accepted text/value limits at the minimum window size.
+  const longName = '測'.repeat(128);
+  state.sources = () => originalSources().map(source => {
+    if (source.sourceId === 'cache') return {
+      ...source, displayName: longName, resourceType: '基'.repeat(64), statusMessage: '確'.repeat(160),
+      metrics: { ...source.metrics, latency: Number.MAX_SAFE_INTEGER },
+      metricDefinitions: { ...source.metricDefinitions, latency: { label: '測'.repeat(80), unit: '測定単位'.repeat(4), display: 'number' } }
+    };
+    if (source.sourceId === 'codex-team') return {
+      ...source, account: { provider: 'p'.repeat(32), id: 'a'.repeat(128), displayName: longName },
+      agent: { ...source.agent, project: '計'.repeat(256), state: 's'.repeat(256) }
+    };
+    return source;
+  });
+  await client.poll(true);
+  await client.select({ sources: null, accounts: null, metrics: Object.keys(client.snapshot().metrics) });
+  await input('#resource-search', '');
+  const overflow = [];
+  const checkFit = async (label, selector) => {
+    await ui('new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))');
+    const invalid = await ui(`[...document.querySelectorAll(${JSON.stringify(selector)})].filter(node => node.checkVisibility() && node.scrollWidth > node.clientWidth + 1).map(node => ({ tag: node.tagName, id: node.id, className: node.className, width: node.clientWidth, content: node.scrollWidth }))`);
+    if (invalid.length) overflow.push({ label, invalid });
+  };
+  for (const route of ['overview', 'resources', 'agents']) {
+    await navigate(route);
+    await until(async () => (await text(route === 'agents' ? '#agent-cards' : route === 'resources' ? '#resource-cards' : '#overview-resources')).includes(longName), `${route} renders accepted long names`);
+    await checkFit(route, '#main, .card, .card-heading, .metric, .metric-line, .card-title-group');
+    if (route === 'overview') continue;
+    await click(`section[data-page="${route}"] [aria-label="View ${longName} details"]`);
+    await until(() => visible('#detail-dialog'), 'long source details');
+    assert.equal(await text('#detail-type'), route === 'agents' ? `${'p'.repeat(32)} · ${'a'.repeat(128)}` : '基'.repeat(64));
+    await checkFit(`${route} detail`, '#detail-dialog, .dialog-heading, #detail-type, .detail-message, .detail-reading, .detail-member');
+    await screenshot(`long-${route}-detail`);
+    await click('[data-close-dialog="detail-dialog"]');
+  }
+  await click('[data-page="agents"] [data-selection]');
+  await until(() => visible('#selection-dialog'), 'long source selection');
+  await checkFit('selection', '#selection-dialog, .selection-columns fieldset, .selection-columns .choice');
+  await screenshot('long-selection');
+  await click('[data-close-dialog="selection-dialog"]');
+  assert.deepEqual(overflow, [], 'accepted API values fit cards and dialogs without horizontal clipping');
+  assert.deepEqual(errors, [], 'no renderer or loading errors');
+  console.log('PASS native workspace: navigation, custom metrics, multiple accounts, focus, selection, preferences, credential boundaries, recovery, resizing and visibility.');
+  app.quit();
+}).catch(error => { console.error(error.stack); cleanup?.(); app.exit(1); });

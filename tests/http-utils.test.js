@@ -6,6 +6,7 @@ const { EventEmitter } = require('events');
 const {
   setCorsHeaders,
   isAllowedOrigin,
+  isAllowedHost,
   hasJsonContentType,
   sendJson,
   sendError,
@@ -37,6 +38,7 @@ function createMockRequest(headers = {}) {
   const req = new EventEmitter();
   req.headers = headers;
   req.destroy = jest.fn();
+  req.pause = jest.fn();
   return req;
 }
 
@@ -108,6 +110,12 @@ describe('setCorsHeaders', () => {
 });
 
 describe('request boundary validation', () => {
+  test.each(['localhost', 'LOCALHOST:19280', '127.0.0.1:19280', '[::1]:19280', undefined])('accepts local authority %p', host => {
+    expect(isAllowedHost({ headers: { host } })).toBe(true);
+  });
+  test.each(['untrusted.example:19280', 'localhost.untrusted.example', '127.0.0.1.untrusted.example', 'localhost@untrusted.example', '', ['localhost', 'untrusted.example']])('rejects non-local authority %p', host => {
+    expect(isAllowedHost({ headers: { host } })).toBe(false);
+  });
   test('allows missing and localhost origins only', () => {
     expect(isAllowedOrigin(null)).toBe(true);
     expect(isAllowedOrigin({ headers: {} })).toBe(true);
@@ -242,7 +250,8 @@ describe('parseJsonBody', () => {
     expect(result.data).toBeNull();
     expect(result.error).toBe('Payload too large');
     expect(result.statusCode).toBe(413);
-    expect(req.destroy).toHaveBeenCalled();
+    expect(req.pause).toHaveBeenCalled();
+    expect(req.destroy).not.toHaveBeenCalled();
   });
 
   test('rejects invalid JSON', async () => {
@@ -294,7 +303,8 @@ describe('parseJsonBody', () => {
     expect(result.data).toBeNull();
     expect(result.error).toBe('Request timeout');
     expect(result.statusCode).toBe(408);
-    expect(req.destroy).toHaveBeenCalled();
+    expect(req.pause).toHaveBeenCalled();
+    expect(req.destroy).not.toHaveBeenCalled();
 
     jest.useRealTimers();
   });

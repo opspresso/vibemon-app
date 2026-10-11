@@ -359,24 +359,28 @@ function sendSerial(payload) {
   if (!ttyPath) return;
 
   const port = ttyPath;
-  enqueueSend(`serial:${port}`, () => new Promise((resolve) => {
-    // Share Python's baud-rate setup, nonblocking writes and file locks with
-    // every other agent. Never open a potentially blocking TTY in the gateway.
-    const child = spawn("python3", [CORE_SCRIPT, "--send-serial", port], {
+  enqueueSend(`serial:${port}`, async () => {
+    if (!await sendCorePayload(["--send-serial", port], payload)) ttyPath = null;
+  });
+}
+
+// Shared transport owns serial locking and cloud account/credential boundaries.
+function sendCorePayload(args, payload, env = process.env) {
+  return new Promise(resolve => {
+    const child = spawn("python3", [CORE_SCRIPT, ...args], {
       stdio: ["pipe", "ignore", "ignore"],
       timeout: 5000,
       killSignal: "SIGKILL",
       windowsHide: true,
+      env,
     });
-    child.on("error", () => { ttyPath = null; resolve(); });
-    child.on("close", (code) => {
-      if (code !== 0) ttyPath = null;
-      resolve();
-    });
-    child.stdin.on("error", () => {});
+    let inputFailed = false;
+    child.on("error", () => resolve(false));
+    child.on("close", code => resolve(code === 0 && !inputFailed));
+    child.stdin.on("error", () => { inputFailed = true; });
     child.stdin.end(JSON.stringify(payload));
     child.unref();
-  }));
+  });
 }
 
 /**
@@ -479,61 +483,13 @@ async function sendVibeMonApi(payload, target = config) {
     return false;
   }
 
-  const project = payload.project || config.projectName;
-  if (!project) {
-    debug("VibeMon API skipped: no project name");
-    return false;
-  }
-
-  // Build API URL (strip trailing slash) — /api/status, matching the
-  // Python bridges (the cloud's bare /status only works via a rewrite)
-  const baseUrl = target.vibemonUrl.replace(/\/+$/, "");
-  const apiUrl = `${baseUrl}/api/status`;
-
-  const apiPayload = {
-    state: payload.state || "",
-    project: project,
-    tool: payload.tool || "",
-    model: payload.model || "",
-    ...(typeof payload.memory === "number" ? { memory: payload.memory } : {}),
-    character: payload.character || CHARACTER,
-  };
-
-
-  try {
-    const parsed = new URL(apiUrl);
-    const localTest = process.env.VIBEMON_ALLOW_HTTP_LOCAL === "1" && ["localhost", "127.0.0.1", "[::1]"].includes(parsed.hostname) && parsed.protocol === "http:";
-    if ((parsed.protocol !== "https:" && !localTest) || parsed.username || parsed.password || parsed.search || parsed.hash) throw new Error("Invalid cloud HTTPS URL");
-    const response = await fetch(apiUrl, {
-      redirect: "error",
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${target.vibemonToken}`,
-      },
-      body: JSON.stringify(apiPayload),
-      signal: AbortSignal.timeout(HTTP_TIMEOUT_MS),
-    });
-
-    await response.body?.cancel();
-
-    if (!response.ok) {
-      debug(`VibeMon API failed: ${response.status}`);
-      if (logger) {
-        logger.warn?.(`[vibemon] VibeMon API error: ${response.status}`);
-      }
-      return false;
-    }
-
-    debug(`VibeMon API success: ${response.status}`);
-    return true;
-  } catch (err) {
-    debug(`VibeMon API error: ${err.name}`);
-    if (logger) {
-      logger.error?.(`[vibemon] VibeMon API error: ${err.name}`);
-    }
-    return false;
-  }
+  const ok = await sendCorePayload(["--send-cloud", "openclaw"], payload, {
+    ...process.env,
+    VIBEMON_URL: target.vibemonUrl,
+    VIBEMON_TOKEN: target.vibemonToken,
+  });
+  if (!ok) logger?.warn?.("[vibemon] Cloud delivery failed. Check Python, the shared installation, and the Web write-token configuration.");
+  return ok;
 }
 
 /**

@@ -4,6 +4,41 @@ import { openclaw } from "./plugin_harness.mjs";
 
 const ctx = { runId: "r", sessionId: "s", sessionKey: "agent:main:s" };
 
+test("cloud delivery uses shared account identity without putting credentials in arguments", async () => {
+  const h = await openclaw({
+    env: { VIBEMON_OPENCLAW_ACCOUNT_ID: "work" },
+    pluginConfig: { vibemonUrl: "https://cloud.example", vibemonToken: "fixture-write" },
+  });
+  await h.emit("before_agent_run", {}, ctx);
+  const cloud = h.children.find(({ args }) => args.includes("--send-cloud"));
+  assert.ok(cloud, "cloud reports use the shared Python transport");
+  assert.deepEqual([...cloud.args], ["/home/test/.vibemon/vibemon_core.py", "--send-cloud", "openclaw"]);
+  assert.equal(cloud.options.env.VIBEMON_URL, "https://cloud.example");
+  assert.equal(cloud.options.env.VIBEMON_TOKEN, "fixture-write");
+  assert.equal(cloud.options.env.VIBEMON_OPENCLAW_ACCOUNT_ID, "work");
+  assert.equal(JSON.stringify(cloud.args).includes("fixture-write"), false);
+  assert.equal(JSON.parse(cloud.child.raw).state, "thinking");
+  assert.equal(cloud.options.timeout, 5000);
+  assert.equal(h.requests.some(request => request.url.includes("cloud.example")), false);
+});
+
+test("a failed cloud child releases the queued final status", async () => {
+  const h = await openclaw({ autoClose: false, pluginConfig: {
+    httpEnabled: false, vibemonUrl: "https://cloud.example", vibemonToken: "fixture-write",
+  } });
+  await h.emit("before_agent_run", {}, ctx);
+  await h.emit("agent_end", {}, ctx);
+  await h.advance(3000);
+  assert.equal(h.children.length, 1);
+  h.children[0].child.emit("error", new Error("ENOENT"));
+  h.children[0].child.emit("close", -1);
+  await h.flush();
+  assert.equal(h.children.length, 2);
+  assert.equal(JSON.parse(h.children[1].child.raw).state, "done");
+  h.children[1].child.emit("close", 0);
+  await h.flush();
+});
+
 test("auto-launch delegates to the installed shared native launcher", async () => {
   const h = await openclaw({
     pluginConfig: { autoLaunch: true, httpUrls: ["http://127.0.0.1:19280"] },

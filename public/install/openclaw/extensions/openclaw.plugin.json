@@ -37,7 +37,7 @@
       "autoLaunch": {
         "type": "boolean",
         "default": false,
-        "description": "Auto-launch Desktop App via npx if not running"
+        "description": "Open the installed Desktop App if not running"
       },
       "vibemonUrl": {
         "type": ["string", "null"],
@@ -83,7 +83,7 @@
     },
     "autoLaunch": {
       "label": "Auto Launch",
-      "help": "Auto-launch Desktop App via npx if not running"
+      "help": "Open the installed Desktop App if not running"
     },
     "vibemonUrl": {
       "label": "VibeMon API URL",

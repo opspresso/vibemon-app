@@ -1,44 +1,70 @@
-# Cloud monitoring
+# Desktop workspace
 
-Open **Monitoring…** from the tray menu. Enter the Web origin and a generated read token, then select **Save and connect**. Create the token in [Account](https://vibemon.io/account) with Google login and use **Show token** to copy it. You can retrieve it again later. A write-only token cannot display data.
+Click the VibeMon menu-bar or tray icon to open **Overview**. Resources and coding accounts appear together; local projects and available plan usage appear below them. Use the sidebar for **Resources**, **Coding agents**, or **Settings**. Closing the workspace keeps the companion and local hooks running. **Show companion** restores the character to the desktop.
 
-The read token is encrypted with Electron `safeStorage`, backed by the operating system keychain or secret service. No plaintext read token is returned to the renderer or written to preferences. Linux `basic_text` storage is rejected. Unlock or configure your OS secure storage if the app cannot save the token. To remove the local copy, select **Disconnect**. To invalidate it for every client, delete it in Web Account.
+The secondary tray menu provides Dashboard, Settings, Show companion, Integrations, About, and Quit. The application menu uses the same workspace pages. On Windows, press `Alt` to reveal the menu bar. Preferences live in the workspace. Keyboard shortcuts are `Cmd/Ctrl+1` for Overview, `Cmd/Ctrl+2` for Resources, `Cmd/Ctrl+3` for Coding agents, and `Cmd/Ctrl+,` for Companion settings. `Cmd/Ctrl+W` closes the workspace window without quitting the App.
 
-Select the resources, accounts, and metrics under **Connection and display settings**, then select **Apply display selection**. **Discover resources and accounts** refreshes the available list. Latest state is polled every 30 seconds, restricted to the selection. **View recent hour** loads minute aggregates and refreshes them every minute until the panel closes. No trend requests run while the panel is closed or the window is hidden.
+![Overview with synthetic resource and coding-account data](images/workspace-overview.png)
 
-Selecting no sources pauses data requests and preserves the last connection result. It cannot turn an authentication or network error into a successful connection. Rejected credentials open connection settings so you can enter a replacement read token; discovery or reconnect checks the connection again.
+## Connect your cloud workspace
 
-Host cards display CPU, memory, GPU, and temperature. Spark uses **Unified memory**. Cluster cards display CPU, memory, ready/total nodes, and unhealthy pods. Agent cards preserve character and state information; fresh selected agent observations also enter the existing character-window routing path under cloud-specific IDs, keeping local hook projects separate.
+1. Sign in to [Web Account](https://vibemon.io/account) with Google. Create a token with read permission. **Show token** retrieves an existing token.
+2. Open **Settings → Connections** in Desktop. Enter the Web address and read token, then select **Save and connect**.
+3. Open **Customize view**. Select resources, provider accounts, and visible metrics, then select **Save view**. **Discover sources** refreshes the available list without discarding unsaved choices.
 
-Custom resource cards display the sender's resource type, short status message, metric labels, and units. Gauges use the declared minimum and maximum; number charts support signed values and automatic ranges. Define a database, queue, sensor, or any other type at the Web site's `/resources/new` page, then send real observations using the generated contract. No App code change is needed for a new type. After the first observation, discover and select the resource and its metrics. Custom metric choices are scoped to the source, so equal keys on different resources stay independent. A status-only resource has no numeric trend button.
+The read token is encrypted with Electron `safeStorage`, backed by the operating system keychain or secret service. The saved value never returns to the renderer. Linux `basic_text` storage is rejected. Unlock or configure secure storage if the App cannot save a token. **Disconnect this device** removes the local credential and displayed cloud data. Delete the token in Web Account to revoke it for every client. Dashboard read tokens are never copied to hook configuration.
 
-Use **Edit metrics** on the Web dashboard to edit an existing resource, including Spark and Kubernetes presets. Saved labels, display ranges and metric order apply to Desktop on its next poll and survive new collector observations. Existing preset selections are preserved when edited definitions first appear. Values outside an edited gauge range remain measured values; new keys or units stay unavailable until matching collector definitions arrive.
+Latest state is polled every 30 seconds, restricted to the saved selection. Selecting no sources pauses data requests and preserves the connection result. The local project and usage panels work without a cloud connection. HTTPS is required; an unpackaged development App also accepts loopback HTTP for isolated tests.
 
-- **Unavailable**: metric not supported, absent, or failed; it is never substituted with zero.
-- **Stale**: no accepted server receipt for 120 seconds; values are the last known observation.
-- **Token expired or revoked**: supply a current read token.
-- **Permission denied**: use a token with `read` permission.
-- **Cannot reach Web**: retained values remain visible and become stale as time passes.
-- **No data yet**: connected account has no observations.
+## Resources and history
 
-Chart gaps mean no recorded sample. Resource heartbeats contain fresh measurements and add minute samples, keeping stable resources visible in trends. Agent heartbeats refresh status without adding activity samples. A single observed minute appears as a point. The Web retains visible trends for 24 hours; this app requests only the recent hour.
+Resource cards support arbitrary types, metric labels, units, order, and display ranges. Host cards support CPU, memory, GPU, and temperature. Spark reports **Unified memory**. Kubernetes cards support CPU, memory, ready/total nodes, and unhealthy pods.
 
-The existing localhost hook endpoint and character/bubble behavior remain available without cloud configuration. HTTPS is required for cloud origins. An unpackaged development app also accepts loopback HTTP for isolated tests.
+Overview uses compact readings. Full custom-resource cards and details retain up to six significant digits.
 
-## Verification
+Use **Add resource** to define a database, queue, sensor, or another resource on Web. Send observations using its generated contract, then discover it in Desktop. **Details → Edit resource on Web** edits an existing resource, including Spark and Kubernetes presets. Saved labels, ranges, and metric order apply on the next poll. Custom metric choices are scoped to a resource, so equal keys on different resources stay independent.
 
-`pnpm exec jest tests/monitoring.test.js --runInBand` verifies polling, selection, permissions, stale/offline recovery, late responses, and encrypted storage boundaries. `tests/native/monitoring-smoke.cjs` uses an isolated Web fixture to verify native Electron rendering and the actual OS encryption provider. Set `VIBEMON_TEST_FIXTURE` to the private fixture JSON emitted by Web's `scripts/local-monitoring-fixture.ts`; the native test never prints credentials.
+**Details** shows current readings, collection status, and the recent hour. History loads on demand and refreshes every minute while visible. Closing the detail dialog or hiding the workspace stops its refresh timer. Signed values and measurements outside a display range remain visible in the chart. Historical values use the definitions returned with their history response.
 
-![Spark gauges](images/monitoring-spark.png)
+Chart gaps mean no recorded measurement. Resource heartbeats include fresh measurements and add minute samples. Agent heartbeats refresh status without adding activity samples. A single observed minute appears as a point. Web retains visible trends for 24 hours; Desktop requests the recent hour. A status-only resource has no numeric history.
 
-![Spark trend](images/monitoring-spark-trend.png)
+## Coding accounts and local activity
 
-## Multiple resources and accounts
+Each provider/account ID has its own card and selection. Codex, Claude, Kiro, and other providers can each have several accounts. Cards show the account ID, latest observation's usage, and reporting projects. The status badge surfaces errors, input requests, warnings, or stale data from any reporting project. Open **Details** to find the affected project. Search by account or project, or filter by provider. The account history averages its summaries; percentages are not summed.
 
-Resources and provider accounts have separate selectors. Choose any combination of custom resources, Kubernetes clusters, Spark hosts, and coding accounts. Codex, Claude, Kiro and other agent types can each have several account IDs. Selection controls and cards group them by provider and show the account ID explicitly. A provider account card lists its project states and shows the latest observation's usage. Its recent-hour view aggregates that account's summaries; percentages are averaged, not summed.
+Equal project names across accounts remain separate. Identity metadata does not switch tool logins: use each tool's matching signed-in environment. **Connect account** opens Web's account setup, including Kiro account overrides. See the [provider/account contract](https://vibemon.io/docs/api/monitoring#multiple-provider-accounts).
 
-The same project name can appear under several accounts. Selection and trend requests use provider/account keys and source IDs, never the project label. The Web site's `/coding-accounts/new` page generates launch settings, including `VIBEMON_KIRO_ACCOUNT_ID` / `_NAME` for Kiro. Use each tool's matching signed-in environment; identity metadata does not switch logins. Unsupported usage remains unavailable. See the [provider/account contract](https://vibemon.io/docs/api/monitoring#multiple-provider-accounts) for provider-specific overrides.
+**On this device** lists local hook activity independently of cloud accounts. Fresh selected cloud observations also enter the existing companion routing path under cloud-specific IDs. Local and cloud projects cannot overwrite each other by sharing a name.
 
-![Two independently selected fixture accounts](images/monitoring-accounts.png)
+## Settings
 
-Remote status reception uses the HTTPS monitoring client. The former App WebSocket client and `VIBEMON_WS_URL` / `VIBEMON_WS_TOKEN` settings are removed. Configure the Web origin and a generated read token in Monitoring. Local HTTP hooks are unchanged. Read credentials are never reused for hook installation or copied into `~/.vibemon/config.json`.
+- **Connections**: Web origin, read token, connection recovery, and dashboard selection.
+- **Companion**: 3D or pixel art, character, size, always-on-top behavior, edge distance, macOS Dock scaling, speech-bubble fields, workspace appearance, and login preference.
+- **Integrations**: hook installation and repair, installation prompts, and advanced HTTP/serial delivery settings.
+- **About**: App version, update actions, documentation, and release notes.
+
+**About → Download update** downloads and verifies the package without closing the App. Select **Restart and install** when ready. Ordinary App exit does not install a pending update.
+
+Preference changes save automatically. Connection and selection forms save only when submitted. Automatic polling keeps typed values and unsaved selections intact.
+
+![Companion settings with synthetic preferences](images/workspace-companion.png)
+
+## Recovery
+
+| Display | Meaning and action |
+| --- | --- |
+| `—` | No supported measurement was reported. This is not zero. |
+| **Stale** | No accepted receipt for 120 seconds. Check the collector; displayed values are the last known observation. |
+| **Token not accepted** | Retrieve an active read token from Web Account. |
+| **Read access required** | Replace the token with one that has read permission. |
+| **Replace saved token** | The local credential cannot be decrypted. Enter it again from Web Account. |
+| **Connection interrupted** | Check the Web address and connectivity. Retained readings remain visible and become stale. |
+| No selected resources or accounts | Use **Customize view**, or start collection in the same Web account. |
+
+## Verify changes
+
+Run `pnpm test:workspace` for the isolated Electron UI test. It uses a loopback API, synthetic resources/accounts, and fake integration/credential ports. It does not access your provider credentials, keychain, login items, or hook configuration. Screenshots are written to `out/workspace-tests/`. For an interactive preview, run `pnpm preview:workspace`.
+
+`pnpm exec jest tests/monitoring.test.js tests/workspace-window.test.js tests/workspace-settings.test.js --runInBand` checks polling, selection, credential boundaries, trusted IPC, and settings operations. `pnpm test:overlays` checks the existing 3D/2D character and speech-bubble behavior, including changes made from the new settings screen.
+
+The optional `tests/native/monitoring-smoke.cjs` tests a separate Web fixture with real OS encryption. Set `VIBEMON_TEST_FIXTURE` to the private JSON emitted by Web's `scripts/local-monitoring-fixture.ts` and `VIBEMON_TEST_ORIGIN` to its loopback URL. It can require OS keychain authorization. Keep its screenshots in `out/monitoring-tests/`; they can contain fixture account data and are not publication assets.

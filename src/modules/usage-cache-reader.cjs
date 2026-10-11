@@ -2,7 +2,7 @@
  * Reads the shared plan-usage cache (~/.vibemon/cache/usage.json) that
  * ~/.vibemon/usage.py and the AI-tool hooks/statuslines refresh under the
  * "claude"/"codex" keys. This mirrors usage_cache.py's get_fresh_provider()
- * staleness rules in JS, so the tray menu can show Claude and Codex usage
+ * staleness rules in JS, so the workspace can show Claude and Codex usage
  * together — independent of which project (if any) is currently focused,
  * and without a stale % lingering once its window has expired.
  */
@@ -151,24 +151,4 @@ function getUsageSnapshot(nowMs = Date.now()) {
   };
 }
 
-/**
- * Format the time remaining until resetsAt (epoch seconds) compactly, e.g.
- * "24m", "2h5m", "3d4h" — same shape as bubble/vibemon-bubble.js's
- * formatMinutes(), duplicated here since that's an ESM renderer-side module
- * this CJS main-process module can't require().
- * @param {number} resetsAt - epoch seconds
- * @param {number} [nowMs]
- * @returns {string}
- */
-function formatResetIn(resetsAt, nowMs = Date.now()) {
-  const mins = Math.max(0, Math.round((resetsAt * 1000 - nowMs) / 60000));
-  if (mins < 60) return `${mins}m`;
-  const hours = Math.floor(mins / 60);
-  const remMins = mins % 60;
-  if (hours < 24) return remMins > 0 ? `${hours}h${remMins}m` : `${hours}h`;
-  const days = Math.floor(hours / 24);
-  const remHours = hours % 24;
-  return remHours > 0 ? `${days}d${remHours}h` : `${days}d`;
-}
-
-module.exports = { getUsageCachePath, getUsageSnapshot, formatResetIn, providerCacheKey, expandHome };
+module.exports = { getUsageCachePath, getUsageSnapshot, providerCacheKey, expandHome };

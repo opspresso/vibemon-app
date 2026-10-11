@@ -637,6 +637,26 @@ describe('restoreLastWindow', () => {
     expect(manager.onStateUpdated).toHaveBeenCalledWith('proj-a');
   });
 
+  test.each(['project', null])('closing the companion lets %p expire without reopening it', project => {
+    const manager = new CharacterWindowManager();
+    const window = makeMockWindow();
+    const { BrowserWindow } = require('electron');
+    BrowserWindow.mockImplementationOnce(() => window);
+    manager.routeStatusUpdate(project, { project, state: 'working', character: 'codex' });
+    window.on.mock.calls.find(([event]) => event === 'closed')[1]();
+    expect(manager.getWindowCount()).toBe(0);
+    expect(manager.getFocusedProjectId()).toBeNull();
+    const creations = BrowserWindow.mock.calls.length;
+    manager.routeStatusUpdate(project, { project, state: 'idle', character: 'codex' }, { preserveFocus: true });
+    expect(manager.getRegisteredState(project).state).toBe('idle');
+    expect(BrowserWindow).toHaveBeenCalledTimes(creations);
+    manager.routeStatusUpdate(project, { project, state: 'sleep', character: 'codex' }, { preserveFocus: true });
+    manager.removeProject(project);
+    BrowserWindow.mockImplementationOnce(() => makeMockWindow());
+    expect(manager.restoreLastWindow().stateData.state).toBe('sleep');
+    manager.cleanup();
+  });
+
   test('restores the source identity independently of its label, then forgets deselected sources', () => {
     const manager = new CharacterWindowManager();
     const id = 'cloud:account-work';
@@ -1173,4 +1193,27 @@ describe('drag source lifecycle', () => {
     expect(character.listenerCount('hide')).toBe(0);
     expect(character.listenerCount('closed')).toBe(0);
   });
+});
+
+test('background registry changes notify the workspace without retargeting the companion', () => {
+  const manager = new CharacterWindowManager();
+  manager.stateRegistry.set('front', { project: 'front', state: 'working', character: 'codex' });
+  manager.focusedProjectId = 'front';
+  manager.entry = { projectId: 'front', state: manager.stateRegistry.get('front') };
+  manager.onRegistryChanged = jest.fn();
+  manager.onStateUpdated = jest.fn();
+  const ensure = jest.spyOn(manager, 'ensureWindow');
+  const background = { project: 'background', state: 'thinking', character: 'clawd' };
+  const result = manager.routeStatusUpdate('background', background);
+  expect(result.updateResult.updated).toBe(false);
+  expect(manager.getFocusedProjectId()).toBe('front');
+  expect(manager.getRegisteredState('background')).toEqual(background);
+  expect(manager.onRegistryChanged).toHaveBeenCalledWith('background');
+  expect(manager.onStateUpdated).not.toHaveBeenCalled();
+  expect(ensure).not.toHaveBeenCalled();
+  manager.routeStatusUpdate('background', { ...background });
+  expect(manager.onRegistryChanged).toHaveBeenCalledTimes(1);
+  manager.removeProject('background');
+  expect(manager.onRegistryChanged).toHaveBeenCalledTimes(2);
+  manager.cleanup();
 });

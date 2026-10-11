@@ -1,3 +1,4 @@
+const { describeFailure } = require('../shared/install-result.cjs');
 /**
  * AI tool hook installer for Vibe Monitor
  *
@@ -33,31 +34,9 @@ const MAX_SCRIPT_SIZE = 1024 * 1024;
 // the end of a run.
 const MAX_OUTPUT_SIZE = 64 * 1024;
 
-// install.py always emits ANSI color codes (it doesn't check isatty), and
-// prints its own failures to stdout rather than stderr.
-const ANSI_ESCAPE = /\u001b\[[0-9;]*m/g;
-const MAX_DETAIL_LINES = 3;
-
 function appendCapped(buffer, chunk) {
   const next = buffer + chunk;
   return next.length > MAX_OUTPUT_SIZE ? next.slice(-MAX_OUTPUT_SIZE) : next;
-}
-
-/**
- * The most informative lines of a failed install.py run, for the error dialog.
- * Prefers the script's own '✗' failure lines (e.g. an integrity-check abort,
- * which it reports on stdout) and falls back to the tail of its output.
- * @param {{stdout?: string, stderr?: string}} result
- * @returns {string} empty when the script produced no usable output
- */
-function scriptErrorDetail({ stdout = '', stderr = '' }) {
-  const lines = `${stdout}\n${stderr}`
-    .replace(ANSI_ESCAPE, '')
-    .split('\n')
-    .map(line => line.trim())
-    .filter(Boolean);
-  const failures = lines.filter(line => line.startsWith('✗'));
-  return (failures.length > 0 ? failures : lines).slice(-MAX_DETAIL_LINES).join('\n');
 }
 
 function verifyInstallerScript(script, expectedHash) {
@@ -121,7 +100,9 @@ function collectCommands(node, out = []) {
 }
 
 function isVibemonEntry({ command, args }) {
-  return [command, ...args].some(part => typeof part === 'string' && part.includes('vibemon.py'));
+  return [...tokenizeCommand(command), ...args].some(part =>
+    typeof part === 'string' && part.split(/[\\/]/).at(-1) === 'vibemon.py'
+  );
 }
 
 /**
@@ -409,38 +390,6 @@ function commandExists(command) {
   return result.status === 0;
 }
 
-function describeFailure(result) {
-  switch (result.reason) {
-    case 'python-not-found':
-      return IS_WINDOWS
-        ? 'No working Python 3 found. Install it from python.org (tick "Add python.exe to PATH").\n'
-          + 'If `python` opens the Microsoft Store, turn off the python.exe app execution alias.'
-        : 'Python3 is not installed';
-    case 'download-failed':
-      return `Failed to download install script (HTTP ${result.statusCode})`;
-    case 'download-too-large':
-      return 'Install script response exceeded the size limit';
-    case 'integrity-check-failed':
-      return 'Install script integrity check failed';
-    case 'integrity-reference-missing':
-      return 'Installer checksum unavailable (manifest.json has no installer hash)';
-    case 'invalid-manifest':
-      return 'Published manifest.json is malformed';
-    case 'network-error':
-      return `Network error: ${result.error}`;
-    case 'spawn-error':
-      return `Execution error: ${result.error}`;
-    case 'exit-code': {
-      // install.py reports *why* it stopped (a failed integrity check, a file
-      // it couldn't write) on stdout, so the bare exit code alone is useless.
-      const detail = scriptErrorDetail(result);
-      const summary = `Install script exited with code ${result.code}`;
-      return detail ? `${summary}\n${detail}` : summary;
-    }
-    default:
-      return 'Unknown error';
-  }
-}
 
 class HookInstaller {
   constructor() {
@@ -449,6 +398,7 @@ class HookInstaller {
       defaults: { dismissed: [] }
     });
     this.isRunning = false;
+    this.onStateChanged = null;
     // In-memory only (cleared on restart): avoids re-prompting every check
     // cycle for an error that won't resolve itself (e.g. missing python3).
     this.sessionSuppressed = new Set();
@@ -458,8 +408,7 @@ class HookInstaller {
     this.manifest = null;
     // Detecting tools spawns `which`/`where` per tool, which blocks the
     // main process for tens of ms. Computed once eagerly here (a one-time
-    // startup cost) so cheap, frequent reads (e.g. the tray menu, which
-    // rebuilds on every status update) never trigger it. Refreshed again
+    // startup cost) so workspace snapshots never trigger it. Refreshed again
     // by getMissingTools() and after installTools() completes.
     this.cachedStatuses = this.refreshStatuses();
   }
@@ -714,14 +663,16 @@ class HookInstaller {
       });
       let stdout = '';
       let stderr = '';
+      let inputFailed = false;
       // Both streams are drained, not merely sampled for diagnostics: a piped
       // stream nobody reads blocks the child as soon as the OS buffer fills.
       child.stdout.on('data', (chunk) => { stdout = appendCapped(stdout, chunk); });
       child.stderr.on('data', (chunk) => { stderr = appendCapped(stderr, chunk); });
+      child.stdin.on('error', () => { inputFailed = true; });
       child.on('error', (err) => resolve({ ok: false, reason: 'spawn-error', error: err.message }));
       child.on('close', (code) => resolve({
-        ok: code === 0,
-        reason: code === 0 ? null : 'exit-code',
+        ok: code === 0 && !inputFailed,
+        reason: code !== 0 ? 'exit-code' : inputFailed ? 'input-error' : null,
         code,
         stdout,
         stderr
@@ -749,9 +700,10 @@ class HookInstaller {
    */
   async installTools(tools, token, { showSummary = true } = {}) {
     if (this.isRunning) {
-      return [];
+      throw new Error('Another integration installation is already running');
     }
     this.isRunning = true;
+    this.onStateChanged?.();
 
     const results = [];
     try {
@@ -783,6 +735,7 @@ class HookInstaller {
       }
     } finally {
       this.isRunning = false;
+      this.onStateChanged?.();
     }
 
     this.refreshStatuses();
@@ -849,7 +802,7 @@ class HookInstaller {
     const failed = results.filter(r => !r.result.ok);
 
     // Nothing to say when it worked: the install is already visible in the
-    // tray submenu and the Settings AI Tools rows, so a dialog here is a modal
+    // Settings > Integrations cards, so a dialog here is a modal
     // interruption confirming what the user just asked for.
     if (failed.length === 0) {
       return;

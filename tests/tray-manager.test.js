@@ -1,343 +1,159 @@
-/**
- * Tests for tray-manager.cjs
- */
+const { EventEmitter } = require('node:events');
+const { setImmediate } = require('node:timers');
 
 jest.mock('electron', () => ({
-  Tray: jest.fn(),
-  Menu: { buildFromTemplate: jest.fn() },
-  nativeImage: { createFromBuffer: jest.fn(() => ({ isNativeImage: true })) },
-  BrowserWindow: jest.fn(),
-  ipcMain: { on: jest.fn(), handle: jest.fn() },
-  shell: {}
+  Tray: jest.fn(), Menu: { buildFromTemplate: jest.fn() },
+  nativeImage: { createFromBuffer: jest.fn(() => ({ image: true })) },
+  BrowserWindow: { fromWebContents: jest.fn() }
 }));
-
 jest.mock('canvas', () => ({
   createCanvas: jest.fn(() => ({
-    getContext: () => ({
-      beginPath: jest.fn(),
-      roundRect: jest.fn(),
-      fill: jest.fn(),
-      fillRect: jest.fn(),
-      save: jest.fn(),
-      clip: jest.fn(),
-      restore: jest.fn()
-    }),
+    getContext: () => ({ clearRect() {}, beginPath() {}, roundRect() {}, fill() {}, arc() {}, drawImage() {} }),
     toBuffer: () => Buffer.alloc(0)
   })),
-  loadImage: jest.fn(() => Promise.resolve(null))
+  loadImage: jest.fn(() => Promise.resolve({ image: true }))
 }));
-
-jest.mock('../src/modules/usage-cache-reader.cjs', () => ({
-  getUsageSnapshot: jest.fn(),
-  formatResetIn: jest.fn()
-}));
-
-const { TrayManager } = require('../src/modules/tray-manager.cjs');
-const { getUsageSnapshot, formatResetIn } = require('../src/modules/usage-cache-reader.cjs');
-
-const EMPTY_USAGE_SNAPSHOT = {
-  claude: { session: null, week: null },
-  codex: { session: null, week: null }
-};
-
+jest.mock('fs', () => ({ promises: { readFile: jest.fn(() => Promise.resolve(Buffer.alloc(0))) } }));
+const { TrayManager, createTrayIcon } = require('../src/modules/tray-manager.cjs');
+const { Tray, Menu, BrowserWindow } = require('electron');
+const { loadImage } = require('canvas');
+const { DEFAULT_CHARACTER } = require('../src/shared/config.cjs');
+let manager, native, events, companion, app, focused;
+const flush = () => new Promise(setImmediate);
 beforeEach(() => {
-  getUsageSnapshot.mockReset().mockReturnValue(EMPTY_USAGE_SNAPSHOT);
-  formatResetIn.mockReset();
+  jest.clearAllMocks();
+  focused = { project: 'one', state: 'working', character: 'codex' };
+  companion = { getProjectIds: () => focused ? ['one'] : [], getState: () => focused };
+  app = { quit: jest.fn() };
+  events = new Map();
+  native = { on: jest.fn((name, callback) => events.set(name, callback)), setImage: jest.fn(), setToolTip: jest.fn(), setContextMenu: jest.fn(), popUpContextMenu: jest.fn(), destroy: jest.fn() };
+  Tray.mockImplementation(() => native);
+  Menu.buildFromTemplate.mockImplementation(template => ({ template, popup: jest.fn() }));
+  manager = new TrayManager(companion, app);
+  manager.openDashboard = jest.fn(); manager.openSettings = jest.fn();
 });
+afterEach(() => manager.cleanup());
 
-function makeWindowManager(state) {
-  return {
-    getProjectIds: () => (state ? ['proj-a'] : []),
-    getState: () => state,
-    getCharacterLock: () => 'auto',
-    setCharacterLock: jest.fn(),
-    getRenderMode: () => '2d',
-    setRenderMode: jest.fn(),
-    getAlwaysOnTopMode: () => 'active-only',
-    setAlwaysOnTopMode: jest.fn(),
-    getSpeechBubbleFields: () => ({ status: true, project: false }),
-    setSpeechBubbleField: jest.fn()
-  };
+async function onPlatform(platform, check) {
+  const descriptor = Object.getOwnPropertyDescriptor(process, 'platform');
+  Object.defineProperty(process, 'platform', { value: platform });
+  try { await check(); } finally { Object.defineProperty(process, 'platform', descriptor); }
 }
 
-function makeApp() {
-  return {
-    getVersion: () => '0.0.0',
-    getLoginItemSettings: () => ({ openAtLogin: false }),
-    setLoginItemSettings: jest.fn()
-  };
-}
-
-describe('TrayManager settings menu item', () => {
-  test('shows Settings... that opens the settings window when a manager is set', () => {
-    const windowManager = makeWindowManager({ state: 'idle', character: 'clawd', project: 'proj-a' });
-    const tray = new TrayManager(windowManager, makeApp(), { setupStateTimeout: jest.fn() });
-    const settingsWindowManager = { open: jest.fn() };
-    tray.setSettingsWindowManager(settingsWindowManager);
-
-    const template = tray.buildMenuTemplate();
-    const settingsItem = template.find(i => i.label === 'Settings...');
-
-    expect(settingsItem).toBeDefined();
-    settingsItem.click();
-    expect(settingsWindowManager.open).toHaveBeenCalled();
-  });
-
-  test('marks Settings... with an attention dot when hook scripts drifted', () => {
-    const windowManager = makeWindowManager({ state: 'idle', character: 'clawd', project: 'proj-a' });
-    const tray = new TrayManager(windowManager, makeApp(), { setupStateTimeout: jest.fn() });
-    const settingsWindowManager = { open: jest.fn() };
-    tray.setSettingsWindowManager(settingsWindowManager);
-    tray.setHookInstaller({ hasChanges: () => true, getCachedStatuses: () => [] });
-
-    const template = tray.buildMenuTemplate();
-    const settingsItem = template.find(i => i.label === 'Settings... ●');
-
-    expect(settingsItem).toBeDefined();
-    settingsItem.click();
-    expect(settingsWindowManager.open).toHaveBeenCalled();
-  });
-
-  test('omits Settings... when no settings window manager is set', () => {
-    const windowManager = makeWindowManager({ state: 'idle', character: 'clawd', project: 'proj-a' });
-    const tray = new TrayManager(windowManager, makeApp(), { setupStateTimeout: jest.fn() });
-
-    const template = tray.buildMenuTemplate();
-    expect(template.find(i => i.label === 'Settings...')).toBeUndefined();
+test.each(['darwin', 'win32'])('%s primary click opens the workspace; the secondary menu is built on demand', async platform => {
+  await onPlatform(platform, async () => {
+    manager.createTray(); await flush();
+    events.get('click')();
+    expect(manager.openDashboard).toHaveBeenCalledTimes(1);
+    expect(native.popUpContextMenu).not.toHaveBeenCalled();
+    for (let i = 0; i < 250; i++) manager.updateMenu();
+    expect(Menu.buildFromTemplate).not.toHaveBeenCalled();
+    expect(native.setContextMenu).not.toHaveBeenCalled();
+    events.get('right-click')();
+    expect(Menu.buildFromTemplate).toHaveBeenCalledTimes(1);
+    expect(native.popUpContextMenu).toHaveBeenCalledTimes(1);
   });
 });
 
-describe('TrayManager hook installer submenu', () => {
-  function submenuFor(status) {
-    const tray = new TrayManager(
-      makeWindowManager({ state: 'idle', character: 'clawd', project: 'proj-a' }),
-      makeApp(),
-      { setupStateTimeout: jest.fn() }
-    );
-    tray.setHookInstaller({ hasChanges: () => false, getCachedStatuses: () => [status] });
-    return tray.buildHookInstallerSubmenu()[0];
+test('Linux installs its static navigation menu once', async () => {
+  await onPlatform('linux', async () => {
+    manager.createTray(); await flush();
+    for (let i = 0; i < 250; i++) manager.updateMenu();
+    expect(Menu.buildFromTemplate).toHaveBeenCalledTimes(1);
+    expect(native.setContextMenu).toHaveBeenCalledTimes(1);
+    expect(events.has('right-click')).toBe(false);
+  });
+});
+
+test('tray creation requires the dashboard action to be wired', () => {
+  manager.openDashboard = null;
+  expect(() => manager.createTray()).toThrow('dashboard action is required');
+  expect(Tray).not.toHaveBeenCalled();
+});
+
+test('the menu exposes navigation and companion visibility without duplicating preferences', () => {
+  const show = jest.fn(); manager.setShowCharacterHandler(show);
+  const menu = manager.buildMenuTemplate().filter(item => item.type !== 'separator');
+  expect(menu.map(item => item.label)).toEqual(['Dashboard', 'Settings…', 'Show companion', 'Integrations…', 'About VibeMon', 'Quit VibeMon']);
+  for (const item of menu) item.click();
+  expect(manager.openDashboard).toHaveBeenCalledTimes(1);
+  expect(manager.openSettings.mock.calls).toEqual([['companion'], ['integrations'], ['about']]);
+  expect(show).toHaveBeenCalledTimes(1); expect(app.quit).toHaveBeenCalledTimes(1);
+});
+
+test('250 unchanged status events do not redraw the native tray icon', async () => {
+  manager.createTray(); await flush(); native.setImage.mockClear();
+  for (let i = 0; i < 250; i++) manager.updateIcon();
+  await flush(); expect(native.setImage).not.toHaveBeenCalled();
+  focused = { ...focused, state: 'alert' }; manager.updateIcon(); await flush();
+  expect(native.setImage).toHaveBeenCalledTimes(1);
+});
+
+test('late sprite loading cannot overwrite a newer character icon', async () => {
+  let finish;
+  loadImage.mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }));
+  focused = { ...focused, character: 'clawd' };
+  manager.createTray(); await flush();
+  focused = { ...focused, character: 'codex' }; manager.updateIcon(); await flush();
+  expect(native.setImage).toHaveBeenCalledTimes(1);
+  finish({ image: true }); await flush();
+  expect(native.setImage).toHaveBeenCalledTimes(1);
+});
+
+test('focus defaults to the registry character when no project exists', () => {
+  focused = null;
+  expect(manager.getFocusedState()).toEqual({ state: 'idle', character: DEFAULT_CHARACTER, project: null });
+});
+
+test.each([
+  ['connected', [], false], ['connecting', [], false], ['not-configured', [], false],
+  ['connection-error', [], true], ['token-expired', [], true],
+  ['connected', [{ health: 'ok', stale: true }], true],
+  ['connected', [{ health: 'warning' }], true], ['connected', [{ health: 'error' }], true],
+  ['connected', [{ health: 'ok', agent: { state: 'notification' } }], true],
+  ['connected', [{ health: 'ok', agent: { state: 'alert' } }], true],
+  ['connected', [{ health: 'ok', agent: { state: 'working' } }], false]
+])('cloud attention: %s %p → %s', (status, sources, attention) => {
+  const client = Object.assign(new EventEmitter(), { snapshot: jest.fn(() => ({ status, sources })) });
+  manager.setMonitoringClient(client);
+  expect(manager.hasAttentionBadge()).toBe(attention);
+  manager.updateIcon(); manager.updateIcon();
+  expect(client.snapshot).toHaveBeenCalledTimes(1);
+  manager.setMonitoringClient(null);
+  expect(client.listenerCount('change')).toBe(0);
+  expect(manager.hasAttentionBadge()).toBe(false);
+});
+
+test('integration repair and actionable updates produce attention badges', () => {
+  manager.setHookInstaller({ hasChanges: () => true }); expect(manager.hasAttentionBadge()).toBe(true);
+  manager.setHookInstaller(null);
+  for (const status of [null, 'checking', 'downloading', 'available', 'downloaded']) {
+    manager.setUpdateChecker({ getState: () => ({ status }) });
+    expect(manager.hasAttentionBadge()).toBe(['available', 'downloaded'].includes(status));
   }
-
-  const installed = { name: 'Claude Code', flag: '--claude', present: true, hasHook: true };
-
-  test('a healthy install is a disabled label', () => {
-    const item = submenuFor({ ...installed });
-    expect(item.label).toBe('Claude Code: Installed ✓');
-    expect(item.enabled).toBe(false);
-  });
-
-  test('drift offers a reinstall', () => {
-    const item = submenuFor({ ...installed, changed: true });
-    expect(item.label).toBe('Claude Code: Changed — Reinstall...');
-    expect(typeof item.click).toBe('function');
-  });
-
-  // Broken outranks changed: the hook doesn't run at all, so "Changed" would
-  // understate it.
-  test('a broken registration asks for repair, even when it also drifted', () => {
-    const item = submenuFor({ ...installed, broken: true, changed: true });
-    expect(item.label).toBe('Claude Code: Needs repair — Reinstall...');
-    expect(typeof item.click).toBe('function');
-  });
-
-  test('an absent tool is not actionable', () => {
-    const item = submenuFor({ name: 'Kiro IDE', flag: '--kiro', present: false });
-    expect(item.label).toBe('Kiro IDE: Not detected');
-    expect(item.enabled).toBe(false);
-  });
 });
 
-describe('TrayManager show character menu item', () => {
-  test('shows a Show Character item that triggers the shared handler', () => {
-    const windowManager = makeWindowManager({ state: 'idle', character: 'clawd', project: 'proj-a' });
-    const tray = new TrayManager(windowManager, makeApp(), { setupStateTimeout: jest.fn() });
-    const handler = jest.fn();
-    tray.setShowCharacterHandler(handler);
-
-    const template = tray.buildMenuTemplate();
-    const item = template.find(i => i.label === 'Show Character');
-
-    expect(item).toBeDefined();
-    item.click();
-    expect(handler).toHaveBeenCalledTimes(1);
-  });
-
-  test('a missing handler leaves the item inert', () => {
-    const windowManager = makeWindowManager({ state: 'idle', character: 'clawd', project: 'proj-a' });
-    const tray = new TrayManager(windowManager, makeApp(), { setupStateTimeout: jest.fn() });
-
-    const item = tray.buildMenuTemplate().find(i => i.label === 'Show Character');
-
-    expect(item).toBeDefined();
-    expect(() => item.click()).not.toThrow();
-  });
+test('the companion context menu binds to its sender window when available', () => {
+  const sender = {}, window = { isDestroyed: () => false };
+  BrowserWindow.fromWebContents.mockReturnValue(window);
+  manager.showContextMenu(sender);
+  expect(BrowserWindow.fromWebContents).toHaveBeenCalledWith(sender);
+  expect(Menu.buildFromTemplate.mock.results[0].value.popup).toHaveBeenCalledWith({ window });
+  BrowserWindow.fromWebContents.mockReturnValue(null);
+  manager.showContextMenu(sender);
+  expect(Menu.buildFromTemplate.mock.results[1].value.popup).toHaveBeenCalledWith();
 });
 
-describe('TrayManager status label', () => {
-  test('shows the followed project and its state', () => {
-    const windowManager = makeWindowManager({ state: 'working', character: 'clawd', project: 'proj-a' });
-    const tray = new TrayManager(windowManager, makeApp(), { setupStateTimeout: jest.fn() });
-
-    const template = tray.buildMenuTemplate();
-    expect(template[0].label).toBe('proj-a: working');
-  });
-
-  test('shows a waiting label when no window exists yet', () => {
-    const windowManager = makeWindowManager(null);
-    const tray = new TrayManager(windowManager, makeApp(), { setupStateTimeout: jest.fn() });
-
-    const template = tray.buildMenuTemplate();
-    expect(template[0].label).toBe('Waiting for status');
-  });
+test('cleanup detaches monitoring and prevents delayed icon work from touching a destroyed tray', async () => {
+  const client = Object.assign(new EventEmitter(), { snapshot: () => ({ status: 'connected', sources: [] }) });
+  manager.setMonitoringClient(client); manager.createTray(); manager.cleanup(); await flush();
+  expect(client.listenerCount('change')).toBe(0);
+  expect(native.destroy).toHaveBeenCalledTimes(1);
+  expect(native.setImage).not.toHaveBeenCalled();
 });
 
-describe('TrayManager character lock submenu', () => {
-  test('clicking a character forwards it to the window manager', () => {
-    const windowManager = makeWindowManager({ state: 'idle', character: 'clawd', project: 'proj-a' });
-    const tray = new TrayManager(windowManager, makeApp(), { setupStateTimeout: jest.fn() });
-
-    const items = tray.buildCharacterLockSubmenu();
-    const kiroItem = items.find(i => i.label === 'Kiro');
-    kiroItem.click();
-
-    expect(windowManager.setCharacterLock).toHaveBeenCalledWith('kiro');
-  });
-});
-
-describe('TrayManager always on top submenu', () => {
-  test('lists Always / While Active / Never with the current mode checked', () => {
-    const windowManager = makeWindowManager({ state: 'idle', character: 'clawd', project: 'proj-a' });
-    const tray = new TrayManager(windowManager, makeApp(), { setupStateTimeout: jest.fn() });
-
-    const items = tray.buildAlwaysOnTopSubmenu();
-
-    expect(items.map(i => i.label)).toEqual(['Always', 'While Active', 'Never']);
-    expect(items.find(i => i.label === 'While Active').checked).toBe(true);
-
-    items.find(i => i.label === 'Never').click();
-    expect(windowManager.setAlwaysOnTopMode).toHaveBeenCalledWith('disabled');
-  });
-});
-
-describe('TrayManager speech bubble submenu', () => {
-  test('clicking a field toggles its current value', () => {
-    const windowManager = makeWindowManager({ state: 'idle', character: 'clawd', project: 'proj-a' });
-    const tray = new TrayManager(windowManager, makeApp(), { setupStateTimeout: jest.fn() });
-
-    const items = tray.buildSpeechBubbleSubmenu();
-    const projectItem = items.find(i => i.label === 'Project');
-    projectItem.click();
-
-    expect(windowManager.setSpeechBubbleField).toHaveBeenCalledWith('project', true);
-  });
-});
-
-describe('TrayManager usage menu', () => {
-  function makeTray() {
-    const windowManager = makeWindowManager({ state: 'idle', character: 'clawd', project: 'proj-a' });
-    return new TrayManager(windowManager, makeApp(), { setupStateTimeout: jest.fn() });
-  }
-
-  test('groups fresh buckets under a provider header, each row with a bar icon', () => {
-    getUsageSnapshot.mockReturnValue({
-      claude: { session: { pct: 32, resetsAt: 5000 }, week: { pct: 67, resetsAt: 900000 } },
-      codex: { session: null, week: null }
-    });
-    formatResetIn.mockImplementation((resetsAt) => (resetsAt === 5000 ? '3h18m' : '3d21h'));
-
-    const items = makeTray().buildUsageMenuItems();
-
-    expect(items.map(i => i.label)).toEqual([
-      'Claude',
-      '⏱️ 5h  32% · 3h18m',
-      '📅 Week  67% · 3d21h'
-    ]);
-    expect(items.every(i => i.enabled === false)).toBe(true);
-    expect(items[0].icon).toBeUndefined();
-    expect(items[1].icon).toEqual({ isNativeImage: true });
-    expect(items[2].icon).toEqual({ isNativeImage: true });
-  });
-
-  test('shows both providers as separate groups when both have fresh data', () => {
-    getUsageSnapshot.mockReturnValue({
-      claude: { session: { pct: 0, resetsAt: null }, week: null },
-      codex: { session: null, week: { pct: 100, resetsAt: null } }
-    });
-
-    const items = makeTray().buildUsageMenuItems();
-
-    expect(items.map(i => i.label)).toEqual([
-      'Claude',
-      '⏱️ 5h  0%',
-      'Codex',
-      '📅 Week  100%'
-    ]);
-  });
-
-  test('shows the model-scoped weekly row with its label and reset suffix', () => {
-    getUsageSnapshot.mockReturnValue({
-      claude: {
-        session: { pct: 7, resetsAt: null },
-        week: { pct: 7, resetsAt: 900000 },
-        modelWeek: { pct: 12, resetsAt: 900000, label: 'Fable' }
-      },
-      codex: { session: null, week: null, modelWeek: null }
-    });
-    formatResetIn.mockReturnValue('4d11h');
-
-    const items = makeTray().buildUsageMenuItems();
-
-    expect(items.map(i => i.label)).toEqual([
-      'Claude',
-      '⏱️ 5h  7%',
-      '📅 Week  7% · 4d11h',
-      '🎯 Fable  12% · 4d11h'
-    ]);
-    expect(items[3].icon).toEqual({ isNativeImage: true });
-  });
-
-  test('omits the reset suffix when resetsAt is unavailable', () => {
-    getUsageSnapshot.mockReturnValue({
-      claude: { session: { pct: 32, resetsAt: null }, week: null },
-      codex: { session: null, week: null }
-    });
-
-    const items = makeTray().buildUsageMenuItems();
-
-    expect(items.map(i => i.label)).toEqual(['Claude', '⏱️ 5h  32%']);
-  });
-
-  test('returns no rows when no fresh data is available', () => {
-    getUsageSnapshot.mockReturnValue(EMPTY_USAGE_SNAPSHOT);
-
-    expect(makeTray().buildUsageMenuItems()).toEqual([]);
-  });
-
-  test('omits the usage section (and its separator) from the menu when there is no data', () => {
-    getUsageSnapshot.mockReturnValue(EMPTY_USAGE_SNAPSHOT);
-
-    const template = makeTray().buildMenuTemplate();
-    const hooksIndex = template.findIndex(i => i.label === 'AI Tool Hooks');
-
-    expect(hooksIndex).toBeGreaterThan(-1);
-    expect(template[hooksIndex + 1]).toEqual({ type: 'separator' });
-    expect(template[hooksIndex + 2].type).not.toBe('separator');
-    expect(template.find(i => i.label === 'Claude')).toBeUndefined();
-  });
-
-  test('inserts usage rows right below AI Tool Hooks', () => {
-    getUsageSnapshot.mockReturnValue({
-      claude: { session: { pct: 32, resetsAt: 5000 }, week: null },
-      codex: { session: null, week: null }
-    });
-    formatResetIn.mockReturnValue('3h18m');
-
-    const template = makeTray().buildMenuTemplate();
-    const hooksIndex = template.findIndex(i => i.label === 'AI Tool Hooks');
-
-    expect(template[hooksIndex + 1]).toEqual({ type: 'separator' });
-    expect(template[hooksIndex + 2]).toEqual({ label: 'Claude', enabled: false });
-    expect(template[hooksIndex + 3].label).toBe('⏱️ 5h  32% · 3h18m');
-    expect(template[hooksIndex + 4]).toEqual({ type: 'separator' });
-  });
+test('sprite and native icon caches reuse the same result', async () => {
+  const first = await createTrayIcon('idle', 'codex', true);
+  expect(await createTrayIcon('idle', 'codex', true)).toBe(first);
+  expect(loadImage).toHaveBeenCalledTimes(1);
 });

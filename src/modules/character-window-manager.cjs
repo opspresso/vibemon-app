@@ -113,12 +113,13 @@ class CharacterWindowManager {
 
     this.onWindowClosed = null;  // callback: (projectId) => void
     this.onStateUpdated = null;  // callback: (projectId) => void, fires after state/info changes
+    this.onRegistryChanged = null;  // callback: (projectId) => void, including background projects
     this.onAlwaysOnTopChanged = null;  // callback: (projectId) => void, fires after the always-on-top flag changes
     this.onWindowMoved = null;  // callback: (projectId) => void
     this.onDisplayModeChanged = null;  // callback: () => void, fires after speech bubble field toggles
 
-    // The last state the window displayed, kept after the window closes so
-    // the tray's "Show Character" action can reopen the same character
+    // The last displayed project's latest state, kept after the window closes so
+    // the "Show companion" action can reopen the same character
     // (restoreLastWindow) instead of waiting for the next status update.
     this.lastWindowState = null;
     this.lastWindowProjectId = null;
@@ -929,6 +930,8 @@ class CharacterWindowManager {
       this.dockLayout = null;
       this.bubbleSize = null;
       this.entry = null;
+      this.focusedProjectId = null;
+      this.focusedLastActiveAt = 0;
 
       if (this.onWindowClosed) {
         this.onWindowClosed(entry.projectId);
@@ -1095,8 +1098,8 @@ class CharacterWindowManager {
   /**
    * Re-show the character window after it closed — the sleep close-timeout
    * or a manual close / POST /close. An open window is only brought to the
-   * front; a closed one is recreated from the last state it displayed
-   * (kept in lastWindowState), or a default idle state for the default
+   * front; a closed one is recreated from the last displayed project's
+   * latest state, or a default idle state for the default
    * character (or the Character Lock) with no project when nothing has been
    * shown yet. Routing through routeStatusUpdate re-records the state and
    * fires onStateUpdated, so the speech bubble follows the recreated window.
@@ -1208,6 +1211,7 @@ class CharacterWindowManager {
       this.focusedProjectId = null;
       this.focusedLastActiveAt = 0;
     }
+    if (removed) this.onRegistryChanged?.(projectId);
     return removed;
   }
 
@@ -1310,17 +1314,24 @@ class CharacterWindowManager {
     // Delete-then-set moves projectId to the end of the Map's insertion
     // order, so pruneStateRegistry() evicts the least-recently-updated
     // project first rather than whichever happened to be added earliest.
+    const previous = this.stateRegistry.get(projectId);
+    const changed = !previous || Object.keys(previous).length !== Object.keys(stateData).length ||
+      Object.entries(stateData).some(([key, value]) => previous[key] !== value);
+    const previousFocus = this.focusedProjectId;
     this.stateRegistry.delete(projectId);
     this.stateRegistry.set(projectId, stateData);
     this.pruneStateRegistry();
+    if (this.lastWindowState && this.lastWindowProjectId === projectId) {
+      this.lastWindowState = { ...stateData };
+    }
 
     const focusedProjectId = preserveFocus
       ? this.focusedProjectId
       : this.selectFocus(projectId, stateData.state);
+    if (changed || previousFocus !== focusedProjectId) this.onRegistryChanged?.(projectId);
 
-    if (focusedProjectId !== projectId) {
-      // Focus stayed on a different (still-active) project — state was
-      // recorded above, but the visible window doesn't change.
+    if (focusedProjectId !== projectId || (preserveFocus && !this.isWindowValid(this.entry))) {
+      // Background and timed updates do not open or retarget the companion.
       return {
         switchedProject: null,
         updateResult: { updated: false, stateChanged: false, infoChanged: false },

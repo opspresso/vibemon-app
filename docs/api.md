@@ -12,6 +12,7 @@ This reference describes the Desktop App's local HTTP server on `127.0.0.1:19280
 | Rate limit | 600 req/min | Per IP address |
 | Request timeout | 30 sec | Prevents Slowloris attacks |
 | Browser origin | localhost only | Requests with a non-local browser `Origin` are rejected |
+| Request host | loopback only | A supplied `Host` must name `localhost`, `127.0.0.1`, or `[::1]`, with an optional port |
 | Content type | `application/json` | Required for JSON mutation endpoints |
 
 ### Input Validation
@@ -41,7 +42,7 @@ This reference describes the Desktop App's local HTTP server on `127.0.0.1:19280
 
 | Endpoint | Description |
 |----------|-------------|
-| GET / | Dashboard HTML page |
+| GET / | Local API identity and desktop workspace guidance |
 | GET /dashboard-data | Dashboard data (focused project, character lock, tracked projects) |
 | POST/GET /status | Update / get status |
 | POST /close | Close the character window |
@@ -139,6 +140,7 @@ curl http://127.0.0.1:19280/status
 
 Close the character window (only succeeds when it currently follows the
 given project). It reappears on the next status update.
+Local activity keeps its normal idle/sleep timeouts while the companion is closed; those timers do not reopen it.
 
 ```bash
 curl -X POST http://127.0.0.1:19280/close \
@@ -153,7 +155,7 @@ curl -X POST http://127.0.0.1:19280/close \
 
 ### POST /show
 
-Show the character window.
+Show an existing character window. Use **Show companion** in the App to recreate a closed window.
 
 ```bash
 # Show the window regardless of which project it follows
@@ -215,15 +217,15 @@ curl -X POST http://127.0.0.1:19280/character-lock \
 
 ### GET /
 
-Serve the dashboard HTML page showing tracked projects and the focused one.
+Return the App identity, version, and documentation URL as JSON. Open the dashboard from the VibeMon tray icon; the loopback service does not serve a second HTML dashboard.
 
 ```bash
-open http://127.0.0.1:19280/
+curl http://127.0.0.1:19280/
 ```
 
 ### GET /dashboard-data
 
-Get current dashboard data as JSON (used by the dashboard page).
+Get the focused project, character lock, and tracked project states as JSON for local integrations.
 
 ```bash
 curl http://127.0.0.1:19280/dashboard-data
@@ -297,7 +299,7 @@ curl -X POST http://127.0.0.1:19280/quit
 |------|-------------|
 | `200` | Success |
 | `400` | Bad request (validation error) |
-| `403` | Browser origin is not localhost |
+| `403` | Request host or browser origin is not local |
 | `404` | Not found |
 | `408` | Request timeout |
 | `413` | Payload too large (>10KB) |

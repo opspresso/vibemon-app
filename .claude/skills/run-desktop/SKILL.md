@@ -6,8 +6,8 @@ description: Run and drive the VibeMon Electron app — launch it, put a charact
 VibeMon is a tray-only Electron app: `pnpm start` shows no window, because the
 character window is created on demand by a `POST /status` to its local HTTP
 server. For automated regression checks, use `pnpm test:overlays` and the isolated
-monitoring fixture in `tests/native/monitoring-smoke.cjs`. For interactive
-agent verification, use the UI tools provided by the current session.
+workspace fixture with `pnpm test:workspace`. For interactive
+agent verification, run `pnpm preview:workspace` and use the UI tools provided by the current session. The preview uses synthetic data, a loopback API, and fake integration/credential ports. It does not read or change the user's hooks or keychain.
 The optional `driver.mjs` is a manual CDP utility; do not use it when session
 instructions require the provided computer-use tools.
 

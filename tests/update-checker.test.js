@@ -1,235 +1,123 @@
-/**
- * Tests for update-checker.cjs
- */
-
-jest.mock('electron', () => ({
-  app: { isPackaged: true },
-  dialog: { showErrorBox: jest.fn() }
-}));
-
+jest.mock('electron', () => ({ app: { isPackaged: true } }));
 jest.mock('electron-updater', () => {
-  const { EventEmitter } = require('events');
+  const { EventEmitter } = require('node:events');
   const autoUpdater = new EventEmitter();
-  autoUpdater.checkForUpdates = jest.fn().mockResolvedValue({ updateInfo: { version: '9.9.9' } });
-  autoUpdater.downloadUpdate = jest.fn().mockResolvedValue();
+  autoUpdater.checkForUpdates = jest.fn();
+  autoUpdater.downloadUpdate = jest.fn();
   autoUpdater.quitAndInstall = jest.fn();
   return { autoUpdater };
 });
-
-const { app, dialog } = require('electron');
+const { app } = require('electron');
 const { autoUpdater } = require('electron-updater');
 const { UpdateChecker } = require('../src/modules/update-checker.cjs');
-
-// Fresh UpdateChecker per test: clears prior listeners/mock calls since
-// autoUpdater is a shared EventEmitter singleton across the mocked module.
-function freshChecker() {
+let checker;
+beforeEach(() => {
   autoUpdater.removeAllListeners();
-  autoUpdater.checkForUpdates.mockClear();
-  autoUpdater.downloadUpdate.mockClear();
-  autoUpdater.quitAndInstall.mockClear();
-  dialog.showErrorBox.mockClear();
-  return new UpdateChecker();
-}
-
-describe('UpdateChecker', () => {
-  beforeEach(() => {
-    app.isPackaged = true;
+  autoUpdater.checkForUpdates.mockReset().mockImplementation(async () => {
+    autoUpdater.emit('update-available', { version: '3.1.0' });
+    return { updateInfo: { version: '3.1.0' } };
   });
+  autoUpdater.downloadUpdate.mockReset().mockResolvedValue(['verified-update.zip']);
+  autoUpdater.quitAndInstall.mockReset();
+  app.isPackaged = true;
+  checker = new UpdateChecker();
+  checker.onStateChanged = jest.fn();
+});
 
-  test('does not install an update rejected by the platform signature verifier', async () => {
-    autoUpdater.verifyUpdateCodeSignature = jest.fn().mockResolvedValue('Untrusted Authenticode signature');
-    const checker = freshChecker();
-    autoUpdater.downloadUpdate.mockImplementationOnce(async () => {
-      const failure = await autoUpdater.verifyUpdateCodeSignature(['Publisher'], 'fixture-update.exe');
-      if (failure) throw new Error(failure);
-    });
-    await checker.downloadAndInstall('2.0.0');
-    expect(autoUpdater.quitAndInstall).not.toHaveBeenCalled();
-    expect(dialog.showErrorBox.mock.calls[0][1]).toContain('Untrusted Authenticode signature');
+test('checking, current and failed outcomes stay distinct from not checked', async () => {
+  expect(checker.getState()).toEqual({ status: null, version: null });
+  const promise = checker.checkForUpdates();
+  expect(checker.getState().status).toBe('checking');
+  await promise;
+  expect(checker.getState()).toEqual({ status: 'available', version: '3.1.0' });
+  autoUpdater.checkForUpdates.mockImplementationOnce(async () => { autoUpdater.emit('update-not-available'); });
+  await checker.checkForUpdates();
+  expect(checker.getState()).toEqual({ status: 'current', version: null });
+  autoUpdater.checkForUpdates.mockRejectedValueOnce(new Error('Network unavailable'));
+  await expect(checker.checkForUpdates()).rejects.toThrow('Network unavailable');
+  expect(checker.getState()).toEqual({ status: 'error', version: null });
+  await checker.checkForUpdates();
+  expect(checker.getState().status).toBe('available');
+});
+
+test('concurrent checks share one SDK request', async () => {
+  const first = checker.checkForUpdates(), second = checker.checkForUpdates();
+  expect(first).toBe(second);
+  await Promise.all([first, second]);
+  expect(autoUpdater.checkForUpdates).toHaveBeenCalledTimes(1);
+});
+
+test('downloading waits for a separate restart action and never installs on ordinary quit', async () => {
+  expect(autoUpdater.autoDownload).toBe(false);
+  expect(autoUpdater.autoInstallOnAppQuit).toBe(false);
+  await checker.checkForUpdates();
+  const download = checker.downloadUpdate();
+  expect(checker.getState()).toEqual({ status: 'downloading', version: '3.1.0' });
+  await download;
+  expect(checker.getState()).toEqual({ status: 'downloaded', version: '3.1.0' });
+  expect(autoUpdater.quitAndInstall).not.toHaveBeenCalled();
+  await checker.downloadUpdate();
+  expect(autoUpdater.downloadUpdate).toHaveBeenCalledTimes(1);
+  checker.installDownloaded();
+  expect(autoUpdater.quitAndInstall).toHaveBeenCalledWith(false, true);
+});
+
+test('background checks cannot overwrite an active or downloaded update', async () => {
+  let resolve;
+  autoUpdater.downloadUpdate.mockReturnValueOnce(new Promise(done => { resolve = done; }));
+  await checker.checkForUpdates(); autoUpdater.checkForUpdates.mockClear();
+  const first = checker.downloadUpdate(), second = checker.downloadUpdate();
+  expect(first).toBe(second);
+  await checker.checkForUpdates();
+  expect(checker.getState().status).toBe('downloading');
+  resolve(); await first;
+  await checker.checkForUpdates();
+  expect(checker.getState().status).toBe('downloaded');
+  expect(autoUpdater.downloadUpdate).toHaveBeenCalledTimes(1);
+  expect(autoUpdater.checkForUpdates).not.toHaveBeenCalled();
+});
+
+test('signature verification failure propagates, keeps retry available and never installs', async () => {
+  await checker.checkForUpdates();
+  const error = new Error('Untrusted Authenticode signature');
+  autoUpdater.downloadUpdate.mockImplementationOnce(async () => {
+    autoUpdater.emit('error', error);
+    throw error;
   });
+  await expect(checker.downloadUpdate()).rejects.toThrow('Untrusted Authenticode signature');
+  expect(checker.getState()).toEqual({ status: 'available', version: '3.1.0' });
+  expect(autoUpdater.quitAndInstall).not.toHaveBeenCalled();
+  await checker.downloadUpdate();
+  expect(checker.getState().status).toBe('downloaded');
+});
 
-  describe('event -> state transitions', () => {
-    test('checking-for-update sets status to checking and notifies', () => {
-      const checker = freshChecker();
-      const onStateChanged = jest.fn();
-      checker.onStateChanged = onStateChanged;
+test('invalid download/install actions do not call the SDK', async () => {
+  await expect(checker.downloadUpdate()).rejects.toThrow('available update');
+  expect(() => checker.installDownloaded()).toThrow('Download the update');
+  expect(autoUpdater.downloadUpdate).not.toHaveBeenCalled();
+  expect(autoUpdater.quitAndInstall).not.toHaveBeenCalled();
+});
 
-      autoUpdater.emit('checking-for-update');
+test('unpackaged apps do not request native updates', async () => {
+  app.isPackaged = false;
+  expect(await checker.checkForUpdates()).toBeNull();
+  autoUpdater.emit('update-available', { version: '3.1.0' });
+  await expect(checker.downloadUpdate()).rejects.toThrow();
+  expect(autoUpdater.checkForUpdates).not.toHaveBeenCalled();
+  expect(autoUpdater.downloadUpdate).not.toHaveBeenCalled();
+});
 
-      expect(checker.getState()).toEqual({ status: 'checking', version: null });
-      expect(onStateChanged).toHaveBeenCalledTimes(1);
-    });
-
-    test('update-available sets status/version and notifies', () => {
-      const checker = freshChecker();
-      const onStateChanged = jest.fn();
-      checker.onStateChanged = onStateChanged;
-
-      autoUpdater.emit('update-available', { version: '2.0.0' });
-
-      expect(checker.getState()).toEqual({ status: 'available', version: '2.0.0' });
-      expect(onStateChanged).toHaveBeenCalledTimes(1);
-    });
-
-    test('update-not-available resets state to null', () => {
-      const checker = freshChecker();
-      autoUpdater.emit('update-available', { version: '2.0.0' });
-      const onStateChanged = jest.fn();
-      checker.onStateChanged = onStateChanged;
-
-      autoUpdater.emit('update-not-available');
-
-      expect(checker.getState()).toEqual({ status: null, version: null });
-      expect(onStateChanged).toHaveBeenCalledTimes(1);
-    });
-
-    test('update-downloaded sets status to downloaded with version', () => {
-      const checker = freshChecker();
-
-      autoUpdater.emit('update-downloaded', { version: '2.0.0' });
-
-      expect(checker.getState()).toEqual({ status: 'downloaded', version: '2.0.0' });
-    });
-
-    test('error resets state to null and does not throw', () => {
-      const checker = freshChecker();
-      autoUpdater.emit('update-available', { version: '2.0.0' });
-
-      expect(() => autoUpdater.emit('error', new Error('boom'))).not.toThrow();
-      expect(checker.getState()).toEqual({ status: null, version: null });
-    });
-
-    test('identical state does not re-notify', () => {
-      const checker = freshChecker();
-      autoUpdater.emit('update-available', { version: '2.0.0' });
-      const onStateChanged = jest.fn();
-      checker.onStateChanged = onStateChanged;
-
-      autoUpdater.emit('update-available', { version: '2.0.0' });
-
-      expect(onStateChanged).not.toHaveBeenCalled();
-    });
-  });
-
-  describe('checkForUpdates', () => {
-    test('skips and returns null when app is not packaged', async () => {
-      app.isPackaged = false;
-      const checker = freshChecker();
-
-      const result = await checker.checkForUpdates();
-
-      expect(result).toBeNull();
-      expect(autoUpdater.checkForUpdates).not.toHaveBeenCalled();
-    });
-
-    test('delegates to autoUpdater.checkForUpdates when packaged', async () => {
-      const checker = freshChecker();
-
-      const result = await checker.checkForUpdates();
-
-      expect(autoUpdater.checkForUpdates).toHaveBeenCalledTimes(1);
-      expect(result).toEqual({ updateInfo: { version: '9.9.9' } });
-    });
-
-    test('resets state and returns null on check failure', async () => {
-      const checker = freshChecker();
-      autoUpdater.emit('update-available', { version: '2.0.0' });
-      autoUpdater.checkForUpdates.mockRejectedValueOnce(new Error('network down'));
-
-      const result = await checker.checkForUpdates();
-
-      expect(result).toBeNull();
-      expect(checker.getState()).toEqual({ status: null, version: null });
-    });
-
-    test('background check failure stays silent (no dialog)', async () => {
-      const checker = freshChecker();
-      autoUpdater.checkForUpdates.mockRejectedValueOnce(new Error('network down'));
-
-      await checker.checkForUpdates();
-
-      expect(dialog.showErrorBox).not.toHaveBeenCalled();
-    });
-
-    test('user-initiated check failure shows an error dialog', async () => {
-      const checker = freshChecker();
-      autoUpdater.checkForUpdates.mockRejectedValueOnce(new Error('network down'));
-
-      await checker.checkForUpdates({ notifyOnError: true });
-
-      expect(dialog.showErrorBox).toHaveBeenCalledTimes(1);
-      expect(dialog.showErrorBox.mock.calls[0][1]).toContain('network down');
-    });
-
-    test('skips and returns null while a download is in progress', async () => {
-      const checker = freshChecker();
-      let resolveDownload;
-      autoUpdater.downloadUpdate.mockReturnValueOnce(new Promise((resolve) => { resolveDownload = resolve; }));
-      const download = checker.downloadAndInstall('2.0.0');
-
-      const result = await checker.checkForUpdates();
-
-      expect(result).toBeNull();
-      expect(autoUpdater.checkForUpdates).not.toHaveBeenCalled();
-
-      resolveDownload();
-      await download;
-    });
-  });
-
-  describe('downloadAndInstall', () => {
-    test('downloads then quits and installs', async () => {
-      const checker = freshChecker();
-
-      await checker.downloadAndInstall('2.0.0');
-
-      expect(autoUpdater.downloadUpdate).toHaveBeenCalledTimes(1);
-      expect(autoUpdater.quitAndInstall).toHaveBeenCalledWith(false, true);
-    });
-
-    test('ignores a concurrent call while a download is in progress', async () => {
-      const checker = freshChecker();
-      let resolveDownload;
-      autoUpdater.downloadUpdate.mockReturnValueOnce(new Promise((resolve) => { resolveDownload = resolve; }));
-
-      const first = checker.downloadAndInstall('2.0.0');
-      const second = checker.downloadAndInstall('2.0.0');
-
-      resolveDownload();
-      await Promise.all([first, second]);
-
-      expect(autoUpdater.downloadUpdate).toHaveBeenCalledTimes(1);
-    });
-
-    test('reverts state to available on download failure', async () => {
-      const checker = freshChecker();
-      autoUpdater.downloadUpdate.mockRejectedValueOnce(new Error('download failed'));
-
-      await checker.downloadAndInstall('2.0.0');
-
-      expect(checker.getState()).toEqual({ status: 'available', version: '2.0.0' });
-      expect(autoUpdater.quitAndInstall).not.toHaveBeenCalled();
-    });
-
-    test('shows an error dialog on download failure', async () => {
-      const checker = freshChecker();
-      autoUpdater.downloadUpdate.mockRejectedValueOnce(new Error('download failed'));
-
-      await checker.downloadAndInstall('2.0.0');
-
-      expect(dialog.showErrorBox).toHaveBeenCalledTimes(1);
-      expect(dialog.showErrorBox.mock.calls[0][1]).toContain('download failed');
-    });
-  });
-
-  describe('installDownloaded', () => {
-    test('quits and installs without re-downloading', () => {
-      const checker = freshChecker();
-
-      checker.installDownloaded();
-
-      expect(autoUpdater.quitAndInstall).toHaveBeenCalledWith(false, true);
-      expect(autoUpdater.downloadUpdate).not.toHaveBeenCalled();
-    });
-  });
+test('SDK events update availability without redundant notifications', () => {
+  autoUpdater.emit('checking-for-update');
+  expect(checker.getState().status).toBe('checking');
+  autoUpdater.emit('update-available', { version: '3.1.0' });
+  checker.onStateChanged.mockClear();
+  autoUpdater.emit('update-available', { version: '3.1.0' });
+  expect(checker.onStateChanged).not.toHaveBeenCalled();
+  autoUpdater.emit('download-progress');
+  expect(checker.getState()).toEqual({ status: 'downloading', version: '3.1.0' });
+  autoUpdater.emit('update-downloaded', { version: '3.1.0' });
+  expect(checker.getState()).toEqual({ status: 'downloaded', version: '3.1.0' });
+  autoUpdater.emit('error', new Error('Install could not finish'));
+  expect(checker.getState()).toEqual({ status: 'error', version: null });
 });

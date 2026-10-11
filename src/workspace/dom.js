@@ -1,0 +1,214 @@
+const paths = {
+  logo: ['M4 6.5 12 2l8 4.5v11L12 22l-8-4.5z', 'm4 6.5 8 4.5 8-4.5M12 11v11', 'm8 4 8 4.5v5'],
+  overview: ['M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3zM14 14h7v7h-7z'],
+  resources: ['M4 3h16v7H4zM4 14h16v7H4zM7 6.5h.01M7 17.5h.01M16 6.5h1M16 17.5h1'],
+  agents: ['M8 4h8l1 3h3v12H4V7h3zM9 12h.01M15 12h.01M9 16h6M12 1v3'],
+  activity: ['M3 12h4l3-8 4 16 3-8h4'],
+  attention: ['m12 3 10 18H2zM12 9v5M12 17h.01'],
+  settings: ['M4 7h16M4 17h16M8 4v6M16 14v6'],
+  companion: ['M6 5h12l3 4v10H3V9zM8 11h.01M16 11h.01M9 15q3 3 6 0'],
+  cloud: ['M7 18a5 5 0 1 1 0-10 6 6 0 0 1 11-1 5.5 5.5 0 0 1 0 11z'],
+  external: ['M14 3h7v7M21 3l-10 10M10 3H3v18h18v-7'],
+  arrow: ['M4 12h16m-6-6 6 6-6 6'],
+  chevron: ['m9 5 7 7-7 7'],
+  refresh: ['M20 7a8 8 0 0 0-13-3L3 8m0-5v5h5M4 17a8 8 0 0 0 13 3l4-4m0 5v-5h-5'],
+  close: ['m6 6 12 12M18 6 6 18'],
+  plus: ['M12 4v16M4 12h16'],
+  search: ['M17 17l4 4', 'M19 10a8 8 0 1 1-16 0 8 8 0 0 1 16 0'],
+  gauge: ['M4 19a10 10 0 1 1 16 0M12 13l5-6M4 19h16'],
+  plug: ['M8 2v5M16 2v5M5 7h14M7 7v5a5 5 0 0 0 10 0V7M12 17v5'],
+  lock: ['M5 10h14v11H5zM8 10V6a4 4 0 0 1 8 0v4M12 14v3'],
+  book: ['M12 5C8 2 3 3 3 3v17s5-1 9 2c4-3 9-2 9-2V3s-5-1-9 2zM12 5v17'],
+  globe: ['M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0M3 12h18M12 3q7 9 0 18-7-9 0-18'],
+  code: ['m8 6-6 6 6 6m8-12 6 6-6 6m-3-15-2 18']
+};
+export const $ = (id) => document.getElementById(id);
+export function el(tag, text, className) {
+  const node = document.createElement(tag);
+  if (text !== undefined) node.textContent = text;
+  if (className) node.className = className;
+  return node;
+}
+export function text(node, value) {
+  const next = String(value ?? '');
+  if (node.textContent !== next) node.textContent = next;
+}
+export function svg(tag, attributes = {}, value) {
+  const node = document.createElementNS('http://www.w3.org/2000/svg', tag);
+  for (const [key, item] of Object.entries(attributes)) node.setAttribute(key, String(item));
+  if (value !== undefined) node.textContent = value;
+  return node;
+}
+export function icon(name) {
+  const node = svg('svg', { viewBox: '0 0 24 24', class: 'icon', 'aria-hidden': 'true' });
+  for (const d of paths[name] || paths.resources) node.append(svg('path', { d }));
+  return node;
+}
+export function hydrateIcons(root = document) {
+  for (const placeholder of root.querySelectorAll('[data-icon]')) {
+    placeholder.replaceChildren(icon(placeholder.dataset.icon));
+    placeholder.removeAttribute('data-icon');
+  }
+}
+export function button(label, action, className = 'button secondary', symbol) {
+  const node = el('button', undefined, className);
+  node.type = 'button';
+  if (symbol) node.append(icon(symbol));
+  node.append(document.createTextNode(label));
+  node.addEventListener('click', action);
+  return node;
+}
+export function keyed(parent, items, keyOf, create, update) {
+  const cache = parent._items || (parent._items = new Map());
+  const active = new Set();
+  let cursor = parent.firstElementChild;
+  for (const item of items) {
+    const key = keyOf(item);
+    active.add(key);
+    let node = cache.get(key);
+    if (!node) {
+      node = create(item);
+      cache.set(key, node);
+    }
+    update(node, item);
+    if (node !== cursor) parent.insertBefore(node, cursor);
+    cursor = node.nextElementSibling;
+  }
+  for (const [key, node] of cache)
+    if (!active.has(key)) {
+      node.remove();
+      cache.delete(key);
+    }
+}
+export function empty(title, description, action, label, compact = false) {
+  const node = el('div', undefined, `empty${compact ? ' compact' : ''}`);
+  node.append(icon('resources'), el('h3', title), el('p', description));
+  if (action) node.append(button(label, action, 'text-button', 'arrow'));
+  return node;
+}
+export function choices(select, entries, selected) {
+  const signature = JSON.stringify(entries);
+  if (select.dataset.options !== signature) {
+    select.replaceChildren(
+      ...entries.map(([value, label]) => {
+        const option = el('option', label);
+        option.value = value;
+        return option;
+      })
+    );
+    select.dataset.options = signature;
+  }
+  if (document.activeElement !== select) select.value = String(selected);
+}
+const decimalFormat = new Intl.NumberFormat(undefined, { maximumFractionDigits: 1 });
+const smallFormat = new Intl.NumberFormat(undefined, { maximumSignificantDigits: 2 });
+const preciseFormat = new Intl.NumberFormat(undefined, { maximumSignificantDigits: 6 });
+export const number = (value) => {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return '—';
+  return (value !== 0 && Math.abs(value) < 1 ? smallFormat : decimalFormat).format(value);
+};
+export function reading(value, unit = '', precise = false) {
+  return typeof value === 'number' && Number.isFinite(value)
+    ? `${precise ? preciseFormat.format(value) : number(value)}${unit ? (['%', '°C', '°F'].includes(unit) ? '' : ' ') + unit : ''}`
+    : '—';
+}
+export function ago(timestamp, now = Date.now()) {
+  if (!timestamp || !Number.isFinite(Date.parse(timestamp))) return 'Not reported';
+  const seconds = Math.max(0, Math.floor((now - Date.parse(timestamp)) / 1000));
+  if (seconds < 15) return 'Just now';
+  if (seconds < 60) return `${seconds}s ago`;
+  if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
+  return `${Math.floor(seconds / 3600)}h ago`;
+}
+export function remaining(seconds) {
+  const minutes = Math.max(0, Math.ceil((seconds * 1000 - Date.now()) / 60000));
+  if (minutes < 60) return `${minutes}m`;
+  if (minutes < 1440) return `${Math.floor(minutes / 60)}h ${minutes % 60}m`;
+  return `${Math.floor(minutes / 1440)}d ${Math.floor((minutes % 1440) / 60)}h`;
+}
+const providerLabels = { claude: 'Claude', codex: 'Codex', kiro: 'Kiro', openclaw: 'OpenClaw', opencode: 'OpenCode' };
+export const providerName = provider => Object.hasOwn(providerLabels, provider) ? providerLabels[provider] : provider;
+let characterImages = new Map([['vibemon', 'vibemon.png']]);
+export function configureSprites(characters) {
+  characterImages = new Map(
+    characters
+      .filter((item) => typeof item.image === 'string' && /^[a-z0-9_.-]+\.png$/i.test(item.image))
+      .map((item) => [item.name, item.image])
+  );
+}
+export function sprite(character) {
+  return `../assets/characters/${characterImages.get(character) || characterImages.get('vibemon') || 'vibemon.png'}`;
+}
+export function stateLabel(state) {
+  const labels = {
+    ok: 'Healthy',
+    warning: 'Attention',
+    error: 'Collection error',
+    unknown: 'Awaiting data',
+    stale: 'Stale',
+    working: 'Working',
+    thinking: 'Thinking',
+    planning: 'Planning',
+    packing: 'Compacting',
+    notification: 'Needs input',
+    alert: 'Needs attention',
+    idle: 'Idle',
+    sleep: 'Resting',
+    done: 'Done',
+    start: 'Starting'
+  };
+  return Object.hasOwn(labels, state) ? labels[state] : state;
+}
+export function stateTone(state) {
+  return ['stale', 'warning', 'notification'].includes(state)
+    ? 'warning'
+    : ['error', 'alert'].includes(state)
+      ? 'danger'
+      : ['ok', 'done'].includes(state)
+        ? 'good'
+        : ['working', 'thinking', 'planning', 'packing', 'start'].includes(state)
+          ? 'active'
+          : 'neutral';
+}
+export function badge(node, state) {
+  node.className = `chip ${stateTone(state)}`;
+  text(node, stateLabel(state));
+}
+export function connection(status) {
+  return (
+    {
+      connected: ['Connected', 'Your workspace is connected.', 'good'],
+      connecting: ['Connecting', 'Checking your workspace connection…', 'neutral'],
+      'not-configured': [
+        'Not connected',
+        'Connect a workspace to follow resources and cloud accounts.',
+        'neutral'
+      ],
+      'token-expired': [
+        'Token not accepted',
+        'Retrieve an active read token from your Web Account.',
+        'danger'
+      ],
+      'permission-denied': [
+        'Read access required',
+        'This token cannot read monitoring data. Use a token with read permission.',
+        'danger'
+      ],
+      'credential-unavailable': [
+        'Replace saved token',
+        'The saved token cannot be unlocked. Enter it again from Web Account.',
+        'warning'
+      ],
+      'secure-storage-unavailable': [
+        'Unlock secure storage',
+        'Unlock your operating system secure storage, then try again.',
+        'warning'
+      ],
+      'connection-error': [
+        'Connection interrupted',
+        'Showing last received readings. Check your Web address and connection.',
+        'warning'
+      ]
+    }[status] || ['Connection problem', 'Check your Web address and saved read token.', 'warning']
+  );
+}

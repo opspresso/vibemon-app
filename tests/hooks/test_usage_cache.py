@@ -16,6 +16,24 @@ from usage_cache import (  # noqa: E402
 
 
 class UsageCacheTest(unittest.TestCase):
+    def test_invalid_or_future_provider_timestamps_cannot_keep_usage_fresh(self):
+        for observed_at in [float('nan'), float('inf'), 'NaN', 'Infinity', None, 'invalid', 131]:
+            with self.subTest(observed_at=observed_at):
+                cache = {'claude': {'updated_at': observed_at, 'session': {'pct': 42}}}
+                self.assertIsNone(get_fresh_provider(cache, 'claude', 1800, now=100))
+
+    def test_invalid_or_future_bucket_timestamps_do_not_hide_a_fresh_bucket(self):
+        for observed_at in [float('nan'), float('inf'), 'NaN', 'Infinity', None, 'invalid', 131]:
+            with self.subTest(observed_at=observed_at):
+                cache = {'claude': {
+                    'updated_at': 100,
+                    'session': {'pct': 42, 'updated_at': observed_at},
+                    'week_all': {'pct': 20, 'updated_at': 100},
+                }}
+                fresh = get_fresh_provider(cache, 'claude', 1800, now=100)
+                self.assertNotIn('session', fresh)
+                self.assertEqual(fresh['week_all']['pct'], 20)
+
     def test_large_session_history_is_read_from_a_bounded_tail(self):
         from usage_cache import reverse_jsonl
         with tempfile.TemporaryDirectory() as directory:

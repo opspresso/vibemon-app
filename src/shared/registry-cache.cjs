@@ -1,8 +1,8 @@
 /**
  * Registry cache (CommonJS)
  *
- * Canonical state/character registries live in the the public App distribution repository
- * and are served from STATIC_BASE_URL (vibemon.io/static). This module
+ * Canonical state/character registries live in this repository and are
+ * served from STATIC_BASE_URL (vibemon.io/static). This module
  * resolves the registries synchronously at startup — last cached remote copy
  * (validated) first, bundled data/*.json as fallback — and exposes refresh()
  * to fetch/validate/cache the remote copies in the background. A refreshed

@@ -14,6 +14,7 @@ import glob
 import json
 import math
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -30,7 +31,7 @@ from urllib.request import Request, urlopen
 
 from account_context import cloud_context, project_cache_key
 from http_client import open_credential_request
-from usage_cache import get_fresh_provider, load_usage_cache, model_week_bucket, reverse_jsonl
+from usage_cache import CACHE_STALE_SECONDS, get_fresh_provider, is_fresh_observation, load_usage_cache, model_week_bucket, reverse_jsonl
 
 try:
     import fcntl
@@ -113,7 +114,6 @@ HTTP_TIMEOUT_SECONDS = 5
 # Cache configuration: entries older than this are treated as unknown rather
 # than sent as-is. Usage freshness is evaluated per provider; project metadata
 # continues to use its own entry timestamps.
-CACHE_STALE_SECONDS = 1800
 CODEX_SESSIONS_DIR = str(
     Path(os.environ.get("CODEX_HOME") or "~/.codex").expanduser() / "sessions"
 )
@@ -320,10 +320,7 @@ def get_project_metadata(project: str, cwd: str | None = None) -> dict[str, Any]
     if not isinstance(entry, dict):
         return {}
 
-    try:
-        if (time.time() - float(entry.get("ts", 0))) > CACHE_STALE_SECONDS:
-            return {}
-    except (TypeError, ValueError):
+    if not is_fresh_observation(entry.get("ts"), CACHE_STALE_SECONDS, time.time()):
         return {}
 
     return entry
@@ -1111,7 +1108,27 @@ def send_serial_input(args: list[str]) -> bool:
     return bool(args and data) and send_serial(args[0], json.dumps(data))
 
 
+def send_cloud_status(provider: str) -> bool:
+    """Send a plugin status with shared account identity and credential rules."""
+    config = get_config()
+    payload = parse_json(read_input())
+    if not re.fullmatch(r"[a-z][a-z0-9_-]{0,31}", provider) or not all(
+        isinstance(payload.get(field), str) and payload[field].strip()
+        for field in ("state", "project")
+    ):
+        return False
+    if not config.vibemon_url or not config.vibemon_token:
+        return False
+    try:
+        context = cloud_context(provider, payload["project"])
+        return send_vibemon_api(config.vibemon_url, config.vibemon_token, payload, context)
+    except ValueError:
+        print("[vibemon] Invalid cloud account configuration", file=sys.stderr)
+        return False
+
+
 COMMAND_HANDLERS: dict[str, Any] = {
+    "--send-cloud": lambda args: send_cloud_status(args[0]) if len(args) == 1 else False,
     "--launch-desktop": lambda args: launch_desktop(),
     "--send-serial": send_serial_input,
     "--lock": lambda args: send_lock(

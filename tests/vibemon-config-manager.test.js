@@ -42,24 +42,42 @@ describe('VibemonConfigManager', () => {
       expect(manager.getStatus().hasDesktopUrl).toBe(false);
     });
 
-    test('treats invalid JSON as existing but unconfigured', () => {
+    test('reports malformed JSON separately from a missing configuration', () => {
       fs.existsSync.mockReturnValue(true);
       fs.readFileSync.mockReturnValue('{not json');
 
-      expect(manager.getStatus()).toEqual({ exists: true, hasDesktopUrl: false });
+      expect(manager.getStatus()).toEqual({ exists: true, hasDesktopUrl: false, error: 'Fix ~/.vibemon/config.json: expected a valid JSON object.' });
     });
   });
 
   test.each(['null', '[]', '42', '{invalid'])('preserves malformed configuration instead of overwriting it: %s', body => {
     fs.existsSync.mockReturnValue(true);
     fs.readFileSync.mockReturnValue(body);
-    expect(manager.getStatus()).toEqual({ exists: true, hasDesktopUrl: false });
+    expect(manager.getStatus()).toEqual({ exists: true, hasDesktopUrl: false, error: 'Fix ~/.vibemon/config.json: expected a valid JSON object.' });
     expect(() => manager.write({ debug: true })).toThrow('expected a valid JSON object');
     expect(manager.ensureDesktopUrl(null)).toBe(false);
     expect(fs.writeFileSync).not.toHaveBeenCalled();
   });
 
   describe('read', () => {
+    test('repairing a malformed destination list preserves its valid addresses', () => {
+      fs.existsSync.mockReturnValue(true);
+      fs.readFileSync.mockReturnValue(JSON.stringify({ http_urls: ['http://existing:19280', null] }));
+      expect(manager.getStatus().error).toContain('http_urls');
+      expect(manager.addHttpUrl('http://new:19280').http_urls).toEqual(['http://existing:19280', 'http://new:19280']);
+    });
+    test('invalid field types stay on disk but cannot break the settings renderer', () => {
+      fs.existsSync.mockReturnValue(true);
+      fs.readFileSync.mockReturnValue(JSON.stringify({ http_urls: null, debug: 'false', vibemon_token: 'preserved-secret', custom: 'preserved' }));
+      expect(manager.read()).toEqual({ ...VIBEMON_CONFIG_DEFAULTS, vibemon_token: 'preserved-secret', custom: 'preserved' });
+      expect(manager.getStatus().error).toContain('debug, http_urls');
+      expect(manager.getStatus().error).not.toContain('preserved-secret');
+      expect(fs.writeFileSync).not.toHaveBeenCalled();
+      const corrected = manager.addHttpUrl('http://localhost:19280');
+      expect(corrected.http_urls).toEqual(['http://localhost:19280']);
+      expect(corrected.vibemon_token).toBe('preserved-secret');
+      expect(corrected.custom).toBe('preserved');
+    });
     test('returns defaults when the file does not exist', () => {
       expect(manager.read()).toEqual(VIBEMON_CONFIG_DEFAULTS);
     });

@@ -11,7 +11,7 @@ import sys
 from pathlib import Path
 from typing import Any
 
-# Locate vibemon_core.py: repo checkout first (docs/vibemon/), then the
+# Locate vibemon_core.py: repo checkout first (public/install/vibemon/), then the
 # installed copy (~/.vibemon/).
 for _core_dir in (
     Path(__file__).resolve().parent.parent.parent / "vibemon",

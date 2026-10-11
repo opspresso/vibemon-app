@@ -1,122 +1,65 @@
-/**
- * Auto-update checker for Vibe Monitor
- *
- * Wraps electron-updater's autoUpdater (GitHub Releases provider) to detect
- * new versions in the background and let the user trigger a one-click
- * download + install from the tray menu. Downloads are never started
- * automatically — only a menu click does that.
- */
-
-const { app, dialog } = require('electron');
+/** Native updater adapter. Downloading never quits the application. */
+const { app } = require('electron');
 const { autoUpdater } = require('electron-updater');
 
 class UpdateChecker {
   constructor() {
-    // null | 'checking' | 'available' | 'downloading' | 'downloaded'
+    // null means not checked; current and error are explicit outcomes.
     this.state = { status: null, version: null };
-    // Set by main.js to refresh the tray icon/menu when state changes.
     this.onStateChanged = null;
-    this.downloadInProgress = false;
-
+    this.checkPromise = null;
+    this.downloadPromise = null;
     autoUpdater.autoDownload = false;
-    autoUpdater.autoInstallOnAppQuit = true;
+    autoUpdater.autoInstallOnAppQuit = false;
 
     autoUpdater.on('checking-for-update', () => this.setState('checking'));
-    autoUpdater.on('update-available', (info) => this.setState('available', info.version));
-    autoUpdater.on('update-not-available', () => this.setState(null));
+    autoUpdater.on('update-available', info => this.setState('available', info.version));
+    autoUpdater.on('update-not-available', () => this.setState('current'));
     autoUpdater.on('download-progress', () => this.setState('downloading', this.state.version));
-    autoUpdater.on('update-downloaded', (info) => this.setState('downloaded', info.version));
-    autoUpdater.on('error', (err) => {
-      console.error('[UpdateChecker]', err);
-      // downloadAndInstall()'s own catch already reverts state to 'available'
-      // on failure; resetting to null here too would flicker the tray between
-      // the two states for one failure.
-      if (!this.downloadInProgress) {
-        this.setState(null);
-      }
+    autoUpdater.on('update-downloaded', info => this.setState('downloaded', info.version));
+    autoUpdater.on('error', () => {
+      // The active operation owns its rejection. A download failure retains
+      // the available version so the user can explicitly try it again.
+      if (!this.downloadPromise) this.setState('error');
     });
   }
 
-  setState(status, version) {
-    const nextVersion = version || null;
-    if (this.state.status === status && this.state.version === nextVersion) {
-      return;
-    }
-    this.state = { status: status || null, version: nextVersion };
-    if (this.onStateChanged) {
-      this.onStateChanged();
-    }
+  setState(status, version = null) {
+    if (this.state.status === status && this.state.version === version) return;
+    this.state = { status, version };
+    this.onStateChanged?.();
   }
 
-  /**
-   * Non-blocking read of the current update state, for UI rendering.
-   * @returns {{status: string|null, version: string|null}}
-   */
-  getState() {
-    return { ...this.state };
+  getState() { return { ...this.state }; }
+
+  checkForUpdates() {
+    if (!app.isPackaged || this.downloadPromise || this.state.status === 'downloaded') return Promise.resolve(null);
+    if (this.checkPromise) return this.checkPromise;
+    this.setState('checking');
+    this.checkPromise = Promise.resolve().then(() => autoUpdater.checkForUpdates()).catch(error => {
+      this.setState('error');
+      throw error;
+    }).finally(() => { this.checkPromise = null; });
+    return this.checkPromise;
   }
 
-  /**
-   * Ask GitHub Releases whether a newer version is published. No-op outside
-   * a packaged app (unpackaged builds have no update metadata bundled), or
-   * while a download is already in progress — checkForUpdates() can flip
-   * state via the checking/available/not-available/error events, which
-   * would otherwise clobber the downloading/downloaded state mid-download.
-   * @param {{notifyOnError?: boolean}} [options] - notifyOnError: show an
-   *   error dialog on failure. Pass true for user-initiated checks (the
-   *   Settings button), where a silent failure looks identical to "up to
-   *   date"; background timer checks stay silent.
-   */
-  async checkForUpdates({ notifyOnError = false } = {}) {
-    if (!app.isPackaged || this.downloadInProgress) {
-      return null;
-    }
-    try {
-      return await autoUpdater.checkForUpdates();
-    } catch (err) {
-      console.error('[UpdateChecker] check failed:', err);
-      this.setState(null);
-      if (notifyOnError) {
-        dialog.showErrorBox('VibeMon Update', `Failed to check for updates:\n${err.message}`);
-      }
-      return null;
-    }
-  }
-
-  /**
-   * One-click upgrade: download the update and immediately quit + install.
-   * Concurrent calls are ignored.
-   * @param {string} version - target version, for tray label purposes
-   */
-  async downloadAndInstall(version) {
-    if (this.downloadInProgress) {
-      return;
-    }
-    this.downloadInProgress = true;
-    if (this.state.status !== 'downloaded') {
-      this.setState('downloading', version);
-    }
-    try {
-      await autoUpdater.downloadUpdate();
-      autoUpdater.quitAndInstall(false, true);
-    } catch (err) {
-      console.error('[UpdateChecker] download/install failed:', err);
+  downloadUpdate() {
+    if (this.downloadPromise) return this.downloadPromise;
+    if (this.state.status === 'downloaded') return Promise.resolve();
+    if (!app.isPackaged || this.state.status !== 'available') return Promise.reject(new Error('Check for an available update before downloading'));
+    const version = this.state.version;
+    this.setState('downloading', version);
+    this.downloadPromise = Promise.resolve().then(() => autoUpdater.downloadUpdate()).then(() => {
+      this.setState('downloaded', version);
+    }).catch(error => {
       this.setState('available', version);
-      // Always user-initiated (tray/Settings click), so a silent revert to
-      // 'available' would read as "nothing happened" — say what went wrong.
-      dialog.showErrorBox('VibeMon Update', `Failed to download or install v${version}:\n${err.message}`);
-    } finally {
-      this.downloadInProgress = false;
-    }
+      throw error;
+    }).finally(() => { this.downloadPromise = null; });
+    return this.downloadPromise;
   }
 
-  /**
-   * Install an update that has already finished downloading (the tray's
-   * "Restart to install vX" action). electron-updater's downloadUpdate()
-   * does not cache/reuse a prior completed download — calling it again
-   * would re-fetch the whole package — so this skips straight to install.
-   */
   installDownloaded() {
+    if (this.state.status !== 'downloaded') throw new Error('Download the update before installing it');
     autoUpdater.quitAndInstall(false, true);
   }
 }
