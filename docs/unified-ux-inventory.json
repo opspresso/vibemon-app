@@ -1,0 +1,1639 @@
+{
+  "reviewDate": "2026-10-11",
+  "implementationHead": "65a9c338d020147c4b0a9d5255ad2be71b563665",
+  "trackedFiles": 268,
+  "scope": "All tracked files; binary and generated inspection boundaries are explicit. Inventory self-digest is supplied by Git.",
+  "files": [
+    {
+      "path": ".claude/skills/run-desktop/SKILL.md",
+      "sha256": "7e502417fa7cd5c8bb5e4da83f1b1316dd6ff422e9c3024c29672c5e37d1c01e",
+      "disposition": "reviewed-retained",
+      "boundary": "current-contract-or-explicit-proposal"
+    },
+    {
+      "path": ".claude/skills/run-desktop/driver.mjs",
+      "sha256": "1057f510e9558a3e9b6747bc0d0442ec3b1d9e60a8aea70d25da4cbddf5651bd",
+      "disposition": "reviewed-retained",
+      "boundary": "source-and-callers"
+    },
+    {
+      "path": ".coderabbit.yaml",
+      "sha256": "e44a60454d4f92feab31e01ebbd04ccdaeeedcae9ab84338bc8e6654e1590bdc",
+      "disposition": "reviewed-retained",
+      "boundary": "source-and-callers"
+    },
+    {
+      "path": ".env.example",
+      "sha256": "7a8b5147ca4e6e07f7a06f6b91d4de3e8fe9301e6f2a2d9e24e24bb4c5528567",
+      "disposition": "reviewed-retained",
+      "boundary": "source-and-callers"
+    },
+    {
+      "path": ".gitattributes",
+      "sha256": "bcdfa98382e9788c407465ecd38dee8a1dd101856c4061aae3cfbc6181ca077a",
+      "disposition": "reviewed-retained",
+      "boundary": "source-and-callers"
+    },
+    {
+      "path": ".github/CODEOWNERS",
+      "sha256": "5650900bdb94d55f658ca2f685058b0bad9533fd04f86f65e9b365a3b12935f1",
+      "disposition": "reviewed-retained",
+      "boundary": "source-and-callers"
+    },
+    {
+      "path": ".github/auto-merge.yml",
+      "sha256": "5d170e5e0c474f4d4f4d36715556b56f4fa9e4c79c7e8a0c844d423ce0201416",
+      "disposition": "reviewed-retained",
+      "boundary": "source-and-callers"
+    },
+    {
+      "path": ".github/stale.yml",
+      "sha256": "9f92c3d0c0082e9409d62ddf4a7c4612acf8692dcf1b4bed33fdffbe43f153fe",
+      "disposition": "reviewed-retained",
+      "boundary": "source-and-callers"
+    },
+    {
+      "path": ".github/workflows/build-release.yml",
+      "sha256": "8431a4394c81a90083e0f8c821bee41fa4407f9751c787aa3fc2c125d0a7fd3a",
+      "disposition": "reviewed-retained",
+      "boundary": "source-and-callers"
+    },
+    {
+      "path": ".github/workflows/collector-image.yml",
+      "sha256": "ad997ed988ee8d60e86a68f6709c1d2f0f906c9b6848035c85ee08041d9851d5",
+      "disposition": "reviewed-retained",
+      "boundary": "source-and-callers"
+    },
+    {
+      "path": ".github/workflows/overlay-verification.yml",
+      "sha256": "d6108ff22bce687dc6626b5407ceac925be3e9f5693cc9a5badb0e3179e0b62d",
+      "disposition": "reviewed-changed",
+      "boundary": "source-and-callers"
+    },
+    {
+      "path": ".github/workflows/registry-drift.yml",
+      "sha256": "24af403b741afb0e6ebb68640f8e7a3395ad9db4df2a485b81207fd3cc0f07ca",
+      "disposition": "reviewed-changed",
+      "boundary": "source-and-callers"
+    },
+    {
+      "path": ".gitignore",
+      "sha256": "ee064b818998d3d06ec634cf9e1072268fb4a9094f461d02c908dac34355eef7",
+      "disposition": "reviewed-retained",
+      "boundary": "source-and-callers"
+    },
+    {
+      "path": ".mergify.yml",
+      "sha256": "05e19d41571c344eb7c827e15429f8135ad671c433664f0fdb292e1fa2ab4467",
+      "disposition": "reviewed-retained",
+      "boundary": "source-and-callers"
+    },
+    {
+      "path": ".npmrc",
+      "sha256": "60376c82177672b6c6ad2f23106bff70962d8525b2bbd0dd5184d0915397bf96",
+      "disposition": "reviewed-retained",
+      "boundary": "source-and-callers"
+    },
+    {
+      "path": ".nvmrc",
+      "sha256": "45507e6d96329a845faa642c0f485313bcb2ca1e08b043589cde4ddd15969cd6",
+      "disposition": "reviewed-retained",
+      "boundary": "source-and-callers"
+    },
+    {
+      "path": "AGENTS.md",
+      "sha256": "0a73824f3e94c1248bb9d1bf809557f272450688798bc7e0131af78531c59ec2",
+      "disposition": "reviewed-changed",
+      "boundary": "current-contract-or-explicit-proposal"
+    },
+    {
+      "path": "CLAUDE.md",
+      "sha256": "0a73824f3e94c1248bb9d1bf809557f272450688798bc7e0131af78531c59ec2",
+      "disposition": "reviewed-retained",
+      "boundary": "current-contract-or-explicit-proposal"
+    },
+    {
+      "path": "LICENSE",
+      "sha256": "59c1bfad7fb2ad12cf9a7bae7b44c85005ba781d47cb1e0a4d5a91ccd582bbfe",
+      "disposition": "reviewed-retained",
+      "boundary": "source-and-callers"
+    },
+    {
+      "path": "README.md",
+      "sha256": "c06b75bc3bc4ea19945a0293160d7f4532cbf6de5451f020b64f5cb904f1bf68",
+      "disposition": "reviewed-changed",
+      "boundary": "current-contract-or-explicit-proposal"
+    },
+    {
+      "path": "assets/generators/generate-icons.js",
+      "sha256": "08a37ca645bc29791ac4f5345174ab35d00cefdef08ca8d871d80407f3b7831d",
+      "disposition": "reviewed-changed",
+      "boundary": "source-and-callers"
+    },
+    {
+      "path": "assets/generators/icon-128.png",
+      "disposition": "removed-after-reference-review"
+    },
+    {
+      "path": "assets/generators/icon-16.png",
+      "disposition": "removed-after-reference-review"
+    },
+    {
+      "path": "assets/generators/icon-256.png",
+      "disposition": "removed-after-reference-review"
+    },
+    {
+      "path": "assets/generators/icon-32.png",
+      "disposition": "removed-after-reference-review"
+    },
+    {
+      "path": "assets/generators/icon-64.png",
+      "disposition": "removed-after-reference-review"
+    },
+    {
+      "path": "assets/generators/icon-generator.html",
+      "disposition": "removed-after-reference-review"
+    },
+    {
+      "path": "assets/icon.icns",
+      "sha256": "803e08d8999c0b6d9e736aa3efdf6732b99a277ab7e22866da934fc174a87b6d",
+      "disposition": "reviewed-changed",
+      "boundary": "visual-format-or-generator-provenance"
+    },
+    {
+      "path": "assets/icon.ico",
+      "sha256": "3d3e162e256138d1f3cfd1208099966fb6021957899dd97b30362e2c644b5f75",
+      "disposition": "reviewed-changed",
+      "boundary": "visual-format-or-generator-provenance"
+    },
+    {
+      "path": "assets/icon.png",
+      "sha256": "97bef5944839388524e4eae9dbe108b9d84f551d9d58707ffab0845469c5ee9d",
+      "disposition": "reviewed-changed",
+      "boundary": "visual-format-or-generator-provenance"
+    },
+    {
+      "path": "assets/web/favicon.ico",
+      "sha256": "9ac418f8d1953d294a65ba57131d495e2e42da1f7e1a008f759cb7559f590301",
+      "disposition": "reviewed-changed",
+      "boundary": "visual-format-or-generator-provenance"
+    },
+    {
+      "path": "assets/web/icon-16.png",
+      "sha256": "e6ee2d575b1c834fa39a72ae6e616f63f69a6bb12c3a3608e2d62e05717fbeec",
+      "disposition": "reviewed-changed",
+      "boundary": "visual-format-or-generator-provenance"
+    },
+    {
+      "path": "assets/web/icon-32.png",
+      "sha256": "99d554ec77abe9187397876ea157fcdeb35eca2489a4a43ab554a5673e404777",
+      "disposition": "reviewed-changed",
+      "boundary": "visual-format-or-generator-provenance"
+    },
+    {
+      "path": "assets/web/index.html",
+      "sha256": "057a81fa359edb59c0e3f0be10d723c1e39eb1524cd02e2f8b225cd70eca9358",
+      "disposition": "reviewed-retained",
+      "boundary": "source-and-callers"
+    },
+    {
+      "path": "collector/Dockerfile",
+      "sha256": "c51aecb3b37a4cf8a3fc7da45d028ab29a17c5c2791b80486b229b715e4b1844",
+      "disposition": "reviewed-retained",
+      "boundary": "source-and-callers"
+    },
+    {
+      "path": "collector/Dockerfile.dockerignore",
+      "sha256": "cd5b2b3d0de0376879ee3988871ab67abd97af3ce09a05c79f109a6b02f9bf3f",
+      "disposition": "reviewed-retained",
+      "boundary": "source-and-callers"
+    },
+    {
+      "path": "collector/README.md",
+      "sha256": "f141dbfa9b76a96d0df3e8484a8faeac915edc90af85f0d45e2795191a76f426",
+      "disposition": "reviewed-retained",
+      "boundary": "current-contract-or-explicit-proposal"
+    },
+    {
+      "path": "collector/pyproject.toml",
+      "sha256": "b909d47b7e8ff96f4aefee8a0efe2a328adb2a3250ba8fc8f4cfa970a081f2fa",
+      "disposition": "reviewed-retained",
+      "boundary": "source-and-callers"
+    },
+    {
+      "path": "collector/tests/in_cluster_smoke.py",
+      "sha256": "d8c7049a74a9ee239f39713dd2d5bf336197a2d78facce03d42d7e73d8971e6c",
+      "disposition": "reviewed-retained",
+      "boundary": "source-and-callers"
+    },
+    {
+      "path": "collector/tests/promql_fixture.py",
+      "sha256": "b24070d9d09dd0ee517ddd117d6d76546accf48f069f744c9405d9ef96f1affc",
+      "disposition": "reviewed-retained",
+      "boundary": "source-and-callers"
+    },
+    {
+      "path": "collector/tests/test_collector.py",
+      "sha256": "c33cb65f18b96790a947a711dde960a76150ce66bf905d888b7e9ea50725ece5",
+      "disposition": "reviewed-retained",
+      "boundary": "source-and-callers"
+    },
+    {
+      "path": "collector/tests/test_delivery.py",
+      "sha256": "cccbfa98715a464ab2d512c372075b2a7ee187c0e9babf13982112fea623bd89",
+      "disposition": "reviewed-retained",
+      "boundary": "source-and-callers"
+    },
+    {
+      "path": "collector/tests/test_health.py",
+      "sha256": "195d64773b3c307090d82117791891527fe53bb507884c3f7ca208bbf9e26da2",
+      "disposition": "reviewed-retained",
+      "boundary": "source-and-callers"
+    },
+    {
+      "path": "collector/tests/test_kubernetes.py",
+      "sha256": "0a4432146393787f6cb8b7f7433f4519af2d41c66c5e385902323cdcb256cf1e",
+      "disposition": "reviewed-retained",
+      "boundary": "source-and-callers"
+    },
+    {
+      "path": "collector/vibemon_collector/__init__.py",
+      "sha256": "26effa5a5c29344cc6735202dc619a5b37c3944854ca10da036043b3acf7c22c",
+      "disposition": "reviewed-retained",
+      "boundary": "source-and-callers"
+    },
+    {
+      "path": "collector/vibemon_collector/__main__.py",
+      "sha256": "2bdc8f3b09381be34c549ba4c5b84b5721f676617f08d33be9c1b74664fbbb67",
+      "disposition": "reviewed-retained",
+      "boundary": "source-and-callers"
+    },
+    {
+      "path": "collector/vibemon_collector/application.py",
+      "sha256": "787393c19dfda1fcdf49d789fb24bc068c6ecdf12c7d20e4883dfa5416a2da0c",
+      "disposition": "reviewed-retained",
+      "boundary": "source-and-callers"
+    },
+    {
+      "path": "collector/vibemon_collector/domain.py",
+      "sha256": "123763329eb28c34c7bb2c81438c22d955ed908c746cea2838c6d07de3a64373",
+      "disposition": "reviewed-retained",
+      "boundary": "source-and-callers"
+    },
+    {
+      "path": "collector/vibemon_collector/health.py",
+      "sha256": "62c2b0e9f0b3bc83148ec7bef22de9c6ab197657cf0c98711c3044168d199b66",
+      "disposition": "reviewed-retained",
+      "boundary": "source-and-callers"
+    },
+    {
+      "path": "collector/vibemon_collector/host.py",
+      "sha256": "6361dba33ca3afe28e3a4e4a207f1a367af12183391a4666f21621253f76da19",
+      "disposition": "reviewed-retained",
+      "boundary": "source-and-callers"
+    },
+    {
+      "path": "collector/vibemon_collector/kubernetes.py",
+      "sha256": "9d80d28c821b36346061b0a214db4b1a591ec469f0770614521cefc4d9d24032",
+      "disposition": "reviewed-retained",
+      "boundary": "source-and-callers"
+    },
+    {
+      "path": "collector/vibemon_collector/prometheus.py",
+      "sha256": "f1ff17ae4a47bb85d7e48c169ec32cbffeb68b9444c682c612a81f56e45ce8fc",
+      "disposition": "reviewed-retained",
+      "boundary": "source-and-callers"
+    },
+    {
+      "path": "collector/vibemon_collector/transport.py",
+      "sha256": "ab4576ec02f28e846e0288b249fb66d8a7a5646dee7b1b612b22704434f2ad0d",
+      "disposition": "reviewed-retained",
+      "boundary": "source-and-callers"
+    },
+    {
+      "path": "docs/README.md",
+      "sha256": "c07a4e853d840b1742ef6a912cb3a248b99810a5fa5f5e2bca4317f9680cb814",
+      "disposition": "reviewed-changed",
+      "boundary": "current-contract-or-explicit-proposal"
+    },
+    {
+      "path": "docs/api.md",
+      "sha256": "b7278ca6320164ee032a9151d0f2568dc306fd5fcb0d26ce9d2af766a28aa8d6",
+      "disposition": "reviewed-changed",
+      "boundary": "current-contract-or-explicit-proposal"
+    },
+    {
+      "path": "docs/build.md",
+      "sha256": "451c24f49409593f3f34b841a5857febaab75cdcf49e54d210bcfd40b2a1fe7a",
+      "disposition": "reviewed-changed",
+      "boundary": "current-contract-or-explicit-proposal"
+    },
+    {
+      "path": "docs/design-system.md",
+      "sha256": "a3fe6cf20b3fc537554a8271419317d93d00f706b4fe4b525c59718698d789e8",
+      "disposition": "reviewed-changed",
+      "boundary": "current-contract-or-explicit-proposal"
+    },
+    {
+      "path": "docs/desktop-workspace.md",
+      "sha256": "3d5bd7982be4cfba6adb2f0b5435c4884fecac5626352c50ecf5da5800477dfc",
+      "disposition": "reviewed-retained",
+      "boundary": "current-contract-or-explicit-proposal"
+    },
+    {
+      "path": "docs/distribution.md",
+      "sha256": "142523e342f8190d72cf68467636b355cfa93046cee1f289091e5db744cd496a",
+      "disposition": "reviewed-changed",
+      "boundary": "current-contract-or-explicit-proposal"
+    },
+    {
+      "path": "docs/features.md",
+      "sha256": "d2dde24411f0032b25ee953a50e66f6f0c34ac96a4d7c94d24e056c2fde23099",
+      "disposition": "reviewed-changed",
+      "boundary": "current-contract-or-explicit-proposal"
+    },
+    {
+      "path": "docs/hooks.md",
+      "sha256": "89724e96d008aaf5e4bff655ab78fbf69d39bc8788b76e4869258e187f92e696",
+      "disposition": "reviewed-changed",
+      "boundary": "current-contract-or-explicit-proposal"
+    },
+    {
+      "path": "docs/images/3d-size-after.png",
+      "sha256": "8c15e367a5c7eae1c1d6da059da958cd7afe92ffea94e2f950c3f2b88aa8dc46",
+      "disposition": "reviewed-retained",
+      "boundary": "visual-format-or-generator-provenance"
+    },
+    {
+      "path": "docs/images/dock-bubble-center.png",
+      "sha256": "5004afb7b377f09bfbcbb13a4802947fff8f644add5319fa51f8e8121662a9cf",
+      "disposition": "reviewed-retained",
+      "boundary": "visual-format-or-generator-provenance"
+    },
+    {
+      "path": "docs/images/dock-left-bubble.png",
+      "sha256": "b314f00e4741924e3595a4dd3d2cf0e6d2ad3a52c3d21454806829260b5a3b1a",
+      "disposition": "reviewed-retained",
+      "boundary": "visual-format-or-generator-provenance"
+    },
+    {
+      "path": "docs/images/dock-left-character.png",
+      "sha256": "a36f19a724051ebcaa902df688f7d385670ef218a054036450adde4e404d858d",
+      "disposition": "reviewed-retained",
+      "boundary": "visual-format-or-generator-provenance"
+    },
+    {
+      "path": "docs/images/dock-right-bubble.png",
+      "sha256": "e8b3f5b19ff96bc22cd79e867a1f5edb7c3a968e253442685600db7e5d147ade",
+      "disposition": "reviewed-retained",
+      "boundary": "visual-format-or-generator-provenance"
+    },
+    {
+      "path": "docs/images/dock-right-character.png",
+      "sha256": "613296fd9bd156f97c3da81739c37341b173df8855cc4f9d38e9a8a2b1cfc34e",
+      "disposition": "reviewed-retained",
+      "boundary": "visual-format-or-generator-provenance"
+    },
+    {
+      "path": "docs/images/overlay-2d.png",
+      "sha256": "25953ca02496424da75b2cd7981a9fc134dcce374f456f4f1fa71591a5e6bfde",
+      "disposition": "reviewed-retained",
+      "boundary": "visual-format-or-generator-provenance"
+    },
+    {
+      "path": "docs/images/overlay-3d.png",
+      "sha256": "2cb0e55de0970f240ee437eb2145fa33aa9595df51fd937bb11ed7d241ed3ded",
+      "disposition": "reviewed-retained",
+      "boundary": "visual-format-or-generator-provenance"
+    },
+    {
+      "path": "docs/images/overlay-bubble.png",
+      "sha256": "46c9106e5713dfce47b053aa7a9a2868fd6b5823e86c238c1f14f6d8455d9d7f",
+      "disposition": "reviewed-retained",
+      "boundary": "visual-format-or-generator-provenance"
+    },
+    {
+      "path": "docs/images/workspace-companion.png",
+      "sha256": "6e2aa5b18579c79af56f299803ad3cc5c4472a91c4d72c4828de11e3c3c56c66",
+      "disposition": "reviewed-changed",
+      "boundary": "visual-format-or-generator-provenance"
+    },
+    {
+      "path": "docs/images/workspace-overview-light.png",
+      "sha256": "cd4ce2bedded1bfa7a43a4f1fd45c008a2f7e6c8c7e565b7f28e60cee8ab190b",
+      "disposition": "reviewed-changed",
+      "boundary": "visual-format-or-generator-provenance"
+    },
+    {
+      "path": "docs/images/workspace-overview.png",
+      "sha256": "13b8c217b21f9f1002f1380b2a45f7285c3b582b1484de4b256f7c50b2a52de8",
+      "disposition": "reviewed-changed",
+      "boundary": "visual-format-or-generator-provenance"
+    },
+    {
+      "path": "docs/images/workspace-windows.png",
+      "sha256": "5da5f678dade1399fb03ceb5906e3c5c55a180f7a6875c6d1b9105aa733e379b",
+      "disposition": "reviewed-changed",
+      "boundary": "visual-format-or-generator-provenance"
+    },
+    {
+      "path": "docs/milestone/vibemon-pet-concept.png",
+      "sha256": "27c28f91a2ef2d950d7fcdde559cf0507a456fc73db7e6d7000a92a1d22208af",
+      "disposition": "reviewed-retained",
+      "boundary": "visual-format-or-generator-provenance"
+    },
+    {
+      "path": "docs/milestone/vibemon-pet-development-spec.md",
+      "sha256": "336c1b8bda5b0139865e04d1f2e650df1bb33abe942ef1324a946773e55170f9",
+      "disposition": "reviewed-retained",
+      "boundary": "current-contract-or-explicit-proposal"
+    },
+    {
+      "path": "docs/monitoring.md",
+      "sha256": "1ce4dd79c5acba6473e40c7283846851f85f7b9a73b44a1b980fd422583d0687",
+      "disposition": "reviewed-changed",
+      "boundary": "current-contract-or-explicit-proposal"
+    },
+    {
+      "path": "docs/overlay-interaction.md",
+      "sha256": "c1fc96fe35ac39cea0650df294783f8c7e91c75219cfee24b0bec7a12f7d42fb",
+      "disposition": "reviewed-changed",
+      "boundary": "current-contract-or-explicit-proposal"
+    },
+    {
+      "path": "docs/unified-ux-inventory.json",
+      "disposition": "generated-review-inventory",
+      "boundary": "git-records-this-manifest-digest"
+    },
+    {
+      "path": "docs/unified-ux-verification.md",
+      "sha256": "891bc9fdcbc66489690fa53194e2fc10dbd7ad2632ff3c19b1f983a47bcb6eb1",
+      "disposition": "reviewed-changed",
+      "boundary": "current-contract-or-explicit-proposal"
+    },
+    {
+      "path": "entitlements.mac.plist",
+      "sha256": "b015ffd20cb36ab840222c213487e085a6af5c313c4e0875074b0852161285a1",
+      "disposition": "reviewed-retained",
+      "boundary": "source-and-callers"
+    },
+    {
+      "path": "eslint.config.js",
+      "sha256": "8685ebf039ea3345a2a63251c6ddd67fec131e0e57a6bc83d5bd36e0b5d9cd28",
+      "disposition": "reviewed-changed",
+      "boundary": "source-and-callers"
+    },
+    {
+      "path": "images/demo.gif",
+      "sha256": "94a47d6298d9b88082d81e7acd68aac8a461f84966712cd65aa0c4171688992c",
+      "disposition": "reviewed-retained",
+      "boundary": "visual-format-or-generator-provenance"
+    },
+    {
+      "path": "images/demo.mp4",
+      "sha256": "a6bab4f1f70b6b5a046de27428bc83b86ecea8a779f7a89fad56ad9e5588169c",
+      "disposition": "reviewed-retained",
+      "boundary": "visual-format-or-generator-provenance"
+    },
+    {
+      "path": "jest.config.js",
+      "sha256": "6f08664bbd8153a8aa502ec0df995a49609e2a90041028f84a4fb5092922b570",
+      "disposition": "reviewed-retained",
+      "boundary": "source-and-callers"
+    },
+    {
+      "path": "package.json",
+      "sha256": "95eeb4eca4d4d76ed716fa11f6cb3cd34f776695fddfc150ce50927313116770",
+      "disposition": "reviewed-changed",
+      "boundary": "source-and-callers"
+    },
+    {
+      "path": "pnpm-lock.yaml",
+      "sha256": "67c3120bbe0dac0ea491e5fb98d411f22b1efeb6b12a41ce0fdeebb1fead5d68",
+      "disposition": "reviewed-retained",
+      "boundary": "manifest-integrity-frozen-install-and-audit"
+    },
+    {
+      "path": "pnpm-workspace.yaml",
+      "sha256": "5790e52de46792162735c1e13aa614e7073c3c6cfb8ad2c72bda9befa63f3b02",
+      "disposition": "reviewed-retained",
+      "boundary": "source-and-callers"
+    },
+    {
+      "path": "public/install/claude/hooks/vibemon.py",
+      "sha256": "665d50443c0bd48945237fecdde0728c52aa440db4c58196f305eae43d845a26",
+      "disposition": "reviewed-retained",
+      "boundary": "source-and-callers"
+    },
+    {
+      "path": "public/install/claude/settings.json",
+      "sha256": "cf57ea426d00c74e9c6a94fae29b6b039b67832761af3266c7e48a73a1379388",
+      "disposition": "reviewed-retained",
+      "boundary": "source-and-callers"
+    },
+    {
+      "path": "public/install/claude/statusline.py",
+      "sha256": "e52b4efc69a6384e3dca01ebdd820f831718b2a858610f4e138ec493cc423280",
+      "disposition": "reviewed-retained",
+      "boundary": "source-and-callers"
+    },
+    {
+      "path": "public/install/codex/config.toml",
+      "sha256": "d9cc7d2779544974c949a1a3d2749b2f4d931e291f3225784867215678acd34f",
+      "disposition": "reviewed-retained",
+      "boundary": "source-and-callers"
+    },
+    {
+      "path": "public/install/codex/hooks.json",
+      "sha256": "b7e5e486400a0b289a789f4f6ecc9d04188192ef031b7e6c1dcbc60d3d8ad2f8",
+      "disposition": "reviewed-retained",
+      "boundary": "source-and-callers"
+    },
+    {
+      "path": "public/install/codex/hooks/vibemon.py",
+      "sha256": "11d5f731598067d90872ea41ad99f31779b6926b064702e2af1480f521ffa952",
+      "disposition": "reviewed-retained",
+      "boundary": "source-and-callers"
+    },
+    {
+      "path": "public/install/favicon.ico",
+      "sha256": "9ac418f8d1953d294a65ba57131d495e2e42da1f7e1a008f759cb7559f590301",
+      "disposition": "reviewed-changed",
+      "boundary": "visual-format-or-generator-provenance"
+    },
+    {
+      "path": "public/install/index.html",
+      "sha256": "406cd06535c4399b80e72c64f8598fe484db1ddc1ffdfc7d26c34821c0885319",
+      "disposition": "reviewed-changed",
+      "boundary": "source-and-callers"
+    },
+    {
+      "path": "public/install/install.ps1",
+      "sha256": "3f41397e7ffc0801888ecdc6a79dcc30377f6b71a3a4132afc21cb40b517ee6b",
+      "disposition": "reviewed-retained",
+      "boundary": "source-and-callers"
+    },
+    {
+      "path": "public/install/install.py",
+      "sha256": "303e75744f5a16afd67859a81eefcf3f97621c9c55a843a771e01ada98d45c47",
+      "disposition": "reviewed-changed",
+      "boundary": "source-and-callers"
+    },
+    {
+      "path": "public/install/kiro/hooks/vibemon.json",
+      "sha256": "b4f43d0d1f3ae7f9884a2379ecc8d3f9ff62ac7b166f4b0b5e1f6a2c959cb2b9",
+      "disposition": "reviewed-retained",
+      "boundary": "source-and-callers"
+    },
+    {
+      "path": "public/install/kiro/hooks/vibemon.py",
+      "sha256": "769357ffc457caf738fdf2299e338f696d8d7903c9a9cb75d4872996fdc58573",
+      "disposition": "reviewed-retained",
+      "boundary": "source-and-callers"
+    },
+    {
+      "path": "public/install/manifest.json",
+      "sha256": "d36c36b23df434a945a5307c47c6dc5da09205f0ff97dc81fc806e7113f9c5fb",
+      "disposition": "reviewed-changed",
+      "boundary": "source-and-callers"
+    },
+    {
+      "path": "public/install/openclaw/extensions/index.mjs",
+      "sha256": "1bb35a92a0975813de73dd4d947f0057e5502ee759a793d0f56982ee6a3bc867",
+      "disposition": "reviewed-changed",
+      "boundary": "source-and-callers"
+    },
+    {
+      "path": "public/install/openclaw/extensions/openclaw.plugin.json",
+      "sha256": "128a5d1b57649575b25764614e5d8a8e93f68ab2b63d69ae759f244f125d49b0",
+      "disposition": "reviewed-retained",
+      "boundary": "source-and-callers"
+    },
+    {
+      "path": "public/install/opencode/hooks/vibemon.py",
+      "sha256": "de4ab61038f0e62ac2c708367cdd8cedd4a059ace6dd03c4b919162024dfaae0",
+      "disposition": "reviewed-retained",
+      "boundary": "source-and-callers"
+    },
+    {
+      "path": "public/install/opencode/plugin/vibemon.js",
+      "sha256": "d3e8ac4676d56e3b68ee3869cc2595c020de9300dd08317cfb98138a8cea2574",
+      "disposition": "reviewed-retained",
+      "boundary": "source-and-callers"
+    },
+    {
+      "path": "public/install/setup.md",
+      "sha256": "a59bc1a29f0d5eba1d6afdca7cd957d363fe9e7062f59597fb9d99cd0bd91b9a",
+      "disposition": "reviewed-changed",
+      "boundary": "current-contract-or-explicit-proposal"
+    },
+    {
+      "path": "public/install/vibemon/account_context.py",
+      "sha256": "3e8694250e8f718752e6ff4fd3ec4b6189dcf82d4fb998921101eb86049df5ab",
+      "disposition": "reviewed-retained",
+      "boundary": "source-and-callers"
+    },
+    {
+      "path": "public/install/vibemon/cache_io.py",
+      "sha256": "f99ddbcba818ac8cf5b84aa714cdec1ef4ff87f87680dd2868ef483deb208de7",
+      "disposition": "reviewed-retained",
+      "boundary": "source-and-callers"
+    },
+    {
+      "path": "public/install/vibemon/config.example.json",
+      "sha256": "d6cb3a66527ec2254163e05d676b145d8a00f68662789fd55cb212dbdcf2fbc5",
+      "disposition": "reviewed-retained",
+      "boundary": "source-and-callers"
+    },
+    {
+      "path": "public/install/vibemon/http_client.py",
+      "sha256": "306f9804a3bffc221b7c68f7b1f100937311908912ffb50bca500d493464052a",
+      "disposition": "reviewed-retained",
+      "boundary": "source-and-callers"
+    },
+    {
+      "path": "public/install/vibemon/statusline.example.json",
+      "sha256": "c4b370200330578bdc76707e6d20b729aeee8304d0b05906c804deafd09bec4f",
+      "disposition": "reviewed-retained",
+      "boundary": "source-and-callers"
+    },
+    {
+      "path": "public/install/vibemon/usage.py",
+      "sha256": "72b017917a14162e36bec00a01ad7a78c27e5d21b0ad2e7512fcc693fdbfdf41",
+      "disposition": "reviewed-retained",
+      "boundary": "source-and-callers"
+    },
+    {
+      "path": "public/install/vibemon/usage_cache.py",
+      "sha256": "7aee277334c97f5e34fb85af08204ce425dfc338c902cdf6110a8ccab43ac44d",
+      "disposition": "reviewed-retained",
+      "boundary": "source-and-callers"
+    },
+    {
+      "path": "public/install/vibemon/vibemon_core.py",
+      "sha256": "acaf80014eabd616223dd545d011d5e4b1041145e2f5311d9b1d9e9ca12e220b",
+      "disposition": "reviewed-retained",
+      "boundary": "source-and-callers"
+    },
+    {
+      "path": "scripts/check-registry.mjs",
+      "sha256": "dcc238c4526380a923eed5e9822e21726ba8e87d8c8f6e3ecd34c7aa58ad1236",
+      "disposition": "reviewed-retained",
+      "boundary": "source-and-callers"
+    },
+    {
+      "path": "scripts/export-web.mjs",
+      "sha256": "5e4a66f3d6c435febc8fa0d6642670db99789a38c937fb754f67f80f0f833e9d",
+      "disposition": "reviewed-retained",
+      "boundary": "source-and-callers"
+    },
+    {
+      "path": "scripts/export-windows-signing-certificate.ps1",
+      "sha256": "54c023e34f6d588a242845194f848301efe4e3579abc74561842baa48cea85f9",
+      "disposition": "reviewed-retained",
+      "boundary": "source-and-callers"
+    },
+    {
+      "path": "scripts/generate_manifest.py",
+      "sha256": "c252e6d773709f2f3b1ff7e801851160ffbd419751da6bed3b1506925fac19b0",
+      "disposition": "reviewed-retained",
+      "boundary": "source-and-callers"
+    },
+    {
+      "path": "scripts/verify-windows-release.sh",
+      "sha256": "526650ca12ee4be6495ba052dfeb85e7c16d7080fb4a53f263bdc712e6cfa320",
+      "disposition": "reviewed-retained",
+      "boundary": "source-and-callers"
+    },
+    {
+      "path": "src/assets/characters/claw.png",
+      "sha256": "d2a284c4c0fb9ca74e460401cba830e2849e110fc9a3ed4ffc3eb10406591672",
+      "disposition": "reviewed-retained",
+      "boundary": "visual-format-or-generator-provenance"
+    },
+    {
+      "path": "src/assets/characters/clawd.png",
+      "sha256": "68cf86a2479708c61da51d9377d773a7c8b39c6ca5d9217442a1d3c2f7542400",
+      "disposition": "reviewed-retained",
+      "boundary": "visual-format-or-generator-provenance"
+    },
+    {
+      "path": "src/assets/characters/codex.png",
+      "sha256": "d1b53c990f2630704d891b2d029ef81e3d31617d68b5bd77fa282acf4ecc5213",
+      "disposition": "reviewed-retained",
+      "boundary": "visual-format-or-generator-provenance"
+    },
+    {
+      "path": "src/assets/characters/daangni.png",
+      "sha256": "15adef9c668499434e7531ea0b4563147cef79d84861b5553d0bbe9705477e1a",
+      "disposition": "reviewed-retained",
+      "boundary": "visual-format-or-generator-provenance"
+    },
+    {
+      "path": "src/assets/characters/kiro.png",
+      "sha256": "dcb106fcec452993ee6c19297e37d41550bf32ecdcd4c75b55147965a7880941",
+      "disposition": "reviewed-retained",
+      "boundary": "visual-format-or-generator-provenance"
+    },
+    {
+      "path": "src/assets/characters/vibemon.png",
+      "sha256": "6dad234a59f3db0ce93652f5d4a8d20ae8f6f88b6427eea4942623954dc557af",
+      "disposition": "reviewed-retained",
+      "boundary": "visual-format-or-generator-provenance"
+    },
+    {
+      "path": "src/bubble.html",
+      "sha256": "1322d8b2cd40eb91a69246acab47d22e4091a44bdd3121b6424f185acd0532d4",
+      "disposition": "reviewed-retained",
+      "boundary": "source-and-callers"
+    },
+    {
+      "path": "src/bubble/vibemon-bubble.css",
+      "sha256": "e6accb4c9fdc703b37a032fa0700cd106da7b8164649c608ac6a2dffed573c32",
+      "disposition": "reviewed-changed",
+      "boundary": "source-and-callers"
+    },
+    {
+      "path": "src/bubble/vibemon-bubble.d.ts",
+      "sha256": "47ef2d2ff2387417a3ca24ceff349802f7849716c901cf88f7128d84a0e94877",
+      "disposition": "reviewed-retained",
+      "boundary": "source-and-callers"
+    },
+    {
+      "path": "src/bubble/vibemon-bubble.js",
+      "sha256": "af7846686171ce8784283ab610b0057c60453eda6bb76d21b0c2aeb7bc1c8854",
+      "disposition": "reviewed-retained",
+      "boundary": "source-and-callers"
+    },
+    {
+      "path": "src/engine/animation-policy.d.ts",
+      "sha256": "d62f9b983556b00b302243273e6269fe2c80c1d3834b7cc14fd4ca8f1cdf8642",
+      "disposition": "reviewed-changed",
+      "boundary": "source-and-callers"
+    },
+    {
+      "path": "src/engine/animation-policy.js",
+      "sha256": "c38e312efa7085ef959a34675642087749df3c7286ee21f8d28284db55e54183",
+      "disposition": "reviewed-changed",
+      "boundary": "source-and-callers"
+    },
+    {
+      "path": "src/engine/monster-states.js",
+      "sha256": "8a91d2d30ec3e39f1fdc682d69928f744d12872c4f8a02dab54e346cd1e37724",
+      "disposition": "reviewed-retained",
+      "boundary": "source-and-callers"
+    },
+    {
+      "path": "src/engine/vibemon-engine-3d.js",
+      "sha256": "af544c2cf1378c4c3e34e96a4dd8daad8377ef9cad097293229478625f32fc8b",
+      "disposition": "reviewed-changed",
+      "boundary": "source-and-callers"
+    },
+    {
+      "path": "src/engine/vibemon-engine.d.ts",
+      "sha256": "72d4bfddf9d19598b707e9a2b8f931018db4f1ae630e86a0963f6aef13aa65aa",
+      "disposition": "reviewed-changed",
+      "boundary": "source-and-callers"
+    },
+    {
+      "path": "src/engine/vibemon-engine.js",
+      "sha256": "59ffa05a68bcafb3f8e5f87803d96d2cc51d921e7d8e6e7cc793f7ce44ca62cc",
+      "disposition": "reviewed-changed",
+      "boundary": "source-and-callers"
+    },
+    {
+      "path": "src/index.html",
+      "sha256": "985e08887558ab3f8b87253e87c3cc34deba5ca9d4d8d5ce9e79f9bab2e57afd",
+      "disposition": "reviewed-retained",
+      "boundary": "source-and-callers"
+    },
+    {
+      "path": "src/main.js",
+      "sha256": "ee6dd4fb2523c16790ee7ec99a2ad614c5af55da6e65849eabd4388e5eb9296c",
+      "disposition": "reviewed-changed",
+      "boundary": "source-and-callers"
+    },
+    {
+      "path": "src/modules/bubble-window-manager.cjs",
+      "sha256": "1ccbaa59260b0df459718957f93b3dc02f19693133e926206a3f0d8ef9df3aac",
+      "disposition": "reviewed-retained",
+      "boundary": "source-and-callers"
+    },
+    {
+      "path": "src/modules/character-window-manager.cjs",
+      "sha256": "43a39fb7c7d6dea4405adf058aa0cb53c998e7691e3d17f3b1e02c3bf16f19d5",
+      "disposition": "reviewed-changed",
+      "boundary": "source-and-callers"
+    },
+    {
+      "path": "src/modules/dock-layout.cjs",
+      "sha256": "e260e23d9d82ef66b8444a38949433fafbed173b12c8224f313612d5dda6707e",
+      "disposition": "reviewed-retained",
+      "boundary": "source-and-callers"
+    },
+    {
+      "path": "src/modules/dock-monitor.cjs",
+      "sha256": "8b771b2c6800ff93496db9fe2840c32406b316494738b00f610be85b13b21738",
+      "disposition": "reviewed-retained",
+      "boundary": "source-and-callers"
+    },
+    {
+      "path": "src/modules/hook-cloud-delivery.cjs",
+      "sha256": "ca798ed8cb8923569f0dd9f4b3a6e91a1149d5084de75f8b398ebd4db1e0a253",
+      "disposition": "reviewed-changed",
+      "boundary": "source-and-callers"
+    },
+    {
+      "path": "src/modules/hook-installer.cjs",
+      "sha256": "49c629afbf198f2d92410c174d43aa40384c47c34fd764d8c5c77f90b183ed2d",
+      "disposition": "reviewed-retained",
+      "boundary": "source-and-callers"
+    },
+    {
+      "path": "src/modules/http-server.cjs",
+      "sha256": "b723322ea71a3102b06c093c3cbcceedf57ef458ba2906551db9bf94a9eecc66",
+      "disposition": "reviewed-retained",
+      "boundary": "source-and-callers"
+    },
+    {
+      "path": "src/modules/http-utils.cjs",
+      "sha256": "9ba8a48171a9bd48979e3233b884748c3959cd85f62cc48ff7c0c02b04b26c84",
+      "disposition": "reviewed-retained",
+      "boundary": "source-and-callers"
+    },
+    {
+      "path": "src/modules/python-runtime.cjs",
+      "sha256": "65782e104bf63c7e624c83dfb1c931fac836257b91e3234cee492db78ef4ca70",
+      "disposition": "reviewed-retained",
+      "boundary": "source-and-callers"
+    },
+    {
+      "path": "src/modules/state-manager.cjs",
+      "sha256": "116cc4a70f29f4821684847ea10accbc2400a9bd4ac915cec0f1e6bc4ea24d32",
+      "disposition": "reviewed-retained",
+      "boundary": "source-and-callers"
+    },
+    {
+      "path": "src/modules/tray-manager.cjs",
+      "sha256": "ce28a156aeabea2df01af50116e9b2c4215e301470a0dbe6b42130487ef5cb38",
+      "disposition": "reviewed-retained",
+      "boundary": "source-and-callers"
+    },
+    {
+      "path": "src/modules/update-checker.cjs",
+      "sha256": "2778d1d63b16f9dc7fc777ed901b5098b7cd5578a6da16d49f35845fac8d9a8c",
+      "disposition": "reviewed-retained",
+      "boundary": "source-and-callers"
+    },
+    {
+      "path": "src/modules/usage-cache-reader.cjs",
+      "sha256": "7522932167f3b38d0a3dd485725064cb86d3cef8df89706e282f5bc1798b8f71",
+      "disposition": "reviewed-retained",
+      "boundary": "source-and-callers"
+    },
+    {
+      "path": "src/modules/usage-refresher.cjs",
+      "sha256": "194d826f83ab070dfe7828afb07912b5b62dbe6f2bab7876023ef1865908f878",
+      "disposition": "reviewed-retained",
+      "boundary": "source-and-callers"
+    },
+    {
+      "path": "src/modules/validators.cjs",
+      "sha256": "994434753df57e740107a37068c8764b60440c08c95eddeb79bb864aee622f69",
+      "disposition": "reviewed-retained",
+      "boundary": "source-and-callers"
+    },
+    {
+      "path": "src/modules/vibemon-config-manager.cjs",
+      "sha256": "a3ceb8dc87956817dc75afbe7d394fc83feda63312f8eacf033f4647f707dc14",
+      "disposition": "reviewed-changed",
+      "boundary": "source-and-callers"
+    },
+    {
+      "path": "src/modules/window-pointer.cjs",
+      "sha256": "5c5b7cd0a1ed70755fe791adbd0533fa37ad5e642b3218141b2530ede312f2fd",
+      "disposition": "reviewed-retained",
+      "boundary": "source-and-callers"
+    },
+    {
+      "path": "src/modules/window-position.cjs",
+      "sha256": "38470cc541b35836e69182038c04ec6a99f4b6b74d53f551a8be174c5641d93a",
+      "disposition": "reviewed-retained",
+      "boundary": "source-and-callers"
+    },
+    {
+      "path": "src/monitoring/client.cjs",
+      "sha256": "65b72d6048a5ff8aeecf48fa1773382a4515e7f5430e03e112b3cdfc538446ed",
+      "disposition": "reviewed-changed",
+      "boundary": "source-and-callers"
+    },
+    {
+      "path": "src/monitoring/credential-store.cjs",
+      "sha256": "906b13db38a21e657c671819cbf76a1ce7b97c63f8324488313e811cd0133ee6",
+      "disposition": "reviewed-changed",
+      "boundary": "source-and-callers"
+    },
+    {
+      "path": "src/monitoring/domain.cjs",
+      "sha256": "572e21a9485adf6ab5fc3b59504c68215ce83cd1482dd754be12b69db846869b",
+      "disposition": "reviewed-changed",
+      "boundary": "source-and-callers"
+    },
+    {
+      "path": "src/native/dock-bounds.jxa",
+      "sha256": "452aaaff0cc8c9904d98c1e83775931117e0d3db2240e13ec3492d8441183484",
+      "disposition": "reviewed-retained",
+      "boundary": "source-and-callers"
+    },
+    {
+      "path": "src/preload.js",
+      "sha256": "fbd0fe3408b4abf110a122f6580c76b304ce044e1280a1892341577db381878c",
+      "disposition": "reviewed-retained",
+      "boundary": "source-and-callers"
+    },
+    {
+      "path": "src/renderer.js",
+      "sha256": "76438e256f98df7fbe4117866f784d52ec8c1fe0452e9392eff8e6ac457de2c4",
+      "disposition": "reviewed-changed",
+      "boundary": "source-and-callers"
+    },
+    {
+      "path": "src/shared/3d-framing.js",
+      "sha256": "c87675d076d884b92e4ccee4521876bb62ad96fb0d901b475c0672768da1c372",
+      "disposition": "reviewed-retained",
+      "boundary": "source-and-callers"
+    },
+    {
+      "path": "src/shared/characters.cjs",
+      "sha256": "cd687a9ae4187c3f7a1bb56040aaedc40ce1ca7713ef3b4cea33e13c156252ed",
+      "disposition": "reviewed-retained",
+      "boundary": "source-and-callers"
+    },
+    {
+      "path": "src/shared/config.cjs",
+      "sha256": "103bc32653fc52a66bbfa37df5c2c36faaa1fa637fafeee60a01318425724089",
+      "disposition": "reviewed-retained",
+      "boundary": "source-and-callers"
+    },
+    {
+      "path": "src/shared/constants.cjs",
+      "sha256": "5ef0c29ebc1b40c891e0917fa0053b3f791ab4de6b00a69f5d47fcddb5349a9a",
+      "disposition": "reviewed-retained",
+      "boundary": "source-and-callers"
+    },
+    {
+      "path": "src/shared/data/characters.json",
+      "sha256": "c291c1c647962839cc63114bb6a119c1303d22ca23da856ae63f049ce2b5f6be",
+      "disposition": "reviewed-retained",
+      "boundary": "source-and-callers"
+    },
+    {
+      "path": "src/shared/data/constants.json",
+      "sha256": "07e2ea7f0299d305ab58eecf72583af296deff6f8578b0732c2dc54aa940e0d7",
+      "disposition": "reviewed-changed",
+      "boundary": "source-and-callers"
+    },
+    {
+      "path": "src/shared/data/states.json",
+      "sha256": "83e2f6afafd358e770f0f6a84637be84da152b480cb66938051720abbf863e4a",
+      "disposition": "reviewed-retained",
+      "boundary": "source-and-callers"
+    },
+    {
+      "path": "src/shared/design/brand-mark.svg",
+      "sha256": "f630845b52f676c3ffa8ddc5edcb67765f153766521d6a731dc32d3744d83974",
+      "disposition": "reviewed-changed",
+      "boundary": "source-and-callers"
+    },
+    {
+      "path": "src/shared/design/presentation.d.mts",
+      "sha256": "b6ec5623e28629ce8c1d47fa7b914688d24bc40b790c3296c61ba7e86cefec9d",
+      "disposition": "reviewed-changed",
+      "boundary": "source-and-callers"
+    },
+    {
+      "path": "src/shared/design/presentation.mjs",
+      "sha256": "62208bb019a9a37bed87d64c904144517659622384096c28f5a009f69d9c3d08",
+      "disposition": "reviewed-changed",
+      "boundary": "source-and-callers"
+    },
+    {
+      "path": "src/shared/design/tokens.css",
+      "sha256": "61904d958b390d9e96ba386e240b484d633c47e4e7b7aa15d282f8a42e2c09dc",
+      "disposition": "reviewed-changed",
+      "boundary": "source-and-callers"
+    },
+    {
+      "path": "src/shared/install-result.cjs",
+      "sha256": "5ec9ed1c0e056f5233103d473bcc2f4a19d14a64356fcbd74fffb4ab547c5150",
+      "disposition": "reviewed-retained",
+      "boundary": "source-and-callers"
+    },
+    {
+      "path": "src/shared/json-response.cjs",
+      "sha256": "afebbca3da84f8786d96f69dc0d182e874add940f34a77ab4d7d79e6a42630e4",
+      "disposition": "reviewed-retained",
+      "boundary": "source-and-callers"
+    },
+    {
+      "path": "src/shared/registry-cache.cjs",
+      "sha256": "d35a67111a41198170920c6935767dea9d43f77b21e9189ba9bc0ff1b5650d08",
+      "disposition": "reviewed-retained",
+      "boundary": "source-and-callers"
+    },
+    {
+      "path": "src/shared/resource-schema.cjs",
+      "sha256": "5c84a938321c996b54028ae641b70508c866f4b10de95a607615d8ba77edf93e",
+      "disposition": "reviewed-retained",
+      "boundary": "source-and-callers"
+    },
+    {
+      "path": "src/shared/resource-schema.d.cts",
+      "sha256": "48a49fabc1c30416a63f44c3d47871b0f3f012f4edd8af9fb1c0a808adeae897",
+      "disposition": "reviewed-retained",
+      "boundary": "source-and-callers"
+    },
+    {
+      "path": "src/shared/states.cjs",
+      "sha256": "d8171575562911b0a131b8b5add782e6925be021a21867fb5f833016e14c465d",
+      "disposition": "reviewed-retained",
+      "boundary": "source-and-callers"
+    },
+    {
+      "path": "src/shared/web-origin.cjs",
+      "sha256": "34c76d257c089151603be39c016f4ed5e197c372beb872644826a498e5252db0",
+      "disposition": "reviewed-changed",
+      "boundary": "source-and-callers"
+    },
+    {
+      "path": "src/shared/window-interaction.js",
+      "sha256": "dcd0a83255d3f7075a629886c0991ed0c7018720001fc598551c56313d21743b",
+      "disposition": "reviewed-retained",
+      "boundary": "source-and-callers"
+    },
+    {
+      "path": "src/styles.css",
+      "sha256": "4c3e10a9d95d053ea8b0f601ac71035315721fb30d509bc5bc29c5509bdc9b0a",
+      "disposition": "reviewed-changed",
+      "boundary": "source-and-callers"
+    },
+    {
+      "path": "src/vendor/three.core.min.js",
+      "sha256": "05b2609338c76cd65daf74f3ac515bc9a5045e1b3b33edc07d8c9bd55250fa90",
+      "disposition": "reviewed-retained",
+      "boundary": "locked-vendor-byte-comparison-and-license"
+    },
+    {
+      "path": "src/vendor/three.module.min.js",
+      "sha256": "86bcee248b64f44bcfc23c331ae74619061957d59cab040171dcb6fb5900beb6",
+      "disposition": "reviewed-retained",
+      "boundary": "locked-vendor-byte-comparison-and-license"
+    },
+    {
+      "path": "src/workspace/activity.cjs",
+      "sha256": "20b8bcd3d567aaad6827180109f4bfc76cd9fdf5e258658dc016a8694586beeb",
+      "disposition": "reviewed-retained",
+      "boundary": "source-and-callers"
+    },
+    {
+      "path": "src/workspace/dom.js",
+      "sha256": "d460f815e599696f133e8d7fc334b29ad23042497a6a62419d02bfb052575262",
+      "disposition": "reviewed-changed",
+      "boundary": "source-and-callers"
+    },
+    {
+      "path": "src/workspace/index.html",
+      "sha256": "182590234b363be0aa6a3778cbbe1e45d8a37fb320c36825ff05f6574a073ba9",
+      "disposition": "reviewed-changed",
+      "boundary": "source-and-callers"
+    },
+    {
+      "path": "src/workspace/menu.cjs",
+      "sha256": "322cbaa5232707fe84a1e27540221065067e3b19d84cb4b62048ba4ea04893ed",
+      "disposition": "reviewed-retained",
+      "boundary": "source-and-callers"
+    },
+    {
+      "path": "src/workspace/preload.cjs",
+      "sha256": "87573a85fcba0eb8bbf1e1deb85cbff598b16beb1d8c133c80f9343a46e729b1",
+      "disposition": "reviewed-retained",
+      "boundary": "source-and-callers"
+    },
+    {
+      "path": "src/workspace/renderer.js",
+      "sha256": "428a64ca046d4e49212dfa8b9c1cb9c0557466ceb28fb4fe1f71d11cf9de1b56",
+      "disposition": "reviewed-changed",
+      "boundary": "source-and-callers"
+    },
+    {
+      "path": "src/workspace/settings.cjs",
+      "sha256": "504798e3e75b6067949e6c5ef53a8053797680531eaaa9f2c1c63b81bd6404be",
+      "disposition": "reviewed-changed",
+      "boundary": "source-and-callers"
+    },
+    {
+      "path": "src/workspace/style.css",
+      "sha256": "49aad80b45dd1ed7767fcf7c7b548d885a4fbd3d9ed50c9e235acd78266703fe",
+      "disposition": "reviewed-changed",
+      "boundary": "source-and-callers"
+    },
+    {
+      "path": "src/workspace/views/cards.js",
+      "sha256": "12b0f69c81612882b2adec22f0e7f2b9fe6c04b30afd224701eb723ac4e2747f",
+      "disposition": "reviewed-changed",
+      "boundary": "source-and-callers"
+    },
+    {
+      "path": "src/workspace/views/detail.js",
+      "sha256": "ef5ef58c15ded9b44e764c9948f03ad39c4677cd3c02c7164f5cc29aacc6afe8",
+      "disposition": "reviewed-changed",
+      "boundary": "source-and-callers"
+    },
+    {
+      "path": "src/workspace/views/preferences.js",
+      "sha256": "f734f81b25692a86a3b6732112b286f793cbe6b2642ac24a82bfae4aaeea6848",
+      "disposition": "reviewed-changed",
+      "boundary": "source-and-callers"
+    },
+    {
+      "path": "src/workspace/views/selection.js",
+      "sha256": "e36ac9251d978709d1ad6002aab5f6a354513300bf97a94499c5654c13a2ad4b",
+      "disposition": "reviewed-retained",
+      "boundary": "source-and-callers"
+    },
+    {
+      "path": "src/workspace/window.cjs",
+      "sha256": "2eb6bc03ac6cf883b9b694a76b36236ab29e916cc3d8be365c9ae5ddcdba11b3",
+      "disposition": "reviewed-changed",
+      "boundary": "source-and-callers"
+    },
+    {
+      "path": "tests/3d-framing.test.js",
+      "sha256": "0503aeafca84a24b1252367a14c869a53a8a5762c976b1fa8c314f61c5223f88",
+      "disposition": "reviewed-retained",
+      "boundary": "source-and-callers"
+    },
+    {
+      "path": "tests/animation-policy.test.js",
+      "sha256": "af262e9be8bfddd8862e7eac033370eb3ec9a8d7ce18eb719b5de4b0afa615fd",
+      "disposition": "reviewed-changed",
+      "boundary": "source-and-callers"
+    },
+    {
+      "path": "tests/bubble-window-manager.test.js",
+      "sha256": "b184ed9eb27505664e96185ad94f7d27a1fabd5d6ecf01fd2cb78e6c0ed5acd0",
+      "disposition": "reviewed-retained",
+      "boundary": "source-and-callers"
+    },
+    {
+      "path": "tests/character-window-manager.test.js",
+      "sha256": "57ec3c92deebbc6d65393de0b5b66a9dfc868534b4a2b777d81d10e4c5978b9b",
+      "disposition": "reviewed-changed",
+      "boundary": "source-and-callers"
+    },
+    {
+      "path": "tests/characters.test.js",
+      "sha256": "5509bb9ee51c1a8e62dc1b8acb6027696e3b096ee2df0946bf368845d0d85fe2",
+      "disposition": "reviewed-retained",
+      "boundary": "source-and-callers"
+    },
+    {
+      "path": "tests/constants.test.js",
+      "sha256": "26c0bfd65deed5517743aa54eb2603571ecdfd2cef448ec8d8cb8e38df885f2a",
+      "disposition": "reviewed-retained",
+      "boundary": "source-and-callers"
+    },
+    {
+      "path": "tests/design.test.mjs",
+      "sha256": "2473005bfe60d025f6ce9382ea6414c1c5600a4f32e1226128a513c9aabd1f14",
+      "disposition": "reviewed-changed",
+      "boundary": "source-and-callers"
+    },
+    {
+      "path": "tests/dock-bounds.test.js",
+      "sha256": "60dccb82573d7e207af59fe68d5fe5b6151ac8041aa240d75a9f70a309c690fc",
+      "disposition": "reviewed-retained",
+      "boundary": "source-and-callers"
+    },
+    {
+      "path": "tests/dock-candidates.test.js",
+      "sha256": "a276f5c251c5a5585d1897c29accf9c7f8bdc9034e111e39d2e603473cd442fc",
+      "disposition": "reviewed-retained",
+      "boundary": "source-and-callers"
+    },
+    {
+      "path": "tests/dock-layout.test.js",
+      "sha256": "251c5e3b7a77bf7db872b5d9144be9ff547bbe3af3bc75822b7b9050183476b8",
+      "disposition": "reviewed-retained",
+      "boundary": "source-and-callers"
+    },
+    {
+      "path": "tests/dock-monitor.test.js",
+      "sha256": "f5f0b974055842141fdbff91e86a4631280834c375d9ca1d4006e1f1afc2f22f",
+      "disposition": "reviewed-retained",
+      "boundary": "source-and-callers"
+    },
+    {
+      "path": "tests/engine-3d.test.js",
+      "sha256": "32d1e6849142f1162111e50495596e40ff32021d61691c7397acc757aec0f45a",
+      "disposition": "reviewed-changed",
+      "boundary": "source-and-callers"
+    },
+    {
+      "path": "tests/engine.test.js",
+      "sha256": "aa602e41955f627c952c1e6f323ce92f64d5efe3b341508e037f64056e2c33d0",
+      "disposition": "reviewed-changed",
+      "boundary": "source-and-callers"
+    },
+    {
+      "path": "tests/fixtures/workspace.cjs",
+      "sha256": "0109c60e7f2511a4e92e1231e504dd086658d360cc04df450ea20f0d77c6c44c",
+      "disposition": "reviewed-changed",
+      "boundary": "source-and-callers"
+    },
+    {
+      "path": "tests/hook-cloud-delivery.test.js",
+      "sha256": "ba02d5de5c1f6193ba3c60cdb3cb01b99ff14c5f753a4b5b506c79e7ca7ea096",
+      "disposition": "reviewed-changed",
+      "boundary": "source-and-callers"
+    },
+    {
+      "path": "tests/hook-installer.test.js",
+      "sha256": "a9c352492218ff53eaaf9b87e96be09fe2b54ff0169a55b01b7ddc65a71429ec",
+      "disposition": "reviewed-retained",
+      "boundary": "source-and-callers"
+    },
+    {
+      "path": "tests/hooks/install.test.ps1",
+      "sha256": "dd3d1d5f7712ee0d18f786af9ed8598993e77d036be4a3a78951136450b89e06",
+      "disposition": "reviewed-retained",
+      "boundary": "source-and-callers"
+    },
+    {
+      "path": "tests/hooks/openclaw.test.mjs",
+      "sha256": "e74c750a9634f3bcec3a0c82c3dc610f6480f64fd017a91ec83de66e93ee1b84",
+      "disposition": "reviewed-changed",
+      "boundary": "source-and-callers"
+    },
+    {
+      "path": "tests/hooks/opencode.test.mjs",
+      "sha256": "526a68320fb6a8d5d5710af52cda3dcfd109fc61173ad4d2c4324a17992714ca",
+      "disposition": "reviewed-retained",
+      "boundary": "source-and-callers"
+    },
+    {
+      "path": "tests/hooks/plugin_harness.mjs",
+      "sha256": "add9cbb4a4a7e49790babaaeb047f74da1d5d1484fc14bad86defc5148f7da65",
+      "disposition": "reviewed-changed",
+      "boundary": "source-and-callers"
+    },
+    {
+      "path": "tests/hooks/test_accounts.py",
+      "sha256": "5d54d16163aa1ab7f2cba875595c3c27325f1df5cc25369bdeacf872055fac67",
+      "disposition": "reviewed-retained",
+      "boundary": "source-and-callers"
+    },
+    {
+      "path": "tests/hooks/test_cache_io.py",
+      "sha256": "cf9e1c6f79c35c0925538ac0f92dfe20d5a0beee0578fe5627b8e8eea0d8170b",
+      "disposition": "reviewed-retained",
+      "boundary": "source-and-callers"
+    },
+    {
+      "path": "tests/hooks/test_hook_events.py",
+      "sha256": "c07015286884507a4057b324b7e10b51974a62791ad79dcf82a38de58fdd9a9e",
+      "disposition": "reviewed-retained",
+      "boundary": "source-and-callers"
+    },
+    {
+      "path": "tests/hooks/test_http_client.py",
+      "sha256": "b17ad396736b94836bb5b770ff8048937b23ce1666f8063b793791ecde5d71c8",
+      "disposition": "reviewed-retained",
+      "boundary": "source-and-callers"
+    },
+    {
+      "path": "tests/hooks/test_install.py",
+      "sha256": "e4083592c06e041c955191a93a38a89573fa26e0bdc538d2a5c152588722e920",
+      "disposition": "reviewed-retained",
+      "boundary": "source-and-callers"
+    },
+    {
+      "path": "tests/hooks/test_install_source.py",
+      "sha256": "c04760840e25bf96603bcc9e7c661ef780d2f84d5af8b28792962db51ccbf119",
+      "disposition": "reviewed-retained",
+      "boundary": "source-and-callers"
+    },
+    {
+      "path": "tests/hooks/test_manifest.py",
+      "sha256": "6c0610012013559f94ca53e7ec9a514e00e77b7ef8824c26e79e0b49ae418424",
+      "disposition": "reviewed-retained",
+      "boundary": "source-and-callers"
+    },
+    {
+      "path": "tests/hooks/test_openclaw_install.py",
+      "sha256": "1d3942fa74df640486ee986eb42baa073ab9108d065693568b2c5c8efc206174",
+      "disposition": "reviewed-changed",
+      "boundary": "source-and-callers"
+    },
+    {
+      "path": "tests/hooks/test_statusline.py",
+      "sha256": "81ac219bac82b86cd6d95285520ea7cdc73a7b595bcc989d454a92f5b18b1171",
+      "disposition": "reviewed-retained",
+      "boundary": "source-and-callers"
+    },
+    {
+      "path": "tests/hooks/test_unknown_metrics.py",
+      "sha256": "05eb5d84d18442739a6770e95d3d40ace2dd6078734f8631be9c4b733dbc2e09",
+      "disposition": "reviewed-retained",
+      "boundary": "source-and-callers"
+    },
+    {
+      "path": "tests/hooks/test_usage.py",
+      "sha256": "c33e30753bf5896b621c969b4039f8799ea2c8fbaca2e198fa452110b41fadf1",
+      "disposition": "reviewed-retained",
+      "boundary": "source-and-callers"
+    },
+    {
+      "path": "tests/hooks/test_usage_cache.py",
+      "sha256": "578ab559f27d40bb88cb0cc7b286485c182e86918bc4abaab6144bd63640caa5",
+      "disposition": "reviewed-retained",
+      "boundary": "source-and-callers"
+    },
+    {
+      "path": "tests/hooks/test_vibemon_core.py",
+      "sha256": "1db672e7dddc496f826c9f476a026d527cb8e0686edae398a67fbdac058318c5",
+      "disposition": "reviewed-retained",
+      "boundary": "source-and-callers"
+    },
+    {
+      "path": "tests/http-body-errors.test.js",
+      "sha256": "f17705642216a4f090f8e08059f160631cdd3b80fda3bbb726f99756daa89c75",
+      "disposition": "reviewed-retained",
+      "boundary": "source-and-callers"
+    },
+    {
+      "path": "tests/http-server.test.js",
+      "sha256": "8834a1fc23da4d3ffcfeb53c9175cc68918d02a2fb846c0b878b2575c8fe2669",
+      "disposition": "reviewed-retained",
+      "boundary": "source-and-callers"
+    },
+    {
+      "path": "tests/http-utils.test.js",
+      "sha256": "db67e24851f92b2b8f472e3e2d6361bc146f488fb439e7af371231400c37c63f",
+      "disposition": "reviewed-retained",
+      "boundary": "source-and-callers"
+    },
+    {
+      "path": "tests/monitoring.test.js",
+      "sha256": "b60ea558585c65780d423ecd3dc1b2ab806d5122e0723b738517e5c812bae671",
+      "disposition": "reviewed-changed",
+      "boundary": "source-and-callers"
+    },
+    {
+      "path": "tests/monster-states.test.js",
+      "sha256": "573298039eb109ec253e87b4f3d41de4687a2eaf06872724d66b0ea1145fbe9c",
+      "disposition": "reviewed-retained",
+      "boundary": "source-and-callers"
+    },
+    {
+      "path": "tests/native/dock-candidates.cjs",
+      "sha256": "eccd349936e4e2a339bd06f3d09f77ba3bbfc6a067203d533d0a8896246b2a46",
+      "disposition": "reviewed-retained",
+      "boundary": "source-and-callers"
+    },
+    {
+      "path": "tests/native/monitoring-smoke.cjs",
+      "sha256": "109d27612f804e73e83d66b8af9dd6e2b4ffd97ef05efe155f79e82f7f1d07f9",
+      "disposition": "reviewed-changed",
+      "boundary": "source-and-callers"
+    },
+    {
+      "path": "tests/native/overlay-smoke.cjs",
+      "sha256": "98e003ba19becae1acca56b95f9a4c3a4db1dde2d9054af1f833b5701ae82266",
+      "disposition": "reviewed-changed",
+      "boundary": "source-and-callers"
+    },
+    {
+      "path": "tests/native/run-workspace.cjs",
+      "sha256": "5b33045c3cf3deba03796b193fd6e66e8ec85eb10d28e87b79f7668398b14c99",
+      "disposition": "reviewed-retained",
+      "boundary": "source-and-callers"
+    },
+    {
+      "path": "tests/native/windows-mouse.ps1",
+      "sha256": "73ac3d01047c82144a71f2d10843f263914d565480f2b1a4f980612afcf6d8cf",
+      "disposition": "reviewed-retained",
+      "boundary": "source-and-callers"
+    },
+    {
+      "path": "tests/native/workspace-fixture.cjs",
+      "sha256": "f3a01e50ed026e6b4cac171aeab43b0f3d01415858917bc87743fdfc9e128d8c",
+      "disposition": "reviewed-changed",
+      "boundary": "source-and-callers"
+    },
+    {
+      "path": "tests/native/workspace-preview.cjs",
+      "sha256": "3ba2ed73831ae2c0253a9324264420550fb466a13b6ca094eea5ecaa33d382a0",
+      "disposition": "reviewed-retained",
+      "boundary": "source-and-callers"
+    },
+    {
+      "path": "tests/native/workspace-smoke.cjs",
+      "sha256": "9839788f22e053b8e1a46cfbe8ff8c4ecb9e9e10913067d823abde1a04453197",
+      "disposition": "reviewed-changed",
+      "boundary": "source-and-callers"
+    },
+    {
+      "path": "tests/preload.test.js",
+      "sha256": "a10f7229545add976a1ac4f74013c6225533575bec01e5e21de96eac399bb6be",
+      "disposition": "reviewed-retained",
+      "boundary": "source-and-callers"
+    },
+    {
+      "path": "tests/public-registry.test.js",
+      "sha256": "6904c2efe1b95c84205d23e54424d5d493ac4ec329676a6055715fe8a70a1120",
+      "disposition": "reviewed-retained",
+      "boundary": "source-and-callers"
+    },
+    {
+      "path": "tests/python-runtime.test.js",
+      "sha256": "445e5401bfa3a07809aca3dc9966255e4812b5ecaa25f5af6656e27efeb9a976",
+      "disposition": "reviewed-retained",
+      "boundary": "source-and-callers"
+    },
+    {
+      "path": "tests/registry-cache.test.js",
+      "sha256": "314e6ef1da83e533fc0e71e6bf595029c40fe1cbe156876b2a19e9a53dfd435e",
+      "disposition": "reviewed-retained",
+      "boundary": "source-and-callers"
+    },
+    {
+      "path": "tests/state-manager.test.js",
+      "sha256": "99c58ce0a2fe70fbcc1033129f296b3041cca7070d7b386ae141ce8a835d4e45",
+      "disposition": "reviewed-retained",
+      "boundary": "source-and-callers"
+    },
+    {
+      "path": "tests/states.test.js",
+      "sha256": "ecd9b711785a23deb3eb83861d20d8e7282e25ebe4a4e8040516c4ae3f9f138a",
+      "disposition": "reviewed-retained",
+      "boundary": "source-and-callers"
+    },
+    {
+      "path": "tests/tray-manager.test.js",
+      "sha256": "cb9d5a665f1f0547abe0ab421727e73058acef1b7093a8e45766c224c3d66b05",
+      "disposition": "reviewed-retained",
+      "boundary": "source-and-callers"
+    },
+    {
+      "path": "tests/update-checker.test.js",
+      "sha256": "d26da223766f12f37c5ecf93036657fa0ba75772e38f8993ad2b263bfb96ed50",
+      "disposition": "reviewed-retained",
+      "boundary": "source-and-callers"
+    },
+    {
+      "path": "tests/usage-cache-reader.test.js",
+      "sha256": "97388a583302dafba4e698567113999030f0b79c004c800cfdc6f8472df60b7a",
+      "disposition": "reviewed-retained",
+      "boundary": "source-and-callers"
+    },
+    {
+      "path": "tests/usage-refresher.test.js",
+      "sha256": "2f4dc9072c1c5cbc1c6cc6030bb70a749038edd0e98864de7a9e334d5339e7c5",
+      "disposition": "reviewed-retained",
+      "boundary": "source-and-callers"
+    },
+    {
+      "path": "tests/validators.test.js",
+      "sha256": "1eb503cc28fb581be2d72aa43c97af15d73fc17cea8f23425ad1b8326a4f3129",
+      "disposition": "reviewed-retained",
+      "boundary": "source-and-callers"
+    },
+    {
+      "path": "tests/vibemon-config-manager.test.js",
+      "sha256": "2272c301b972fcefaff3a61f97e898d369ecad74966c70d17b000ae062a91fb0",
+      "disposition": "reviewed-changed",
+      "boundary": "source-and-callers"
+    },
+    {
+      "path": "tests/window-interaction.test.js",
+      "sha256": "d45534d8efc89fa434e4c3def9307bb27482de774be9e3ae270cae09da2f2eb0",
+      "disposition": "reviewed-retained",
+      "boundary": "source-and-callers"
+    },
+    {
+      "path": "tests/window-pointer.test.js",
+      "sha256": "be618aba363b6d783f7f28e8d9516fbea4b654b9b0e89aaba14db4097594a5eb",
+      "disposition": "reviewed-retained",
+      "boundary": "source-and-callers"
+    },
+    {
+      "path": "tests/window-position.test.js",
+      "sha256": "c00fcf00b7430bf1c8fd652c4e407d106f2929918ef3d4781bb608733ebf7dd5",
+      "disposition": "reviewed-retained",
+      "boundary": "source-and-callers"
+    },
+    {
+      "path": "tests/workspace-activity.test.js",
+      "sha256": "c7fdb5eacd89117c345453e9ea059db26638d9856510f99bdb82c0ba4acfc1c3",
+      "disposition": "reviewed-retained",
+      "boundary": "source-and-callers"
+    },
+    {
+      "path": "tests/workspace-menu.test.js",
+      "sha256": "8b40872078302296db6330ee1a7dbf9b6018afe321641e8092a5d70611bbabe0",
+      "disposition": "reviewed-retained",
+      "boundary": "source-and-callers"
+    },
+    {
+      "path": "tests/workspace-settings.test.js",
+      "sha256": "b0adb824412db90d853a1a2632f4834498ad5bf5fd9c84472f406f6a4a07e2db",
+      "disposition": "reviewed-changed",
+      "boundary": "source-and-callers"
+    },
+    {
+      "path": "tests/workspace-window.test.js",
+      "sha256": "3b24c201169561b11837dfb6cfbb6e2e0f30fc7a7d908ae021dfcd3c8eaf37ae",
+      "disposition": "reviewed-changed",
+      "boundary": "source-and-callers"
+    },
+    {
+      "path": "tools/sprites/check_bands.py",
+      "sha256": "2dbaf7334c88cf1e7aa8f6e4499cd62b2d3e03254f2292bfd05d8f054412e2d6",
+      "disposition": "reviewed-retained",
+      "boundary": "source-and-callers"
+    },
+    {
+      "path": "tools/sprites/daangni.png",
+      "sha256": "b32f45524d5154126f1f005c067705e3d80a689a422a1b7b020b7e0d4f08b365",
+      "disposition": "reviewed-retained",
+      "boundary": "visual-format-or-generator-provenance"
+    },
+    {
+      "path": "tools/sprites/generate_sprite.py",
+      "sha256": "8fec9a8aa5596ea7c612ee386f54a80bf1a6e780065bcfa6e0958d3c1eaa4e68",
+      "disposition": "reviewed-retained",
+      "boundary": "source-and-callers"
+    },
+    {
+      "path": "tools/sprites/grid_template.png",
+      "sha256": "c4516d261f2a9dbf3747b36e9675496c19ae2089d08610aa564fd9e97d26f131",
+      "disposition": "reviewed-retained",
+      "boundary": "visual-format-or-generator-provenance"
+    },
+    {
+      "path": "tools/sprites/motion.md",
+      "sha256": "12e7139bc56ac2415bfc40632787a0639934b00dc275bca9066a16cc23fc9ef8",
+      "disposition": "reviewed-retained",
+      "boundary": "current-contract-or-explicit-proposal"
+    },
+    {
+      "path": "tools/sprites/postprocess_sprite.py",
+      "sha256": "38e3f6f0b98fd9405d57548b780d86762872864649e38be1a9f7f34e78b0fbec",
+      "disposition": "reviewed-retained",
+      "boundary": "source-and-callers"
+    },
+    {
+      "path": "tools/sprites/preview.html",
+      "sha256": "8670f1b78bfe4159cbb541c05f8dca37e86c51de7af67d9a94c27f4128f2b8bf",
+      "disposition": "reviewed-retained",
+      "boundary": "source-and-callers"
+    },
+    {
+      "path": "tools/sprites/spritesheet.md",
+      "sha256": "f7ab24b17df9bc433ee2ecd09bc406386c3cce1d1f4bad0d65a99e11308ed0e6",
+      "disposition": "reviewed-retained",
+      "boundary": "current-contract-or-explicit-proposal"
+    },
+    {
+      "path": "tools/sprites/spritesheet2.md",
+      "sha256": "d0a1cf2ed9bab3c8004a773e199070f79945fd2b13bf1273df15ae7463eb3950",
+      "disposition": "reviewed-retained",
+      "boundary": "current-contract-or-explicit-proposal"
+    },
+    {
+      "path": "tools/sprites/spritesheet_claude.png",
+      "sha256": "e92fbe4e485e4507b3e8ba29a1e14ee552eca4778e4a511acfa1a00726f6e634",
+      "disposition": "reviewed-retained",
+      "boundary": "visual-format-or-generator-provenance"
+    },
+    {
+      "path": "tools/sprites/spritesheet_codex.png",
+      "sha256": "d87c09f5b6c853a6f389d7d0761a94b3a4b5ebbf0d4c5e58259af1ebac3932ee",
+      "disposition": "reviewed-retained",
+      "boundary": "visual-format-or-generator-provenance"
+    },
+    {
+      "path": "tools/sprites/verify_sprite.py",
+      "sha256": "ba7f5eca37e4d9c393e81550f42350e9b401e5649695cfd3931f5446f4b9dc28",
+      "disposition": "reviewed-retained",
+      "boundary": "source-and-callers"
+    },
+    {
+      "path": "web-distribution.json",
+      "sha256": "bd7326488d3fb98b43c96ac1c4a8ce6567d394e2c07c976b4a8c5558879254b7",
+      "disposition": "reviewed-changed",
+      "boundary": "source-and-callers"
+    }
+  ]
+}
