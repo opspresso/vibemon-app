@@ -297,40 +297,46 @@ async function verify3DFraming(win, scale) {
   fs.writeFileSync(path.join(output, '3d-framing.json'), JSON.stringify({ padding, before, after }, null, 2));
   assert(after.width > before.width * 1.15 && after.height > before.height * 1.15, '3D framing fills more of the same window');
   const frames = [];
-  for (const state of Object.keys(states.states)) {
-    win.webContents.send('state-update', { state, character: 'clawd' });
+  for (const character of ['clawd', 'vibemon']) for (const state of Object.keys(states.states)) {
+    win.webContents.send('state-update', { state, character });
     for (let sample = 0; sample < 3; sample++) {
       await delay(200);
-      const bounds = opaqueBounds(await win.webContents.capturePage());
+      const image = await win.webContents.capturePage();
+      const bounds = opaqueBounds(image);
       assert(bounds.left > 0 && bounds.top > 0 && bounds.right < bounds.canvasWidth - 1 && bounds.bottom < bounds.canvasHeight - 1, `${state} animation stays clear of the viewport edges`);
       const margin = Math.min(bounds.left, bounds.top, bounds.canvasWidth - 1 - bounds.right, bounds.canvasHeight - 1 - bounds.bottom);
       assert(margin <= padding * bounds.canvasWidth / win.getBounds().width + 4, `${state} fills the viewport instead of reserving unused space`);
-      frames.push({ state, sample, bounds });
+      if (character === 'vibemon' && sample === 0) fs.writeFileSync(path.join(output, `3d-vibemon-${state}.png`), image.toPNG());
+      frames.push({ character, state, sample, bounds });
     }
   }
   win.webContents.send('state-update', { state: 'working', character: 'clawd', project: 'test' });
   results.push({ source: '3d-framing', scale, padding, before, after, frames });
 }
 
-async function verifyReducedMotion(win, mode) {
+async function verifyReducedMotion(win, mode, character = 'clawd') {
   win.webContents.debugger.attach('1.3');
   try {
     await win.webContents.debugger.sendCommand('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value: 'reduce' }] });
     await until(() => win.webContents.executeJavaScript('matchMedia("(prefers-reduced-motion: reduce)").matches'), 'reduced motion preference applied');
+    win.webContents.send('state-update', { state: 'working', character, project: 'test' });
     await delay(200);
-    const still = (await win.webContents.capturePage()).toBitmap();
+    const openImage = await win.webContents.capturePage();
+    fs.writeFileSync(path.join(output, `${mode}-${character}-working-still.png`), openImage.toPNG());
+    const still = openImage.toBitmap();
     await delay(350);
     assert(still.equals((await win.webContents.capturePage()).toBitmap()), `${mode} remains still with reduced motion`);
-    win.webContents.send('state-update', { state: 'sleep', character: 'clawd', project: 'test' });
+    win.webContents.send('state-update', { state: 'sleep', character, project: 'test' });
     await delay(150);
     assert(!still.equals((await win.webContents.capturePage()).toBitmap()), `${mode} still updates its status pose`);
+    fs.writeFileSync(path.join(output, `${mode}-${character}-sleep-still.png`), (await win.webContents.capturePage()).toPNG());
     await win.webContents.debugger.sendCommand('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value: 'no-preference' }] });
-    win.webContents.send('state-update', { state: 'working', character: 'clawd', project: 'test' });
+    win.webContents.send('state-update', { state: 'working', character, project: 'test' });
     await delay(150);
     const resumed = (await win.webContents.capturePage()).toBitmap();
     await delay(350);
     assert(!resumed.equals((await win.webContents.capturePage()).toBitmap()), `${mode} animation resumes`);
-    results.push({ source: 'reduced-motion', mode, still: true, statusChanges: true, resumes: true });
+    results.push({ source: 'reduced-motion', mode, character, still: true, statusChanges: true, resumes: true });
   } finally { win.webContents.debugger.detach(); }
 }
 
@@ -508,7 +514,10 @@ async function run() {
         results.push({ mode, scale, devicePixelRatio: await win.webContents.executeJavaScript('devicePixelRatio'), initial: start, nativeClicks: !!mouse });
         if (process.platform === 'darwin') await verifyOrdinaryEdgeCenters(win, mode, scale);
         if (mode === '3d' && (scale === 30 || scale === 100)) await verify3DFraming(win, scale);
-        if (scale === 100) await verifyReducedMotion(win, mode);
+        if (scale === 100) {
+          await verifyReducedMotion(win, mode, 'vibemon');
+          await verifyReducedMotion(win, mode);
+        }
         if (process.platform === 'darwin' && scale === 100) {
           await verifyDockCorners(win, mode);
           const fixtureDisplay = screen.getDisplayMatching(win.getBounds());

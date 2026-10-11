@@ -14,9 +14,10 @@
  * the 10 registry states blends to a target pose and layers named
  * creature-behavior moves on top (see monster-states.js).
  *
- * Characters are represented as color themes on the same rig (each registry
- * entry's `theme`), so Character Lock and bridge character switching keep
- * working. Public API mirrors the 2D engine so renderer.js is a drop-in,
+ * The default VibeMon uses the shared V silhouette and eye anchors. Other
+ * characters retain the horned rig and their registry color themes. Both
+ * rigs expose the same joints and expressions; changing rig releases its
+ * geometry and materials. Public API mirrors the 2D engine,
  * plus the three.js namespace the consumer supplies. The exported engine
  * has no package imports, so the caller resolves three.js itself:
  *
@@ -39,6 +40,7 @@ import {
   lerp,
   dampFactor
 } from './monster-states.js';
+import { COMPANION_SIZE, COMPANION_OUTLINE, COMPANION_EYES } from './vibemon-companion.mjs';
 
 // three.js namespace, supplied by the consumer through createVibeMonEngine.
 let THREE = null;
@@ -191,7 +193,7 @@ const MOVE_FNS = {
  * eyes }. Everything is primitives + flat materials; joints are the Group
  * pivots listed in JOINTS.
  */
-function buildMonster() {
+function buildMonster(attentive = false) {
   const materials = {
     body: new THREE.MeshToonMaterial({ color: '#8B7CF6' }),
     belly: new THREE.MeshToonMaterial({ color: '#EDE9FF' }),
@@ -208,40 +210,59 @@ function buildMonster() {
 
   // --- Body: squishy egg slime, acts as head+torso in one ---
   const body = new THREE.Group();
-  body.position.y = 1.35;
+  body.position.y = attentive ? 1.7 : 1.35;
   root.add(body);
   joints.body = body;
 
-  const slime = new THREE.Mesh(new THREE.SphereGeometry(1.25, 26, 20), materials.body);
-  slime.position.y = 0.15;
-  slime.scale.set(1.02, 1.12, 0.95);
-  body.add(slime);
+  const unit = 0.05;
+  if (attentive) {
+    const shape = new THREE.Shape();
+    for (const [command, ...values] of COMPANION_OUTLINE) {
+      const points = values.map((value, index) => (index % 2 ? COMPANION_SIZE / 2 - value : value - COMPANION_SIZE / 2) * unit);
+      if (command === 'M') shape.moveTo(...points);
+      else if (command === 'L') shape.lineTo(...points);
+      else if (command === 'C') shape.bezierCurveTo(...points);
+      else if (command === 'Z') shape.closePath();
+      else throw new Error(`Unsupported companion outline command: ${command}`);
+    }
+    const geometry = new THREE.ExtrudeGeometry(shape, {
+      depth: 0.5, bevelEnabled: true, bevelThickness: 0.1,
+      bevelSize: 0.08, bevelSegments: 4, steps: 1, curveSegments: 16
+    });
+    geometry.translate(0, 0, -0.25);
+    body.add(new THREE.Mesh(geometry, materials.body));
+  } else {
+    const slime = new THREE.Mesh(new THREE.SphereGeometry(1.25, 26, 20), materials.body);
+    slime.position.y = 0.15;
+    slime.scale.set(1.02, 1.12, 0.95);
+    body.add(slime);
 
-  const belly = new THREE.Mesh(new THREE.SphereGeometry(0.85, 20, 16), materials.belly);
-  belly.position.set(0, -0.18, 0.68);
-  belly.scale.set(1, 1, 0.5);
-  body.add(belly);
+    const belly = new THREE.Mesh(new THREE.SphereGeometry(0.85, 20, 16), materials.belly);
+    belly.position.set(0, -0.18, 0.68);
+    belly.scale.set(1, 1, 0.5);
+    body.add(belly);
 
-  // Horns
-  for (const side of [-1, 1]) {
-    const horn = new THREE.Mesh(new THREE.ConeGeometry(0.16, 0.5, 10), materials.accent);
-    horn.position.set(side * 0.62, 1.38, 0);
-    horn.rotation.z = -side * 0.45;
-    body.add(horn);
+    // Horns
+    for (const side of [-1, 1]) {
+      const horn = new THREE.Mesh(new THREE.ConeGeometry(0.16, 0.5, 10), materials.accent);
+      horn.position.set(side * 0.62, 1.38, 0);
+      horn.rotation.z = -side * 0.45;
+      body.add(horn);
+    }
   }
 
   // Vibe flame: glowing wisp above the head; its joint is scaled/flickered
   // every frame by the state's vibe level.
   const flame = new THREE.Group();
-  flame.position.y = 1.58;
+  flame.position.y = attentive ? 1.45 : 1.58;
   body.add(flame);
   joints.flame = flame;
 
-  const flameOuter = new THREE.Mesh(new THREE.ConeGeometry(0.2, 0.55, 10), materials.flame);
-  flameOuter.position.y = 0.18;
+  const flameOuter = new THREE.Mesh(attentive ? new THREE.SphereGeometry(0.09, 12, 10) : new THREE.ConeGeometry(0.2, 0.55, 10), materials.flame);
+  flameOuter.position.y = attentive ? 0.02 : 0.18;
   flame.add(flameOuter);
 
-  const flameBase = new THREE.Mesh(new THREE.SphereGeometry(0.14, 10, 8), materials.flame);
+  const flameBase = new THREE.Mesh(new THREE.SphereGeometry(attentive ? 0.04 : 0.14, 10, 8), materials.flame);
   flameBase.position.y = -0.05;
   flame.add(flameBase);
 
@@ -250,47 +271,59 @@ function buildMonster() {
   const eyes = { left: {}, right: {} };
   for (const [key, side] of [['left', 1], ['right', -1]]) {
     const eyeGroup = new THREE.Group();
-    eyeGroup.position.set(side * 0.5, 0.38, 1.1);
+    const anchor = COMPANION_EYES[key];
+    if (attentive) eyeGroup.position.set(
+      (anchor.x + anchor.w / 2 - COMPANION_SIZE / 2) * unit,
+      (COMPANION_SIZE / 2 - anchor.y - anchor.h / 2) * unit,
+      0.37
+    );
+    else eyeGroup.position.set(side * 0.5, 0.38, 1.1);
     body.add(eyeGroup);
 
-    const ball = new THREE.Mesh(new THREE.SphereGeometry(0.26, 16, 12), materials.eye);
-    ball.scale.z = 0.5;
+    const eyeGeometry = attentive
+      ? new THREE.CapsuleGeometry(anchor.w * unit / 2, (anchor.h - anchor.w) * unit, 6, 16)
+      : new THREE.SphereGeometry(0.26, 16, 12);
+    const ball = new THREE.Mesh(eyeGeometry, materials.eye);
+    ball.scale.z = attentive ? 0.25 : 0.5;
     eyeGroup.add(ball);
 
-    const glint = new THREE.Mesh(new THREE.SphereGeometry(0.085, 10, 8), materials.white);
-    glint.position.set(0.07, 0.1, 0.12);
+    const glint = new THREE.Mesh(new THREE.SphereGeometry(attentive ? 0.035 : 0.085, 10, 8), materials.white);
+    glint.position.set(attentive ? 0.055 : 0.07, 0.1, attentive ? 0.045 : 0.12);
     eyeGroup.add(glint);
 
-    const glint2 = new THREE.Mesh(new THREE.SphereGeometry(0.045, 8, 6), materials.white);
-    glint2.position.set(-0.07, -0.08, 0.12);
+    const glint2 = new THREE.Mesh(new THREE.SphereGeometry(attentive ? 0.018 : 0.045, 8, 6), materials.white);
+    glint2.position.set(attentive ? -0.055 : -0.07, -0.08, attentive ? 0.045 : 0.12);
     eyeGroup.add(glint2);
 
     const happy = new THREE.Mesh(new THREE.TorusGeometry(0.19, 0.055, 8, 12, Math.PI), materials.eye);
-    happy.position.z = 0.1;
+    happy.position.z = attentive ? 0.04 : 0.1;
     happy.visible = false;
     eyeGroup.add(happy);
 
     eyes[key] = { group: eyeGroup, ball, glint, glint2, happy };
   }
 
+  if (!attentive) {
   // Cheek blushes
-  for (const side of [-1, 1]) {
-    const blush = new THREE.Mesh(new THREE.SphereGeometry(0.15, 12, 10), materials.blush);
-    blush.position.set(side * 0.92, 0.02, 0.88);
-    blush.scale.set(1, 0.6, 0.4);
-    body.add(blush);
-  }
+    for (const side of [-1, 1]) {
+      const blush = new THREE.Mesh(new THREE.SphereGeometry(0.15, 12, 10), materials.blush);
+      blush.position.set(side * 0.92, 0.02, 0.88);
+      blush.scale.set(1, 0.6, 0.4);
+      body.add(blush);
+    }
 
-  // Mouth: tiny smile arc
-  const mouth = new THREE.Mesh(new THREE.TorusGeometry(0.13, 0.05, 8, 12, Math.PI), materials.eye);
-  mouth.position.set(0, -0.04, 1.16);
-  mouth.rotation.z = Math.PI;
-  body.add(mouth);
+    // Mouth: tiny smile arc
+    const mouth = new THREE.Mesh(new THREE.TorusGeometry(0.13, 0.05, 8, 12, Math.PI), materials.eye);
+    mouth.position.set(0, -0.04, 1.16);
+    mouth.rotation.z = Math.PI;
+    body.add(mouth);
+  }
 
   // --- Arms: tiny nubs with paws ---
   for (const [suffix, side] of [['L', 1], ['R', -1]]) {
     const arm = new THREE.Group();
-    arm.position.set(side * 1.26, -0.2, 0.12);
+    arm.position.set(side * (attentive ? 1.2 : 1.26), attentive ? -0.55 : -0.2, attentive ? 0 : 0.12);
+    if (attentive) arm.scale.setScalar(0.7);
     body.add(arm);
     joints['arm' + suffix] = arm;
 
@@ -305,8 +338,9 @@ function buildMonster() {
 
   // --- Tail: two-joint chain ending in a spade tip, swaying with the vibe ---
   const tail1 = new THREE.Group();
-  tail1.position.set(0, 0.75, -1.0);
+  tail1.position.set(0, attentive ? -0.45 : 0.75, attentive ? -0.3 : -1.0);
   tail1.rotation.x = 2.45;
+  if (attentive) tail1.scale.setScalar(0.55);
   body.add(tail1);
   joints.tail1 = tail1;
 
@@ -328,7 +362,12 @@ function buildMonster() {
   spade.scale.set(1, 1.3, 0.6);
   tail2.add(spade);
 
-  return { group: root, joints, materials, eyes };
+  return { group: root, joints, materials, eyes, attentive };
+}
+
+function disposeRig(rig) {
+  rig.group.traverse(object => { object.geometry?.dispose(); });
+  for (const material of Object.values(rig.materials)) material.dispose();
 }
 
 // =============================================================================
@@ -392,9 +431,9 @@ export class VibeMonEngine3D {
     sun.position.set(3, 6, 5);
     this.scene.add(sun);
 
-    this.rig = buildMonster();
+    this.rig = buildMonster(this.currentCharacter === 'vibemon');
     this.scene.add(this.rig.group);
-    this._applyTheme(this.currentCharacter);
+    this._applyCharacter(this.currentCharacter);
 
     return this;
   }
@@ -407,7 +446,7 @@ export class VibeMonEngine3D {
       const next = Object.hasOwn(this.characters, data.character) ? data.character : this.defaultCharacter;
       if (next !== this.currentCharacter) {
         this.currentCharacter = next;
-        this._applyTheme(next);
+        this._applyCharacter(next);
       }
     }
   }
@@ -420,8 +459,15 @@ export class VibeMonEngine3D {
 
   setReducedMotion(enabled) { this.reducedMotion = enabled; }
 
-  _applyTheme(name) {
+  _applyCharacter(name) {
     if (!this.rig) return;
+    const attentive = name === 'vibemon';
+    if (this.rig.attentive !== attentive) {
+      this.scene.remove(this.rig.group);
+      disposeRig(this.rig);
+      this.rig = buildMonster(attentive);
+      this.scene.add(this.rig.group);
+    }
     const theme = getCharacterTheme(this.characters[name]);
     this.rig.materials.body.color.set(theme.body);
     this.rig.materials.belly.color.set(theme.belly);
@@ -493,8 +539,9 @@ export class VibeMonEngine3D {
       const openY = Math.max(this.eyeOpenness, 0.08);
       eye.group.scale.set(this.eyeScale, this.eyeScale * openY, this.eyeScale);
       eye.ball.visible = !happy;
-      eye.glint.visible = !happy;
-      eye.glint2.visible = !happy;
+      const glintsVisible = !happy && (!this.rig.attentive || this.eyeOpenness > 0.2);
+      eye.glint.visible = glintsVisible;
+      eye.glint2.visible = glintsVisible;
       eye.happy.visible = happy;
     }
   }
@@ -537,13 +584,10 @@ export class VibeMonEngine3D {
 
   cleanup() {
     this.stopAnimation();
-    if (this.scene) {
-      this.scene.traverse((obj) => {
-        if (obj.geometry) obj.geometry.dispose();
-      });
-    }
     if (this.rig) {
-      for (const mat of Object.values(this.rig.materials)) mat.dispose();
+      disposeRig(this.rig);
+      this.scene?.remove(this.rig.group);
+      this.rig = null;
     }
     if (this.renderer) {
       this.renderer.dispose();

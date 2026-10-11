@@ -40,6 +40,7 @@
     "public/static/favicon.ico": "assets/web/favicon.ico",
     "public/static/index.html": "assets/web/index.html",
     "public/static/js/monster-states.js": "src/engine/monster-states.js",
+    "public/static/js/vibemon-companion.mjs": "src/engine/vibemon-companion.mjs",
     "public/static/js/animation-policy.js": "src/engine/animation-policy.js",
     "public/static/js/animation-policy.d.ts": "src/engine/animation-policy.d.ts",
     "public/static/js/resource-schema.cjs": "src/shared/resource-schema.cjs",

@@ -6,8 +6,9 @@
  * animation and every move name is implemented. Character colors are not
  * here; they live in each registry entry's `theme` (data/characters.json).
  *
- * The character is a digital vibe monster: a squishy horned creature with a
- * spade tail and a "vibe flame" burning above its head. The flame is the
+ * Both the rounded V companion and the other characters' horned rig share
+ * these joints and motions. The default companion uses a small signal light;
+ * the other rig has a "vibe flame" burning above its head. That light is the
  * session's energy made visible — each state sets a `vibe` level that
  * drives the flame's size and flicker plus the tail sway. State motion is
  * creature behavior (gazing around, waving, tail-tapping, scanning,
