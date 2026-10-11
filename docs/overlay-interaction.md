@@ -7,7 +7,7 @@
 ## 검증 항목
 
 - `pnpm lint`, `pnpm test:coverage --runInBand`를 실행한다.
-- `pnpm test:overlays`는 격리된 Electron 테스트 창에서 2D·3D 및 Character Size 50/75/100%의 픽셀 판정·30회 왕복 이동을 검증한다. Windows에서는 OS 마우스 입력을 보내 불투명 영역의 앱 클릭, 투명 영역 뒤의 수신 창 클릭, 실제 드래그를 확인한다. 실행 중 테스트 창과 마우스를 조작하지 않는다.
+- `pnpm test:overlays`는 격리된 Electron 테스트 창에서 2D·3D 및 Character Size 30/40/50/75/100%의 픽셀 판정·30회 왕복 이동을 검증한다. Windows에서는 OS 마우스 입력을 보내 불투명 영역의 앱 클릭, 투명 영역 뒤의 수신 창 클릭, 실제 드래그를 확인한다. 실행 중 테스트 창과 마우스를 조작하지 않는다.
 - Overlay Verification CI는 macOS·Windows에서 위 검사를 실행하고 Windows의 `--force-device-scale-factor=1.25`, `1.5`, `2`도 확인한다. 강제 배율 검사는 서로 다른 배율의 물리 모니터 사이 이동을 대체하지 않는다. 결과와 캡처는 `out/overlay-tests/` 및 CI artifact에 저장한다.
 - macOS와 Windows에서 2D·3D 모드를 각각 확인한다.
 - 캐릭터의 몸체·투명한 모서리·말풍선의 본체·꼬리·둥근 모서리 밖을 클릭한다. 보이는 영역에서만 앱이 반응하고 나머지는 뒤쪽 창이 반응해야 한다.

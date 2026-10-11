@@ -39,7 +39,7 @@ The App keeps its read token in OS secure storage. **Disconnect** removes the lo
 
 ## Connect local coding tools
 
-Open **Settings → Integrations → Install integration** for the tool you use, then restart that tool. Local character updates do not require Google login. Sending the same activity to Web requires a separate write token in the hook configuration; the App's read token is never reused for hooks.
+Open **Settings → Integrations → Install integration** for the tool you use, then restart that tool. Local character updates do not require Google login. To send the same activity to Web, enter a separate write token in **Send activity to Web** and select **Save and verify**. The App's read token is never reused for hooks.
 
 Tool detection honors `CLAUDE_CONFIG_DIR`, `CODEX_HOME`, `KIRO_HOME`, and `OPENCODE_CONFIG_DIR`. These variables must reach both the tool and App processes. OpenClaw installation is supported on macOS/Linux. See the [hook installation guide](https://vibemon.io/docs/setup) for headless/Windows setup and [hook reference](https://vibemon.io/docs/hooks) for event mappings.
 

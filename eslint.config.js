@@ -85,7 +85,7 @@ module.exports = [
   },
   // CommonJS files (main process, modules)
   {
-    files: ['**/*.cjs', 'src/main.js', 'src/preload.js', 'tests/**/*.js'],
+    files: ['**/*.cjs', 'src/main.js', 'src/preload.js', 'tests/**/*.js', 'assets/generators/*.js'],
     languageOptions: {
       ecmaVersion: 2022,
       sourceType: 'commonjs',
@@ -98,7 +98,7 @@ module.exports = [
   },
   // ES Module files (renderer, shared)
   {
-    files: ['src/renderer.js', 'src/workspace/**/*.js', 'src/shared/*.js', 'src/engine/monster-states.js', 'src/engine/vibemon-engine-3d.js'],
+    files: ['src/renderer.js', 'src/workspace/**/*.js', 'src/shared/*.js', 'src/engine/*.js', 'src/bubble/*.js'],
     languageOptions: {
       ecmaVersion: 2022,
       sourceType: 'module',
