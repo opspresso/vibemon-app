@@ -15,10 +15,13 @@ class HookCloudDelivery {
   snapshot() {
     const current = this.configManager.read();
     const result = this.result && sameConnection(this.result, current) ? this.result : null;
+    let url = '', addressError = '';
+    try { url = webOrigin(current.vibemon_url, this.allowLocalHttp); }
+    catch { addressError = 'The saved Web address is invalid. Enter an HTTPS origin without a path or credentials'; }
     return {
-      url: current.vibemon_url, tokenConfigured: Boolean(current.vibemon_token), busy: this.busy,
-      status: this.busy ? 'checking' : !current.vibemon_token ? 'not-configured' : result?.status || 'not-verified',
-      checkedAt: result?.checkedAt || null, error: result?.error || ''
+      url, tokenConfigured: Boolean(current.vibemon_token), busy: this.busy,
+      status: this.busy ? 'checking' : addressError ? 'error' : !current.vibemon_token ? 'not-configured' : result?.status || 'not-verified',
+      checkedAt: result?.checkedAt || null, error: addressError || result?.error || ''
     };
   }
 

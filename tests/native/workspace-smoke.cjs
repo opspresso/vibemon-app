@@ -237,7 +237,14 @@ startFixture().then(async fixture => {
   await until(() => !ports.appearance.SpeechBubbleFields.status, 'bubble preference saved');
   await input('#character-scale', '80', 'change');
   await until(() => ports.appearance.CharacterScale === 80, 'scale preference saved');
+  await ui('window.originalStorageWrite = Storage.prototype.setItem; Storage.prototype.setItem = function() { throw new Error("Storage denied"); }; void 0;');
   await input('#theme', 'light', 'change');
+  assert.equal(await ui('document.documentElement.dataset.theme'), 'light', 'appearance still works without persistence');
+  assert.ok((await text('#theme-storage-status')).includes('this session'));
+  await ui('Storage.prototype.setItem = window.originalStorageWrite; delete window.originalStorageWrite;');
+  await input('#theme', 'light', 'change');
+  assert.equal(await visible('#theme-storage-status'), false);
+
   await navigate('overview');
   await verifyContrast();
   await screenshot('overview-light');
@@ -263,7 +270,7 @@ startFixture().then(async fixture => {
   assert.ok(!JSON.stringify(view.snapshot()).includes(writeToken), 'write credential never returns over IPC');
   await screenshot('cloud-delivery');
   await click('#disconnect-cloud-delivery');
-  await until(async () => (await text('#cloud-delivery-status')) === 'On this device', 'cloud delivery stopped');
+  await until(async () => (await text('#cloud-delivery-status')) === 'No saved write token', 'shared cloud credential removed');
   assert.equal(ports.config.vibemon_token, '');
   assert.equal(client.hasToken(), true, 'stopping publication retains the independent read connection');
   assert.ok(ports.config.http_urls.includes('http://127.0.0.1:19280'));

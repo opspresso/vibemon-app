@@ -28,13 +28,13 @@ Use **Add resource** to define a database, queue, sensor, or another resource on
 
 Chart gaps mean no recorded measurement. Resource heartbeats include fresh measurements and add minute samples. Agent heartbeats refresh status without adding activity samples. A single observed minute appears as a point. Web retains visible trends for 24 hours; Desktop requests the recent hour. A status-only resource has no numeric history.
 
+History details show minute averages and maxima with gaps for unavailable observations. A failed history request keeps its error visible until a successful retry. Hidden metrics do not trigger history requests.
+
 ## Send local activity to Web
 
 Open **Settings → Integrations → Send activity to Web**. Enter the Web origin and a token with **write** permission from the same Google account as your dashboard, then select **Save and verify**. Verification checks permissions without creating a source or test observation. Only a successful check replaces the saved connection; the next real hook event sends data.
 
-**Check saved connection** checks the current token again. Rejected, read-only, unreachable, and unsupported servers have separate messages. The displayed check time is explicit; it is not a continuous delivery guarantee. A different Web origin requires a new write token. **Stop sending to Web** removes the hook credential while preserving local delivery and the independent read connection. Stored write tokens never return to the settings renderer.
-
-History details show minute averages and maxima with gaps for unavailable observations. A failed history request keeps its error visible until a successful retry. Hidden metrics do not trigger history requests.
+**Check saved connection** checks the current token again. Rejected, read-only, unreachable, and unsupported servers have separate messages. The displayed check time is explicit; it is not a continuous delivery guarantee. A different Web origin requires a new write token. **Remove saved write token** removes the shared hook credential while preserving local delivery and the independent read connection. Agent environment variables and OpenClaw plugin settings can override these shared defaults. Stored write tokens never return to the settings renderer.
 
 ## Coding accounts and local activity
 

@@ -58,7 +58,7 @@ class WorkspaceSettings {
    */
   getVibemonConfigView() {
     const config = this.vibemonConfigManager.read();
-    const display = Object.fromEntries(['debug', 'auto_launch', 'http_urls', 'serial_port', 'vibemon_url'].map(key => [key, config[key]]));
+    const display = Object.fromEntries(['debug', 'auto_launch', 'http_urls', 'serial_port'].map(key => [key, config[key]]));
     return { ...display, status: this.vibemonConfigManager.getStatus() };
   }
 

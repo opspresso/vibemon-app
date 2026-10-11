@@ -78,3 +78,10 @@ test('equivalent URL spellings retain the same credential boundary', async () =>
   await delivery.configure({ url: 'https://vibemon.io', token: '' });
   expect(delivery.snapshot().status).toBe('verified');
 });
+
+test('malformed saved addresses cannot disclose embedded credentials to the renderer', () => {
+  const { delivery, config } = fixture();
+  config.vibemon_url = 'https://user:private-password@example.com';
+  expect(delivery.snapshot()).toMatchObject({ status: 'error', url: '' });
+  expect(JSON.stringify(delivery.snapshot())).not.toContain('private-password');
+});

@@ -163,6 +163,9 @@ test('external links use an explicit destination on the validated workspace orig
   open();
   expect(await invoke(event, 'open-web', ['account'])).toEqual({ ok: true, value: true });
   expect(ports.openExternal).toHaveBeenLastCalledWith('https://vibemon.io/account');
+  await invoke(event, 'open-write-token-account', ['https://collector.example']);
+  expect(ports.openExternal).toHaveBeenLastCalledWith('https://collector.example/account?purpose=write');
+  expect((await invoke(event, 'open-write-token-account', ['https://secret@other.example'])).ok).toBe(false);
   await invoke(event, 'open-web', ['edit-resource', 'custom:gpu']);
   expect(ports.openExternal).toHaveBeenLastCalledWith('https://vibemon.io/resources/custom%3Agpu/edit');
   for (const destination of ['https://evil.example', '__proto__', 'constructor']) {
@@ -171,7 +174,7 @@ test('external links use an explicit destination on the validated workspace orig
   expect(await invoke(event, 'open-web', ['edit-resource', '../secret'])).toEqual({ ok: false, error: 'Unknown Web destination' });
   ports.monitoring.snapshot.mockReturnValue({ url: 'file:///private' });
   expect((await invoke(event, 'open-web', ['docs'])).ok).toBe(false);
-  expect(ports.openExternal).toHaveBeenCalledTimes(2);
+  expect(ports.openExternal).toHaveBeenCalledTimes(3);
 });
 
 test('failed navigation destroys the broken window and reports the load error', async () => {
