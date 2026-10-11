@@ -271,13 +271,13 @@ async function refresh() {
       return false;
     }
     const cached = sanitizeCharactersRegistry(readJsonSafe(path.join(dir, 'characters.json')));
-    if (characters.revision < Math.max(bundledCharacters.revision ?? 0, cached?.revision ?? 0)) {
-      console.warn('Registry refresh: keeping newer bundled or cached character artwork');
-      return false;
-    }
-
     fs.mkdirSync(dir, { recursive: true });
     writeFileAtomic(path.join(dir, 'states.json'), JSON.stringify(states, null, 2));
+    if (characters.revision < Math.max(bundledCharacters.revision ?? 0, cached?.revision ?? 0)) {
+      console.warn('Registry refresh: states updated; keeping newer bundled or cached character artwork');
+      return true;
+    }
+
     writeFileAtomic(path.join(dir, 'characters.json'), JSON.stringify(characters, null, 2));
     console.log(`Registry cache refreshed from ${STATIC_BASE_URL}`);
     return true;

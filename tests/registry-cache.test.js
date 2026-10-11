@@ -196,18 +196,24 @@ describe('loadRegistries (cache → bundled fallback)', () => {
     expect(loadWithCacheDir(tmpDir).charactersRegistry).toEqual(next);
   });
 
-  test.each([0, 1])('refresh cannot downgrade the newer cached artwork to revision %s', async revision => {
+  test.each([[2, 0], [2, 1], [null, 0]])('refresh updates states while preserving artwork at revision %s against %s', async (cachedRevision, revision) => {
     const current = clone(bundledCharacters);
-    current.revision = 2;
+    if (cachedRevision !== null) current.revision = cachedRevision;
     const file = path.join(tmpDir, 'characters.json');
-    fs.writeFileSync(file, JSON.stringify(current));
-    const before = fs.readFileSync(file, 'utf8');
+    if (cachedRevision !== null) fs.writeFileSync(file, JSON.stringify(current));
+    const states = clone(bundledStates);
+    states.states.idle.text = 'Standby';
     const originalFetch = global.fetch;
     const warning = jest.spyOn(console, 'warn').mockImplementation(() => {});
     try {
-      global.fetch = jest.fn(async url => new global.Response(JSON.stringify(url.endsWith('/states.json') ? bundledStates : { ...bundledCharacters, revision })));
-      expect(await loadWithCacheDir(tmpDir).refresh()).toBe(false);
-      expect(fs.readFileSync(file, 'utf8')).toBe(before);
+      global.fetch = jest.fn(async url => new global.Response(JSON.stringify(url.endsWith('/states.json') ? states : { ...bundledCharacters, revision })));
+      expect(await loadWithCacheDir(tmpDir).refresh()).toBe(true);
+      jest.resetModules();
+      const refreshed = loadWithCacheDir(tmpDir);
+      expect(refreshed.statesRegistry.states.idle.text).toBe('Standby');
+      expect(refreshed.charactersRegistry).toEqual(current);
+      if (cachedRevision === null) expect(fs.existsSync(file)).toBe(false);
+      else expect(JSON.parse(fs.readFileSync(file, 'utf8'))).toEqual(current);
     } finally { global.fetch = originalFetch; warning.mockRestore(); }
   });
 
