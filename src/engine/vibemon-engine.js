@@ -350,6 +350,7 @@ export class VibeMonEngine {
     this.animationRunning = false;
     this.animationFrameId = null;
     this.characterRenderer = null;
+    this.reducedMotion = false;
 
     // Pre-bind animation loop for performance
     this.boundAnimationLoop = this._animationLoop.bind(this);
@@ -404,9 +405,18 @@ export class VibeMonEngine {
     this.characterRenderer.drawCharacter(eyeType, state.effect, this.currentCharacter, char, this.animFrame);
   }
 
+  setReducedMotion(enabled) {
+    this.reducedMotion = enabled;
+    if (enabled) {
+      this.animFrame = 0;
+      this.blinkFrame = 0;
+      this._updateFloatingPosition();
+    }
+  }
+
   _updateFloatingPosition() {
     if (!this.canvas) return;
-    const offset = getFloatOffset(this.animFrame);
+    const offset = this.reducedMotion ? { x: 0, y: 0 } : getFloatOffset(this.animFrame);
     this.canvas.style.left = (CONSTANTS.CHAR_X_BASE + offset.x) + 'px';
     this.canvas.style.top = (CONSTANTS.CHAR_Y_BASE + offset.y) + 'px';
   }

@@ -361,6 +361,7 @@ export class VibeMonEngine3D {
     this.rig = null;
 
     this.t = 0;
+    this.reducedMotion = false;
     this.lastFrameTime = 0;
     this.animationRunning = false;
     this.animationFrameId = null;
@@ -417,6 +418,8 @@ export class VibeMonEngine3D {
     this.renderer.render(this.scene, this.camera);
   }
 
+  setReducedMotion(enabled) { this.reducedMotion = enabled; }
+
   _applyTheme(name) {
     if (!this.rig) return;
     const theme = getCharacterTheme(this.characters[name]);
@@ -431,8 +434,8 @@ export class VibeMonEngine3D {
   _applyFrame(dt) {
     const joints = this.rig.joints;
     const anim = getStateAnimation(this.currentState);
-    const t = this.t;
-    const poseBlend = dampFactor(CONSTANTS.POSE_DAMP_RATE, dt);
+    const t = this.reducedMotion ? 0 : this.t;
+    const poseBlend = this.reducedMotion ? 1 : dampFactor(CONSTANTS.POSE_DAMP_RATE, dt);
 
     // Blend joints toward the state's target pose, then write rotations.
     for (const joint of JOINTS) {
@@ -468,7 +471,7 @@ export class VibeMonEngine3D {
     joints.flame.scale.set(flameSize * 0.9, flameSize * flicker, flameSize * 0.9);
     joints.flame.rotation.z += Math.sin(t * vibe * 5) * 0.08;
 
-    for (const move of anim.moves) {
+    for (const move of this.reducedMotion ? [] : anim.moves) {
       const fn = MOVE_FNS[move];
       if (fn) fn(t, joints);
       else console.warn(`VibeMon 3D engine: unknown move "${move}"`);
@@ -480,7 +483,7 @@ export class VibeMonEngine3D {
       const phase = t % CONSTANTS.BLINK_PERIOD_S;
       if (phase > CONSTANTS.BLINK_PERIOD_S - CONSTANTS.BLINK_DURATION_S) openTarget = 0;
     }
-    const eyeBlend = dampFactor(CONSTANTS.EYE_DAMP_RATE, dt);
+    const eyeBlend = this.reducedMotion ? 1 : dampFactor(CONSTANTS.EYE_DAMP_RATE, dt);
     this.eyeOpenness = lerp(this.eyeOpenness, openTarget, eyeBlend);
     this.eyeScale = lerp(this.eyeScale, anim.eyeScale, eyeBlend);
 

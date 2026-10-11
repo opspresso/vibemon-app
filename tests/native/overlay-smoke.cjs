@@ -312,6 +312,28 @@ async function verify3DFraming(win, scale) {
   results.push({ source: '3d-framing', scale, padding, before, after, frames });
 }
 
+async function verifyReducedMotion(win, mode) {
+  win.webContents.debugger.attach('1.3');
+  try {
+    await win.webContents.debugger.sendCommand('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value: 'reduce' }] });
+    await until(() => win.webContents.executeJavaScript('matchMedia("(prefers-reduced-motion: reduce)").matches'), 'reduced motion preference applied');
+    await delay(200);
+    const still = (await win.webContents.capturePage()).toBitmap();
+    await delay(350);
+    assert(still.equals((await win.webContents.capturePage()).toBitmap()), `${mode} remains still with reduced motion`);
+    win.webContents.send('state-update', { state: 'sleep', character: 'clawd', project: 'test' });
+    await delay(150);
+    assert(!still.equals((await win.webContents.capturePage()).toBitmap()), `${mode} still updates its status pose`);
+    await win.webContents.debugger.sendCommand('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value: 'no-preference' }] });
+    win.webContents.send('state-update', { state: 'working', character: 'clawd', project: 'test' });
+    await delay(150);
+    const resumed = (await win.webContents.capturePage()).toBitmap();
+    await delay(350);
+    assert(!resumed.equals((await win.webContents.capturePage()).toBitmap()), `${mode} animation resumes`);
+    results.push({ source: 'reduced-motion', mode, still: true, statusChanges: true, resumes: true });
+  } finally { win.webContents.debugger.detach(); }
+}
+
 function fullSizeWorkAreaPlacement(display) {
   if (characterManager.dockLayout || characterManager.getDisplayOptions().characterScale !== 100) return false;
   const character = characterManager.entry.window.getBounds();
@@ -473,6 +495,7 @@ async function run() {
         results.push({ mode, scale, devicePixelRatio: await win.webContents.executeJavaScript('devicePixelRatio'), initial: start, nativeClicks: !!mouse });
         if (process.platform === 'darwin') await verifyOrdinaryEdgeCenters(win, mode, scale);
         if (mode === '3d' && (scale === 30 || scale === 100)) await verify3DFraming(win, scale);
+        if (scale === 100) await verifyReducedMotion(win, mode);
         if (process.platform === 'darwin' && scale === 100) {
           await verifyDockCorners(win, mode);
           const fixtureDisplay = screen.getDisplayMatching(win.getBounds());

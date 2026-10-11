@@ -1,5 +1,6 @@
 import { installWindowInteraction, createCharacterHitTest } from './shared/window-interaction.js';
 import { install3DFraming } from './shared/3d-framing.js';
+import { observeAnimation } from './engine/animation-policy.js';
 
 // VibeMon engine instance (2D pixel-art or 3D pet, chosen by the persisted
 // render mode — see init())
@@ -10,6 +11,7 @@ let cleanupInteraction = null;
 let cleanupStateListener = null;
 let cleanupDisplayOptionsListener = null;
 let cleanupFraming = null;
+let cleanupAnimation = null;
 
 // Interaction override: while the character is held (pointer down) or
 // dragged, it shows the 'start' greeting expression, restoring the last
@@ -104,9 +106,7 @@ async function init() {
     }
   }
 
-  // Initial render and start animation
-  vibeMonEngine.render();
-  vibeMonEngine.startAnimation();
+  cleanupAnimation = observeAnimation(vibeMonEngine);
 
   // Listen for state updates from main process
   if (window.electronAPI) {
@@ -137,6 +137,8 @@ async function init() {
 
 // Cleanup on unload
 function cleanup() {
+  cleanupAnimation?.();
+  cleanupAnimation = null;
   cleanupFraming?.();
   cleanupFraming = null;
   cleanupInteraction?.();

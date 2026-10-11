@@ -168,6 +168,11 @@
   border-bottom: 6px solid transparent;
 }
 
+@media (prefers-reduced-motion: reduce) {
+  .bubble-dot { animation: none !important; }
+  .bubble-bar-fill { transition: none; }
+}
+
 .bubble-tail.tail-left {
   left: -6px;
   border-right: 6px solid;

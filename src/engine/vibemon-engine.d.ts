@@ -29,6 +29,7 @@ export declare class VibeMonEngine {
   init(): Promise<VibeMonEngine>;
   setState(data: { state?: string; character?: string }): void;
   render(): void;
+  setReducedMotion(enabled: boolean): void;
   startAnimation(): void;
   stopAnimation(): void;
   cleanup(): void;
