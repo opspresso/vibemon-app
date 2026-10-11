@@ -119,6 +119,14 @@ describe('VibemonConfigManager', () => {
       expect(result.vibemon_token).toBe('tok');
     });
 
+    test('a cloud origin change cannot forward an existing token implicitly', () => {
+      fs.existsSync.mockReturnValue(true);
+      fs.readFileSync.mockReturnValue(JSON.stringify({ vibemon_url: 'https://vibemon.io', vibemon_token: 'saved-token' }));
+      expect(() => manager.write({ vibemon_url: 'https://other.example' })).toThrow('new write token');
+      expect(fs.writeFileSync).not.toHaveBeenCalled();
+      expect(manager.write({ vibemon_url: 'https://other.example/', vibemon_token: 'replacement' }).vibemon_url).toBe('https://other.example');
+    });
+
     test('converts an empty serial_port to null', () => {
       expect(manager.write({ serial_port: '/dev/cu.usbmodem1' }).serial_port).toBe('/dev/cu.usbmodem1');
       expect(manager.write({ serial_port: '   ' }).serial_port).toBeNull();

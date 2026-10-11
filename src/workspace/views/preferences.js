@@ -20,8 +20,13 @@ const descriptions = {
 
 export function setupPreferences({ getFrame, request, run, notify }) {
   let latest = null;
+  let deliveryError = '';
+  const runDelivery = (control, action) => {
+    deliveryError = '';
+    return run(control, action, error => { deliveryError = error.message; });
+  };
   const save = (action, ...args) => request('settings', action, args);
-  const inputs = ['web-url', 'vibemon-serial-port', 'vibemon-url'];
+  const inputs = ['web-url', 'vibemon-serial-port', 'cloud-delivery-url'];
   for (const id of inputs)
     $(id).addEventListener('input', () => {
       $(id).dataset.dirty = 'true';
@@ -62,7 +67,25 @@ export function setupPreferences({ getFrame, request, run, notify }) {
   bind('vibemon-debug', 'set-vibemon-config', (input) => ({ debug: input.checked }));
   bind('vibemon-auto-launch', 'set-vibemon-config', (input) => ({ auto_launch: input.checked }));
   bind('vibemon-serial-port', 'set-vibemon-config', (input) => ({ serial_port: input.value }), 'blur');
-  bind('vibemon-url', 'set-vibemon-config', (input) => ({ vibemon_url: input.value }), 'blur');
+  $('cloud-delivery-form').addEventListener('submit', event => {
+    event.preventDefault();
+    runDelivery($('save-cloud-delivery'), async () => {
+      const token = $('cloud-write-token').value.trim();
+      $('cloud-write-token').value = '';
+      await save('configure-cloud-delivery', { url: $('cloud-delivery-url').value.trim(), token });
+      delete $('cloud-delivery-url').dataset.dirty;
+      notify('Cloud delivery saved and verified');
+    });
+  });
+  $('check-cloud-delivery').addEventListener('click', () => runDelivery($('check-cloud-delivery'), async () => {
+    await save('check-cloud-delivery');
+    notify('Write access verified');
+  }));
+  $('disconnect-cloud-delivery').addEventListener('click', () => runDelivery($('disconnect-cloud-delivery'), async () => {
+    $('cloud-write-token').value = '';
+    await save('disconnect-cloud-delivery');
+    notify('Cloud delivery stopped. Local activity stays connected');
+  }));
   $('connect-form').addEventListener('submit', (event) => {
     event.preventDefault();
     run($('save-connection'), async () => {
@@ -315,7 +338,22 @@ export function setupPreferences({ getFrame, request, run, notify }) {
       () => {}
     );
     field('vibemon-serial-port', config.serial_port);
-    field('vibemon-url', config.vibemon_url);
+    const delivery = settings.cloudDelivery;
+    field('cloud-delivery-url', delivery.url);
+    $('cloud-delivery-url').disabled = delivery.busy;
+    $('cloud-write-token').disabled = delivery.busy;
+    const deliveryLabels = { 'not-configured': 'On this device', 'not-verified': 'Not checked', checking: 'Checking…', verified: 'Write access verified', error: 'Needs attention' };
+    text($('cloud-delivery-status'), deliveryLabels[delivery.status]);
+    $('cloud-delivery-status').className = `chip ${delivery.status === 'verified' ? 'good' : delivery.status === 'error' ? 'warning' : 'neutral'}`;
+    text($('cloud-token-state'), delivery.tokenConfigured ? 'A write token is saved' : 'No write token');
+    $('cloud-write-token').placeholder = delivery.tokenConfigured ? 'Paste a new token to replace the saved one' : 'Paste a write token from Web Account';
+    for (const id of ['save-cloud-delivery', 'check-cloud-delivery', 'disconnect-cloud-delivery']) {
+      $(id).disabled = Boolean($(id).dataset.busy) || delivery.busy || (id !== 'save-cloud-delivery' && !delivery.tokenConfigured);
+    }
+    const cloudError = deliveryError || (delivery.busy ? '' : delivery.error);
+    text($('cloud-delivery-error'), cloudError);
+    $('cloud-delivery-error').hidden = !cloudError;
+    text($('cloud-delivery-help'), delivery.checkedAt ? `Last checked ${new Date(delivery.checkedAt).toLocaleTimeString()}. New hook events use this connection.` : 'Local activity stays available in the App.');
     text($('app-version'), `Version ${settings.version}`);
     text($('footer-version'), settings.version);
     const update = settings.update;
@@ -344,6 +382,7 @@ export function setupPreferences({ getFrame, request, run, notify }) {
     render,
     leave() {
       $('read-token').value = '';
+      $('cloud-write-token').value = '';
     }
   };
 }

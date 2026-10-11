@@ -379,6 +379,24 @@
               <span data-icon="refresh"></span>Check installations
             </button>
           </div>
+          <form id="cloud-delivery-form" class="panel settings-panel">
+            <div class="panel-heading">
+              <div><h3>Send activity to Web</h3><p class="muted">Connect local coding hooks to the same Google workspace you follow in the dashboard.</p></div>
+              <span id="cloud-delivery-status" class="chip neutral" role="status">On this device</span>
+            </div>
+            <label class="form-label" for="cloud-delivery-url">Web address</label>
+            <input id="cloud-delivery-url" type="url" required autocomplete="url" placeholder="https://vibemon.io" />
+            <label class="form-label" for="cloud-write-token">Write token<span id="cloud-token-state" class="small muted"></span></label>
+            <input id="cloud-write-token" type="password" autocomplete="off" spellcheck="false" placeholder="Paste a write token from Web Account" />
+            <p class="field-help">Use a separate write token for hooks. Your dashboard read token is never reused.</p>
+            <p id="cloud-delivery-error" class="notice danger" role="alert" hidden></p>
+            <div class="form-actions">
+              <button id="save-cloud-delivery" class="button">Save and verify</button>
+              <button id="check-cloud-delivery" type="button" class="button secondary">Check saved connection</button>
+              <button id="disconnect-cloud-delivery" type="button" class="button quiet-danger">Stop sending to Web</button>
+            </div>
+            <div class="field-help cloud-delivery-help"><span id="cloud-delivery-help">Local activity stays available in the App.</span><button type="button" class="text-button" data-web="account">Open Web Account<span data-icon="external"></span></button></div>
+          </form>
           <p id="integration-progress" class="field-help" role="status" hidden>Installation in progress. Other install actions will be available when it finishes.</p>
           <div id="hook-list" class="integration-grid"></div>
           <button id="hooks-reset-prompts" class="text-button" hidden>Re-enable installation prompts</button>
@@ -406,9 +424,6 @@
             <div class="setting-row">
               <label for="vibemon-serial-port">Serial device</label
               ><input id="vibemon-serial-port" type="text" placeholder="No serial device" />
-            </div>
-            <div class="setting-row">
-              <label for="vibemon-url">Collector Web address</label><input id="vibemon-url" type="url" />
             </div>
             <div class="setting-row">
               <label for="vibemon-auto-launch">Open the installed App on session start</label

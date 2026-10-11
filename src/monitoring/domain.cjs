@@ -1,14 +1,6 @@
-const { URL } = require('node:url');
+const { webOrigin } = require('../shared/web-origin.cjs');
 const { BUILTIN_METRICS: METRICS, validateDefinitions, validateValues, validateOrder, validText, definitionsFor, selectionKey, metricCatalog } = require('../shared/resource-schema.cjs');
 const validId = id => typeof id === 'string' && /^[a-zA-Z0-9][a-zA-Z0-9_.:-]{0,127}$/.test(id);
-function webOrigin(value, allowLocalHttp = false) {
-  const url = new URL(value);
-  const local = allowLocalHttp && url.protocol === 'http:' && ['localhost', '127.0.0.1', '[::1]'].includes(url.hostname);
-  if ((!local && url.protocol !== 'https:') || url.username || url.password || url.search || url.hash || url.pathname !== '/') {
-    throw new Error('Use an HTTPS Web origin without a path or credentials');
-  }
-  return url.origin;
-}
 function metrics(value, definitions = METRICS) {
   // Edited display ranges do not invalidate measurements outside the visible gauge.
   return validateValues(value, definitions, definitions === METRICS);

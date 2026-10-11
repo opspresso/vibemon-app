@@ -55,7 +55,7 @@ function fail(error) {
     $('error').hidden = false;
   }
 }
-async function run(control, action) {
+async function run(control, action, onError = fail) {
   if (control?.dataset.busy) return;
   const hadFocus = control && document.activeElement === control;
   if (control) {
@@ -68,7 +68,7 @@ async function run(control, action) {
   try {
     return await action();
   } catch (error) {
-    fail(error);
+    onError(error);
   } finally {
     if (control) {
       delete control.dataset.busy;
@@ -212,6 +212,7 @@ function render(value) {
   document.documentElement.dataset.overviewFilter = overviewAttention ? 'attention' : 'all';
   $('settings-attention').hidden =
     !settings.vibemonConfig.status.error &&
+    settings.cloudDelivery.status !== 'error' &&
     !settings.hooks.some((tool) => tool.present && (tool.broken || tool.changed)) &&
     !['available', 'downloaded'].includes(settings.update.status);
   text(

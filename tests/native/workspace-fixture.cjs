@@ -5,6 +5,7 @@ const { MonitoringClient } = require('../../src/monitoring/client.cjs');
 const { WorkspaceSettings } = require('../../src/workspace/settings.cjs');
 const { WorkspaceWindow } = require('../../src/workspace/window.cjs');
 const { installWorkspaceMenu } = require('../../src/workspace/menu.cjs');
+const { HookCloudDelivery } = require('../../src/modules/hook-cloud-delivery.cjs');
 const { TrayManager } = require('../../src/modules/tray-manager.cjs');
 const { TOKEN, memoryStore, sources, createPorts, trend } = require('../fixtures/workspace.cjs');
 
@@ -19,6 +20,12 @@ async function startFixture() {
   const server = http.createServer((request, response) => {
     response.setHeader('Content-Type', 'application/json');
     state.requests.push(request.url);
+    if (request.url === '/api/v1/connection?scope=write') {
+      const accepted = request.headers.authorization === `Bearer ${'vm_' + 'a'.repeat(60)}`;
+      response.writeHead(accepted ? 200 : 403);
+      response.end(JSON.stringify(accepted ? { connected: true, scope: 'write' } : { error: 'Write permission required' }));
+      return;
+    }
     if (request.headers.authorization !== `Bearer ${TOKEN}`) { response.writeHead(401); response.end('{}'); return; }
     if (state.status !== 200) { response.writeHead(state.status); response.end('{}'); return; }
     const url = new URL(request.url, 'http://localhost');
@@ -50,10 +57,12 @@ async function startFixture() {
     clear() { token = null; corrupt = false; }
   };
   const client = new MonitoringClient({ preferences, credentials, fetchImpl: (url, options) => fetch(origin + new URL(url).pathname + new URL(url).search, options) });
-  const settings = new WorkspaceSettings(ports);
+  const cloudDelivery = new HookCloudDelivery({ configManager: ports.vibemonConfigManager, fetchImpl: (url, options) => fetch(origin + new URL(url).pathname + new URL(url).search, options) });
+  const settings = new WorkspaceSettings({ ...ports, cloudDelivery });
   const errors = [];
   const view = new WorkspaceWindow({ monitoring: client, settings, ...ports, reportError: error => { errors.push(error.message); } });
   settings.onSettingsChanged = () => view.notify('settings');
+  cloudDelivery.onChange = () => settings.notifyChanged();
   ports.hookInstaller.onStateChanged = () => view.notify('settings');
   const trayManager = new TrayManager({ getProjectIds: () => [], getState: () => null }, app, client);
   trayManager.openDashboard = () => view.open('overview');

@@ -17,7 +17,7 @@ Provide the write token through `VIBEMON_WRITE_TOKEN`, using your environment or
 
 ## 2. Install hooks
 
-Desktop users can open **Settings → Integrations** and choose **Install integration** for a detected tool. Set the hook write token independently of the read token in **Settings → Connections**.
+Desktop users can open **Settings → Integrations** and choose **Install integration** for a detected tool. Open **Send activity to Web**, enter the Web origin and a separate write token, and select **Save and verify**. The dashboard read token remains in **Settings → Connections**.
 
 For a headless macOS or Linux installation:
 

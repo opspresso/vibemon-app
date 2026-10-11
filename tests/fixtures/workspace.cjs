@@ -57,6 +57,12 @@ function createPorts() {
       write(partial) { Object.assign(config, partial); }, ensureDesktopUrl() {},
       addHttpUrl(url) { config.http_urls.push(url); }, removeHttpUrl(url) { config.http_urls = config.http_urls.filter(value => value !== url); }
     },
+    cloudDelivery: {
+      snapshot: () => ({ url: config.vibemon_url, tokenConfigured: Boolean(config.vibemon_token), busy: false, status: config.vibemon_token ? 'not-verified' : 'not-configured', checkedAt: null, error: '' }),
+      configure: async () => { throw new Error('Cloud delivery is unavailable in this fixture'); },
+      check: async () => { throw new Error('Cloud delivery is unavailable in this fixture'); },
+      disconnect: () => { config.vibemon_token = ''; }
+    },
     updateChecker: { getState: () => update, async checkForUpdates() {}, async downloadUpdate() {}, installDownloaded() {} },
     openExternal: async url => { calls.push(['external', url]); },
     getActivity: () => [
