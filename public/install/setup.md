@@ -84,6 +84,8 @@ Shared transmission settings are in `~/.vibemon/config.json`:
 
 Set `vibemon_token` to the generated write token. Cloud transport requires HTTPS. `http_urls` controls local targets separately. Restrict access to this file: installation uses mode `0600` on POSIX; Windows access must be restricted through the user's filesystem permissions.
 
+Upgrades reject saved legacy tokens that do not use the server-generated format. Supply `VIBEMON_WRITE_TOKEN` or enter a replacement at the hidden prompt. Format validation does not check revocation or permissions. Hooks report Web delivery failures on stderr even with `debug: false`: HTTP 401 requires an active token, and HTTP 403 requires write permission. Local delivery can succeed while Web delivery fails; verify a recent receipt in the Web dashboard after a real hook event.
+
 Launch each monitored account with a stable `VIBEMON_ACCOUNT_ID` and a human-readable `VIBEMON_ACCOUNT_NAME`. Set `CLAUDE_CONFIG_DIR` or `CODEX_HOME` to the corresponding logged-in profile. These values must reach both the tool process and any App process refreshing that profile's usage. Two profiles with the same project label remain separate sources.
 
 Use [Connect coding account](https://vibemon.io/coding-accounts/new) to generate settings for Codex, Claude, Kiro, OpenClaw, OpenCode, or another provider. Each provider can have several account IDs, such as `work` and `personal`. Provider-specific variables, including `VIBEMON_KIRO_ACCOUNT_ID` / `VIBEMON_KIRO_ACCOUNT_NAME`, override the common variables. Launch each agent in its matching signed-in environment; these labels do not switch provider logins. The first report connects the account. Unsupported usage stays unavailable.

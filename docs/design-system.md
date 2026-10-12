@@ -24,7 +24,7 @@ The new sprite is `vibemon-v2.png`. The public `characters/vibemon.png` URL reta
 
 Keep primary navigation in this order: **Overview**, **Resources**, **Coding agents**. Put account or device settings below it. The page header names the current task and provides its primary action. **Customize view** controls source and metric selection without occupying the monitoring canvas.
 
-Cards use the same hierarchy: identity, state, measurements, observation time, and **Details**. Keep each provider/account separate. A card's attention state includes all its reporting projects. Details contain the full project list and recent history.
+Cards use the same hierarchy: identity, state, measurements, observation time, and **Details**. Keep each provider/account separate. A card's attention state includes all its fresh reporting projects; the account is stale only when none remain fresh. Details retain each project's individual status and recent history.
 
 Use the system font, readable secondary text, consistent gaps, and a visible keyboard focus ring. At narrow sizes, reduce columns before shrinking labels. Dialogs must support Escape, contain keyboard focus, and return focus to their trigger. Input values must survive background refreshes.
 

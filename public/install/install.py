@@ -222,7 +222,7 @@ TOKEN_PATTERN = re.compile(r"^vm_[a-f0-9]{60}$")
 
 def validate_token(token: str) -> None:
     """Accept only the server-generated API credential format."""
-    if not TOKEN_PATTERN.fullmatch(token):
+    if not isinstance(token, str) or not TOKEN_PATTERN.fullmatch(token):
         raise ValueError("Enter a generated write token from your Web Account page")
 
 
@@ -241,10 +241,26 @@ def configure_token(config: dict, cli_token: str = None) -> dict:
         print(f"  {colored('✓', 'green')} Write token configured")
         return config
 
-    # No prompt available and no --token: keep whatever is already configured.
+    # Upgrades must validate saved credentials too; legacy arbitrary tokens
+    # cannot authenticate to Web even when local delivery still works.
+    if current_token and (not isinstance(current_token, str) or not TOKEN_PATTERN.fullmatch(current_token)):
+        guidance = "Saved Web token is not a generated write token. Set VIBEMON_WRITE_TOKEN from your Web Account page and run the installer again."
+        if AUTO_APPROVE or NON_INTERACTIVE:
+            raise ValueError(guidance)
+        print(f"  {colored('!', 'yellow')} {guidance}")
+        try:
+            replacement = getpass.getpass("  Enter replacement write token: ").strip()
+        except EOFError:
+            raise ValueError(guidance) from None
+        validate_token(replacement)
+        config["vibemon_token"] = replacement
+        print(f"  {colored('✓', 'green')} Write token configured")
+        return config
+
+    # Format validation does not prove that a token is active or has write scope.
     if AUTO_APPROVE or NON_INTERACTIVE:
         if current_token:
-            print(f"  {colored('✓', 'green')} Token unchanged: {mask_token(current_token)}")
+            print(f"  {colored('✓', 'green')} Token unchanged (server access not checked)")
         else:
             print(f"  {colored('!', 'yellow')} No token configured (set VIBEMON_WRITE_TOKEN)")
         return config

@@ -25,7 +25,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable
-from urllib.error import URLError
+from urllib.error import HTTPError, URLError
 from urllib.parse import urlsplit
 from urllib.request import Request, urlopen
 
@@ -754,8 +754,18 @@ def send_vibemon_api(url: str, token: str, payload: dict[str, Any], context: dic
         with open_credential_request(req, timeout=HTTP_TIMEOUT_SECONDS) as response:
             debug_log(f"VibeMon API response: {response.status}")
             return 200 <= response.status < 300
-    except (URLError, TimeoutError, OSError) as e:
-        debug_log(f"VibeMon API error: {type(e).__name__}")
+    except HTTPError as error:
+        guidance = {
+            401: "Replace vibemon_token in ~/.vibemon/config.json with an active write token from your Web Account page.",
+            403: "The configured token needs write permission; select a write token from your Web Account page.",
+            429: "Web rate limit reached; reduce hook update frequency.",
+        }.get(error.code, "Check the Web service and hook configuration.")
+        # Response bodies, exception text and URLs may contain credentials.
+        print(f"[vibemon] Web update rejected (HTTP {error.code}). {guidance}", file=sys.stderr)
+        error.close()
+        return False
+    except (URLError, TimeoutError, OSError) as error:
+        print(f"[vibemon] Web update failed ({type(error).__name__}). Check the Web connection and vibemon_url in ~/.vibemon/config.json.", file=sys.stderr)
         return False
 
 
