@@ -3,13 +3,17 @@ import json
 import math
 import re
 import subprocess
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 from decimal import Decimal, InvalidOperation
 from .domain import Sample
+from .disk import CLUSTER_DEFINITIONS, DISK_METRICS
+from .kubelet import filesystem
 
 # Output only capacity/readiness fields; pod specs, environment and logs are not read into Python.
 NODE_FIELDS = '{range .items[*]}{.metadata.name}{"\\t"}{.status.capacity.cpu}{"\\t"}{.status.capacity.memory}{"\\t"}{.status.conditions[?(@.type=="Ready")].status}{"\\n"}{end}'
 POD_FIELDS = '{range .items[*]}{.status.phase}{"\\t"}{.status.conditions[?(@.type=="Ready")].status}{"\\n"}{end}'
+ENDPOINT_FIELDS = '{range .items[*]}{.metadata.name}{"\\t"}{.status.addresses[?(@.type=="InternalIP")].address}{"\\t"}{.status.daemonEndpoints.kubeletEndpoint.Port}{"\\n"}{end}'
 SCALES = {'n': 1e-9, 'u': 1e-6, 'm': 1e-3, '': 1, **{unit: 1000 ** (index + 1) for index, unit in enumerate('kMGTPE')}, **{unit + 'i': 1024 ** (index + 1) for index, unit in enumerate('KMGTPE')}}
 SCALES['K'] = 1000
 
@@ -35,6 +39,7 @@ class KubectlReader:
             'nodes': ['get', 'nodes', '-o', f'jsonpath={NODE_FIELDS}'],
             'pods': ['get', 'pods', '-A', '-o', f'jsonpath={POD_FIELDS}'],
             'usage': ['get', '--raw', '/apis/metrics.k8s.io/v1beta1/nodes'],
+            'endpoints': ['get', 'nodes', '-o', f'jsonpath={ENDPOINT_FIELDS}'],
         }[kind]
         # A request-timeout override prevents kubectl's default-config check from
         # selecting the mounted service account. Bound the whole process instead.
@@ -44,8 +49,10 @@ class KubectlReader:
         return json.loads(result.stdout) if kind == 'usage' else [line.split('\t') for line in result.stdout.splitlines() if line]
 
 class KubernetesSampler:
-    def __init__(self, reader, metrics, clock):
+    def __init__(self, reader, metrics, clock, disk_reader=None):
         self.reader, self.metrics, self.clock = reader, metrics, clock
+        self.disk_reader = disk_reader
+        self.metric_definitions = CLUSTER_DEFINITIONS if set(metrics).intersection(DISK_METRICS) else None
 
     def sample(self):
         values = {key: None for key in self.metrics}
@@ -82,6 +89,24 @@ class KubernetesSampler:
                     except (KeyError, TypeError, ValueError, ZeroDivisionError): failed = True
             except (OSError, ValueError, KeyError, TypeError, AttributeError, subprocess.TimeoutExpired):
                 failed = True
+        if set(values).intersection(DISK_METRICS) and nodes:
+            try:
+                rows = self.reader.read('endpoints')
+                if any(len(row) != 3 for row in rows): raise ValueError('Invalid kubelet endpoints')
+                endpoints = {row[0]: row for row in rows}
+                if len(endpoints) != len(rows) or not set(nodes).issubset(endpoints): raise ValueError('Incomplete kubelet endpoints')
+                def disk(name):
+                    _, addresses, port = endpoints[name]
+                    # Dual-stack nodes may advertise both IPv4 and IPv6.
+                    return filesystem(self.disk_reader.read(addresses.split()[0], port), name, self.clock())
+                with ThreadPoolExecutor(max_workers=min(8, len(nodes))) as executor:
+                    disks = list(executor.map(disk, nodes))
+                available = sum(item[0] for item in disks)
+                capacity = sum(item[1] for item in disks)
+                disk_values = dict(zip(DISK_METRICS, (available / 1024 ** 3, capacity / 1024 ** 3, 100 * (1 - available / capacity))))
+                values.update({key: value for key, value in disk_values.items() if key in values})
+            except (OSError, ValueError, KeyError, TypeError, AttributeError, IndexError, subprocess.TimeoutExpired):
+                failed = True
         if 'podsUnhealthy' in values:
             try:
                 rows = self.reader.read('pods')
@@ -90,4 +115,4 @@ class KubernetesSampler:
             except (OSError, ValueError, TypeError, subprocess.TimeoutExpired): failed = True
         missing = any(value is None for value in values.values())
         unhealthy = (values.get('podsUnhealthy') or 0) > 0 or (values.get('nodesReady') is not None and values.get('nodesTotal') is not None and values['nodesReady'] < values['nodesTotal'])
-        return Sample(values, 'error' if failed else 'unknown' if missing else 'warning' if unhealthy else 'ok')
+        return Sample(values, 'error' if failed else 'unknown' if missing else 'warning' if unhealthy else 'ok', metric_definitions=self.metric_definitions)

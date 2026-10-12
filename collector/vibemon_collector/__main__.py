@@ -8,6 +8,8 @@ from .application import DeliveryFailure, run
 from .domain import HOST_METRICS, CLUSTER_METRICS
 from .prometheus import PrometheusSampler
 from .kubernetes import KubectlReader, KubernetesSampler
+from .disk import DISK_METRICS
+from .kubelet import KubeletReader
 from .transport import JsonClient, checked_url
 from .health import DeliveryHealth
 
@@ -23,6 +25,7 @@ def main():
     parser.add_argument("--prometheus-url")
     parser.add_argument("--cluster-backend", choices=["prometheus", "metrics-api"], default="prometheus")
     parser.add_argument("--kubectl-command", default="kubectl", help="Read-only kubectl command prefix for metrics-api collection")
+    parser.add_argument("--disk", action="store_true", help="Include root-disk capacity; clusters require in-cluster kubelet nodes/stats read access")
     parser.add_argument("--allow-local-http", action="store_true", help="Allow loopback HTTP for isolated development only")
     parser.add_argument("--once", action="store_true", help="Exit after one successful 30-second summary")
     parser.add_argument("--health-file", help="Write the last acknowledged delivery time for readiness checks")
@@ -33,13 +36,17 @@ def main():
     if not re.fullmatch(r"vm_[a-f0-9]{60}", token):
         parser.error("Set VIBEMON_WRITE_TOKEN to a generated write token")
     allowed = HOST_METRICS if args.kind == "host" else CLUSTER_METRICS
+    if args.disk:
+        if args.kind == 'cluster' and args.cluster_backend != 'metrics-api':
+            parser.error('--disk requires the metrics-api backend for clusters')
+        allowed += DISK_METRICS
     metrics = list(dict.fromkeys(args.metrics.split(","))) if args.metrics else list(allowed)
     if not metrics or any(key not in allowed for key in metrics):
         parser.error("Unknown or unsupported metric selection")
     try:
         url = checked_url(args.url, args.allow_local_http, origin_only=True)
         if args.kind == "cluster" and args.cluster_backend == "metrics-api":
-            sampler = KubernetesSampler(KubectlReader(shlex.split(args.kubectl_command)), metrics, time.time)
+            sampler = KubernetesSampler(KubectlReader(shlex.split(args.kubectl_command)), metrics, time.time, KubeletReader() if args.disk and set(metrics).intersection(DISK_METRICS) else None)
         elif args.kind == "cluster":
             if not args.prometheus_url:
                 parser.error("--prometheus-url is required for clusters")

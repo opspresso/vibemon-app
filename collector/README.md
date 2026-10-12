@@ -25,6 +25,7 @@ Generate the token at [Account](https://vibemon.io/account) and select **Show to
 | `--kind cluster --prometheus-url URL` | Read five aggregate Prometheus queries (default cluster backend) |
 | `--kind cluster --cluster-backend metrics-api` | Read existing Kubernetes Metrics API, node capacity/readiness, and pod health |
 | `--kubectl-command "sudo -n k3s kubectl"` | Command prefix for a local k3s administrator; defaults to `kubectl` |
+| `--disk` | Add root-disk available GiB, total GiB, and used percentage (host or cluster Metrics API) |
 | `--metrics cpuPercent,memoryPercent` | Collect only the selected metrics |
 | `--memory-type auto` | Detect Spark/GB10 unified memory; `ram` and `unified` explicitly override |
 | `--once` | Exit after one successfully acknowledged 30-second summary |
@@ -35,13 +36,17 @@ Generate the token at [Account](https://vibemon.io/account) and select **Show to
 
 ## Observation and retry rules
 
-The collector observes every 10 seconds and summarizes three observations. It sends a new summary when a window mean differs by at least 2 percentage points or 2 °C from the last successful transmission, a node/pod count changes, measurement availability changes, or health changes. Unchanged state sends a heartbeat every 60 seconds.
+The collector observes every 10 seconds and summarizes three observations. It sends a new summary when a window mean differs by at least 2 percentage points or 2 °C from the last successful transmission, a node/pod count or disk capacity changes, measurement availability changes, or health changes. Unchanged state sends a heartbeat every 60 seconds.
 
 Only the current three samples and the newest pending summary remain in memory. Transmission failures discard the old pending window; the next window replaces it. Exponential backoff caps at 60 seconds. Recovery sends current state without replaying old samples. A slow adapter never triggers a burst of catch-up observations. Collection and transmission failures are logged by exception type without credentials or response bodies.
 
 Temporary delivery failures (network errors, HTTP 408/425/429/500/502/503/504) retry with bounded backoff. A numeric `Retry-After` delays sending by up to 60 seconds while sampling continues. Other HTTP rejections and invalid acknowledgements stop with exit code **2** instead of retrying indefinitely. Correct the Web origin, write token, permissions, source definition, or clock, then restart. A process supervisor should not automatically restart exit code 2. Diagnostics include the HTTP status but never credential values or response bodies. `--url` must be an origin without an API/page path; a Prometheus URL may include a reverse-proxy prefix.
 
 Window maxima accompany means so the Web minute aggregate retains peaks. Missing, unsupported, nonfinite, or failed measurements remain `null`. If a metric fails on the last observation of a window, that metric is `null` for the entire transmitted window; earlier success cannot hide a current failure.
+
+## Host disk capacity
+
+Add `--disk` to a host collector to measure `/` with `psutil.disk_usage`. This includes DGX Spark's root filesystem. It reports `diskAvailableGiB`, `diskTotalGiB`, and `diskUsedPercent` with the same units and formula as the Kubernetes backend below. It does not sum other mounts or container overlays. Failed filesystem reads produce `null` disk values while CPU, memory, and GPU collection continue. Disk is opt-in; existing collector invocations keep their current payloads. Deploy Web support for extended host/cluster definitions before enabling it.
 
 ## DGX Spark
 
@@ -73,6 +78,12 @@ vibemon-collector --kind cluster --cluster-backend metrics-api \
 
 CPU is total measured cores divided by total node CPU capacity. Memory is total working-set bytes divided by total node memory capacity, weighted by capacity. The [Kubernetes Metrics API](https://kubernetes.io/docs/tasks/debug/debug-cluster/resource-metrics-pipeline/) supplies these measurements; its working-set memory differs from the Prometheus node-exporter available-memory expression. If any node's usage is missing or older than 120 seconds, utilization is unavailable rather than a partial cluster total. Node/pod status remains independently available. Completed pods are excluded from unhealthy counts.
 
+For an in-cluster collector, add `--disk` to read each node's root filesystem from the [kubelet Summary API](https://kubernetes.io/docs/reference/instrumentation/node-metrics/). Grant `get` on core `nodes/stats` and allow HTTPS to each node's advertised kubelet port (usually 10250). The collector uses its mounted service-account token and CA, verifies TLS, rejects redirects, and does not require `nodes/proxy`. The kubelet serving certificate must be trusted by that CA and include the node's InternalIP; failed verification produces unavailable disk metrics.
+
+`diskAvailableGiB` and `diskTotalGiB` sum root-filesystem bytes across all nodes and divide by 2^30. `diskUsedPercent` is `100 × (1 − available / total)`, including space unavailable to workloads. These are node root disks, not PVC totals or a sum of container overlay mounts. If any node is missing, fails, or has filesystem statistics older than 120 seconds, all three disk values are `null`; CPU, memory, and pod health remain independent. A genuinely full disk reports zero available GiB. The existing three-sample window supplies means and maxima.
+
+Disk-enabled cluster observations include `resourceType`, `metricDefinitions`, and `metricOrder`, preserving the cluster source ID and existing client rendering. Deploy Web support for extended host/cluster definitions before enabling the flag. The flag is off by default and is unsupported with the Prometheus backend.
+
 The CLI reads only the selected summary fields from node/pod objects. Pod specs, credentials and logs are not part of the Python result or Web payload. Python 3.10+ is still required; this backend does not import the host-only `psutil` adapter.
 
 ## Tests
@@ -97,7 +108,7 @@ docker buildx build --platform linux/amd64,linux/arm64 \
   -f collector/Dockerfile -t REGISTRY/vibemon-collector:REVISION --push .
 ```
 
-Pin the resulting multi-platform digest in deployment configuration. Pass `VIBEMON_WRITE_TOKEN` from a secret, not an image layer or argument. For Kubernetes, use the existing Metrics API backend and `--kubectl-command "kubectl --cache-dir=/tmp/kubectl"`; mount a writable `/tmp` when the root filesystem is read-only. The ServiceAccount needs only list on nodes/pods and get/list on metrics.k8s.io nodes.
+Pin the resulting multi-platform digest in deployment configuration. Pass `VIBEMON_WRITE_TOKEN` from a secret, not an image layer or argument. For Kubernetes, use the existing Metrics API backend and `--kubectl-command "kubectl --cache-dir=/tmp/kubectl"`; mount a writable `/tmp` when the root filesystem is read-only. The ServiceAccount needs list on nodes/pods and get/list on metrics.k8s.io nodes. Disk collection additionally requires get on core nodes/stats.
 
 Use `--health-file /tmp/vibemon-health` and a readiness probe:
 
