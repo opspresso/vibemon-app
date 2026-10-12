@@ -36,6 +36,14 @@ test('formatting distinguishes zero, missing and small measured values', () => {
   assert.equal(formatMeasurement(-12, '°C', true), '-12°C');
   assert.equal(formatMeasurement(12.345678, 'ms', true), '12.3457 ms');
 });
+test('percentages use at most two decimal places in cards and precise details', () => {
+  for (const exact of [false, true]) {
+    assert.equal(formatMeasurement(32.02693245, '%', exact), '32.03%');
+    assert.equal(formatMeasurement(0.533333, '%', exact), '0.53%');
+    assert.equal(formatMeasurement(99.999, '%', exact), '100%');
+    assert.equal(formatMeasurement(32.02693245, '%', exact, '—', false), '32.03');
+  }
+});
 test('observation ages preserve old data and reject invalid timestamps', () => {
   const now = Date.parse('2026-10-11T10:00:00Z');
   assert.equal(observationAge('2026-10-11T09:59:59Z', now), 'Just now');

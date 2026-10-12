@@ -52,7 +52,7 @@ export function createMetric() {
 export function updateMetric(node, { metric, value, label, precise = false }) {
   const { name, value: output, amount, unit, bar, fill } = node._parts;
   text(name, label || metric.label);
-  text(amount, reading(value, '', precise));
+  text(amount, reading(value, metric.unit, precise, '—', false));
   text(unit, typeof value === 'number' && Number.isFinite(value) ? measurementUnit(metric.unit) : '');
   output.title = reading(value, metric.unit, true);
   const available = typeof value === 'number' && Number.isFinite(value);
