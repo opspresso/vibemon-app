@@ -33,6 +33,8 @@ are written. install.py cannot verify itself — the Desktop app does that
 against the manifest's "installer" hash before running it.
 """
 
+from __future__ import annotations
+
 import argparse
 import difflib
 import hashlib
