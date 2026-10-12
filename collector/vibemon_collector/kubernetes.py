@@ -3,12 +3,14 @@ import json
 import math
 import re
 import subprocess
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor, wait
 from datetime import datetime
 from decimal import Decimal, InvalidOperation
 from .domain import Sample
 from .disk import CLUSTER_DEFINITIONS, DISK_METRICS
 from .kubelet import filesystem
+
+DISK_QUERY_TIMEOUT = 5
 
 # Output only capacity/readiness fields; pod specs, environment and logs are not read into Python.
 NODE_FIELDS = '{range .items[*]}{.metadata.name}{"\\t"}{.status.capacity.cpu}{"\\t"}{.status.capacity.memory}{"\\t"}{.status.conditions[?(@.type=="Ready")].status}{"\\n"}{end}'
@@ -53,6 +55,7 @@ class KubernetesSampler:
         self.reader, self.metrics, self.clock = reader, metrics, clock
         self.disk_reader = disk_reader
         self.metric_definitions = CLUSTER_DEFINITIONS if set(metrics).intersection(DISK_METRICS) else None
+        self.disk_executor = None
 
     def sample(self):
         values = {key: None for key in self.metrics}
@@ -99,8 +102,17 @@ class KubernetesSampler:
                     _, addresses, port = endpoints[name]
                     # Dual-stack nodes may advertise both IPv4 and IPv6.
                     return filesystem(self.disk_reader.read(addresses.split()[0], port), name, self.clock())
-                with ThreadPoolExecutor(max_workers=min(8, len(nodes))) as executor:
-                    disks = list(executor.map(disk, nodes))
+                # Reuse a bounded pool: timed-out requests must not create more
+                # workers on the next tick, or wait for queued node batches.
+                if self.disk_executor is None:
+                    self.disk_executor = ThreadPoolExecutor(max_workers=8)
+                futures = [self.disk_executor.submit(disk, name) for name in nodes]
+                try:
+                    _, pending = wait(futures, timeout=DISK_QUERY_TIMEOUT)
+                    if pending: raise ValueError('Kubelet summary deadline exceeded')
+                    disks = [future.result() for future in futures]
+                finally:
+                    for future in futures: future.cancel()
                 available = sum(item[0] for item in disks)
                 capacity = sum(item[1] for item in disks)
                 disk_values = dict(zip(DISK_METRICS, (available / 1024 ** 3, capacity / 1024 ** 3, 100 * (1 - available / capacity))))

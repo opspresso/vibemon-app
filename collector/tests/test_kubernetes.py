@@ -3,6 +3,9 @@ from vibemon_collector.kubernetes import KubernetesSampler, quantity
 from vibemon_collector.domain import CLUSTER_METRICS
 from vibemon_collector.disk import DISK_METRICS
 from copy import deepcopy
+from threading import Event
+from unittest.mock import patch
+import time
 
 class Reader:
     def __init__(self):
@@ -112,6 +115,30 @@ class DiskTests(unittest.TestCase):
         self.assertEqual(summary['metricDefinitions']['diskAvailableGiB']['unit'], 'GiB')
         self.assertEqual(summary['metricOrder'][2], 'diskAvailableGiB')
         self.assertEqual(summary['metrics']['diskAvailableGiB'], 40)
+
+    def test_slow_node_batches_do_not_block_other_metrics_or_grow_worker_pool(self):
+        release = Event()
+        self.reader.nodes = [[str(i), '2', '1Gi', 'True'] for i in range(20)]
+        self.reader.endpoints = [[str(i), f'10.0.0.{i + 1}', '10250'] for i in range(20)]
+        self.reader.usage['items'] = [{'metadata': {'name': str(i)}, 'timestamp': '1970-01-01T00:16:40Z', 'usage': {'cpu': '500m', 'memory': '256Mi'}} for i in range(20)]
+        def stalled(_address, _port):
+            release.wait(2)
+            raise OSError('timeout')
+        self.read = stalled
+        sampler = KubernetesSampler(self.reader, CLUSTER_METRICS + DISK_METRICS, lambda: 1000, self)
+        try:
+            with patch('vibemon_collector.kubernetes.DISK_QUERY_TIMEOUT', 0.02):
+                for _ in range(2):
+                    started = time.monotonic()
+                    sample = sampler.sample()
+                    self.assertLess(time.monotonic() - started, 0.5)
+                    self.assertEqual(sample.metrics['cpuPercent'], 25)
+                    self.assertEqual(sample.metrics['podsUnhealthy'], 3)
+                    self.assertTrue(all(sample.metrics[key] is None for key in DISK_METRICS))
+                self.assertLessEqual(len(sampler.disk_executor._threads), 8)
+        finally:
+            release.set()
+            sampler.disk_executor.shutdown(wait=True, cancel_futures=True)
 
 
 if __name__ == '__main__': unittest.main()
