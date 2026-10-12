@@ -1,4 +1,4 @@
-import { dominantState, measurementUnit, needsAttention as attentionState } from '../../shared/design/presentation.mjs';
+import { codingAccountState, dominantState, measurementUnit, needsAttention as attentionState } from '../../shared/design/presentation.mjs';
 import {
   el,
   text,
@@ -27,10 +27,9 @@ export const accountCard = (account) => ({
   members: account.sources
 });
 export function sourceState(source) {
-  const states = (source.members || [source]).flatMap(member =>
-    member.stale ? ['stale'] : [member.health, member.agent?.state]
-  );
-  return dominantState(states, source.agent?.state || source.health);
+  if (source.members) return codingAccountState(source.members.map(sourceState));
+  if (source.stale) return 'stale';
+  return dominantState([source.health, source.agent?.state], source.agent?.state || source.health);
 }
 export const needsAttention = source => attentionState(sourceState(source));
 

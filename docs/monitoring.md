@@ -38,7 +38,7 @@ Open **Settings → Integrations → Send activity to Web**. Enter the Web origi
 
 ## Coding accounts and local activity
 
-Each provider/account ID has its own card and selection. Codex, Claude, Kiro, and other providers can each have several accounts. Cards show the account ID, latest observation's usage, and reporting projects. The status badge surfaces errors, input requests, warnings, or stale data from any reporting project. Open **Details** to find the affected project. Search by account or project, or filter by provider. The account history averages its summaries; percentages are not summed.
+Each provider/account ID has its own card and selection. Codex, Claude, Kiro, and other providers can each have several accounts. Cards show the account ID, latest observation's usage, and reporting projects. The status badge surfaces errors, input requests, and warnings from projects still reporting. An account becomes **Stale** only when all its projects are stale. **Details** preserves each project's status, including stopped projects. Search by account or project, or filter by provider. The account history averages its summaries; percentages are not summed.
 
 Equal project names across accounts remain separate. Identity metadata does not switch tool logins: use each tool's matching signed-in environment. **Connect account** opens Web's account setup, including Kiro account overrides. See the [provider/account contract](https://vibemon.io/docs/api/monitoring#multiple-provider-accounts).
 

@@ -1237,6 +1237,28 @@ class ConfigRobustnessTest(unittest.TestCase):
 
 
 class TokenEnvironmentTest(unittest.TestCase):
+    def test_unattended_upgrade_rejects_existing_legacy_credential_without_overwriting_it(self):
+        for flag in ['AUTO_APPROVE', 'NON_INTERACTIVE']:
+            with self.subTest(flag=flag):
+                config = {'vibemon_token': 'old_arbitrary_token', 'http_urls': ['http://127.0.0.1:19280']}
+                output = io.StringIO()
+                with mock.patch.dict(os.environ, {}, clear=True), mock.patch.object(install, flag, True), mock.patch('sys.stdout', output):
+                    with self.assertRaisesRegex(ValueError, 'VIBEMON_WRITE_TOKEN'):
+                        install.configure_token(config)
+                self.assertEqual(config['vibemon_token'], 'old_arbitrary_token')
+                self.assertNotIn('old_arbitrary_token', output.getvalue())
+
+    def test_interactive_upgrade_replaces_legacy_credential_with_hidden_input(self):
+        token = 'vm_' + 'b' * 60
+        with mock.patch.dict(os.environ, {}, clear=True), mock.patch.object(install, 'AUTO_APPROVE', False), mock.patch.object(install, 'NON_INTERACTIVE', False), mock.patch.object(install.getpass, 'getpass', return_value=token), mock.patch('sys.stdout', io.StringIO()):
+            configured = install.configure_token({'vibemon_token': 'old_arbitrary_token'})
+        self.assertEqual(configured['vibemon_token'], token)
+
+    def test_unattended_upgrade_preserves_generated_credential_and_local_only_setup(self):
+        with mock.patch.dict(os.environ, {}, clear=True), mock.patch.object(install, 'NON_INTERACTIVE', True), mock.patch('sys.stdout', io.StringIO()):
+            for token in ['', 'vm_' + 'c' * 60]:
+                self.assertEqual(install.configure_token({'vibemon_token': token})['vibemon_token'], token)
+
     def test_generated_write_token_uses_environment_without_logging_plaintext(self):
         import io
         token = 'vm_' + 'a' * 60

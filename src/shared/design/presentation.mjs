@@ -17,6 +17,12 @@ export const codingProviders = Object.freeze([
 export const providerLabel = provider => codingProviders.find(item => item.id === provider)?.name ?? provider;
 export const needsAttention = state => attention.includes(state);
 export const dominantState = (observations, fallback = 'unknown') => attention.find(state => observations.includes(state)) ?? fallback;
+// A stopped project does not make a still-reporting account disconnected.
+// Callers supply per-project states in latest-observation order.
+export function codingAccountState(observations) {
+  const reporting = observations.filter(state => state !== 'stale');
+  return dominantState(reporting, reporting[0] ?? 'stale');
+}
 export const statePresentation = state => Object.hasOwn(states, state) ? [...states[state]] : [state, 'neutral'];
 export const stateLabel = state => statePresentation(state)[0];
 export const stateTone = state => statePresentation(state)[1];
