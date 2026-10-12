@@ -12,6 +12,7 @@ class Sample:
     metrics: dict[str, float | None]
     health: str = "ok"
     memory_type: str | None = None
+    metric_definitions: dict | None = None
 
 
 def summarize(samples: list[Sample], source_id: str, kind: str, name: str, observed_at: float) -> dict:
@@ -25,12 +26,16 @@ def summarize(samples: list[Sample], source_id: str, kind: str, name: str, obser
         values = [value for value in values if value is not None and math.isfinite(value)]
         metrics[key] = sum(values) / len(values) if values else None
         maximums[key] = max(values) if values else None
-    return {
+    payload = {
         "sourceId": source_id, "kind": kind, "displayName": name,
         "observedAt": datetime.fromtimestamp(observed_at, timezone.utc).isoformat(timespec="milliseconds").replace("+00:00", "Z"),
         "health": samples[-1].health, "memoryType": samples[-1].memory_type,
         "heartbeat": False, "metrics": metrics, "maximums": maximums,
     }
+    if samples[-1].metric_definitions is not None:
+        resource_type = 'Kubernetes' if kind == 'cluster' else 'DGX Spark' if samples[-1].memory_type == 'unified' else 'Server'
+        payload.update(resourceType=resource_type, metricDefinitions=samples[-1].metric_definitions, metricOrder=list(samples[-1].metric_definitions))
+    return payload
 
 
 @dataclass

@@ -21,7 +21,7 @@ def run(sampler, sender, source_id, kind, name, metrics, wall_clock, monotonic, 
             sample = sampler.sample()
         except Exception as error:
             logging.warning("Collection failed: %s", type(error).__name__)
-            sample = Sample({key: None for key in metrics}, "error")
+            sample = Sample({key: None for key in metrics}, "error", memory_type=getattr(sampler, 'memory_type', None), metric_definitions=getattr(sampler, 'metric_definitions', None))
         policy.observe(sample, source_id, kind, name, wall_clock())
         # Use the scheduled observation tick, not variable sampler completion time.
         payload = policy.next_payload(deadline)

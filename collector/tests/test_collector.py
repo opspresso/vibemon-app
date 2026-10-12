@@ -160,6 +160,7 @@ class AdapterTests(unittest.TestCase):
         sampler.gpu_command = "/usr/bin/nvidia-smi"
         sampler.gpu_name = "NVIDIA GB10"
         sampler.memory_type = "auto"
+        sampler.metric_definitions = None
         with patch("vibemon_collector.host.psutil.virtual_memory") as memory, patch("vibemon_collector.host.subprocess.run") as command:
             memory.return_value.percent = 42
             command.return_value.stdout = "[N/A], 48\n"
