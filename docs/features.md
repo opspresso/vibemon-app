@@ -4,6 +4,8 @@
 
 Select **Dashboard** from the tray menu to open the workspace and select custom resources, host/cluster presets, and multiple accounts per provider. The App polls summaries with an OS-encrypted read token. Web resource edits control labels, display ranges, and metric order; local hook activity still works independently. See [cloud monitoring](monitoring.md) for setup, selection, trends, and failure states.
 
+The tray's orange-red dot marks a monitored item needing attention, a failed cloud connection, an integration needing repair, or an available app update. Hover over the icon to see each cause and where to resolve it. Inactive coding agents do not turn on the dot.
+
 
 ## Agent Support
 

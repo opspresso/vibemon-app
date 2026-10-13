@@ -138,6 +138,21 @@ test('integration repair and actionable updates produce attention badges', () =>
   }
 });
 
+test('the badge tooltip explains each cause and changes even while the badge stays on', async () => {
+  const client = Object.assign(new EventEmitter(), { snapshot: () => ({ status: 'connected', attentionCount: 1 }) });
+  manager.setMonitoringClient(client);
+  manager.setHookInstaller({ hasChanges: () => true });
+  manager.setUpdateChecker({ getState: () => ({ status: 'downloaded' }) });
+  manager.createTray(); await flush();
+  expect(native.setToolTip).toHaveBeenLastCalledWith('VibeMon\n1 monitored item needs attention — open Dashboard\nIntegrations need repair — open Integrations\nApp update available — open About VibeMon');
+  native.setToolTip.mockClear(); native.setImage.mockClear();
+  for (let i = 0; i < 250; i++) manager.updateIcon();
+  expect(native.setToolTip).not.toHaveBeenCalled();
+  client.emit('change', { status: 'token-expired', attentionCount: 0 });
+  expect(native.setToolTip).toHaveBeenLastCalledWith('VibeMon\nRead token rejected — check Connections\nIntegrations need repair — open Integrations\nApp update available — open About VibeMon');
+  await flush(); expect(native.setImage).not.toHaveBeenCalled();
+});
+
 test('the companion context menu binds to its sender window when available', () => {
   const sender = {}, window = { isDestroyed: () => false };
   BrowserWindow.fromWebContents.mockReturnValue(window);
