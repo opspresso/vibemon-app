@@ -629,10 +629,15 @@ class WindowsShellCommandTest(unittest.TestCase):
             environment = script.parent / 'Python environment'
             venv.EnvBuilder(with_pip=False).create(environment)
             python = environment / ('Scripts/python.exe' if os.name == 'nt' else 'bin/python')
-            script.write_text('import json,sys; sys.stdin.reconfigure(encoding="utf-8"); print(json.dumps({"name":__file__,"data":json.load(sys.stdin)}))\n', encoding='utf-8')
+            script.write_text('import json,sys\nfrom pathlib import Path\ntrace=Path(__file__).with_suffix(".trace")\ntrace.write_text("reading stdin")\nsys.stdin.reconfigure(encoding="utf-8")\ndata=json.load(sys.stdin)\ntrace.write_text("input received")\nprint(json.dumps({"name":__file__,"data":data}))\n', encoding='utf-8')
             with mock.patch.object(install, 'has_git_bash', return_value=bash):
                 command = install.windows_shell_command(install.hook_path(python), install.hook_path(script))
-            result = subprocess.run([shell, *args, command], input='{"value":"한글 fixture"}', capture_output=True, encoding='utf-8', timeout=10, env={**os.environ, 'NAME': 'must-not-expand'})
+            try:
+                result = subprocess.run([shell, *args, command], input='{"value":"한글 fixture"}', capture_output=True, encoding='utf-8', timeout=10, env={**os.environ, 'NAME': 'must-not-expand'})
+            except subprocess.TimeoutExpired as error:
+                trace = script.with_suffix('.trace')
+                phase = trace.read_text() if trace.exists() else 'Python has not entered the script'
+                self.fail(f'{shell} timed out: {phase}; stdout bytes={len(error.stdout or b"")}, stderr bytes={len(error.stderr or b"")}')
             self.assertEqual(result.returncode, 0, result.stderr)
             output = json.loads(result.stdout)
             self.assertEqual(Path(output['name']).resolve(), script.resolve())
