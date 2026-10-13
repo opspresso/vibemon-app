@@ -218,7 +218,7 @@ function showCharacterAgain() {
   if (!restored) return;
 
   if (restored.stateData) {
-    stateManager.setupStateTimeout(restored.projectId, restored.stateData.state, { remote: restored.projectId.startsWith('cloud:') });
+    stateManager.setupStateTimeout(restored.projectId, restored.stateData.state, { remote: Boolean(restored.projectId?.startsWith('cloud:')) });
   }
   if (trayManager) {
     trayManager.updateMenu();
