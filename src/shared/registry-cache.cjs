@@ -6,8 +6,8 @@
  * resolves the registries synchronously at startup — last cached remote copy
  * (validated and no older than the bundle) first, bundled data/*.json as fallback — and exposes refresh()
  * to fetch/validate/cache the remote copies in the background. A refreshed
- * registry applies on the next launch; character images are remote-first at
- * render time independently of this cache.
+ * registry applies on the next launch. Bundled images load locally; new
+ * versioned images are fetched with bounded size and dimensions.
  *
  * Remote payloads are never trusted as-is: states must be a superset of the
  * bundled state names (app logic references them), unknown eyeType/effect
@@ -23,6 +23,7 @@ const { REGISTRY_MAX_RESPONSE_BYTES } = require('./constants.cjs');
 
 const bundledStates = require('./data/states.json');
 const bundledCharacters = require('./data/characters.json');
+const bundledImageFiles = Object.values(bundledCharacters.characters).map(character => character.image);
 
 const STATIC_BASE_URL = (process.env.VIBEMON_STATIC_URL || 'https://vibemon.io/static').replace(/\/+$/, '');
 
@@ -293,6 +294,7 @@ module.exports = {
   STATIC_BASE_URL,
   statesRegistry,
   charactersRegistry,
+  bundledImageFiles,
   refresh,
   // Exported for tests
   sanitizeStatesRegistry,

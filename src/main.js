@@ -43,7 +43,7 @@ const { UsageRefresher } = require('./modules/usage-refresher.cjs');
 const { StatusIngress } = require('./application/status-ingress.cjs');
 const registryCache = require('./shared/registry-cache.cjs');
 const {
-  CHARACTER_IMAGE_FETCH_TIMEOUT_MS,
+  CHARACTER_IMAGE_FETCH_TIMEOUT_MS, CHARACTER_IMAGE_MAX_BYTES, CHAR_SIZE,
   HOOK_CHECK_INITIAL_DELAY_MS, HOOK_CHECK_INTERVAL_MS,
   UPDATE_CHECK_INITIAL_DELAY_MS, UPDATE_CHECK_INTERVAL_MS,
   USAGE_REFRESH_INITIAL_DELAY_MS, USAGE_REFRESH_INTERVAL_MS
@@ -233,13 +233,14 @@ ipcMain.handle('get-version', () => {
 
 // Character registry for the renderer's engine setup (canonical:
 // the public App distribution, resolved by registry-cache.cjs — cached remote copy or
-// bundled fallback). staticBaseUrl lets the renderer build remote-first
-// image URLs.
+// bundled fallback). Only images absent from the package require a download.
 ipcMain.handle('get-character-registry', () => {
   return {
     ...registryCache.charactersRegistry,
     staticBaseUrl: registryCache.STATIC_BASE_URL,
-    imageFetchTimeoutMs: CHARACTER_IMAGE_FETCH_TIMEOUT_MS
+    imageFetchTimeoutMs: CHARACTER_IMAGE_FETCH_TIMEOUT_MS,
+    imageMaxBytes: CHARACTER_IMAGE_MAX_BYTES, imageSize: CHAR_SIZE,
+    bundledImageFiles: registryCache.bundledImageFiles
   };
 });
 

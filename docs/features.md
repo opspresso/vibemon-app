@@ -52,7 +52,7 @@ On Windows, the installer pins the Python interpreter in the plugin; custom conf
 
 OpenCode reports `character: "opencode"`, which currently falls back to `vibemon` because the canonical registry does not contain that name. Its states, project, tool, and model remain visible. Add a dedicated character to this repository's registry and export map before it can be bundled or offered in Character Lock.
 
-In **2D** (default) all characters use **image-based rendering** (128x128 PNG). Images load remote-first from `vibemon.io/static`, with copies bundled in `src/assets/characters/` as the offline fallback. Character is **auto-selected by bridge**, not by the core display runtime. You can also force one with [Character Lock](#character-lock).
+In **2D** (default) all characters use **image-based rendering** (128x128 PNG). Images bundled in `src/assets/characters/` load without network requests. Only new, versioned images from a refreshed registry are downloaded from `vibemon.io/static`; downloads are bounded to 64 KiB and must declare 128×128 PNG dimensions. Character is **auto-selected by bridge**, not by the core display runtime. You can also force one with [Character Lock](#character-lock).
 
 Characters are defined in `src/shared/data/characters.json`: display name, accent color, PNG, eye/effect coordinates, and 3D theme. App owns these sources; Web serves the pinned public snapshot at `vibemon.io/static/data/characters.json`. Rendering, tray menus, and validation derive from the same registry. Add the image and registry entry here, update `web-distribution.json`, and run `pnpm check:registry` plus `pnpm check:distribution`.
 
@@ -222,7 +222,7 @@ See [the desktop workspace guide](monitoring.md) for navigation, connection, set
 
 ## Rendering Engine
 
-The character is rendered by a bundled engine (`src/engine/vibemon-engine.js`): a 128x128 canvas drawing the character PNG, state-driven pixel-art eyes/effects, and the floating animation, over a fully transparent background. Character images load remote-first from `vibemon.io/static`, falling back to the bundled copies in `src/assets/characters/` — rendering works fully offline.
+The character is rendered by a bundled engine (`src/engine/vibemon-engine.js`): a 128x128 canvas drawing the character PNG, state-driven pixel-art eyes/effects, and the floating animation, over a fully transparent background. Bundled character images load locally, so starting or reopening the companion does not wait for the CDN. New registry artwork uses bounded downloads; keep versioned filenames when changing artwork.
 
 ## Build
 

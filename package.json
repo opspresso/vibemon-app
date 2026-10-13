@@ -25,7 +25,7 @@
     "check:registry": "node scripts/check-registry.mjs",
     "check:distribution": "node scripts/export-web.mjs",
     "build:distribution": "node scripts/export-web.mjs --write",
-    "test:design": "node --test tests/design.test.mjs"
+    "test:design": "node --test tests/*.test.mjs"
   },
   "author": "nalbam",
   "license": "MIT",
