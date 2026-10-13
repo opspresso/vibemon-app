@@ -4,6 +4,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const { startFixture, TOKEN } = require('./workspace-fixture.cjs');
+const { AGENT_TEXT_LIMITS } = require('../../src/shared/resource-schema.cjs');
 const output = process.env.VIBEMON_TEST_ARTIFACTS || path.join(__dirname, '../../out/workspace-tests');
 fs.mkdirSync(output, { recursive: true });
 nativeTheme.themeSource = 'dark';
@@ -441,11 +442,14 @@ startFixture().then(async fixture => {
     };
     if (source.sourceId === 'codex-team') return {
       ...source, account: { provider: 'p'.repeat(32), id: 'a'.repeat(128), displayName: longName },
-      agent: { ...source.agent, project: '計'.repeat(256), state: 's'.repeat(256) }
+      agent: { ...source.agent, project: '計'.repeat(AGENT_TEXT_LIMITS.project), state: 'notification',
+        tool: '道'.repeat(AGENT_TEXT_LIMITS.tool), model: '型'.repeat(AGENT_TEXT_LIMITS.model),
+        usageWeekModelLabel: '型'.repeat(AGENT_TEXT_LIMITS.usageWeekModelLabel) }
     };
     return source;
   });
   await client.poll(true);
+  assert.equal(client.getStatus(), 'connected', 'accepted-limit fixture must satisfy the source contract');
   await client.select({ sources: null, accounts: null, metrics: Object.keys(client.snapshot().metrics) });
   await input('#resource-search', '');
   const overflow = [];
