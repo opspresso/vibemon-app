@@ -17,7 +17,7 @@ for (const name of ['.env.local', '.env']) {
   catch (error) { if (error.code !== 'ENOENT') throw error; }
 }
 
-const { app, BrowserWindow, ipcMain, dialog, powerMonitor, screen, safeStorage, shell } = require('electron');
+const { app, ipcMain, dialog, powerMonitor, screen, safeStorage, shell } = require('electron');
 const { MonitoringClient } = require('./monitoring/client.cjs');
 const { CredentialStore } = require('./monitoring/credential-store.cjs');
 const { CloudActivity } = require('./monitoring/activity.cjs');
@@ -41,6 +41,7 @@ const { HookCloudDelivery } = require('./modules/hook-cloud-delivery.cjs');
 const { UpdateChecker } = require('./modules/update-checker.cjs');
 const { UsageRefresher } = require('./modules/usage-refresher.cjs');
 const { StatusIngress } = require('./application/status-ingress.cjs');
+const { interactionTarget } = require('./modules/window-interaction-target.cjs');
 const registryCache = require('./shared/registry-cache.cjs');
 const {
   CHARACTER_IMAGE_FETCH_TIMEOUT_MS, CHARACTER_IMAGE_MAX_BYTES, CHAR_SIZE,
@@ -268,33 +269,24 @@ ipcMain.on('show-context-menu', (event) => {
   }
 });
 
-// Only the active character and its bubble may control character interaction.
-function getInteractionProject(sender) {
-  const projectId = windowManager.getProjectIdByWebContents(sender);
-  if (projectId) return projectId;
-  for (const [id, win] of bubbleWindowManager.bubbleWindows) {
-    if (!win.isDestroyed() && win.webContents === sender && windowManager.getWindow(id)) return id;
-  }
-  return null;
-}
+const getInteractionTarget = sender => interactionTarget(sender, windowManager, bubbleWindowManager);
 
 ipcMain.on('window-ignore-mouse', (event, ignore) => {
-  const projectId = getInteractionProject(event.sender);
-  if (!projectId || typeof ignore !== 'boolean') return;
-  const character = windowManager.getWindow(projectId);
-  const win = character.webContents === event.sender
-    ? character : bubbleWindowManager.bubbleWindows.get(projectId);
-  win.setIgnoreMouseEvents(ignore, { forward: true });
+  const target = getInteractionTarget(event.sender);
+  if (target && typeof ignore === 'boolean') target.window.setIgnoreMouseEvents(ignore, { forward: true });
 });
 
 ipcMain.on('window-drag-start', (event) => {
-  if (getInteractionProject(event.sender)) windowManager.beginUserDrag(BrowserWindow.fromWebContents(event.sender));
+  const target = getInteractionTarget(event.sender);
+  if (target) windowManager.beginUserDrag(target.window);
 });
 ipcMain.on('window-drag-move', (event) => {
-  if (getInteractionProject(event.sender)) windowManager.moveUserDrag(BrowserWindow.fromWebContents(event.sender));
+  const target = getInteractionTarget(event.sender);
+  if (target) windowManager.moveUserDrag(target.window);
 });
 ipcMain.on('window-drag-end', (event) => {
-  if (getInteractionProject(event.sender)) windowManager.endUserDrag(BrowserWindow.fromWebContents(event.sender));
+  const target = getInteractionTarget(event.sender);
+  if (target) windowManager.endUserDrag(target.window);
 });
 
 // Focus terminal (iTerm2 or Ghostty on macOS)
@@ -305,7 +297,7 @@ ipcMain.handle('focus-terminal', async (event) => {
   }
 
   // Get project ID from the window that sent the request
-  const projectId = getInteractionProject(event.sender);
+  const projectId = getInteractionTarget(event.sender)?.projectId;
   if (!projectId) {
     return { success: false, reason: 'no-project' };
   }
