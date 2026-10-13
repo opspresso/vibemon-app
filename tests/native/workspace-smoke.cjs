@@ -23,7 +23,10 @@ startFixture().then(async fixture => {
   const { view, client, ports, state, errors, selectDashboard, trayManager } = fixture;
   const web = view.window.webContents;
   const ui = code => web.executeJavaScript(code);
-  const click = selector => ui(`document.querySelector(${JSON.stringify(selector)}).click()`);
+  const click = async selector => {
+    await until(() => ui(`Boolean(document.querySelector(${JSON.stringify(selector)})) && !document.querySelector(${JSON.stringify(selector)}).matches(':disabled')`), `${selector} accepts a click`);
+    return ui(`document.querySelector(${JSON.stringify(selector)}).click()`);
+  };
   const value = selector => ui(`document.querySelector(${JSON.stringify(selector)}).value`);
   const text = selector => ui(`document.querySelector(${JSON.stringify(selector)}).textContent`);
   const input = (selector, value, event = 'input') => ui(`(() => { const input = document.querySelector(${JSON.stringify(selector)}); input.value = ${JSON.stringify(value)}; input.dispatchEvent(new Event(${JSON.stringify(event)}, { bubbles: true })); })()`);
