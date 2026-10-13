@@ -835,6 +835,31 @@
       "value": null,
       "unit": "%",
       "expected": "\u2014"
+    },
+    {
+      "value": 1.005,
+      "unit": "%",
+      "expected": "1.01"
+    },
+    {
+      "value": -1.005,
+      "unit": "%",
+      "expected": "-1.01"
+    },
+    {
+      "value": 0.005,
+      "unit": "%",
+      "expected": "0.01"
+    },
+    {
+      "value": -0.001,
+      "unit": "%",
+      "expected": "-0"
+    },
+    {
+      "value": 3755.445,
+      "unit": "GiB",
+      "expected": "3,755.45"
     }
   ]
 }
