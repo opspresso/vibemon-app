@@ -10,6 +10,7 @@ module.exports = {
     '**/__tests__/**/*.js'
   ],
   collectCoverageFrom: [
+    'src/application/**/*.cjs',
     'src/modules/**/*.{js,cjs}',
     'src/monitoring/**/*.cjs',
     'src/workspace/**/*.cjs',

@@ -29,6 +29,7 @@ function validateState(state) {
   if (state === undefined) {
     return { valid: false, error: 'state is required' };
   }
+  if (typeof state !== 'string') return { valid: false, error: 'State must be a string' };
   if (!VALID_STATES.includes(state)) {
     return { valid: false, error: `Invalid state: ${state}. Valid states: ${VALID_STATES.join(', ')}` };
   }
@@ -115,7 +116,7 @@ function validateResetMinutes(value, label) {
   if (typeof value !== 'number') {
     return { valid: false, error: `${label} must be a number` };
   }
-  if (!Number.isInteger(value) || value < 0) {
+  if (!Number.isSafeInteger(value) || value < 0) {
     return { valid: false, error: `${label} must be a non-negative integer` };
   }
   return { valid: true, error: null };

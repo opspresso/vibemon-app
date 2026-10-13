@@ -40,7 +40,7 @@ const { VibemonConfigManager } = require('./modules/vibemon-config-manager.cjs')
 const { HookCloudDelivery } = require('./modules/hook-cloud-delivery.cjs');
 const { UpdateChecker } = require('./modules/update-checker.cjs');
 const { UsageRefresher } = require('./modules/usage-refresher.cjs');
-const { validateStatusPayload } = require('./modules/validators.cjs');
+const { StatusIngress } = require('./application/status-ingress.cjs');
 const registryCache = require('./shared/registry-cache.cjs');
 const {
   CHARACTER_IMAGE_FETCH_TIMEOUT_MS,
@@ -176,64 +176,19 @@ windowManager.onWindowClosed = (projectId) => {
   }
 };
 
-/**
- * Handle status update from cloud
- * Reuses the same logic as HTTP POST /status
- * @param {Object} data - status payload
- * @param {{auto?: boolean, sourceId?: string}} [meta] - Preserve focus when
- *   another project is already shown. sourceId separates cloud identities
- *   from local project labels.
- */
-function handleCloudStatusUpdate(data, meta = {}) {
-  // Validate payload
-  const validation = validateStatusPayload(data);
-  if (!validation.valid) {
-    console.error('cloud invalid payload:', validation.error);
-    return;
-  }
+function notifyStatusChange(menuOnly) {
+  workspaceWindow?.notify('activity');
+  if (!menuOnly) trayManager?.updateIcon();
+  trayManager?.updateMenu();
+}
+const statusIngress = new StatusIngress(stateManager, windowManager, {
+  onProjectSwitched: id => bubbleWindowManager.destroy(id),
+  onStateUpdate: notifyStatusChange
+});
 
-  // Validate and normalize state data via stateManager
-  const stateValidation = stateManager.validateStateData(data);
-  if (!stateValidation.valid) {
-    console.error('cloud invalid state data:', stateValidation.error);
-    return;
-  }
-  const stateData = stateValidation.data;
-
-  // A status without a project name has nothing meaningful to display — drop it.
-  if (!stateData.project) return;
-  const projectId = meta.sourceId ? `cloud:${meta.sourceId}` : stateData.project;
-
-  const routeResult = windowManager.routeStatusUpdate(projectId, stateData, {
-    preserveFocus: meta.auto === true
-  });
-
-  // The window was retargeted from another project
-  if (routeResult.switchedProject) {
-    bubbleWindowManager.destroy(routeResult.switchedProject);
-  }
-
-  const updateResult = routeResult.updateResult;
-
-  // Every accepted update is activity, including unchanged/background updates.
-  stateManager.setupStateTimeout(projectId, stateData.state, { remote: Boolean(meta.sourceId) });
-
-  // No visible change - skip unnecessary renderer/tray updates
-  if (!updateResult.updated) {
-    return;
-  }
-
-  // State changed - full update (alwaysOnTop, timeout, tray)
-  if (updateResult.stateChanged) {
-    windowManager.updateAlwaysOnTopByState(stateData.state);
-    if (trayManager) {
-      trayManager.updateIcon();
-      trayManager.updateMenu();
-    }
-  }
-
-  // Send update to renderer (routeResult.stateData reflects Character Lock, if set)
-  windowManager.sendToWindow(projectId, 'state-update', routeResult.stateData);
+function handleCloudStatusUpdate(data, { auto = false, sourceId } = {}) {
+  const result = statusIngress.accept(data, { sourceId, preserveFocus: auto });
+  if (!result.valid) console.error('cloud invalid payload:', result.error);
 }
 
 /**
@@ -481,19 +436,8 @@ app.whenReady().then(() => {
 
 
   // Start HTTP server
-  httpServer = new HttpServer(stateManager, windowManager, app);
-  httpServer.onStateUpdate = (menuOnly) => {
-    workspaceWindow.notify('activity');
-    if (trayManager) {
-      if (!menuOnly) {
-        trayManager.updateIcon();
-      }
-      trayManager.updateMenu();
-    }
-  };
-  httpServer.onProjectSwitched = (oldProjectId) => {
-    bubbleWindowManager.destroy(oldProjectId);
-  };
+  httpServer = new HttpServer(stateManager, windowManager, app, statusIngress);
+  httpServer.onStateUpdate = notifyStatusChange;
   httpServer.onError = (err) => {
     if (err.code === 'EADDRINUSE') {
       dialog.showErrorBox(

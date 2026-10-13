@@ -6,13 +6,13 @@ const http = require('http');
 const { URL } = require('url');
 const { HTTP_PORT, MAX_PAYLOAD_SIZE, RATE_LIMIT, RATE_WINDOW_MS, HTTP_CLOSE_TIMEOUT_MS, CHARACTER_NAMES } = require('../shared/config.cjs');
 const { setCorsHeaders, isAllowedOrigin, isAllowedHost, hasJsonContentType, sendJson, sendError, parseJsonBody } = require('./http-utils.cjs');
-const { validateStatusPayload } = require('./validators.cjs');
+const { StatusIngress } = require('../application/status-ingress.cjs');
 
 // Rate limiting: cleanup when the per-IP map exceeds this size
 const RATE_CLEANUP_THRESHOLD = 100;
 
 class HttpServer {
-  constructor(stateManager, windowManager, app) {
+  constructor(stateManager, windowManager, app, ingress) {
     this.server = null;
     this.stateManager = stateManager;
     this.windowManager = windowManager;
@@ -20,6 +20,10 @@ class HttpServer {
     this.onStateUpdate = null;  // Callback for menu/icon updates
     this.onProjectSwitched = null;  // Callback: (oldProjectId) => void, window retargeted to another project
     this.onError = null;        // Callback for server errors
+    this.ingress = ingress || new StatusIngress(stateManager, windowManager, {
+      onProjectSwitched: id => this.onProjectSwitched?.(id),
+      onStateUpdate: menuOnly => this.onStateUpdate?.(menuOnly)
+    });
 
     // Rate limiting state
     this.requestCounts = new Map();  // IP -> { count, resetTime }
@@ -201,82 +205,9 @@ class HttpServer {
       return;
     }
 
-    // Validate payload
-    const validation = validateStatusPayload(data);
-    if (!validation.valid) {
-      sendError(res, 400, validation.error);
-      return;
-    }
-
-    // Validate and normalize state data via stateManager
-    const stateValidation = this.stateManager.validateStateData(data);
-    if (!stateValidation.valid) {
-      sendError(res, 400, stateValidation.error || 'Invalid state data');
-      return;
-    }
-    const stateData = stateValidation.data;  // Extract normalized data
-
-    // A status without a project name has nothing meaningful to display —
-    // accept it but never route it to the window.
-    if (!stateData.project) {
-      sendJson(res, 200, {
-        success: true,
-        project: null,
-        state: stateData.state,
-        focusedProject: this.windowManager.getFocusedProjectId(),
-        skipped: true
-      });
-      return;
-    }
-    const projectId = stateData.project;
-
-    const routeResult = this.windowManager.routeStatusUpdate(projectId, stateData);
-
-    // The window was retargeted from another project
-    if (routeResult.switchedProject) {
-      if (this.onProjectSwitched) {
-        this.onProjectSwitched(routeResult.switchedProject);
-      }
-    }
-
-    const updateResult = routeResult.updateResult;
-
-    // Every accepted update is activity, including unchanged/background updates.
-    this.stateManager.setupStateTimeout(projectId, stateData.state);
-
-    // No change - skip unnecessary updates
-    if (!updateResult.updated) {
-      sendJson(res, 200, {
-        success: true,
-        project: projectId,
-        state: stateData.state,
-        focusedProject: this.windowManager.getFocusedProjectId(),
-        skipped: true
-      });
-      return;
-    }
-
-    // State changed - full update (alwaysOnTop, timeout, tray)
-    if (updateResult.stateChanged) {
-      // Update always on top based on state (active states stay on top)
-      this.windowManager.updateAlwaysOnTopByState(stateData.state);
-
-      // Update tray
-      if (this.onStateUpdate) {
-        this.onStateUpdate(false);  // Full update
-      }
-    }
-
-    // Send update to renderer (for both state and info changes); routeResult.stateData
-    // reflects Character Lock, if set
-    this.windowManager.sendToWindow(projectId, 'state-update', routeResult.stateData);
-
-    sendJson(res, 200, {
-      success: true,
-      project: projectId,
-      state: stateData.state,
-      focusedProject: this.windowManager.getFocusedProjectId()
-    });
+    const result = this.ingress.accept(data);
+    if (!result.valid) { sendError(res, 400, result.error); return; }
+    sendJson(res, 200, result.response);
   }
 
   handleGetStatus(res) {
