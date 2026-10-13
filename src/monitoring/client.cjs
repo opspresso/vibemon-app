@@ -3,15 +3,18 @@ const { EventEmitter } = require('events');
 const { METRICS, validId, validAccountId, accountId, groupAccounts, webOrigin, validateSources, validateTrend, validateDefinitions, validateOrder, displayMetrics, metricCatalog } = require('./domain.cjs');
 const { CLOUD_POLL_MS, CLOUD_REQUEST_TIMEOUT_MS, CLOUD_TREND_MS, CLOUD_MAX_RESPONSE_BYTES } = require('../shared/constants.cjs');
 const { sourceStale, sourceState, accountState, needsAttention, attentionCount } = require('../shared/monitoring/state.cjs');
+const { snapshotClock } = require('../shared/monitoring/clock.cjs');
 
 class MonitoringClient extends EventEmitter {
-  constructor({ preferences, credentials, fetchImpl = fetch, allowLocalHttp = false, now = Date.now }) {
+  constructor({ preferences, credentials, fetchImpl = fetch, allowLocalHttp = false, now = Date.now, monotonicNow = () => globalThis.performance.now() }) {
     super();
     this.preferences = preferences;
     this.credentials = credentials;
     this.fetch = fetchImpl;
     this.allowLocalHttp = allowLocalHttp;
     this.now = now;
+    this.monotonicNow = monotonicNow;
+    this.reportClock = null;
     this.sources = [];
     this.catalog = [];
     this.accountCatalog = [];
@@ -25,8 +28,9 @@ class MonitoringClient extends EventEmitter {
   }
   getStatus() { return this.status; }
   hasToken() { return this.credentials.has(); }
+  currentTime() { return this.reportClock ? this.reportClock() : this.now(); }
   snapshot() {
-    const now = this.now();
+    const now = this.currentTime();
     const selectedSources = this.preferences.get('selectedSources') ?? null;
     const selectedAccounts = this.preferences.get('selectedAccounts') ?? null;
     const selected = this.sources.filter(source => source.kind === 'agent'
@@ -47,6 +51,7 @@ class MonitoringClient extends EventEmitter {
       url: this.preferences.get('url') || 'https://vibemon.io',
       tokenConfigured: this.credentials.has(), status: this.status,
       lastSyncedAt: this.lastSyncedAt, connectionRevision: this.generation,
+      evaluatedAt: now,
       selectedSources, selectedAccounts, accountCatalog: this.accountCatalog,
       accounts: groupAccounts(sources).map(account => {
         const displayState = accountState(account, now);
@@ -65,11 +70,13 @@ class MonitoringClient extends EventEmitter {
     const attempt = ++this.configurationAttempt;
     const data = await this.requestWith(origin, candidate, '/api/v1/sources');
     const sources = validateSources(data.sources);
+    const clock = snapshotClock(data.serverTime, this.monotonicNow);
     if (attempt !== this.configurationAttempt) throw new Error('The connection changed while checking. Try again');
     if (token) this.credentials.set(token, origin);
     else this.preferences.set('url', origin);
     this.generation++;
     this.sources = sources;
+    this.reportClock = clock;
     this.catalog = sources.map(source => this.catalogEntry(source));
     this.accountCatalog = groupAccounts(sources).map(({ accountId, displayName, provider }) => ({ accountId, displayName, provider }));
     this.lastSyncedAt = new Date(this.now()).toISOString();
@@ -86,6 +93,7 @@ class MonitoringClient extends EventEmitter {
     this.catalog = [];
     this.accountCatalog = [];
     this.lastSyncedAt = null;
+    this.reportClock = null;
     this.status = 'not-configured';
     this.emit('sources', []);
     this.emit('change', this.snapshot());
@@ -155,8 +163,10 @@ class MonitoringClient extends EventEmitter {
         const query = !discover && !all ? `?${parts.join('&')}` : '';
         const data = await this.request(`/api/v1/sources${query}`);
         const sources = validateSources(data.sources);
+        const clock = snapshotClock(data.serverTime, this.monotonicNow);
         if (generation === this.generation) {
           this.sources = sources;
+          this.reportClock = clock;
           if (discover || all) {
             this.catalog = sources.map(source => this.catalogEntry(source));
             this.accountCatalog = groupAccounts(sources).map(({ accountId, displayName, provider }) => ({ accountId, displayName, provider }));

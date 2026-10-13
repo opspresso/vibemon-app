@@ -3,6 +3,7 @@ const { CredentialStore } = require('../src/monitoring/credential-store.cjs');
 const { validateSources, validateTrend, webOrigin } = require('../src/monitoring/domain.cjs');
 const rawToken = 'vm_' + '1'.repeat(60);
 function okResponse(value) {
+  if (value.sources && !Object.hasOwn(value, 'serverTime')) value = { ...value, serverTime: new Date(1000000).toISOString() };
   return { ok: true, body: { getReader: () => {
     let sent = false;
     return { read: async () => sent ? { done: true } : (sent = true, { done: false, value: Buffer.from(JSON.stringify(value)) }), cancel: jest.fn(), releaseLock: jest.fn() };
@@ -20,7 +21,7 @@ function fixture(now = 1000000) {
   let value = rawToken;
   const credentials = { has: () => Boolean(value), get: () => value, set: (token, origin) => { value = token; if (origin) preferences.set('url', origin); }, clear: () => { value = null; } };
   const fetchImpl = jest.fn().mockResolvedValue(okResponse({ sources: [source(now)] }));
-  return { client: new MonitoringClient({ preferences, credentials, fetchImpl, now: () => now }), preferences, secrets, fetchImpl };
+  return { client: new MonitoringClient({ preferences, credentials, fetchImpl, now: () => now, monotonicNow: () => now }), preferences, secrets, fetchImpl };
 }
 
 describe('cloud monitoring', () => {
@@ -139,13 +140,32 @@ describe('cloud monitoring', () => {
   });
   test('marks cached data stale during an outage and recovers without clearing it to zero', async () => {
     let now = 1000000;
-    const { client, fetchImpl } = fixture(now); client.now = () => now;
+    const { client, fetchImpl } = fixture(now); client.now = () => now; client.monotonicNow = () => now;
     await client.poll(); now += 120000;
     fetchImpl.mockRejectedValueOnce(new Error('Offline'));
     await client.poll();
     expect(client.snapshot().sources[0]).toMatchObject({ stale: true, metrics: { cpuPercent: 35, gpuPercent: null } });
-    fetchImpl.mockResolvedValue(okResponse({ sources: [source(now)] }));
+    fetchImpl.mockResolvedValue(okResponse({ sources: [source(now)], serverTime: new Date(now).toISOString() }));
     await client.poll(); expect(client.snapshot().sources[0].stale).toBe(false);
+  });
+  test.each([-86400000, 86400000])('server receipt age ignores a reader clock offset of %i ms', async offset => {
+    const { client, fetchImpl } = fixture();
+    let elapsed = 0;
+    client.now = () => 1000000 + offset;
+    client.monotonicNow = () => elapsed;
+    await client.poll();
+    expect(client.snapshot()).toMatchObject({ attentionCount: 0, evaluatedAt: 1000000 });
+    client.now = () => 1000000 - offset;
+    elapsed = 119999;
+    expect(client.snapshot().sources[0].displayState).toBe('ok');
+    elapsed++;
+    fetchImpl.mockRejectedValue(new Error('Offline'));
+    await client.poll();
+    expect(client.snapshot()).toMatchObject({ attentionCount: 1, evaluatedAt: 1120000 });
+    fetchImpl.mockResolvedValue(okResponse({ sources: [source(1120000)], serverTime: null }));
+    await client.poll();
+    expect(client.snapshot().sources[0].receivedAt).toBe(new Date(1000000).toISOString());
+    expect(client.snapshot().status).toBe('connection-error');
   });
   test('late responses cannot restore data after disconnect', async () => {
     const { client, fetchImpl } = fixture();

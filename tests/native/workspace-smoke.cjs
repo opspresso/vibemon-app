@@ -73,6 +73,15 @@ startFixture().then(async fixture => {
   assert.equal(await text('#summary-accounts'), '4');
   assert.equal(await text('#summary-local'), '2');
   assert.equal(await text('#summary-attention'), '3');
+  const localClock = client.now;
+  try {
+    for (const offset of [-86400000, 86400000]) {
+      client.now = () => Date.now() + offset;
+      await client.poll(true); await delay(150);
+      assert.equal(await text('#summary-attention'), '3', 'wall-clock skew does not add stale warnings');
+      assert.equal(await ui('[...document.querySelectorAll("#overview-accounts time")].every(node => node.textContent === "Just now")'), true, 'report age uses server time');
+    }
+  } finally { client.now = localClock; await client.poll(true); }
   const overviewBounds = await ui('({ bottom: document.querySelector("#overview-accounts .card").getBoundingClientRect().bottom, viewport: innerHeight })');
   assert.ok(overviewBounds.bottom < overviewBounds.viewport, `account metrics fit in the initial viewport: ${JSON.stringify(overviewBounds)}`);
   assert.equal(state.requests.some(url => url.includes('/trend?')), false, 'history is not prefetched');
@@ -158,7 +167,7 @@ startFixture().then(async fixture => {
   await client.poll(true);
 
   const originalTrend = state.trend;
-  state.trend = item => ({ ...originalTrend(item), metricDefinitions: { latency: { label: 'Temperature', unit: '°C', display: 'gauge', min: -40, max: 20 } }, metricOrder: ['latency'], points: [{ timestamp: new Date().toISOString(), average: { latency: -12 }, maximum: { latency: -12 }, samples: 1, expiresAt: Date.now() / 1000 + 86400 }] });
+  state.trend = item => ({ ...originalTrend(item), metricDefinitions: { latency: { label: 'Temperature', unit: '°C', display: 'gauge', min: -40, max: 20 } }, metricOrder: ['latency'], points: [{ timestamp: new Date(Math.floor(Date.now() / 60000) * 60000).toISOString(), average: { latency: -12 }, maximum: { latency: -12 }, samples: 1, expiresAt: Date.now() / 1000 + 86400 }] });
   await click('[aria-label="View Cache service details"]');
   await until(async () => (await text('#chart')).includes('-40') && (await text('#trend-metric')).includes('Temperature (°C)'), 'history uses its returned signed metric schema');
   await client.poll(true); await delay(150);

@@ -41,7 +41,7 @@ async function startFixture() {
       return;
     }
     const ids = url.searchParams.get('ids')?.split(','), accounts = url.searchParams.get('accounts')?.split(',');
-    response.end(JSON.stringify({ sources: ids || accounts ? data.filter(item => ids?.includes(item.sourceId) || item.account && accounts?.includes(`${item.account.provider}:${item.account.id}`)) : data }));
+    response.end(JSON.stringify({ sources: ids || accounts ? data.filter(item => ids?.includes(item.sourceId) || item.account && accounts?.includes(`${item.account.provider}:${item.account.id}`)) : data, serverTime: new Date().toISOString() }));
   });
   await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
   const origin = `http://127.0.0.1:${server.address().port}`;

@@ -46,6 +46,8 @@
     "public/static/js/resource-schema.cjs": "src/shared/resource-schema.cjs",
     "public/static/js/resource-schema.d.cts": "src/shared/resource-schema.d.cts",
     "public/static/js/monitoring-state.cjs": "src/shared/monitoring/state.cjs",
+    "public/static/js/monitoring-clock.cjs": "src/shared/monitoring/clock.cjs",
+    "public/static/js/monitoring-clock.d.cts": "src/shared/monitoring/clock.d.cts",
     "public/static/js/monitoring-state.d.cts": "src/shared/monitoring/state.d.cts",
     "public/static/data/constants.json": "src/shared/data/constants.json",
     "public/static/js/vibemon-bubble.d.ts": "src/bubble/vibemon-bubble.d.ts",

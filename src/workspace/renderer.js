@@ -16,6 +16,8 @@ const pages = {
 };
 const settingsPages = new Set(['connections', 'companion', 'integrations', 'about']);
 let frame = null;
+let cloudAnchor = null;
+const cloudTime = () => cloudAnchor.time + Math.max(0, window.performance.now() - cloudAnchor.received);
 let toastTimer = null;
 let visible = true;
 let pageFocusPending = false;
@@ -102,12 +104,15 @@ async function navigate(route) {
     fail(error);
   }
 }
-const shared = { getFrame: () => frame, request, run, notify, navigate, fail };
+const shared = { getFrame: () => frame, cloudTime, request, run, notify, navigate, fail };
 preferences = setupPreferences(shared);
 selection = setupSelection(shared);
 detail = setupDetail(shared);
 
 function accept(value) {
+  // Local activity can republish the same cached cloud frame. Only a new cloud
+  // evaluation may reset this renderer's monotonic anchor.
+  if (cloudAnchor?.time !== value.cloud.evaluatedAt) cloudAnchor = { time: value.cloud.evaluatedAt, received: window.performance.now() };
   const pageChanged = Boolean(frame && frame.route !== value.route);
   if (pageChanged) pageFocusPending = true;
   if (frame && frame.cloud.connectionRevision !== value.cloud.connectionRevision) {
@@ -255,12 +260,12 @@ function render(value) {
       ...(overviewAttention ? attentionEmpty('resources') : resourceEmpty),
       limit: overviewAttention ? undefined : 3,
       compact: !overviewAttention
-    });
+    }, cloudTime());
     renderCards($('overview-accounts'), overviewAttention ? accounts.filter(needsAttention) : accounts, selectedMetrics, detail.open, overviewAttention ? clearAttention : choose, {
       ...(overviewAttention ? attentionEmpty('accounts') : accountEmpty),
       limit: overviewAttention ? undefined : 3,
       compact: !overviewAttention
-    });
+    }, cloudTime());
     renderActivity($('overview-activity'), activity, true);
     renderUsage($('overview-usage'), usage);
   }
@@ -292,7 +297,8 @@ function render(value) {
           emptyDescription: 'Try a different name or status filter.',
           emptyAction: 'Clear filters'
         }
-        : resourceEmpty
+        : resourceEmpty,
+      cloudTime()
     );
   }
   if (route === 'agents') {
@@ -333,7 +339,8 @@ function render(value) {
           emptyDescription: 'Try a different account, project, or provider.',
           emptyAction: 'Clear filters'
         }
-        : accountEmpty
+        : accountEmpty,
+      cloudTime()
     );
     renderActivity(
       $('agent-activity'),

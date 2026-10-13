@@ -423,7 +423,7 @@ app.whenReady().then(() => {
   trayManager.createTray();
   const cloudActivity = new CloudActivity((data, sourceId, { activity }) => {
     handleCloudStatusUpdate(data, { auto: !activity || Boolean(windowManager.getFocusedProjectId()), sourceId });
-  }, removeCloudProject);
+  }, removeCloudProject, () => monitoringClient.currentTime());
   monitoringClient.on('change', snapshot => cloudActivity.accept(snapshot.sources));
   monitoringClient.start();
 
