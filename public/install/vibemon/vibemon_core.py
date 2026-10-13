@@ -28,7 +28,7 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import urlsplit
 from urllib.request import Request, urlopen
 
-from account_context import cloud_context, project_cache_key
+from account_context import cloud_context, observation_time, project_cache_key
 from http_client import open_credential_request
 from usage_cache import CACHE_STALE_SECONDS, get_fresh_provider, is_finite_number, is_fresh_observation, load_usage_cache, model_week_bucket, valid_percent, reverse_jsonl
 
@@ -1212,6 +1212,9 @@ def run(
 
     # Read and parse input once
     input_raw = read_input()
+    # Git discovery and usage metadata can finish after a newer hook. Keep
+    # the event's arrival time so late delivery cannot replace newer activity.
+    observed_at = observation_time()
     data = parse_json(input_raw)
 
     # Extract fields from parsed data
@@ -1249,7 +1252,7 @@ def run(
     payload = build_payload(state, tool_name, project_name, data)
 
     try:
-        context = cloud_context(str(payload.get("character", "vibemon")), project_name, cwd)
+        context = cloud_context(str(payload.get("character", "vibemon")), project_name, cwd, observed_at=observed_at)
     except ValueError:
         print("[vibemon] Invalid account configuration; cloud reporting disabled for this event", file=sys.stderr)
         context = False

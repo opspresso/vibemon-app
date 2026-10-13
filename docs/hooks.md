@@ -147,6 +147,8 @@ Hooks deliver coding activity to the [Status API](https://vibemon.io/docs/api/st
 
 State reporting is edge-driven: a new state start replaces the previous state. Completion hooks are retained only where no later start event reliably restores the state (`PostToolUse`/`PostCompact`) or an explicit turn/session ending must be reported (`Stop`/`SessionEnd`). Claude and Codex subagent `Agent` calls already pass through the matcher-free tool hooks, so separate subagent hooks would only duplicate those transitions.
 
+Python hooks capture the observation time when they finish reading the event, before Git discovery or usage-cache reads. Local and Web delivery share that timestamp, so delayed metadata collection cannot make an older event appear newer.
+
 ### Claude Code
 
 | Event | State |

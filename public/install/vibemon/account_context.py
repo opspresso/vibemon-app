@@ -34,7 +34,11 @@ def project_cache_key(project: str, provider: str = "claude", cwd: str | None = 
     return f"{cache_key(provider)}:{hashlib.sha256(key.encode()).hexdigest()}"
 
 
-def cloud_context(character: str, project: str, cwd: str | None = None) -> dict:
+def observation_time() -> str:
+    return datetime.now(timezone.utc).isoformat(timespec="milliseconds").replace("+00:00", "Z")
+
+
+def cloud_context(character: str, project: str, cwd: str | None = None, observed_at: str | None = None) -> dict:
     provider = provider_name(character)
     identity = account_id(provider)
     display_name = os.environ.get(f"VIBEMON_{provider.upper()}_ACCOUNT_NAME") or os.environ.get("VIBEMON_ACCOUNT_NAME") or f"{provider} {identity}"
@@ -46,5 +50,5 @@ def cloud_context(character: str, project: str, cwd: str | None = None) -> dict:
     return {
         "account": {"id": identity, "provider": provider, "displayName": display_name},
         "sourceId": "agent:" + hashlib.sha256(key.encode()).hexdigest(),
-        "observedAt": datetime.now(timezone.utc).isoformat(timespec="milliseconds").replace("+00:00", "Z"),
+        "observedAt": observed_at if observed_at is not None else observation_time(),
     }

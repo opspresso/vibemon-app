@@ -8,6 +8,7 @@ import sys
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+from datetime import datetime, timedelta, timezone
 from unittest.mock import patch
 
 import pytest
@@ -18,6 +19,7 @@ sys.path.insert(0, str(DOCS))
 
 import install
 import vibemon_core as core
+import account_context
 
 
 def invoke(tool, payload, argv=()):
@@ -52,6 +54,35 @@ def test_codex_interrupt_and_plan_mode():
     assert invoke("codex", {
         "hook_event_name": "PreToolUse", "permission_mode": "plan",
     })[0][0]["state"] == "planning"
+
+
+def test_hook_observation_precedes_slow_metadata_and_newer_events(tmp_path):
+    elapsed = [0]
+    newer = []
+    class Clock:
+        @staticmethod
+        def now(_zone):
+            return datetime(2026, 10, 14, tzinfo=timezone.utc) + timedelta(seconds=elapsed[0])
+    def project(*_):
+        elapsed[0] = 2
+        return 'project'
+    def metadata(state, tool, name, data):
+        newer.append(account_context.cloud_context('codex', name, str(tmp_path)))
+        elapsed[0] = 5
+        return {'state': state, 'tool': tool, 'project': name, 'character': 'codex'}
+    with (
+        patch.dict(os.environ, {'VIBEMON_SUPPRESS_HOOKS': '0', 'VIBEMON_CODEX_ACCOUNT_ID': 'default', 'VIBEMON_CODEX_ACCOUNT_NAME': 'Test'}),
+        patch.object(sys, 'argv', ['hook']),
+        patch.object(core, 'read_input', return_value=json.dumps({'hook_event_name': 'PreToolUse', 'cwd': str(tmp_path)})),
+        patch.object(core, 'get_project_name', side_effect=project),
+        patch.object(account_context, 'datetime', Clock),
+        patch.object(core, 'send_to_all') as send,
+    ):
+        core.run({'PreToolUse': 'working'}, metadata, 'SessionStart')
+    original = send.call_args.args[2]
+    assert original['observedAt'] == '2026-10-14T00:00:00.000Z'
+    assert original['observedAt'] < newer[0]['observedAt']
+    assert original['sourceId'] == newer[0]['sourceId']
 
 
 @pytest.mark.parametrize("tool", ["codex", "opencode"])
