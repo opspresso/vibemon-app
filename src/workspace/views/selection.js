@@ -102,6 +102,8 @@ export function setupSelection({ getFrame, request, navigate, run, notify }) {
     });
   });
   dialog.addEventListener('close', () => {
+    // A queued close event belongs to the previous opening.
+    if (dialog.open) return;
     for (const id of ['source-choices', 'account-choices', 'metric-choices']) {
       $(id).replaceChildren();
       $(id)._items = new Map();

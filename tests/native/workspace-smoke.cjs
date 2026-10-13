@@ -142,6 +142,8 @@ startFixture().then(async fixture => {
   assert.ok((await text('#detail-message')).includes('Latency is above'));
   assert.equal(await ui('document.activeElement.getAttribute("aria-label")'), 'Close source details');
   await screenshot('resource-detail');
+  await ui('document.querySelector(\'[data-close-dialog="detail-dialog"]\').click(); document.querySelector(\'[aria-label="View Cache service details"]\').click();');
+  await until(() => ui('document.querySelectorAll("#chart circle").length > 0'), 'reopening details before the queued close event preserves the new history');
   assert.equal(await ui('document.querySelectorAll("#chart path.average, #chart path.maximum").length'), 2, 'history renders averages and maxima');
   await ui('window.chartMutations = 0; window.chartObserver = new MutationObserver(() => window.chartMutations++); window.chartObserver.observe(document.getElementById("chart"), { childList: true, subtree: true });');
   for (let index = 0; index < 3; index++) { view.notify('activity'); await delay(150); }
@@ -238,6 +240,12 @@ startFixture().then(async fixture => {
   await click('[data-page="agents"] [data-selection]');
   await until(() => visible('#selection-dialog'), 'selection dialog');
   const chosenMetrics = await ui('document.querySelectorAll("#metric-choices input:checked").length');
+  await ui(`new Promise(resolve => {
+    document.getElementById('selection-dialog').addEventListener('close', resolve, { once: true });
+    document.querySelector('[data-close-dialog="selection-dialog"]').click();
+    document.querySelector('[data-page="agents"] [data-selection]').click();
+  })`);
+  assert.equal(await ui('document.querySelectorAll("#metric-choices input:checked").length'), chosenMetrics, 'a queued close cannot clear reopened selection choices');
   await click('#select-none');
   assert.equal(await ui('document.querySelectorAll("#source-choices input:checked, #account-choices input:checked").length'), 0);
   assert.equal(await ui('document.querySelectorAll("#metric-choices input:checked").length'), chosenMetrics, 'clearing sources preserves metric preferences');

@@ -177,6 +177,8 @@ export function setupDetail({ getFrame, cloudTime, request, run }) {
     run($('edit-resource'), () => request('open-web', 'edit-resource', selected.sourceId))
   );
   dialog.addEventListener('close', () => {
+    // A queued close event can arrive after this dialog has reopened.
+    if (dialog.open) return;
     stop();
     selected = null;
     points = [];
