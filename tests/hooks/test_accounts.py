@@ -4,7 +4,7 @@ import runpy
 import sys
 import tempfile
 import unittest
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from types import SimpleNamespace
 from unittest.mock import patch
 
@@ -70,7 +70,9 @@ class AccountIsolationTest(unittest.TestCase):
         self.assertEqual(len(identities), 12)
 
     def test_openclaw_javascript_and_python_share_the_identity_tuple(self):
-        with patch.dict(os.environ, {'VIBEMON_OPENCLAW_ACCOUNT_ID': 'work', 'VIBEMON_INSTANCE_ID': 'test-machine'}, clear=True):
+        # plugin_harness.mjs supplies a POSIX /server workspace on every OS.
+        # Keep that exact input here instead of resolving it onto a CI drive.
+        with patch.dict(os.environ, {'VIBEMON_OPENCLAW_ACCOUNT_ID': 'work', 'VIBEMON_INSTANCE_ID': 'test-machine'}, clear=True), patch.object(account_context.Path, 'resolve', return_value=PurePosixPath('/server')):
             result = account_context.cloud_context('openclaw', 'OpenClaw', '/server')
         self.assertEqual(result['sourceId'], 'agent:84718e3543c37148d811992cd3a6f77d4fdae75b02dff7d410b6b43c30dd536b')
 
