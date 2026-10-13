@@ -21,3 +21,14 @@ test('observation order changes do not move unfocused rows', () => {
   expect(localActivity(states, null)).toEqual(localActivity(reverse, null));
   expect(states.b).not.toHaveProperty('focused');
 });
+
+test('same-named local projects expose account labels without terminal metadata', () => {
+  const account = { id: 'work', provider: 'codex', displayName: 'Work' };
+  const rows = localActivity({
+    'local:first': { project: 'same', account, terminalId: 'private' },
+    'local:second': { project: 'same', account: { ...account, id: 'personal', displayName: 'Personal' } }
+  }, null);
+  expect(rows.map(row => row.id)).toEqual(['local:first', 'local:second']);
+  expect(rows.map(row => row.account.displayName)).toEqual(['Work', 'Personal']);
+  expect(rows.every(row => !Object.hasOwn(row, 'terminalId'))).toBe(true);
+});

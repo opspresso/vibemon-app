@@ -1057,8 +1057,8 @@ def send_to_all(payload: dict[str, Any], is_start: bool = False, context: dict |
             launch_desktop()
         show_monitor_window(desktop_url)
 
-    # Convert to JSON string once for HTTP/Serial targets
-    payload_str = json.dumps(payload)
+    # Every display receives the same non-secret provider/workspace identity.
+    payload_str = json.dumps({**payload, **context} if isinstance(context, dict) else payload)
 
     # Resolve serial port once
     resolved_port: str | None = None
@@ -1131,6 +1131,12 @@ def send_cloud_status(provider: str) -> bool:
         return False
     try:
         context = cloud_context(provider, payload["project"])
+        if "sourceId" in payload or "account" in payload:
+            if payload.get("sourceId") != context["sourceId"] or payload.get("account") != context["account"]:
+                raise ValueError("Plugin account identity changed before delivery")
+            # Keep the event time common to local and cloud delivery. The API
+            # validates timestamp freshness and rejects out-of-order events.
+            context["observedAt"] = payload.get("observedAt")
         return send_vibemon_api(config.vibemon_url, config.vibemon_token, payload, context)
     except ValueError:
         print("[vibemon] Invalid cloud account configuration", file=sys.stderr)

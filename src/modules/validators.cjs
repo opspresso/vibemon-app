@@ -2,7 +2,8 @@
  * Input validation functions for the Vibe Monitor
  */
 
-const { VALID_STATES } = require('../shared/config.cjs');
+const { VALID_STATES, OBSERVATION_MAX_AGE_MS, OBSERVATION_CLOCK_SKEW_MS } = require('../shared/config.cjs');
+const { validId, validAccountId } = require('../monitoring/domain.cjs');
 
 // Local hook payload limits. Cloud source validation lives in
 // monitoring/domain.cjs and uses the cloud API's source contract.
@@ -206,6 +207,24 @@ function validateTerminalId(terminalId) {
 function validateStatusPayload(data) {
   if (!data || typeof data !== 'object' || Array.isArray(data)) {
     return { valid: false, error: 'Payload must be a JSON object' };
+  }
+  if (data.sourceId !== undefined && !validId(data.sourceId)) return { valid: false, error: 'Invalid sourceId' };
+  if (data.account !== undefined) {
+    const account = data.account;
+    if (!account || typeof account !== 'object' || Array.isArray(account) ||
+        Object.keys(account).some(key => !['id', 'provider', 'displayName'].includes(key)) ||
+        typeof account.provider !== 'string' || typeof account.id !== 'string' ||
+        !validAccountId(`${account.provider}:${account.id}`) ||
+        typeof account.displayName !== 'string' || !account.displayName.trim() || account.displayName.length > 128) {
+      return { valid: false, error: 'Invalid account identity' };
+    }
+  }
+  if (data.observedAt !== undefined) {
+    const now = Date.now();
+    const time = typeof data.observedAt === 'string' ? Date.parse(data.observedAt) : NaN;
+    if (!Number.isFinite(time) || !/^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(?:\.\d{1,3})?Z$/.test(data.observedAt) || time < now - OBSERVATION_MAX_AGE_MS || time > now + OBSERVATION_CLOCK_SKEW_MS) {
+      return { valid: false, error: 'observedAt must be a recent UTC timestamp' };
+    }
   }
 
   const stateResult = validateState(data.state);

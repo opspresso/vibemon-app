@@ -21,6 +21,7 @@ import fs from "node:fs";
 import path from "node:path";
 import os from "node:os";
 import { spawn } from "node:child_process";
+import { createHash } from "node:crypto";
 
 // Character configuration
 const CHARACTER = "claw";
@@ -513,6 +514,18 @@ function buildPayload(state, extra = {}) {
   return payload;
 }
 
+// Same UTF-8 identity tuple as vibemon/account_context.py; terminal metadata is local only.
+function sourceIdentity() {
+  const provider = "openclaw";
+  const id = process.env.VIBEMON_OPENCLAW_ACCOUNT_ID || process.env.VIBEMON_ACCOUNT_ID || "default";
+  const displayName = process.env.VIBEMON_OPENCLAW_ACCOUNT_NAME || process.env.VIBEMON_ACCOUNT_NAME || `${provider} ${id}`;
+  if (!/^[a-zA-Z0-9][a-zA-Z0-9_.:-]{0,127}$/.test(id) || !displayName.trim() || displayName.length > 128) throw new Error("Invalid account identity");
+  const instance = process.env.VIBEMON_INSTANCE_ID || os.hostname();
+  const workspace = fs.realpathSync(process.cwd());
+  const tuple = [provider, id, instance, workspace, config.projectName].join("\0");
+  return { account: { provider, id, displayName }, sourceId: "agent:" + createHash("sha256").update(tuple).digest("hex") };
+}
+
 /**
  * Send status (debounced) - sends to all configured targets
  */
@@ -520,7 +533,10 @@ function sendStatus(state, extra = {}) {
   if (process.env.VIBEMON_SUPPRESS_HOOKS === "1") return;
   refreshConfig();
 
-  const payload = buildPayload(state, extra);
+  let identity;
+  try { identity = sourceIdentity(); }
+  catch { logger?.warn?.("[vibemon] Invalid account or workspace identity; status was not sent."); return; }
+  const payload = { ...buildPayload(state, extra), ...identity };
   const signature = JSON.stringify(payload);
   const now = Date.now();
   if (now - lastSendTime < MIN_SEND_INTERVAL_MS && signature === lastPayload) {
@@ -529,6 +545,7 @@ function sendStatus(state, extra = {}) {
   lastSendTime = now;
   lastPayload = signature;
   currentState = state;
+  payload.observedAt = new Date(now).toISOString();
 
   // Queue serial output through the shared Python transport
   sendSerial(payload);

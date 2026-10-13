@@ -69,6 +69,20 @@ class AccountIsolationTest(unittest.TestCase):
                         identities.add(result['sourceId'])
         self.assertEqual(len(identities), 12)
 
+    def test_openclaw_javascript_and_python_share_the_identity_tuple(self):
+        with patch.dict(os.environ, {'VIBEMON_OPENCLAW_ACCOUNT_ID': 'work', 'VIBEMON_INSTANCE_ID': 'test-machine'}, clear=True):
+            result = account_context.cloud_context('openclaw', 'OpenClaw', '/server')
+        self.assertEqual(result['sourceId'], 'agent:84718e3543c37148d811992cd3a6f77d4fdae75b02dff7d410b6b43c30dd536b')
+
+    def test_plugin_cloud_delivery_keeps_the_local_event_timestamp(self):
+        with patch.dict(os.environ, {'VIBEMON_OPENCLAW_ACCOUNT_ID': 'work'}, clear=True):
+            context = account_context.cloud_context('openclaw', 'Project')
+            payload = {'project': 'Project', 'state': 'working', **context}
+            config = SimpleNamespace(vibemon_url='https://web.example', vibemon_token='fixture-write')
+            with patch.object(vibemon_core, 'get_config', return_value=config), patch.object(vibemon_core, 'read_input', return_value=json.dumps(payload)), patch.object(vibemon_core, 'send_vibemon_api', return_value=True) as send:
+                self.assertTrue(vibemon_core.send_cloud_status('openclaw'))
+                self.assertEqual(send.call_args.args[3], context)
+
     def test_custom_claude_profile_does_not_read_default_keychain(self):
         with tempfile.TemporaryDirectory() as directory, patch.dict(os.environ, {'CLAUDE_CONFIG_DIR': directory, 'CODEX_HOME': directory}, clear=True):
             Path(directory, '.credentials.json').write_text(json.dumps({'claudeAiOauth': {'accessToken': 'fixture-only'}}))
@@ -79,13 +93,14 @@ class AccountIsolationTest(unittest.TestCase):
                 self.assertEqual(module['read_claude_token'](), 'fixture-only')
                 command.assert_not_called()
 
-    def test_cloud_metadata_does_not_change_local_hook_payload(self):
+    def test_local_and_cloud_receive_the_same_source_identity(self):
         payload = {'project': 'same-project', 'character': 'codex', 'state': 'working'}
         config = SimpleNamespace(http_urls=['http://127.0.0.1:19280'], auto_launch=False, serial_port=None, vibemon_url='https://web.example', vibemon_token='fixture-write')
         context = {'sourceId': 'agent:work', 'account': {'id': 'work', 'provider': 'codex', 'displayName': 'Work'}, 'observedAt': '2026-10-09T00:00:00.000Z'}
         with patch.object(vibemon_core, 'get_config', return_value=config), patch.object(vibemon_core, 'send_http_post', return_value=(True, None)) as local, patch.object(vibemon_core, 'send_vibemon_api', return_value=True) as cloud:
             vibemon_core.send_to_all(payload, False, context)
-        self.assertEqual(json.loads(local.call_args.args[2]), payload)
+        self.assertEqual(json.loads(local.call_args.args[2]), {**payload, **context})
+        self.assertNotIn('sourceId', payload)
         cloud.assert_called_once_with('https://web.example', 'fixture-write', payload, context)
 
 

@@ -1,5 +1,5 @@
 // Local activity has its own projection; cloud identities and terminal routing stay out of it.
-const FIELDS = ['project', 'state', 'character', 'tool', 'model'];
+const FIELDS = ['project', 'state', 'character', 'tool', 'model', 'account'];
 function localActivity(states, focusedProjectId) {
   return Object.entries(states)
     .filter(([id, state]) => !id.startsWith('cloud:') && typeof state.project === 'string' && state.project.trim())

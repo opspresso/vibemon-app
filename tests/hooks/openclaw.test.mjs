@@ -30,6 +30,12 @@ test("cloud delivery uses shared account identity without putting credentials in
   assert.equal(cloud.options.env.VIBEMON_OPENCLAW_ACCOUNT_ID, "work");
   assert.equal(JSON.stringify(cloud.args).includes("fixture-write"), false);
   assert.equal(JSON.parse(cloud.child.raw).state, "thinking");
+  const local = h.requests.find(request => request.payload?.state === "thinking").payload;
+  const sent = JSON.parse(cloud.child.raw);
+  assert.deepEqual(sent.account, local.account);
+  assert.equal(sent.sourceId, "agent:84718e3543c37148d811992cd3a6f77d4fdae75b02dff7d410b6b43c30dd536b");
+  assert.equal(sent.sourceId, local.sourceId);
+  assert.equal(sent.observedAt, local.observedAt);
   assert.equal(cloud.options.timeout, 5000);
   assert.equal(h.requests.some(request => request.url.includes("cloud.example")), false);
 });

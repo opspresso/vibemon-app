@@ -5,6 +5,7 @@ function fixture() {
   const normalizer = new StateManager();
   const timers = { validateStateData: data => normalizer.validateStateData(data), setupStateTimeout: jest.fn() };
   const windows = {
+    getRegisteredState: jest.fn(() => null),
     getFocusedProjectId: () => 'focused', routeStatusUpdate: jest.fn((_id, state) => ({
       switchedProject: 'old', updateResult: { updated: true, stateChanged: true }, stateData: { ...state, character: 'codex' }
     })), updateAlwaysOnTopByState: jest.fn(), sendToWindow: jest.fn()
@@ -45,4 +46,39 @@ test('empty project labels never enter either activity path', () => {
   const { ingress, windows } = fixture();
   expect(ingress.accept({ state: 'idle', project: '-' }, { sourceId: 'agent:work' }).response).toMatchObject({ project: null, skipped: true });
   expect(windows.routeStatusUpdate).not.toHaveBeenCalled();
+});
+
+test('same project names retain independent account/workspace state and reject replay', () => {
+  const { ingress, windows, timers } = fixture();
+  const registry = new Map();
+  windows.getRegisteredState.mockImplementation(id => registry.get(id));
+  windows.routeStatusUpdate.mockImplementation((id, state) => {
+    registry.set(id, state);
+    return { switchedProject: null, updateResult: { updated: true, stateChanged: true }, stateData: state };
+  });
+  const observedAt = new Date(Date.now() - 1000).toISOString();
+  const event = { project: 'same-project', character: 'codex', state: 'working', observedAt };
+  for (const [sourceId, provider, id] of [['one', 'codex', 'work'], ['two', 'codex', 'personal'], ['three', 'claude', 'work'], ['four', 'codex', 'work']]) {
+    expect(ingress.accept({ ...event, sourceId, account: { provider, id, displayName: id } }).valid).toBe(true);
+  }
+  expect(registry.size).toBe(4);
+  expect([...registry.values()].map(state => state.project)).toEqual(Array(4).fill('same-project'));
+  const original = registry.get('local:one');
+  timers.setupStateTimeout.mockClear();
+  expect(ingress.accept({ ...original, state: 'done' }).response.reason).toBe('duplicate_or_older');
+  expect(ingress.accept({ ...original, state: 'done', observedAt: new Date(Date.parse(observedAt) - 1000).toISOString() }).response.skipped).toBe(true);
+  expect(timers.setupStateTimeout).not.toHaveBeenCalled();
+  expect(registry.get('local:one').state).toBe('working');
+  expect(ingress.accept({ ...original, account: { ...original.account, id: 'other' } }).valid).toBe(false);
+});
+test.each([{ sourceId: '../bad' }, { account: { provider: 'Codex', id: 'work', displayName: 'Work' } }, { observedAt: '2020-01-01T00:00:00Z' }])('rejects invalid identity metadata: %j', extra => {
+  const { ingress, windows } = fixture();
+  expect(ingress.accept({ project: 'Project', state: 'working', ...extra }).valid).toBe(false);
+  expect(windows.routeStatusUpdate).not.toHaveBeenCalled();
+});
+test('internal usage-refresh events cannot enter the registry under a source ID', () => {
+  const { ingress, windows, timers } = fixture();
+  expect(ingress.accept({ project: '.vibemon', state: 'working', sourceId: 'internal' }).response.skipped).toBe(true);
+  expect(windows.routeStatusUpdate).not.toHaveBeenCalled();
+  expect(timers.setupStateTimeout).not.toHaveBeenCalled();
 });

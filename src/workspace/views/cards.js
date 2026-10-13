@@ -239,7 +239,7 @@ export function renderActivity(container, activity, compact = false) {
       text(title, item.project || item.id);
       text(
         subtitle,
-        [item.model, item.tool, item.focused ? 'Following on desktop' : null].filter(Boolean).join(' · ') ||
+        [item.account ? `${providerName(item.account.provider)} · ${item.account.displayName}` : null, item.model, item.tool, item.focused ? 'Following on desktop' : null].filter(Boolean).join(' · ') ||
           'Local project'
       );
       badge(status, item.state || 'idle');

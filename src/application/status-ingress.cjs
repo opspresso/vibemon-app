@@ -12,9 +12,17 @@ class StatusIngress {
     const normalized = this.stateManager.validateStateData(data);
     if (!normalized.valid) return { valid: false, error: normalized.error || 'Invalid state data' };
     const state = normalized.data;
-    const projectId = state.project ? sourceId ? `cloud:${sourceId}` : state.project : null;
+    const projectId = state.project && state.project !== '.vibemon' ? sourceId ? `cloud:${sourceId}` : state.sourceId ? `local:${state.sourceId}` : state.project : null;
     const response = { success: true, project: projectId, state: state.state, focusedProject: this.windowManager.getFocusedProjectId() };
     if (!projectId) return { valid: true, response: { ...response, skipped: true } };
+    if (!sourceId && state.sourceId) {
+      const previous = this.windowManager.getRegisteredState(projectId);
+      const identity = value => value?.account ? `${value.account.provider}:${value.account.id}` : null;
+      if (previous && identity(previous) !== identity(state)) return { valid: false, error: 'sourceId already belongs to another account' };
+      if (state.observedAt && previous?.observedAt && Date.parse(state.observedAt) <= Date.parse(previous.observedAt)) {
+        return { valid: true, response: { ...response, skipped: true, reason: 'duplicate_or_older' } };
+      }
+    }
 
     const routed = preserveFocus
       ? this.windowManager.routeStatusUpdate(projectId, state, { preserveFocus: true })

@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import vm from "node:vm";
 import { EventEmitter } from "node:events";
+import { createHash } from "node:crypto";
 
 // Load the actual plugin with isolated filesystem, process and transport
 // boundaries. No test accesses the user's config, devices or network.
@@ -15,6 +16,7 @@ export async function loadPlugin(relativePath, options = {}) {
   const files = new Map(Object.entries(options.files || {}));
   let mtime = 1;
   const fakeFs = {
+    realpathSync: value => value,
     constants: { W_OK: 2 },
     existsSync: (p) => files.has(p),
     accessSync: () => {},
@@ -61,7 +63,8 @@ export async function loadPlugin(relativePath, options = {}) {
   const modules = {
     "node:fs": { default: fakeFs },
     "node:path": { default: path.posix },
-    "node:os": { default: { homedir: () => "/home/test" } },
+    "node:os": { default: { homedir: () => "/home/test", hostname: () => "test-machine" } },
+    "node:crypto": { createHash },
     "node:child_process": { spawn },
   };
   const source = fs.readFileSync(new URL(relativePath, import.meta.url), "utf8");
