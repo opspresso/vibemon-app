@@ -8,6 +8,17 @@ from vibemon_collector.transport import checked_url
 
 
 class PolicyTests(unittest.TestCase):
+    def test_float_summary_mean_stays_inside_measured_range(self):
+        for values in ([0.1] * 3, [52.32263514632913] * 3, [0.1, 0.2, 0.3], [-0.1] * 3):
+            with self.subTest(values=values):
+                result = summarize([Sample({"diskUsedPercent": value}) for value in values], "k3s", "cluster", "K3S", 30)
+                mean = result["metrics"]["diskUsedPercent"]
+                self.assertGreaterEqual(mean, min(values))
+                self.assertLessEqual(mean, result["maximums"]["diskUsedPercent"])
+                self.assertEqual(result["maximums"]["diskUsedPercent"], max(values))
+                if len(set(values)) == 1:
+                    self.assertEqual(mean, values[0])
+
     def window(self, policy, value, wall=30, health="ok"):
         for _ in range(3):
             policy.observe(Sample({"cpuPercent": value}, health), "host-1", "host", "Host", wall)

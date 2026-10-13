@@ -80,4 +80,9 @@ function validateOrder(value, definitions) {
   if (!Array.isArray(value) || value.length !== Object.keys(definitions).length || new Set(value).size !== value.length || value.some(key => typeof key !== 'string' || !Object.hasOwn(definitions, key))) throw new Error('Metric order must contain each metric key exactly once');
   return [...value];
 }
-module.exports = { MAX_METRICS, MAX_VALUE, BUILTIN_METRICS, validText, validMetricKey, validateDefinitions, validateValues, validateOrder, sameMeaning, canExtendDefinitions, definitionsFor, selectionKey, metricCatalog };
+function mergeMean(previous, previousCount, value, count = 1) {
+  if (!previousCount) return value;
+  const mean = previous + (value - previous) * (count / (previousCount + count));
+  return Math.min(Math.max(previous, value), Math.max(Math.min(previous, value), mean));
+}
+module.exports = { MAX_METRICS, MAX_VALUE, BUILTIN_METRICS, validText, validMetricKey, validateDefinitions, validateValues, validateOrder, sameMeaning, canExtendDefinitions, definitionsFor, selectionKey, metricCatalog, mergeMean };

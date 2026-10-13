@@ -17,7 +17,7 @@ async function until(check, label) {
 let cleanup;
 startFixture().then(async fixture => {
   cleanup = fixture.cleanup;
-  const { view, client, ports, state, errors, selectDashboard } = fixture;
+  const { view, client, ports, state, errors, selectDashboard, trayManager } = fixture;
   const web = view.window.webContents;
   const ui = code => web.executeJavaScript(code);
   const click = selector => ui(`document.querySelector(${JSON.stringify(selector)}).click()`);
@@ -182,6 +182,21 @@ startFixture().then(async fixture => {
   state.sources = originalSources;
   await client.poll(true);
   await until(() => ui('[...document.querySelectorAll("#agent-cards .card")].find(card => card.querySelector("h3").textContent === "Engineering").querySelector(".chip").textContent === "Working"'), 'account attention clears when the project no longer reports it');
+  state.sources = () => originalSources().filter(source => source.kind === 'agent').map(source => ({
+    ...source, stale: true, receivedAt: new Date(Date.now() - 120000).toISOString()
+  }));
+  await client.poll(true);
+  await until(() => ui('[...document.querySelectorAll("#agent-cards .chip")].every(chip => chip.textContent === "Inactive")'), 'stopped coding hooks are neutral in every card');
+  assert.equal(client.snapshot().attentionCount, 0);
+  assert.equal(trayManager.hasAttentionBadge(), false, 'inactive agents do not light the menu badge');
+  await navigate('overview');
+  assert.equal(await text('#summary-attention'), '0');
+  await click('#overview-attention');
+  assert.equal(await ui('document.querySelectorAll("#overview-accounts .card").length'), 0);
+  await click('#overview-attention');
+  state.sources = originalSources;
+  await client.poll(true);
+  await navigate('agents');
   await input('#agent-filter', 'codex');
   assert.deepEqual(await ui('[...document.querySelectorAll("#agent-cards h3")].map(node => node.textContent)'), ['Engineering', 'Personal projects']);
   assert.ok((await text('#agent-cards')).includes('Codex · team'));

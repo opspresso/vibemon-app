@@ -1,7 +1,8 @@
 const { readJsonResponse } = require('../shared/json-response.cjs');
 const { EventEmitter } = require('events');
 const { METRICS, validId, validAccountId, accountId, groupAccounts, webOrigin, validateSources, validateTrend, validateDefinitions, validateOrder, displayMetrics, metricCatalog } = require('./domain.cjs');
-const { CLOUD_POLL_MS, CLOUD_REQUEST_TIMEOUT_MS, CLOUD_STALE_MS, CLOUD_TREND_MS, CLOUD_MAX_RESPONSE_BYTES } = require('../shared/constants.cjs');
+const { CLOUD_POLL_MS, CLOUD_REQUEST_TIMEOUT_MS, CLOUD_TREND_MS, CLOUD_MAX_RESPONSE_BYTES } = require('../shared/constants.cjs');
+const { sourceStale, sourceState, accountState, needsAttention, attentionCount } = require('../shared/monitoring/state.cjs');
 
 class MonitoringClient extends EventEmitter {
   constructor({ preferences, credentials, fetchImpl = fetch, allowLocalHttp = false, now = Date.now }) {
@@ -25,12 +26,16 @@ class MonitoringClient extends EventEmitter {
   getStatus() { return this.status; }
   hasToken() { return this.credentials.has(); }
   snapshot() {
+    const now = this.now();
     const selectedSources = this.preferences.get('selectedSources') ?? null;
     const selectedAccounts = this.preferences.get('selectedAccounts') ?? null;
     const selected = this.sources.filter(source => source.kind === 'agent'
       ? selectedAccounts === null || selectedAccounts.includes(accountId(source.account))
       : selectedSources === null || selectedSources.includes(source.sourceId));
-    const sources = selected.map(source => ({ ...source, displayMetrics: displayMetrics(source), stale: source.stale || this.now() - Date.parse(source.receivedAt) >= CLOUD_STALE_MS }));
+    const sources = selected.map(source => {
+      const displayState = sourceState(source, now);
+      return { ...source, displayMetrics: displayMetrics(source), stale: sourceStale(source, now), displayState, needsAttention: needsAttention(displayState) };
+    });
     const catalogMetrics = metricCatalog(this.catalog);
     const savedMetrics = this.preferences.get('selectedMetrics');
     const selectedMetrics = savedMetrics === undefined || savedMetrics === null ? Object.keys(catalogMetrics) : [...new Set([
@@ -43,7 +48,11 @@ class MonitoringClient extends EventEmitter {
       tokenConfigured: this.credentials.has(), status: this.status,
       lastSyncedAt: this.lastSyncedAt, connectionRevision: this.generation,
       selectedSources, selectedAccounts, accountCatalog: this.accountCatalog,
-      accounts: groupAccounts(sources),
+      accounts: groupAccounts(sources).map(account => {
+        const displayState = accountState(account, now);
+        return { ...account, displayState, needsAttention: needsAttention(displayState) };
+      }),
+      attentionCount: attentionCount(sources, now),
       selectedMetrics,
       metrics: catalogMetrics, trendRefreshMs: CLOUD_TREND_MS, catalog: this.catalog, sources
     };

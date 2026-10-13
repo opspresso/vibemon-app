@@ -1,4 +1,4 @@
-import { codingAccountState, dominantState, measurementUnit, needsAttention as attentionState } from '../../shared/design/presentation.mjs';
+import { measurementUnit } from '../../shared/design/presentation.mjs';
 import {
   el,
   text,
@@ -24,14 +24,12 @@ export const accountCard = (account) => ({
   displayName: account.displayName,
   isAccount: true,
   provider: account.provider,
+  displayState: account.displayState,
+  needsAttention: account.needsAttention,
   members: account.sources
 });
-export function sourceState(source) {
-  if (source.members) return codingAccountState(source.members.map(sourceState));
-  if (source.stale) return 'stale';
-  return dominantState([source.health, source.agent?.state], source.agent?.state || source.health);
-}
-export const needsAttention = source => attentionState(sourceState(source));
+export const sourceState = source => source.displayState;
+export const needsAttention = source => source.needsAttention;
 
 export function createMetric() {
   const node = el('div', undefined, 'metric');

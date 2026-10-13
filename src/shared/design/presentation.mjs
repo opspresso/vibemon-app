@@ -1,8 +1,7 @@
 // Pure display rules shared by the Desktop renderer and the private Web client.
-const attention = ['error', 'alert', 'notification', 'warning', 'stale'];
 const states = {
   ok: ['Healthy', 'good'], warning: ['Attention', 'warning'], error: ['Collection error', 'danger'],
-  unknown: ['Unknown health', 'neutral'], stale: ['Stale', 'warning'],
+  unknown: ['Unknown health', 'neutral'], stale: ['Stale', 'warning'], inactive: ['Inactive', 'neutral'],
   working: ['Working', 'active'], thinking: ['Thinking', 'active'], planning: ['Planning', 'active'],
   packing: ['Compacting', 'active'], notification: ['Needs input', 'warning'], alert: ['Needs attention', 'danger'],
   idle: ['Idle', 'neutral'], sleep: ['Resting', 'neutral'], done: ['Done', 'good'], start: ['Starting', 'active']
@@ -15,14 +14,6 @@ export const codingProviders = Object.freeze([
   { id: 'opencode', name: 'OpenCode', character: 'vibemon' }
 ].map(Object.freeze));
 export const providerLabel = provider => codingProviders.find(item => item.id === provider)?.name ?? provider;
-export const needsAttention = state => attention.includes(state);
-export const dominantState = (observations, fallback = 'unknown') => attention.find(state => observations.includes(state)) ?? fallback;
-// A stopped project does not make a still-reporting account disconnected.
-// Callers supply per-project states in latest-observation order.
-export function codingAccountState(observations) {
-  const reporting = observations.filter(state => state !== 'stale');
-  return dominantState(reporting, reporting[0] ?? 'stale');
-}
 export const statePresentation = state => Object.hasOwn(states, state) ? [...states[state]] : [state, 'neutral'];
 export const stateLabel = state => statePresentation(state)[0];
 export const stateTone = state => statePresentation(state)[1];

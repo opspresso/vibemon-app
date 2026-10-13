@@ -24,8 +24,10 @@ def summarize(samples: list[Sample], source_id: str, kind: str, name: str, obser
             metrics[key] = maximums[key] = None
             continue
         values = [value for value in values if value is not None and math.isfinite(value)]
-        metrics[key] = sum(values) / len(values) if values else None
         maximums[key] = max(values) if values else None
+        # Floating-point addition can put even three identical readings above
+        # their maximum. Keep the mean inside the observed range on the wire.
+        metrics[key] = min(maximums[key], max(min(values), math.fsum(values) / len(values))) if values else None
     payload = {
         "sourceId": source_id, "kind": kind, "displayName": name,
         "observedAt": datetime.fromtimestamp(observed_at, timezone.utc).isoformat(timespec="milliseconds").replace("+00:00", "Z"),

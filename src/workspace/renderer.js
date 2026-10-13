@@ -185,9 +185,7 @@ function render(value) {
   const active = activity.filter((item) =>
     ['working', 'thinking', 'planning', 'packing'].includes(item.state)
   );
-  const attention =
-    resources.filter(needsAttention).length +
-    accounts.filter((account) => account.members.some(needsAttention)).length;
+  const attention = cloud.attentionCount;
   const receivedCloudData = Boolean(cloud.lastSyncedAt) || !cloud.tokenConfigured;
   text($('nav-resources'), receivedCloudData ? resources.length : '—');
   text($('nav-agents'), receivedCloudData ? accounts.length : '—');

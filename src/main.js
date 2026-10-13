@@ -20,6 +20,7 @@ for (const name of ['.env.local', '.env']) {
 const { app, BrowserWindow, ipcMain, dialog, powerMonitor, screen, safeStorage, shell } = require('electron');
 const { MonitoringClient } = require('./monitoring/client.cjs');
 const { CredentialStore } = require('./monitoring/credential-store.cjs');
+const { CloudActivity } = require('./monitoring/activity.cjs');
 const { WorkspaceWindow } = require('./workspace/window.cjs');
 const { WorkspaceSettings } = require('./workspace/settings.cjs');
 const { localActivity } = require('./workspace/activity.cjs');
@@ -215,7 +216,7 @@ function handleCloudStatusUpdate(data, meta = {}) {
   const updateResult = routeResult.updateResult;
 
   // Every accepted update is activity, including unchanged/background updates.
-  stateManager.setupStateTimeout(projectId, stateData.state);
+  stateManager.setupStateTimeout(projectId, stateData.state, { remote: Boolean(meta.sourceId) });
 
   // No visible change - skip unnecessary renderer/tray updates
   if (!updateResult.updated) {
@@ -262,7 +263,7 @@ function showCharacterAgain() {
   if (!restored) return;
 
   if (restored.stateData) {
-    stateManager.setupStateTimeout(restored.projectId, restored.stateData.state);
+    stateManager.setupStateTimeout(restored.projectId, restored.stateData.state, { remote: restored.projectId.startsWith('cloud:') });
   }
   if (trayManager) {
     trayManager.updateMenu();
@@ -472,22 +473,10 @@ app.whenReady().then(() => {
   installWorkspaceMenu({ open: page => workspaceWindow.open(page), showCompanion: showCharacterAgain });
   trayManager.setShowCharacterHandler(showCharacterAgain);
   trayManager.createTray();
-  const seenObservations = new Map();
-  monitoringClient.on('sources', sources => {
-    const selected = new Set(sources.filter(source => source.kind === 'agent').map(source => source.sourceId));
-    for (const sourceId of seenObservations.keys()) {
-      if (!selected.has(sourceId)) { removeCloudProject(`cloud:${sourceId}`); seenObservations.delete(sourceId); }
-    }
-    for (const source of sources) {
-      if (source.kind !== 'agent' || !source.agent || source.stale || seenObservations.get(source.sourceId) === source.observedAt) continue;
-      seenObservations.set(source.sourceId, source.observedAt);
-      const data = { ...source.agent };
-      for (const [metric, field] of [['contextPercent', 'memory'], ['usageSessionPercent', 'usage5h'], ['usageWeekPercent', 'usageWeek']]) {
-        if (source.metrics[metric] !== null) data[field] = Math.round(source.metrics[metric]);
-      }
-      handleCloudStatusUpdate(data, { auto: Boolean(windowManager.getFocusedProjectId()), sourceId: source.sourceId });
-    }
-  });
+  const cloudActivity = new CloudActivity((data, sourceId, { activity }) => {
+    handleCloudStatusUpdate(data, { auto: !activity || Boolean(windowManager.getFocusedProjectId()), sourceId });
+  }, removeCloudProject);
+  monitoringClient.on('change', snapshot => cloudActivity.accept(snapshot.sources));
   monitoringClient.start();
 
 
