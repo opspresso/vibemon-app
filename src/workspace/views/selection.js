@@ -1,7 +1,9 @@
 import { $, el, keyed, text, providerName, connection } from '../dom.js';
 
-export function setupSelection({ getFrame, request, navigate, run, notify }) {
+export function setupSelection({ getFrame, request, navigate, run, notify, fail }) {
   const dialog = $('selection-dialog');
+  let opening = 0;
+  const isCurrent = value => value === opening && dialog.open;
   function values(id) {
     return [...$(id).querySelectorAll('input:checked')].map((input) => input.value);
   }
@@ -64,6 +66,7 @@ export function setupSelection({ getFrame, request, navigate, run, notify }) {
     count();
   }
   function open() {
+    opening++;
     dialog.querySelector('.dialog-error').hidden = true;
     const cloud = getFrame().cloud;
     if (!cloud.tokenConfigured) {
@@ -85,25 +88,28 @@ export function setupSelection({ getFrame, request, navigate, run, notify }) {
   $('select-none').addEventListener('click', () => mark(['source-choices', 'account-choices'], false));
   $('all-metrics').addEventListener('click', () => mark(['metric-choices'], true));
   $('clear-metrics').addEventListener('click', () => mark(['metric-choices'], false));
-  $('discover').addEventListener('click', () =>
+  $('discover').addEventListener('click', () => {
+    const current = opening;
     run($('discover'), async () => {
-      const saved = draft();
       const cloud = await request('refresh');
+      if (!isCurrent(current)) return;
       if (cloud.status !== 'connected') throw new Error(connection(cloud.status)[1]);
-      render(cloud, saved);
-    })
-  );
+      render(cloud, draft());
+    }, error => { if (isCurrent(current)) fail(error); });
+  });
   $('selection-form').addEventListener('submit', (event) => {
     event.preventDefault();
+    const current = opening;
     run($('save-selection'), async () => {
       await request('select', draft());
-      dialog.close();
+      if (isCurrent(current)) dialog.close();
       notify('Dashboard selection saved');
-    });
+    }, error => { if (isCurrent(current)) fail(error); });
   });
   dialog.addEventListener('close', () => {
     // A queued close event belongs to the previous opening.
     if (dialog.open) return;
+    opening++;
     for (const id of ['source-choices', 'account-choices', 'metric-choices']) {
       $(id).replaceChildren();
       $(id)._items = new Map();
