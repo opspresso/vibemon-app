@@ -10,6 +10,7 @@ const { BrowserWindow, screen } = require('electron');
 const path = require('path');
 const { trackWindowPointer } = require('./window-pointer.cjs');
 const { placeBubble } = require('./bubble-layout.cjs');
+const { remainingResetMinutes } = require('../shared/monitoring/clock.cjs');
 const { STATE_COLORS, STATE_TEXTS, TOOL_TEXTS, LOADING_STATES } = require('../shared/config.cjs');
 
 // Must match character-window-manager.cjs's ALWAYS_ON_TOP_LEVEL so the
@@ -51,7 +52,7 @@ const RESET_MINUTES_FIELDS = {
  * @param {Object|null} speechBubbleFields
  * @returns {Object.<string, {type: 'text', text: string}|{type: 'metric', icon: string, value: number, resetIn: number|undefined}>}
  */
-function buildFieldPayload(state, speechBubbleFields) {
+function buildFieldPayload(state, speechBubbleFields, { observedAt = state?.observedAt, now = Date.now() } = {}) {
   const payload = {};
 
   if (speechBubbleFields && speechBubbleFields.status && state && state.state) {
@@ -86,7 +87,7 @@ function buildFieldPayload(state, speechBubbleFields) {
       const resetField = RESET_MINUTES_FIELDS[field];
       const resetValue = resetField && state[resetField];
       if (resetValue !== undefined && resetValue !== null && resetValue !== '') {
-        metric.resetIn = Number(resetValue);
+        metric.resetIn = remainingResetMinutes(resetValue, observedAt, now);
       }
 
       if (field === 'usageWeekModel' && typeof state.usageWeekModelLabel === 'string' && state.usageWeekModelLabel) {
@@ -253,14 +254,14 @@ class BubbleWindowManager {
    * executeJavaScript round-trip takes a moment), and without re-checking, a
    * stale call can recreate a bubble window right after destroy() removed it.
    * @param {string} projectId
-   * @param {{state: Object|null, speechBubbleFields: Object}} options
+   * @param {{state: Object|null, speechBubbleFields: Object, observedAt?: string, now?: number}} options
    */
-  async update(projectId, { state, speechBubbleFields }) {
+  async update(projectId, { state, speechBubbleFields, observedAt, now }) {
     const request = {};
     this.contentRequests.set(projectId, request);
     this.placementRequests.delete(projectId);
     const isCurrent = () => this.contentRequests.get(projectId) === request;
-    const fields = buildFieldPayload(state, speechBubbleFields);
+    const fields = buildFieldPayload(state, speechBubbleFields, { observedAt, now });
 
     if (Object.keys(fields).length === 0 || !this.isWindowValid(this.getCharacterWindow(projectId))) {
       this.hide(projectId);
@@ -307,6 +308,17 @@ class BubbleWindowManager {
     this.syncAlwaysOnTop(projectId);
     if (!win.isVisible()) win.showInactive();
     this.reposition(projectId);
+  }
+
+  // Poll ticks refresh presentation only. They must neither reopen a closed
+  // companion nor go through status ingestion and extend its lifecycle timers.
+  async refresh(projectId, options) {
+    const win = this.bubbleWindows.get(projectId);
+    if (!this.isWindowValid(win) || !win.isVisible()) return;
+    const fields = buildFieldPayload(options.state, options.speechBubbleFields, options);
+    if (JSON.stringify(fields) === JSON.stringify(this.lastFields.get(projectId)) &&
+        resolveBgColor(options.state) === this.lastBgColors.get(projectId)) return;
+    await this.update(projectId, options);
   }
 
   /**

@@ -56,6 +56,17 @@ jest.mock('electron', () => {
 const { BrowserWindow } = require('electron');
 const { BubbleWindowManager, buildFieldPayload } = require('../src/modules/bubble-window-manager.cjs');
 
+test('usage countdowns advance from their observation using the report clock', () => {
+  const state = { state: 'sleep', usage5h: 30, usage5hResetsIn: 65, usageWeekModel: 10, usageWeekModelResetsIn: 2 };
+  const fields = { usage5h: true, usageWeekModel: true };
+  const clock = { observedAt: '2026-10-09T10:00:00Z', now: Date.parse('2026-10-09T10:05:00Z') };
+  const payload = buildFieldPayload(state, fields, clock);
+  expect(payload.usage5h.resetIn).toBe(60);
+  expect(payload.usageWeekModel.resetIn).toBe(0);
+  expect(state.usage5hResetsIn).toBe(65);
+  expect(state.state).toBe('sleep');
+});
+
 function freshManager(getCharacterWindow = () => null) {
   BrowserWindow.instances.length = 0;
   return new BubbleWindowManager(getCharacterWindow);
@@ -196,6 +207,37 @@ describe('ensureBubbleWindow', () => {
 });
 
 describe('update', () => {
+  test('refresh changes only visible countdown content and never reopens hidden or closed windows', async () => {
+    const character = new BrowserWindow({});
+    const manager = freshManager(() => character);
+    const options = {
+      state: { state: 'sleep', usage5h: 30, usage5hResetsIn: 65 },
+      speechBubbleFields: { usage5h: true },
+      observedAt: '2026-10-09T10:00:00Z', now: Date.parse('2026-10-09T10:00:00Z')
+    };
+    const loading = manager.update('clock', options);
+    const bubble = BrowserWindow.instances[0];
+    bubble.webContents.emit('did-finish-load');
+    await loading;
+    await new Promise(resolve => setTimeout(resolve, 0));
+    const execute = jest.spyOn(bubble.webContents, 'executeJavaScript');
+    await manager.refresh('clock', { ...options, now: options.now + 59999 });
+    expect(execute).not.toHaveBeenCalled();
+    await manager.refresh('clock', { ...options, now: options.now + 60000 });
+    expect(manager.lastFields.get('clock').usage5h.resetIn).toBe(64);
+    expect(options.state).toEqual({ state: 'sleep', usage5h: 30, usage5hResetsIn: 65 });
+    manager.hide('clock');
+    execute.mockClear();
+    await manager.refresh('clock', { ...options, now: options.now + 300000 });
+    expect(execute).not.toHaveBeenCalled();
+    expect(bubble.isVisible()).toBe(false);
+    manager.destroy('clock');
+    await manager.refresh('clock', options);
+    expect(manager.bubbleWindows.size).toBe(0);
+    expect(BrowserWindow.instances).toHaveLength(1);
+    manager.cleanup();
+  });
+
   test('a rejected executeJavaScript destroys the bubble instead of leaking a rejection', async () => {
     let charWindow;
     const manager = freshManager(() => charWindow);

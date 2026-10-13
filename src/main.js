@@ -85,8 +85,13 @@ let usageRefreshTimer = null;
 let registryRefreshTimer = null;
 
 function getBubbleOptions(projectId) {
+  const source = projectId?.startsWith('cloud:')
+    ? monitoringClient?.sources.find(source => `cloud:${source.sourceId}` === projectId)
+    : null;
   return {
     state: windowManager.getState(projectId),
+    observedAt: source?.observedAt || windowManager.getRegisteredState(projectId)?.observedAt,
+    now: source ? monitoringClient.currentTime() : Date.now(),
     speechBubbleFields: windowManager.getSpeechBubbleFields()
   };
 }
@@ -424,7 +429,13 @@ app.whenReady().then(() => {
   const cloudActivity = new CloudActivity((data, sourceId, { activity }) => {
     handleCloudStatusUpdate(data, { auto: !activity || Boolean(windowManager.getFocusedProjectId()), sourceId });
   }, removeCloudProject, () => monitoringClient.currentTime());
-  monitoringClient.on('change', snapshot => cloudActivity.accept(snapshot.sources));
+  monitoringClient.on('change', snapshot => {
+    cloudActivity.accept(snapshot.sources);
+    for (const projectId of windowManager.getProjectIds()) {
+      bubbleWindowManager.refresh(projectId, getBubbleOptions(projectId))
+        .catch(err => console.error('Bubble countdown refresh failed:', err));
+    }
+  });
   monitoringClient.start();
 
 

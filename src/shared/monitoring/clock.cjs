@@ -8,4 +8,14 @@ function snapshotClock(serverTime, monotonicNow = () => globalThis.performance.n
   return () => timestamp + Math.max(0, monotonicNow() - received);
 }
 
-module.exports = { snapshotClock };
+// Reset durations describe the observation, not the time a reader opened it.
+// Keep the supplied duration when its timestamp is unknown; future timestamps
+// cannot increase it. Subtract minutes without multiplying a safe integer.
+function remainingResetMinutes(minutes, observedAt, now = Date.now()) {
+  if (!Number.isSafeInteger(minutes) || minutes < 0) return undefined;
+  const observed = typeof observedAt === 'string' ? Date.parse(observedAt) : NaN;
+  if (!Number.isFinite(observed) || !Number.isFinite(now)) return minutes;
+  return Math.max(0, minutes - Math.max(0, Math.floor((now - observed) / 60000)));
+}
+
+module.exports = { snapshotClock, remainingResetMinutes };

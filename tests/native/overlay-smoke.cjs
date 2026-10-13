@@ -566,6 +566,17 @@ async function run() {
           await bubbleManager.update('test', { state: { state: 'idle', usage5h: 1.005, usageWeek: 12.3456 }, speechBubbleFields: { usage5h: true, usageWeek: true } });
           const values = await idleBubble.webContents.executeJavaScript('[...document.querySelectorAll(".bubble-metric")].filter(row => row.style.display !== "none").map(row => row.querySelector(".bubble-value").textContent)');
           assert.deepEqual(values, ['1.01%', '12.35%']);
+          const countdown = {
+            state: { state: 'sleep', usageWeek: 30, usageWeekResetsIn: 65 },
+            speechBubbleFields: { usageWeek: true },
+            observedAt: '2026-10-09T10:00:00Z', now: Date.parse('2026-10-09T10:00:00Z')
+          };
+          await bubbleManager.update('test', countdown);
+          await bubbleManager.refresh('test', { ...countdown, now: countdown.now + 300000 });
+          const resetText = await idleBubble.webContents.executeJavaScript('document.querySelector("[data-field=usageWeek] .bubble-value").textContent');
+          assert.equal(resetText, '30% · 1h');
+          assert.equal(countdown.state.usageWeekResetsIn, 65);
+          results.push({ source: 'bubble-countdown', elapsedMinutes: 5, text: resetText });
         }
         bubbleManager.cleanup();
         characterManager.cleanup();
