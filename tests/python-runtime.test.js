@@ -4,7 +4,8 @@
 
 jest.mock('child_process');
 
-const { spawnSync } = require('child_process');
+const { execFile } = require('child_process');
+const { setImmediate } = require('node:timers');
 
 const PROBE_OK = { status: 0, stdout: '3\n' };
 
@@ -26,101 +27,110 @@ function loadFor(platform) {
 }
 
 beforeEach(() => {
-  spawnSync.mockReset();
+  execFile.mockReset();
 });
 
 describe('findPython', () => {
-  test('returns the first candidate that runs code', () => {
+  test('returns the first candidate that runs code', async () => {
     const { findPython } = loadFor('darwin');
-    spawnSync.mockReturnValue(PROBE_OK);
+    execFile.mockImplementation((_command, _args, _options, callback) => callback(null, PROBE_OK.stdout));
 
-    expect(findPython()).toEqual({ command: 'python3', prefixArgs: [] });
+    expect(await findPython()).toEqual({ command: 'python3', prefixArgs: [] });
   });
 
-  test('probes by executing code, not by a path lookup', () => {
+  test('probes by executing code, not by a path lookup', async () => {
     const { findPython } = loadFor('darwin');
-    spawnSync.mockReturnValue(PROBE_OK);
+    execFile.mockImplementation((_command, _args, _options, callback) => callback(null, PROBE_OK.stdout));
 
-    findPython();
+    await findPython();
 
-    const [command, args] = spawnSync.mock.calls[0];
+    const [command, args] = execFile.mock.calls[0];
     expect(command).toBe('python3');
     expect(args[0]).toBe('-c');
     expect(args[1]).toContain('sys.version_info');
   });
 
-  test('prefers the py launcher on Windows', () => {
+  test('prefers the py launcher on Windows', async () => {
     const { findPython } = loadFor('win32');
-    spawnSync.mockReturnValue(PROBE_OK);
+    execFile.mockImplementation((_command, _args, _options, callback) => callback(null, PROBE_OK.stdout));
 
-    expect(findPython()).toEqual({ command: 'py', prefixArgs: ['-3'] });
-    expect(spawnSync.mock.calls[0][1]).toEqual([
+    expect(await findPython()).toEqual({ command: 'py', prefixArgs: ['-3'] });
+    expect(execFile.mock.calls[0][1]).toEqual([
       '-3', '-c', expect.stringContaining('sys.version_info')
     ]);
   });
 
-  test('rejects a Microsoft Store alias stub and falls through to a real interpreter', () => {
+  test('rejects a Microsoft Store alias stub and falls through to a real interpreter', async () => {
     // The stub is a genuine python.exe on PATH: `where python` finds it, but
     // running it opens the Store and executes nothing.
     const { findPython } = loadFor('win32');
-    spawnSync.mockImplementation((command) =>
-      command === 'python3' ? PROBE_OK : { status: 9009, stdout: '' }
-    );
+    execFile.mockImplementation((command, _args, _options, callback) => callback(command === 'python3' ? null : new Error('alias'), command === 'python3' ? '3\n' : ''));
 
-    expect(findPython()).toEqual({ command: 'python3', prefixArgs: [] });
+    expect(await findPython()).toEqual({ command: 'python3', prefixArgs: [] });
   });
 
-  test('rejects an exit-0 probe that printed nothing', () => {
+  test('rejects an exit-0 probe that printed nothing', async () => {
     const { findPython } = loadFor('win32');
-    spawnSync.mockReturnValue({ status: 0, stdout: '' });
+    execFile.mockImplementation((_command, _args, _options, callback) => callback(null, ''));
 
-    expect(findPython()).toBeNull();
+    expect(await findPython()).toBeNull();
   });
 
-  test('rejects a Python 2 interpreter', () => {
+  test('rejects a Python 2 interpreter', async () => {
     const { findPython } = loadFor('darwin');
-    spawnSync.mockReturnValue({ status: 0, stdout: '2\n' });
+    execFile.mockImplementation((_command, _args, _options, callback) => callback(null, '2\n'));
 
-    expect(findPython()).toBeNull();
+    expect(await findPython()).toBeNull();
   });
 
-  test('returns null when no candidate works', () => {
+  test('returns null when no candidate works', async () => {
     const { findPython } = loadFor('darwin');
-    spawnSync.mockReturnValue({ status: 127 });
+    execFile.mockImplementation((_command, _args, _options, callback) => callback(new Error('unavailable'), ''));
 
-    expect(findPython()).toBeNull();
+    expect(await findPython()).toBeNull();
   });
 
-  test('survives a spawn that throws', () => {
+  test('survives a spawn that throws', async () => {
     const { findPython } = loadFor('darwin');
-    spawnSync.mockImplementation(() => { throw new Error('EACCES'); });
+    execFile.mockImplementation(() => { throw new Error('EACCES'); });
 
-    expect(findPython()).toBeNull();
+    expect(await findPython()).toBeNull();
   });
 
-  test('hides the console window Windows would pop for every probe', () => {
+  test('hides the console window Windows would pop for every probe', async () => {
     const { findPython } = loadFor('win32');
-    spawnSync.mockReturnValue(PROBE_OK);
+    execFile.mockImplementation((_command, _args, _options, callback) => callback(null, PROBE_OK.stdout));
 
-    findPython();
+    await findPython();
 
-    expect(spawnSync.mock.calls[0][2].windowsHide).toBe(true);
+    expect(execFile.mock.calls[0][2].windowsHide).toBe(true);
   });
 
-  test('is not cached, so installing Python mid-session takes effect', () => {
+  test('is not cached, so installing Python mid-session takes effect', async () => {
     const { findPython } = loadFor('darwin');
-    spawnSync.mockReturnValue({ status: 127 });
-    expect(findPython()).toBeNull();
+    execFile.mockImplementation((_command, _args, _options, callback) => callback(new Error('unavailable'), ''));
+    expect(await findPython()).toBeNull();
 
-    spawnSync.mockReturnValue(PROBE_OK);
-    expect(findPython()).toEqual({ command: 'python3', prefixArgs: [] });
+    execFile.mockImplementation((_command, _args, _options, callback) => callback(null, PROBE_OK.stdout));
+    expect(await findPython()).toEqual({ command: 'python3', prefixArgs: [] });
   });
 });
 
-test('terminates an interpreter that never responds', () => {
+test('terminates an interpreter that never responds', async () => {
   const { probePython } = loadFor('darwin');
-  spawnSync.mockImplementation(jest.requireActual('child_process').spawnSync);
+  execFile.mockImplementation(jest.requireActual('child_process').execFile);
   const started = Date.now();
-  expect(probePython({ command: process.execPath, prefixArgs: ['-e', 'setInterval(() => {}, 1000)', '--'] })).toBe(false);
+  expect(await probePython({ command: process.execPath, prefixArgs: ['-e', 'setInterval(() => {}, 1000)', '--'] })).toBe(false);
   expect(Date.now() - started).toBeLessThan(4000);
+});
+
+
+test('slow interpreter discovery leaves the main event loop responsive', async () => {
+  const { probePython } = loadFor('darwin');
+  execFile.mockImplementation(jest.requireActual('child_process').execFile);
+  let settled = false;
+  const pending = probePython({ command: process.execPath, prefixArgs: ['-e', 'setTimeout(() => process.stdout.write("3\\n"), 300)', '--'] }).then(value => { settled = true; return value; });
+  await new Promise(setImmediate);
+  expect(settled).toBe(false);
+  expect(await pending).toBe(true);
 });

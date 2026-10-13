@@ -455,6 +455,11 @@ startFixture().then(async fixture => {
   await screenshot('long-selection');
   await click('[data-close-dialog="selection-dialog"]');
   assert.deepEqual(overflow, [], 'accepted API values fit cards and dialogs without horizontal clipping');
+  require('electron').autoUpdater.emit('before-quit-for-update');
+  assert.equal(view.window, null, 'native update shutdown releases the real workspace before closing windows');
+  assert.equal(view.disposed, true);
+  view.open('overview');
+  assert.equal(view.window, null, 'activation during update shutdown cannot reopen the workspace');
   assert.deepEqual(errors, [], 'no renderer or loading errors');
   console.log('PASS native workspace: navigation, custom metrics, multiple accounts, focus, selection, preferences, credential boundaries, recovery, resizing and visibility.');
   app.quit();

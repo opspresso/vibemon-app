@@ -14,13 +14,15 @@ jest.mock('../src/shared/config.cjs', () => ({
 }));
 
 const fs = require('fs');
-const { spawn, spawnSync } = require('child_process');
+const { spawn, execFile } = require('child_process');
+const { setImmediate } = require('node:timers');
+const flush = () => new Promise(setImmediate);
 const { UsageRefresher, USAGE_SCRIPT_PATH } = require('../src/modules/usage-refresher.cjs');
 
 // findPython() probes candidates by running `-c 'print(sys.version_info[0])'`,
 // so a usable interpreter has to answer with its major version.
 function mockPythonPresent() {
-  spawnSync.mockReturnValue({ status: 0, stdout: '3\n' });
+  execFile.mockImplementation((_command, _args, _options, callback) => callback(null, '3\n'));
 }
 
 // Returns a fake child whose exit is controlled by the test via close(code).
@@ -40,7 +42,7 @@ describe('UsageRefresher', () => {
     fs.readFileSync.mockReset();
     fs.statSync.mockReset();
     spawn.mockReset();
-    spawnSync.mockReset();
+    execFile.mockReset();
     mockPythonPresent();
     refresher = new UsageRefresher();
   });
@@ -62,6 +64,7 @@ describe('UsageRefresher', () => {
     const child = mockSpawnedChild();
 
     const promise = refresher.refresh();
+    await flush();
     child.emit('close', 0);
     const result = await promise;
 
@@ -77,6 +80,7 @@ describe('UsageRefresher', () => {
     const child = mockSpawnedChild();
 
     const promise = refresher.refresh();
+    await flush();
     child.emit('close', 0);
     await promise;
 
@@ -95,6 +99,7 @@ describe('UsageRefresher', () => {
       fs.readFileSync.mockReturnValue(JSON.stringify({ 'codex:work': { updated_at: 100 } }));
       const child = mockSpawnedChild();
       const pending = refresher.refresh();
+      await flush();
       child.emit('close', 0);
       await pending;
       expect(fs.statSync).toHaveBeenCalledWith(path.join(os.homedir(), 'codex-work', 'auth.json'));
@@ -105,7 +110,7 @@ describe('UsageRefresher', () => {
   });
 
   test('skips without spawning when no working Python 3 is found', async () => {
-    spawnSync.mockReturnValue({ status: 9009, stdout: '' });
+    execFile.mockImplementation((_command, _args, _options, callback) => callback(new Error('unavailable'), ''));
 
     const result = await refresher.refresh();
 
@@ -117,6 +122,7 @@ describe('UsageRefresher', () => {
     const child = mockSpawnedChild();
 
     const promise = refresher.refresh();
+    await flush();
     child.emit('close', 0);
     await promise;
 
@@ -127,6 +133,7 @@ describe('UsageRefresher', () => {
     const child = mockSpawnedChild();
 
     const promise = refresher.refresh();
+    await flush();
     child.emit('close', 0);
     await promise;
 
@@ -142,6 +149,7 @@ describe('UsageRefresher', () => {
     const child = mockSpawnedChild();
 
     const promise = refresher.refresh();
+    await flush();
     child.emit('close', 0);
     await promise;
 
@@ -153,6 +161,7 @@ describe('UsageRefresher', () => {
     const child = mockSpawnedChild();
 
     const first = refresher.refresh();
+    await flush();
     const second = await refresher.refresh();
 
     expect(second).toEqual({ ok: false, reason: 'in-flight' });
@@ -162,15 +171,32 @@ describe('UsageRefresher', () => {
     await first;
   });
 
+  test('a pending interpreter probe also prevents overlapping refreshes', async () => {
+    let completeProbe;
+    execFile.mockImplementation((_command, _args, _options, callback) => { completeProbe = callback; });
+    const child = mockSpawnedChild();
+    const first = refresher.refresh();
+    expect(await refresher.refresh()).toEqual({ ok: false, reason: 'in-flight' });
+    expect(spawn).not.toHaveBeenCalled();
+    completeProbe(null, '3\n');
+    await flush();
+    child.emit('close', 0);
+    expect(await first).toMatchObject({ ok: true });
+    expect(execFile).toHaveBeenCalledTimes(1);
+    expect(spawn).toHaveBeenCalledTimes(1);
+  });
+
   test('allows a new refresh after the previous one finishes', async () => {
     const child = mockSpawnedChild();
     const first = refresher.refresh();
+    await flush();
     child.emit('close', 1);
     const firstResult = await first;
     expect(firstResult).toMatchObject({ ok: false, reason: 'exit-code', code: 1 });
 
     const nextChild = mockSpawnedChild();
     const second = refresher.refresh();
+    await flush();
     nextChild.emit('close', 0);
     const secondResult = await second;
 
@@ -182,6 +208,7 @@ describe('UsageRefresher', () => {
     const child = mockSpawnedChild();
 
     const promise = refresher.refresh();
+    await flush();
     child.emit('error', new Error('ENOENT'));
     const result = await promise;
 
@@ -193,11 +220,13 @@ describe('UsageRefresher', () => {
     try {
       const child = mockSpawnedChild();
       const first = refresher.refresh();
+      await flush();
       jest.advanceTimersByTime(60000);
       expect(child.kill).toHaveBeenCalledWith('SIGKILL');
       expect(await first).toMatchObject({ ok: false, reason: 'timeout' });
       const next = mockSpawnedChild();
       const second = refresher.refresh();
+      await flush();
       child.emit('close', 1);
       expect(await refresher.refresh()).toEqual({ ok: false, reason: 'in-flight' });
       next.emit('close', 0);
@@ -210,6 +239,7 @@ describe('UsageRefresher', () => {
     const warning = jest.spyOn(console, 'warn').mockImplementation(() => {});
     try {
       const pending = refresher.refresh();
+      await flush();
       child.stderr.emit('data', 'private-provider-response');
       child.emit('close', 1);
       const result = await pending;

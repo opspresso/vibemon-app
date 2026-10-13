@@ -73,19 +73,20 @@ class UsageRefresher {
    * is harmless and the next scheduled run retries.
    * @returns {Promise<{ok: boolean, reason?: string, code?: number}>}
    */
-  refresh() {
+  async refresh() {
     if (this.inFlight) {
       return Promise.resolve({ ok: false, reason: 'in-flight' });
     }
     if (!fs.existsSync(USAGE_SCRIPT_PATH)) {
       return Promise.resolve({ ok: false, reason: 'not-installed' });
     }
-    const python = findPython();
+    this.inFlight = true;
+    const python = await findPython();
     if (!python) {
+      this.inFlight = false;
       return Promise.resolve({ ok: false, reason: 'python-not-found' });
     }
     const maxAgeSeconds = shouldForceCodexRefresh() ? 0 : USAGE_REFRESH_MAX_AGE_SECONDS;
-    this.inFlight = true;
     return new Promise((resolve) => {
       const args = [
         ...python.prefixArgs,

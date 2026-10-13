@@ -3,6 +3,7 @@ const path = require('node:path');
 
 jest.mock('electron', () => ({
   BrowserWindow: jest.fn(),
+  autoUpdater: new (require('node:events').EventEmitter)(),
   ipcMain: { handle: jest.fn(), removeHandler: jest.fn() },
   shell: { openExternal: jest.fn() },
   contextBridge: { exposeInMainWorld: jest.fn() },
@@ -10,7 +11,7 @@ jest.mock('electron', () => ({
 }));
 jest.mock('../src/modules/window-position.cjs', () => ({ centerOnCursorDisplay: jest.fn() }));
 
-const { BrowserWindow, ipcMain, contextBridge, ipcRenderer } = require('electron');
+const { BrowserWindow, ipcMain, contextBridge, ipcRenderer, autoUpdater } = require('electron');
 const { centerOnCursorDisplay } = require('../src/modules/window-position.cjs');
 const { WorkspaceWindow } = require('../src/workspace/window.cjs');
 const { WORKSPACE_UPDATE_MS } = require('../src/shared/constants.cjs');
@@ -49,6 +50,19 @@ beforeEach(() => {
 });
 afterEach(() => { view.cleanup(); jest.useRealTimers(); });
 function open() { view.open(); native.emit('ready-to-show'); }
+
+test('native update shutdown releases hide-on-close before app before-quit', () => {
+  open();
+  const close = { preventDefault: jest.fn() };
+  autoUpdater.emit('before-quit-for-update');
+  native.emit('close', close);
+  expect(close.preventDefault).not.toHaveBeenCalled();
+  expect(native.isDestroyed()).toBe(true);
+  expect(view.disposed).toBe(true);
+  expect(autoUpdater.listenerCount('before-quit-for-update')).toBe(0);
+  view.open();
+  expect(BrowserWindow).toHaveBeenCalledTimes(1);
+});
 
 test('one sandboxed window serves navigation and denies external window navigation', async () => {
   open();
