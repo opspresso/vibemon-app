@@ -8,9 +8,10 @@
  */
 
 const {
-  IDLE_TIMEOUT_MS, SLEEP_TIMEOUT_MS, WINDOW_CLOSE_TIMEOUT_MS,
+  WINDOW_CLOSE_TIMEOUT_MS,
   CHARACTER_CONFIG, DEFAULT_CHARACTER
 } = require('../shared/config.cjs');
+const { agentTransition } = require('../shared/monitoring/state.cjs');
 
 const STATUS_FIELDS = [
   'state', 'project', 'tool', 'model', 'memory', 'usage5h', 'usageWeek',
@@ -82,34 +83,14 @@ class StateManager {
     this.clearStateTimeout(projectId);
     this.clearWindowCloseTimer(projectId);
 
-    if (currentState === 'start' || currentState === 'done') {
-      // start/done -> idle after 1 minute
+    const transition = agentTransition(currentState);
+    if (transition) {
       const timer = setTimeout(() => {
         this.stateTimeoutTimers.delete(projectId);
         if (this.onStateTimeout) {
-          this.onStateTimeout(projectId, 'idle');
+          this.onStateTimeout(projectId, transition.state);
         }
-      }, IDLE_TIMEOUT_MS);
-      this.stateTimeoutTimers.set(projectId, timer);
-    } else if (currentState === 'planning' || currentState === 'thinking' ||
-               currentState === 'working' || currentState === 'packing' ||
-               currentState === 'notification' || currentState === 'alert') {
-      // planning/thinking/working/packing/notification/alert -> idle after 5 minutes
-      const timer = setTimeout(() => {
-        this.stateTimeoutTimers.delete(projectId);
-        if (this.onStateTimeout) {
-          this.onStateTimeout(projectId, 'idle');
-        }
-      }, SLEEP_TIMEOUT_MS);
-      this.stateTimeoutTimers.set(projectId, timer);
-    } else if (currentState === 'idle') {
-      // idle -> sleep after 5 minutes
-      const timer = setTimeout(() => {
-        this.stateTimeoutTimers.delete(projectId);
-        if (this.onStateTimeout) {
-          this.onStateTimeout(projectId, 'sleep');
-        }
-      }, SLEEP_TIMEOUT_MS);
+      }, transition.after);
       this.stateTimeoutTimers.set(projectId, timer);
     } else if (currentState === 'sleep') {
       // sleep -> close window after 10 minutes

@@ -6,20 +6,30 @@ const needsAttention = state => attention.includes(state);
 const dominantState = (states, fallback = 'unknown') => attention.find(state => states.includes(state)) ?? fallback;
 const sourceStale = (source, now = Date.now()) => Boolean(source.stale) || now - Date.parse(source.receivedAt) >= CLOUD_STALE_MS;
 
+function agentTransition(state) {
+  if (['start', 'done'].includes(state)) return { state: 'idle', after: IDLE_TIMEOUT_MS };
+  if (['thinking', 'planning', 'working', 'notification', 'packing', 'alert'].includes(state)) return { state: 'idle', after: SLEEP_TIMEOUT_MS };
+  return state === 'idle' ? { state: 'sleep', after: SLEEP_TIMEOUT_MS } : null;
+}
+
 function idleAgentState(state, observedAt, now = Date.now()) {
-  const elapsed = now - Date.parse(observedAt);
-  const idleAfter = ['start', 'done'].includes(state) ? IDLE_TIMEOUT_MS
-    : ['thinking', 'planning', 'working', 'notification', 'packing', 'alert'].includes(state) ? SLEEP_TIMEOUT_MS
-      : state === 'idle' ? 0 : Infinity;
-  if (elapsed >= idleAfter + SLEEP_TIMEOUT_MS) return 'sleep';
-  if (elapsed >= idleAfter) return 'idle';
+  let elapsed = now - Date.parse(observedAt);
+  let transition = agentTransition(state);
+  while (transition && elapsed >= transition.after) {
+    elapsed -= transition.after;
+    state = transition.state;
+    transition = agentTransition(state);
+  }
   return state;
 }
 
 function sourceState(source, now = Date.now()) {
   // Coding hooks report events, not a continuous heartbeat. Silence is normal.
   if (sourceStale(source, now)) return source.kind === 'agent' ? 'inactive' : 'stale';
-  const state = source.agent ? idleAgentState(source.agent.state, source.observedAt, now) : source.health;
+  // A fresh receipt keeps an explicit input request/error actionable even if
+  // the original event is old. Only a new state or stopped reporting clears it.
+  const state = source.agent ? ['notification', 'alert'].includes(source.agent.state) ? source.agent.state
+    : idleAgentState(source.agent.state, source.observedAt, now) : source.health;
   return dominantState([source.health, state], state);
 }
 
@@ -29,6 +39,11 @@ function codingAccountState(states) {
 }
 
 const accountState = (account, now = Date.now()) => codingAccountState(account.sources.map(source => sourceState(source, now)));
+function companionState(source, now = Date.now()) {
+  const state = sourceState(source, now);
+  const mapped = { inactive: 'sleep', stale: 'sleep', error: 'alert', warning: 'notification', unknown: 'idle', ok: 'idle' };
+  return Object.hasOwn(mapped, state) ? mapped[state] : state;
+}
 const accountKey = account => `${account.provider}:${account.id}`;
 
 function groupAccounts(sources) {
@@ -50,4 +65,4 @@ function attentionCount(sources, now = Date.now()) {
     + groupAccounts(sources).filter(account => needsAttention(accountState(account, now))).length;
 }
 
-module.exports = { needsAttention, dominantState, sourceStale, idleAgentState, sourceState, codingAccountState, accountState, accountKey, groupAccounts, attentionCount };
+module.exports = { needsAttention, dominantState, sourceStale, agentTransition, idleAgentState, sourceState, companionState, codingAccountState, accountState, accountKey, groupAccounts, attentionCount };

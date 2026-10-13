@@ -39,6 +39,14 @@ test('receipt freshness and event-age transitions are independent', () => {
   expect(sourceState({ ...source, observedAt: new Date(now - 360000).toISOString() }, now)).toBe('sleep');
 });
 
+test.each(['notification', 'alert'])('fresh receipts preserve an old %s until resolution or silence', state => {
+  const source = { ...agent, observedAt: new Date(now - 3600000).toISOString(), agent: { ...agent.agent, state } };
+  expect(sourceState(source, now)).toBe(state);
+  expect(attentionCount([source], now)).toBe(1);
+  expect(sourceState({ ...source, agent: { ...source.agent, state: 'done' }, observedAt: source.receivedAt }, now)).toBe('done');
+  expect(sourceState(source, now + 120000)).toBe('inactive');
+});
+
 test('accounts use timestamp order and stable ties without mutating input or blending providers', () => {
   const first = { ...agent, sourceId: 'z', observedAt: '2026-10-13T08:00:00Z' };
   const second = { ...agent, sourceId: 'a', observedAt: '2026-10-13T08:00:00.000Z' };

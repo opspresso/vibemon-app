@@ -20,6 +20,7 @@ for (const name of ['.env.local', '.env']) {
 const { app, BrowserWindow, ipcMain, dialog, powerMonitor, screen, safeStorage, shell } = require('electron');
 const { MonitoringClient } = require('./monitoring/client.cjs');
 const { CredentialStore } = require('./monitoring/credential-store.cjs');
+const { CloudActivity } = require('./monitoring/activity.cjs');
 const { WorkspaceWindow } = require('./workspace/window.cjs');
 const { WorkspaceSettings } = require('./workspace/settings.cjs');
 const { localActivity } = require('./workspace/activity.cjs');
@@ -472,22 +473,10 @@ app.whenReady().then(() => {
   installWorkspaceMenu({ open: page => workspaceWindow.open(page), showCompanion: showCharacterAgain });
   trayManager.setShowCharacterHandler(showCharacterAgain);
   trayManager.createTray();
-  const seenObservations = new Map();
-  monitoringClient.on('sources', sources => {
-    const selected = new Set(sources.filter(source => source.kind === 'agent').map(source => source.sourceId));
-    for (const sourceId of seenObservations.keys()) {
-      if (!selected.has(sourceId)) { removeCloudProject(`cloud:${sourceId}`); seenObservations.delete(sourceId); }
-    }
-    for (const source of sources) {
-      if (source.kind !== 'agent' || !source.agent || source.stale || seenObservations.get(source.sourceId) === source.observedAt) continue;
-      seenObservations.set(source.sourceId, source.observedAt);
-      const data = { ...source.agent };
-      for (const [metric, field] of [['contextPercent', 'memory'], ['usageSessionPercent', 'usage5h'], ['usageWeekPercent', 'usageWeek']]) {
-        if (source.metrics[metric] !== null) data[field] = Math.round(source.metrics[metric]);
-      }
-      handleCloudStatusUpdate(data, { auto: Boolean(windowManager.getFocusedProjectId()), sourceId: source.sourceId });
-    }
-  });
+  const cloudActivity = new CloudActivity((data, sourceId) => {
+    handleCloudStatusUpdate(data, { auto: Boolean(windowManager.getFocusedProjectId()), sourceId });
+  }, removeCloudProject);
+  monitoringClient.on('change', snapshot => cloudActivity.accept(snapshot.sources));
   monitoringClient.start();
 
 
