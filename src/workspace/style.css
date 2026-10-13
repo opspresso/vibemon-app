@@ -1350,6 +1350,10 @@ dialog::backdrop {
   padding-top: 4px;
   margin: 20px 0;
 }
+.history-chart-frame {
+  min-height: 264px;
+  display: flow-root;
+}
 #chart {
   width: 100%;
   height: 230px;

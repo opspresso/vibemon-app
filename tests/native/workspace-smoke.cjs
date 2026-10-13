@@ -130,8 +130,14 @@ startFixture().then(async fixture => {
   await click('#resource-cards .empty button');
   assert.equal(await value('#resource-search'), '');
   assert.equal(await ui('document.querySelectorAll("#resource-cards .card").length'), 4);
+  state.trendDelayMs = 1000;
   await click('[aria-label="View Cache service details"]');
+  const loadingEditTop = await ui('document.getElementById("edit-resource").getBoundingClientRect().top');
   await until(() => ui('document.querySelectorAll("#chart circle").length > 0'), 'custom resource history');
+  const loadedEditTop = await ui('document.getElementById("edit-resource").getBoundingClientRect().top');
+  console.log('History loading action shift:', loadedEditTop - loadingEditTop);
+  assert.ok(Math.abs(loadedEditTop - loadingEditTop) < 1, 'loading history does not move the edit action');
+  state.trendDelayMs = 0;
   assert.ok((await text('#detail-message')).includes('Latency is above'));
   assert.equal(await ui('document.activeElement.getAttribute("aria-label")'), 'Close source details');
   await screenshot('resource-detail');
