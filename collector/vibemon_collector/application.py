@@ -39,7 +39,9 @@ def run(sampler, sender, source_id, kind, name, metrics, wall_clock, monotonic, 
                 finished = monotonic()
                 # An overrun restarts the cadence; normal latency and jitter do not.
                 policy.succeeded(payload, finished if finished >= deadline + 10 else deadline)
-                if on_delivery is not None:
+                # Duplicate/older acknowledgements clear the obsolete window,
+                # but they do not refresh the server's source receipt time.
+                if result['accepted'] and on_delivery is not None:
                     on_delivery(wall_clock())
                 if once:
                     return payload
