@@ -556,6 +556,14 @@ async function run() {
           }
           monitor.cleanup();
         }
+        if (mode === '2d' && scale === 100) {
+          bubbleManager.getDockLayout = () => null;
+          await bubbleManager.update('test', { state: { state: 'idle' }, speechBubbleFields: { status: true } });
+          const idleBubble = bubbleManager.bubbleWindows.get('test');
+          const colors = await idleBubble.webContents.executeJavaScript('(() => { const style = getComputedStyle(document.getElementById("bubble")); return { text: style.color, background: style.backgroundColor }; })()');
+          assert.deepEqual(colors, { text: 'rgb(0, 0, 0)', background: 'rgb(0, 170, 0)' });
+          fs.writeFileSync(path.join(output, 'bubble-idle-contrast.png'), (await idleBubble.webContents.capturePage()).toPNG());
+        }
         bubbleManager.cleanup();
         characterManager.cleanup();
         win.destroy();
