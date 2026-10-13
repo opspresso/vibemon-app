@@ -13,6 +13,17 @@ const {
   validateStatusPayload
 } = require('../src/modules/validators.cjs');
 
+test.each(['First\nSecond', 'First\u0000Second', 'First\u007fSecond', '\ud800'])('display fields reject text Touch cannot decode: %p', value => {
+  for (const field of ['project', 'character', 'tool', 'model', 'usageWeekModelLabel']) {
+    expect(validateStatusPayload({ state: 'working', project: 'demo', [field]: value }).valid).toBe(false);
+  }
+  expect(validateStatusPayload({ state: 'working', account: { provider: 'codex', id: 'work', displayName: value } }).valid).toBe(false);
+});
+
+test('display fields preserve valid Unicode and optional empty values', () => {
+  expect(validateStatusPayload({ state: 'working', project: '한글 🐱', character: 'codex', tool: '', model: '模型 🚀' }).valid).toBe(true);
+});
+
 describe('validateState', () => {
   test('rejects undefined state (required, matching the cloud API)', () => {
     const result = validateState(undefined);

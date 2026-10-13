@@ -1,6 +1,7 @@
 /** Pure resource display/validation contract shared by Web and Desktop. */
 const MAX_METRICS = 32;
 const MAX_VALUE = Number.MAX_SAFE_INTEGER;
+const AGENT_TEXT_LIMITS = Object.freeze({ state: 64, character: 64, project: 128, tool: 64, model: 64, usageWeekModelLabel: 64 });
 const validPercentage = value => typeof value === 'number' && Number.isFinite(value) && value >= 0 && value <= 100;
 const BUILTIN_METRICS = Object.freeze(Object.fromEntries(Object.entries({
   cpuPercent: { label: 'CPU', unit: '%', display: 'gauge', min: 0, max: 100 },
@@ -19,7 +20,7 @@ const PRESETS = {
   cluster: ['cpuPercent', 'memoryPercent', 'nodesReady', 'nodesTotal', 'podsUnhealthy'],
   agent: ['contextPercent', 'usageSessionPercent', 'usageWeekPercent']
 };
-const validText = (value, limit, empty = false) => typeof value === 'string' && (empty || value.trim().length > 0) && value.length <= limit && !/[\u0000-\u001f\u007f]/.test(value);
+const validText = (value, limit, empty = false) => typeof value === 'string' && (empty || value.trim().length > 0) && value.length <= limit && !/[\u0000-\u001f\u007f\ud800-\udfff]/u.test(value);
 const validMetricKey = key => /^[a-zA-Z][a-zA-Z0-9_]{0,63}$/.test(key) && !['constructor', 'prototype', '__proto__'].includes(key);
 const object = value => value !== null && typeof value === 'object' && !Array.isArray(value);
 function validateDefinitions(raw) {
@@ -86,4 +87,4 @@ function mergeMean(previous, previousCount, value, count = 1) {
   const mean = previous + (value - previous) * (count / (previousCount + count));
   return Math.min(Math.max(previous, value), Math.max(Math.min(previous, value), mean));
 }
-module.exports = { MAX_METRICS, MAX_VALUE, BUILTIN_METRICS, validPercentage, validText, validMetricKey, validateDefinitions, validateValues, validateOrder, sameMeaning, canExtendDefinitions, definitionsFor, selectionKey, metricCatalog, mergeMean };
+module.exports = { MAX_METRICS, MAX_VALUE, AGENT_TEXT_LIMITS, BUILTIN_METRICS, validPercentage, validText, validMetricKey, validateDefinitions, validateValues, validateOrder, sameMeaning, canExtendDefinitions, definitionsFor, selectionKey, metricCatalog, mergeMean };

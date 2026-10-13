@@ -15,6 +15,9 @@ function store(initial = {}) {
   return { get: key => values.get(key), set: (key, value) => typeof key === 'object' ? Object.entries(key).forEach(([name, entry]) => values.set(name, entry)) : values.set(key, value), delete: key => values.delete(key), values };
 }
 const source = now => ({ sourceId: 'spark', kind: 'host', displayName: 'Spark', health: 'ok', stale: false, observedAt: new Date(now).toISOString(), receivedAt: new Date(now).toISOString(), metrics: { cpuPercent: 35, memoryPercent: 72, gpuTemperatureC: 40, gpuPercent: null }, memoryType: 'unified' });
+test.each(['First\nSecond', 'First\u007fSecond', '\ud800'])('source names use the same display-text contract: %p', displayName => {
+  expect(() => validateSources([{ ...source(1000), displayName }])).toThrow();
+});
 function fixture(now = 1000000) {
   const preferences = store({ url: 'https://web.example' });
   const secrets = store();

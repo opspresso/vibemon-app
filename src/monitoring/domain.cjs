@@ -1,6 +1,6 @@
 const { webOrigin } = require('../shared/web-origin.cjs');
 const { accountKey: accountId, groupAccounts } = require('../shared/monitoring/state.cjs');
-const { BUILTIN_METRICS: METRICS, validPercentage, validateDefinitions, validateValues, validateOrder, validText, definitionsFor, selectionKey, metricCatalog } = require('../shared/resource-schema.cjs');
+const { BUILTIN_METRICS: METRICS, AGENT_TEXT_LIMITS, validPercentage, validateDefinitions, validateValues, validateOrder, validText, definitionsFor, selectionKey, metricCatalog } = require('../shared/resource-schema.cjs');
 const validId = id => typeof id === 'string' && /^[a-zA-Z0-9][a-zA-Z0-9_.:-]{0,127}$/.test(id);
 function metrics(value, definitions = METRICS) {
   // Edited display ranges do not invalidate measurements outside the visible gauge.
@@ -14,7 +14,7 @@ function validateSources(value) {
   if (!Array.isArray(value) || value.length > 1000) throw new Error('Invalid source response');
   const ids = new Set();
   return value.map(source => {
-    if (!source || !validId(source.sourceId) || ids.has(source.sourceId) || !['agent', 'host', 'cluster', 'resource'].includes(source.kind) || typeof source.displayName !== 'string' || !source.displayName.trim() || source.displayName.length > 128 || !validTime(source.receivedAt) || !validTime(source.observedAt) || !['ok', 'warning', 'error', 'unknown'].includes(source.health) || typeof source.stale !== 'boolean' || (source.memoryType != null && !['ram', 'unified'].includes(source.memoryType))) throw new Error('Invalid source response');
+    if (!source || !validId(source.sourceId) || ids.has(source.sourceId) || !['agent', 'host', 'cluster', 'resource'].includes(source.kind) || !validText(source.displayName, 128) || !validTime(source.receivedAt) || !validTime(source.observedAt) || !['ok', 'warning', 'error', 'unknown'].includes(source.health) || typeof source.stale !== 'boolean' || (source.memoryType != null && !['ram', 'unified'].includes(source.memoryType))) throw new Error('Invalid source response');
     ids.add(source.sourceId);
     let resource = {};
     if (source.kind === 'resource' || source.metricDefinitions !== undefined) {
@@ -25,12 +25,12 @@ function validateSources(value) {
     let agent = null;
     let account = null;
     if (source.kind === 'agent') {
-      if (!source.agent || !['state', 'character', 'project'].every(key => typeof source.agent[key] === 'string' && source.agent[key].length > 0 && source.agent[key].length <= 256)) throw new Error('Invalid agent response');
-      if (!source.account || !validAccountId(accountId(source.account)) || typeof source.account.displayName !== 'string' || !source.account.displayName.trim() || source.account.displayName.length > 128) throw new Error('Invalid account response');
+      if (!source.agent || !['state', 'character', 'project'].every(key => validText(source.agent[key], AGENT_TEXT_LIMITS[key]))) throw new Error('Invalid agent response');
+      if (!source.account || !validAccountId(accountId(source.account)) || !validText(source.account.displayName, 128)) throw new Error('Invalid account response');
       agent = Object.fromEntries(['state', 'character', 'project'].map(key => [key, source.agent[key]]));
       for (const key of ['tool', 'model', 'usageWeekModelLabel']) {
         const text = source.agent[key];
-        if (text !== undefined && (typeof text !== 'string' || text.length > 128)) throw new Error('Invalid agent response');
+        if (text !== undefined && !validText(text, AGENT_TEXT_LIMITS[key], true)) throw new Error('Invalid agent response');
         if (text !== undefined) agent[key] = text;
       }
       for (const key of ['usage5hResetsIn', 'usageWeekResetsIn', 'usageWeekModelResetsIn', 'usageWeekModel']) {
