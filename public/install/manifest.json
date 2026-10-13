@@ -1,9 +1,8 @@
 {
-  "installer": "bf64f8254184b93fe66b0c6866b1cdb69ff8e9b46661177983e920cbe9cae53a",
+  "installer": "9a0308927446db5bfc33d1b537f80fd5286adefc2e1b737a7dca1ca7db424ba0",
   "files": {
     "claude/settings.json": "cf57ea426d00c74e9c6a94fae29b6b039b67832761af3266c7e48a73a1379388",
     "codex/hooks.json": "b7e5e486400a0b289a789f4f6ecc9d04188192ef031b7e6c1dcbc60d3d8ad2f8",
-    "codex/config.toml": "d9cc7d2779544974c949a1a3d2749b2f4d931e291f3225784867215678acd34f",
     "vibemon/config.example.json": "d6cb3a66527ec2254163e05d676b145d8a00f68662789fd55cb212dbdcf2fbc5",
     "vibemon/statusline.example.json": "c4b370200330578bdc76707e6d20b729aeee8304d0b05906c804deafd09bec4f",
     "vibemon/usage.py": "72b017917a14162e36bec00a01ad7a78c27e5d21b0ad2e7512fcc693fdbfdf41",

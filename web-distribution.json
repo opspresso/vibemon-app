@@ -5,7 +5,6 @@
     "public/install/claude/hooks/vibemon.py": "public/install/claude/hooks/vibemon.py",
     "public/install/claude/settings.json": "public/install/claude/settings.json",
     "public/install/claude/statusline.py": "public/install/claude/statusline.py",
-    "public/install/codex/config.toml": "public/install/codex/config.toml",
     "public/install/codex/hooks.json": "public/install/codex/hooks.json",
     "public/install/codex/hooks/vibemon.py": "public/install/codex/hooks/vibemon.py",
     "public/install/favicon.ico": "public/install/favicon.ico",

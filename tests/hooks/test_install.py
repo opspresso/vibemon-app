@@ -14,7 +14,7 @@ from unittest import mock
 sys.path.insert(0, str(Path(__file__).parents[2] / "public" / "install"))
 
 import install  # noqa: E402
-from install import ensure_codex_status_line, remove_stale_vibemon_hooks  # noqa: E402
+from install import remove_stale_vibemon_hooks  # noqa: E402
 
 
 # Windows has no POSIX permission bits — os.chmod there only toggles a
@@ -84,35 +84,6 @@ class RemoveStaleVibemonHooksTest(unittest.TestCase):
         removed = remove_stale_vibemon_hooks(existing, NEW_HOOKS)
         self.assertEqual(removed, [])
         self.assertEqual(existing["PostToolUse"], [USER_ENTRY])
-
-
-class EnsureCodexStatusLineTest(unittest.TestCase):
-    def test_adds_tui_section(self):
-        result = ensure_codex_status_line("[features]\nhooks = true\n")
-        self.assertIn("[tui]\nstatus_line = [", result)
-        self.assertIn('"context-used"', result)
-        self.assertIn('"context-window-size"', result)
-
-    def test_preserves_existing_items_and_adds_missing_items(self):
-        config = '[tui]\nstatus_line = [\n  "model-name",\n]\n'
-        result = ensure_codex_status_line(config)
-        self.assertIn('"model-name"', result)
-        self.assertIn('"context-used"', result)
-        self.assertIn('"context-window-size"', result)
-
-    def test_inserts_parent_before_nested_tui_table(self):
-        config = '[tui.model_availability_nux]\n"gpt-5.5" = 4\n'
-        result = ensure_codex_status_line(config)
-        self.assertLess(result.index("[tui]"), result.index("[tui.model_availability_nux]"))
-
-    def test_is_idempotent(self):
-        once = ensure_codex_status_line("[features]\nhooks = true\n")
-        self.assertEqual(ensure_codex_status_line(once), once)
-
-    def test_prepare_preserves_explicit_hooks_false(self):
-        result = install.prepare_codex_config("[features]\nhooks = false\n")
-        self.assertIn("[features]\nhooks = false\n", result)
-        self.assertNotIn("hooks = true", result)
 
 
 if __name__ == "__main__":
@@ -905,14 +876,29 @@ class InstallKiroV1Test(unittest.TestCase):
             )
 
 
-class InstallCodexBackupTest(unittest.TestCase):
-    def test_backs_up_existing_config_toml_before_updating_it(self):
+class InstallCodexOwnershipTest(unittest.TestCase):
+    def test_does_not_create_machine_config(self):
+        with tempfile.TemporaryDirectory() as directory:
+            home = Path(directory)
+            (home / ".codex").mkdir()
+            with (
+                PosixFake(),
+                mock.patch.object(install.Path, "home", staticmethod(lambda: home)),
+                mock.patch.object(install, "configure_vibemon_config"),
+                mock.patch.object(install, "install_vibemon_shared", return_value=True),
+            ):
+                self.assertTrue(install.install_codex(install.FileSource(DOCS_DIR)))
+            self.assertFalse((home / ".codex/config.toml").exists())
+            self.assertTrue((home / ".codex/hooks.json").is_file())
+            self.assertTrue((home / ".codex/hooks/vibemon.py").is_file())
+
+    def test_preserves_existing_config_toml_byte_for_byte(self):
         with tempfile.TemporaryDirectory() as directory:
             home = Path(directory)
             codex_home = home / ".codex"
             codex_home.mkdir()
             config_file = codex_home / "config.toml"
-            original = 'model = "gpt-test"\n'
+            original = '# Machine preferences\nmodel = "gpt-test"\n[features]\nhooks = false\n[tui]\nstatus_line = []\n'
             config_file.write_text(original)
             source = install.FileSource(DOCS_DIR)
             install.BACKED_UP.clear()
@@ -926,7 +912,8 @@ class InstallCodexBackupTest(unittest.TestCase):
                 result = install.install_codex(source)
 
             self.assertTrue(result)
-            self.assertEqual((codex_home / "config.toml.bak").read_text(), original)
+            self.assertEqual(config_file.read_text(), original)
+            self.assertFalse((codex_home / "config.toml.bak").exists())
             install.BACKED_UP.clear()
 
 
@@ -1105,33 +1092,6 @@ class UninstallClaudeStatuslineTest(unittest.TestCase):
                 if not remove:
                     self.assertEqual(result['statusLine'], settings['statusLine'])
                 self.assertEqual(result['env'], settings['env'])
-
-
-class EnsureCodexStatusLineValidityTest(unittest.TestCase):
-    def _load(self, text):
-        try:
-            import tomllib
-        except ImportError:  # Python < 3.11
-            self.skipTest("tomllib unavailable")
-        return tomllib.loads(text)
-
-    def test_inline_array_is_merged_without_duplicate_key(self):
-        result = ensure_codex_status_line('[tui]\nstatus_line = ["model-name"]\n')
-        self.assertEqual(result.count("status_line"), 1)
-        parsed = self._load(result)
-        self.assertIn("model-name", parsed["tui"]["status_line"])
-        self.assertIn("context-used", parsed["tui"]["status_line"])
-
-    def test_multiline_without_trailing_comma_stays_valid(self):
-        result = ensure_codex_status_line('[tui]\nstatus_line = [\n  "model-name"\n]\n')
-        parsed = self._load(result)
-        self.assertIn("model-name", parsed["tui"]["status_line"])
-        self.assertIn("context-window-size", parsed["tui"]["status_line"])
-
-    def test_non_array_value_is_replaced(self):
-        result = ensure_codex_status_line('[tui]\nstatus_line = "compact"\n')
-        parsed = self._load(result)
-        self.assertEqual(parsed["tui"]["status_line"], install.CODEX_STATUS_LINE_ITEMS)
 
 
 class WindowsInterpreterPathTest(unittest.TestCase):
