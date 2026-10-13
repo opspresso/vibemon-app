@@ -169,6 +169,8 @@ Python hooks capture the observation time when they finish reading the event, be
 
 **Plan Mode**: When Claude Code is in plan mode, `thinking` and `working` states automatically become `planning`.
 
+Claude `Notification` reports **Needs input** only for `permission_prompt`, `elicitation_dialog`, `elicitation_url_dialog`, and `agent_needs_input`. Idle reminders, login-success messages, completed-task notices, and other informational notifications do not change activity or refresh its timestamp. The installer filters these events before launching Python; the adapter also checks them for older hook registrations. See the [Claude notification contract](https://code.claude.com/docs/en/hooks#notification).
+
 ### Codex CLI
 
 | Event | State |

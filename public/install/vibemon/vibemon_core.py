@@ -1178,6 +1178,7 @@ def run(
     start_event: str,
     argv_event_fallback: bool = False,
     event_aliases: dict[str, str] | None = None,
+    should_report: Callable[[str, dict[str, Any]], bool] | None = None,
 ) -> None:
     """Hook entry point, driven by a per-tool adapter.
 
@@ -1190,6 +1191,7 @@ def run(
       when stdin carries no hook_event_name (Kiro hook registrations pass the
       event name as the first argument, e.g. `vibemon.py promptSubmit`)
     - event_aliases: normalize a tool's payload event names before mapping
+    - should_report: provider-specific event filter, before metadata or delivery
     """
     argv_event = ""
     if len(sys.argv) > 1:
@@ -1223,6 +1225,8 @@ def run(
         return
     if event_aliases:
         event_name = event_aliases.get(event_name, event_name)
+    if should_report is not None and not should_report(event_name, data):
+        return
     tool_name = data.get("tool_name", "")
     cwd = data.get("cwd", "")
     transcript_path = data.get("transcript_path", "")

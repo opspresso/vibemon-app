@@ -49,6 +49,20 @@ def test_claude_failure_paths(event, state):
     assert invoke("claude", {"hook_event_name": event})[0][0]["state"] == state
 
 
+@pytest.mark.parametrize('notification_type', [
+    'idle_prompt', 'auth_success', 'agent_completed', 'elicitation_complete',
+    'elicitation_response', 'quota_auto_resume_fired', 'quota_auto_resume_stale',
+    'quota_auto_resume_disabled', 'unknown', None, ['permission_prompt'],
+])
+def test_claude_information_notifications_never_become_attention(notification_type):
+    assert invoke('claude', {'hook_event_name': 'Notification', 'notification_type': notification_type}) == []
+
+
+@pytest.mark.parametrize('notification_type', ['permission_prompt', 'elicitation_dialog', 'elicitation_url_dialog', 'agent_needs_input'])
+def test_claude_input_notifications_keep_attention(notification_type):
+    assert invoke('claude', {'hook_event_name': 'Notification', 'notification_type': notification_type})[0][0]['state'] == 'notification'
+
+
 def test_codex_interrupt_and_plan_mode():
     assert invoke("codex", {"hook_event_name": "Interrupt"})[0][0]["state"] == "done"
     assert invoke("codex", {
