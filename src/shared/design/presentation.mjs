@@ -1,5 +1,5 @@
 // Pure display rules shared by the Desktop renderer and the private Web client.
-import states from './monitoring-labels.mjs';
+import states, { unitFractionDigits } from './monitoring-labels.mjs';
 export const codingProviders = Object.freeze([
   { id: 'codex', name: 'Codex', character: 'codex' },
   { id: 'claude', name: 'Claude Code', character: 'clawd' },
@@ -13,13 +13,13 @@ export const stateLabel = state => statePresentation(state)[0];
 export const stateTone = state => statePresentation(state)[1];
 
 const decimal = new Intl.NumberFormat(undefined, { maximumFractionDigits: 1 });
-const twoDecimals = new Intl.NumberFormat(undefined, { maximumFractionDigits: 2 });
+const unitFormats = new Map(Object.entries(unitFractionDigits).map(([unit, maximumFractionDigits]) => [unit, new Intl.NumberFormat(undefined, { maximumFractionDigits })]));
 const small = new Intl.NumberFormat(undefined, { maximumSignificantDigits: 2 });
 const precise = new Intl.NumberFormat(undefined, { maximumSignificantDigits: 6 });
 export const measurementUnit = unit => `${!unit || /^[%°]/.test(unit) ? '' : ' '}${unit}`;
 export function formatMeasurement(value, unit = '', exact = false, unavailable = '—', includeUnit = true) {
   if (typeof value !== 'number' || !Number.isFinite(value)) return unavailable;
-  const formatter = unit === '%' || unit === 'GiB' ? twoDecimals : exact ? precise : value !== 0 && Math.abs(value) < 1 ? small : decimal;
+  const formatter = unitFormats.get(unit) ?? (exact ? precise : value !== 0 && Math.abs(value) < 1 ? small : decimal);
   return `${formatter.format(value)}${includeUnit ? measurementUnit(unit) : ''}`;
 }
 export function observationAge(timestamp, now = Date.now()) {

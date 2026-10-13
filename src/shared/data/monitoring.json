@@ -108,5 +108,11 @@
         "after": "IDLE_TIMEOUT_MS"
       }
     }
+  },
+  "measurements": {
+    "unitFractionDigits": {
+      "%": 2,
+      "GiB": 2
+    }
   }
 }

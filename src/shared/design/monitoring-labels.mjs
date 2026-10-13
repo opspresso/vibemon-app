@@ -65,3 +65,4 @@ export default {
     "active"
   ]
 };
+export const unitFractionDigits = {"%":2,"GiB":2};

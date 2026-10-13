@@ -794,5 +794,47 @@
         }
       }
     }
+  ],
+  "measurements": [
+    {
+      "value": 32.02693245,
+      "unit": "%",
+      "expected": "32.03"
+    },
+    {
+      "value": 0.533333,
+      "unit": "%",
+      "expected": "0.53"
+    },
+    {
+      "value": 99.999,
+      "unit": "%",
+      "expected": "100"
+    },
+    {
+      "value": 20.06119,
+      "unit": "GiB",
+      "expected": "20.06"
+    },
+    {
+      "value": 128.246,
+      "unit": "GiB",
+      "expected": "128.25"
+    },
+    {
+      "value": 0,
+      "unit": "%",
+      "expected": "0"
+    },
+    {
+      "value": -12.346,
+      "unit": "%",
+      "expected": "-12.35"
+    },
+    {
+      "value": null,
+      "unit": "%",
+      "expected": "\u2014"
+    }
   ]
 }

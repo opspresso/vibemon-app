@@ -4,8 +4,12 @@ import { statePresentation, providerLabel, formatMeasurement, observationAge, fo
 import { dominantState, needsAttention, sourceState, accountState } from '../src/shared/monitoring/state.cjs';
 import { mergeMean } from '../src/shared/resource-schema.cjs';
 import { monitoringContract } from '../scripts/generate-monitoring.mjs';
+import fixtures from '../src/shared/monitoring/cases.json' with { type: 'json' };
 
 test('renderer labels match the validated canonical policy without network access', () => monitoringContract());
+test('measurement precision follows the shared device contract', () => {
+  for (const { value, unit, expected } of fixtures.measurements) assert.equal(formatMeasurement(value, unit, false, '—', false), expected);
+});
 
 test('weighted means remain inside the observed range without inventing maxima', () => {
   for (const value of [0.1, -0.1, 52.32263514632913]) {
