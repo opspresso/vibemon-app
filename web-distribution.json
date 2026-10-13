@@ -61,6 +61,7 @@
     "public/static/design/presentation.mjs": "src/shared/design/presentation.mjs",
     "public/static/design/presentation.d.mts": "src/shared/design/presentation.d.mts",
     "public/static/data/monitoring.json": "src/shared/data/monitoring.json",
-    "public/static/data/monitoring-cases.json": "src/shared/monitoring/cases.json"
+    "public/static/data/monitoring-cases.json": "src/shared/monitoring/cases.json",
+    "public/static/design/monitoring-labels.mjs": "src/shared/design/monitoring-labels.mjs"
   }
 }

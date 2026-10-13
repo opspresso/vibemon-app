@@ -3,6 +3,9 @@ import { test } from 'node:test';
 import { statePresentation, providerLabel, formatMeasurement, observationAge, formatAxisValue } from '../src/shared/design/presentation.mjs';
 import { dominantState, needsAttention, sourceState, accountState } from '../src/shared/monitoring/state.cjs';
 import { mergeMean } from '../src/shared/resource-schema.cjs';
+import { monitoringContract } from '../scripts/generate-monitoring.mjs';
+
+test('renderer labels match the validated canonical policy without network access', () => monitoringContract());
 
 test('weighted means remain inside the observed range without inventing maxima', () => {
   for (const value of [0.1, -0.1, 52.32263514632913]) {

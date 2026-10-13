@@ -5,6 +5,9 @@ import { createHash } from 'node:crypto';
 import { readFile, realpath, mkdir, writeFile, rm } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { monitoringContract } from './generate-monitoring.mjs';
+
+await monitoringContract();
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const { files } = JSON.parse(await readFile(path.join(root, 'web-distribution.json'), 'utf8'));

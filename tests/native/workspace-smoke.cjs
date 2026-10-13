@@ -15,8 +15,10 @@ async function until(check, label) {
 }
 
 let cleanup;
+let rendererErrors = [];
 startFixture().then(async fixture => {
   cleanup = fixture.cleanup;
+  rendererErrors = fixture.errors;
   const { view, client, ports, state, errors, selectDashboard, trayManager } = fixture;
   const web = view.window.webContents;
   const ui = code => web.executeJavaScript(code);
@@ -463,4 +465,4 @@ startFixture().then(async fixture => {
   assert.deepEqual(errors, [], 'no renderer or loading errors');
   console.log('PASS native workspace: navigation, custom metrics, multiple accounts, focus, selection, preferences, credential boundaries, recovery, resizing and visibility.');
   app.quit();
-}).catch(error => { console.error(error.stack); cleanup?.(); app.exit(1); });
+}).catch(error => { console.error(error.stack); for (const message of rendererErrors) console.error(message); cleanup?.(); app.exit(1); });
