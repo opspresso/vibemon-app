@@ -9,10 +9,8 @@
  * This module only fills in a bubble element's content and points its tail
  * at one of the four edges — it has no opinion on where the bubble itself
  * sits on screen. vibemon-app's bubble.html additionally positions the
- * bubble window and the tail's offset along that edge via a d3-force
- * simulation against the character window (see
- * src/modules/bubble-window-manager.cjs) — that placement logic is
- * desktop-specific and lives only in vibemon-app.
+ * bubble window and the tail's offset with the pure rectangle policy in
+ * src/modules/bubble-layout.cjs. That placement is desktop-specific.
  *
  * App loads this canonical module directly. web-distribution.json exports
  * it to Web's pinned public snapshot. Web imports its pure helpers

@@ -148,6 +148,7 @@ The app shows exactly one character window plus its following speech bubble:
 - Can be dragged past the screen edge while the drag is in progress; once you let go, it's clamped back fully on-screen.
 - Reappears at the same spot you last left it, across restarts.
 - The speech bubble follows the character everywhere:
+  - A pure rectangle calculation chooses a full-size position before considering a smaller fit; ordinary placement prefers above the character. No physics simulation runs during movement.
   - If the character is pinned to the top or bottom edge, the bubble moves beside it; a shorter bubble shares the character's vertical center, including at Dock corners
   - If the character is pinned to the left or right edge, the bubble moves above or below it
 

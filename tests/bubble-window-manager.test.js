@@ -303,20 +303,11 @@ describe('bubble movement ordering', () => {
 test('native frame size changes cannot inflate the configured sprite anchor', async () => {
   const character = new BrowserWindow({ x: 500, y: 300, width: 67, height: 69 });
   const manager = new BubbleWindowManager(() => character, () => 0, () => 0.5);
-  const chain = {};
-  for (const name of ['force', 'stop', 'tick', 'id', 'distance', 'strength']) chain[name] = () => chain;
-  const forceSimulation = jest.fn(() => chain);
-  manager.getD3Force = async () => ({
-    forceSimulation, forceCollide: () => chain, forceLink: () => chain,
-    forceX: () => chain, forceY: () => chain
-  });
   const before = await manager.computePlacement(character, { width: 146, height: 52 });
   character.setBounds({ width: 83, height: 77 });
   const after = await manager.computePlacement(character, { width: 146, height: 52 });
   expect(after).toEqual(before);
-  for (const [nodes] of forceSimulation.mock.calls) {
-    expect(nodes[0]).toMatchObject({ x: 533.5, y: 334.5, radius: 35 });
-  }
+
 });
 
 describe.each([0.3, 0.4, 0.5, 1])('short bubbles on ordinary edges at scale %s', scale => {
@@ -324,12 +315,6 @@ describe.each([0.3, 0.4, 0.5, 1])('short bubbles on ordinary edges at scale %s',
     const height = Math.round(138 * scale);
     const character = new BrowserWindow({ x: 500, y: edge === 'top' ? 16 : 1080 - 16 - height, width: Math.round(134 * scale), height });
     const manager = new BubbleWindowManager(() => character, () => 16, () => scale);
-    const chain = {};
-    for (const name of ['force', 'stop', 'tick', 'id', 'distance', 'strength']) chain[name] = () => chain;
-    manager.getD3Force = async () => ({
-      forceSimulation: () => chain, forceCollide: () => chain, forceLink: () => chain,
-      forceX: () => chain, forceY: () => chain
-    });
     const placement = await manager.computePlacement(character, { width: 146, height: 35 });
     expect(Math.abs(placement.y + 35 / 2 - (character.getBounds().y + 69 * scale))).toBeLessThanOrEqual(0.5);
     expect(['left', 'right']).toContain(placement.tailSide);
