@@ -613,6 +613,12 @@ def _command_tokens(command: str, windows: bool = None) -> list[str]:
     if not isinstance(command, str):
         return []
     windows = IS_WINDOWS if windows is None else windows
+    if windows and command.lstrip().startswith('& '):
+        # Literal arguments emitted by windows_shell_command. PowerShell
+        # escapes apostrophes by doubling them; POSIX shlex removes both.
+        tokens = re.findall(r"'(?:(?:'')|[^'])*'|\"[^\"]*\"|[^\s]+", command)
+        return [token[1:-1].replace("''", "'") if token.startswith("'") and token.endswith("'")
+                else token[1:-1] if token.startswith('"') and token.endswith('"') else token for token in tokens]
     try:
         tokens = shlex.split(command, posix=not windows)
     except ValueError:
@@ -629,7 +635,12 @@ def _is_vibemon_hook(hook: dict) -> bool:
 
 
 def _uses_installed_script(command: str, script: Path) -> bool:
-    for token in _command_tokens(command):
+    # A Windows status line can have been generated for Git Bash or PowerShell.
+    # Recognize both literal forms even if Git Bash was added or removed later.
+    tokens = _command_tokens(command)
+    if IS_WINDOWS:
+        tokens += _command_tokens(command, windows=False)
+    for token in tokens:
         normalized = token.replace("\\", "/")
         if normalized.split("/")[-1] != script.name:
             continue
@@ -813,17 +824,13 @@ def has_git_bash() -> bool:
 
 
 def windows_shell_command(python: str, script: str) -> str:
-    """Build a shell-form command the shell Claude Code picks can actually run.
-
-    Unquoted forward-slash paths run in both Git Bash and PowerShell, and so
-    does a quoted *argument*, so most commands stay shell-agnostic. Only a
-    quoted first token forces a choice: PowerShell needs the call operator `&`
-    in front of it, which Git Bash would read as backgrounding the command.
-    """
-    command = f"{_shell_quote(python, windows=True)} {_shell_quote(script, windows=True)}"
-    if " " in python and not has_git_bash():
-        return f"& {command}"
-    return command
+    """Quote literal paths for Claude's selected Windows status-line shell."""
+    if has_git_bash():
+        return f"{shlex.quote(python)} {shlex.quote(script)}"
+    # The call operator invokes a quoted executable. Single quotes preserve
+    # dollar signs/backticks; doubled apostrophes preserve the path itself.
+    quote = lambda value: "'" + value.replace("'", "''") + "'"
+    return f"& {quote(python)} {quote(script)}"
 
 
 def tool_home(env_var: str, default_dir: str) -> Path:

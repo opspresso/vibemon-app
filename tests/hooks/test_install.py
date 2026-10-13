@@ -4,10 +4,13 @@ import json
 import os
 import re
 import runpy
+import shutil
 import shlex
+import subprocess
 import sys
 import tempfile
 import unittest
+import venv
 from pathlib import Path
 from unittest import mock
 
@@ -610,34 +613,46 @@ class WindowsShellCommandTest(unittest.TestCase):
     PY_SPACED = "C:/Program Files/Python313/python.exe"
     SCRIPT_SPACED = "C:/Users/a b/.claude/statusline.py"
 
-    def test_space_free_paths_are_shell_agnostic(self):
-        for git_bash in (True, False):
-            with mock.patch.object(install, "has_git_bash", lambda: git_bash):
-                self.assertEqual(
-                    install.windows_shell_command(self.PY, "C:/Users/dev/x.py"),
-                    f"{self.PY} C:/Users/dev/x.py",
-                )
+    def test_literal_commands_keep_the_complete_installed_path_identity(self):
+        with tempfile.TemporaryDirectory() as directory:
+            script = Path(directory) / "O'Connor & $NAME `literal`" / 'statusline.py'
+            for bash in (True, False):
+                with mock.patch.object(install, 'has_git_bash', return_value=bash), mock.patch.object(install, 'IS_WINDOWS', True):
+                    command = install.windows_shell_command(self.PY_SPACED, install.hook_path(script))
+                    self.assertTrue(install._uses_installed_script(command, script))
+                    self.assertFalse(install._uses_installed_script(command, script.parent / 'other.py'))
 
-    def test_a_quoted_argument_alone_stays_shell_agnostic(self):
-        """Only a quoted *command* forces the PowerShell call operator."""
-        for git_bash in (True, False):
-            with mock.patch.object(install, "has_git_bash", lambda: git_bash):
-                self.assertEqual(
-                    install.windows_shell_command(self.PY, self.SCRIPT_SPACED),
-                    f'{self.PY} "{self.SCRIPT_SPACED}"',
-                )
+    def _run_shell(self, shell, args, bash):
+        with tempfile.TemporaryDirectory() as directory:
+            script = Path(directory) / "O'Connor & $NAME `literal`" / 'statusline.py'
+            script.parent.mkdir()
+            environment = script.parent / 'Python environment'
+            venv.EnvBuilder(with_pip=False).create(environment)
+            python = environment / ('Scripts/python.exe' if os.name == 'nt' else 'bin/python')
+            script.write_text('import json,sys; sys.stdin.reconfigure(encoding="utf-8"); print(json.dumps({"name":__file__,"data":json.load(sys.stdin)}))\n', encoding='utf-8')
+            with mock.patch.object(install, 'has_git_bash', return_value=bash):
+                command = install.windows_shell_command(install.hook_path(python), install.hook_path(script))
+            result = subprocess.run([shell, *args, command], input='{"value":"한글 fixture"}', capture_output=True, encoding='utf-8', timeout=10, env={**os.environ, 'NAME': 'must-not-expand'})
+            self.assertEqual(result.returncode, 0, result.stderr)
+            output = json.loads(result.stdout)
+            self.assertEqual(Path(output['name']).resolve(), script.resolve())
+            self.assertEqual(output['data'], {'value': '한글 fixture'})
 
-    def test_quoted_command_gets_an_ampersand_only_without_git_bash(self):
-        with mock.patch.object(install, "has_git_bash", lambda: True):
-            self.assertEqual(
-                install.windows_shell_command(self.PY_SPACED, "C:/Users/dev/x.py"),
-                f'"{self.PY_SPACED}" C:/Users/dev/x.py',
-            )
-        with mock.patch.object(install, "has_git_bash", lambda: False):
-            self.assertEqual(
-                install.windows_shell_command(self.PY_SPACED, "C:/Users/dev/x.py"),
-                f'& "{self.PY_SPACED}" C:/Users/dev/x.py',
-            )
+    def test_real_bash_preserves_paths_and_stdin(self):
+        if os.name == 'nt':
+            # Do not accidentally run Windows' WSL bash launcher.
+            git = shutil.which('git')
+            shell = Path(git).parent.parent / 'bin' / 'bash.exe' if git else None
+            self.assertTrue(shell and shell.is_file(), 'Windows CI must provide Git Bash')
+        else:
+            shell = shutil.which('bash')
+            if not shell:
+                self.skipTest('Bash executable required')
+        self._run_shell(str(shell), ['-c'], True)
+
+    @unittest.skipUnless(os.name == 'nt', 'Windows PowerShell is verified on Windows CI')
+    def test_real_windows_powershell_preserves_paths_and_stdin(self):
+        self._run_shell('powershell.exe', ['-NoLogo', '-NoProfile', '-NonInteractive', '-Command'], False)
 
 
 class AdaptCodexHooksTest(unittest.TestCase):
