@@ -17,16 +17,17 @@ class CloudActivity {
       if (!selected.has(id)) { this.remove(`cloud:${id}`); this.seen.delete(id); }
     }
     for (const source of agents) {
-      if (sourceStale(source, now) && !this.seen.has(source.sourceId)) continue;
+      const previous = this.seen.get(source.sourceId);
+      if (sourceStale(source, now) && !previous) continue;
       const state = companionState(source, now);
-      const key = `${source.observedAt}:${state}`;
-      if (this.seen.get(source.sourceId) === key) continue;
-      this.seen.set(source.sourceId, key);
+      if (previous?.observedAt === source.observedAt && previous.state === state) continue;
+      const activity = !sourceStale(source, now) && previous?.observedAt !== source.observedAt;
+      this.seen.set(source.sourceId, { observedAt: source.observedAt, state });
       const data = { ...source.agent, state };
       for (const [metric, field] of [['contextPercent', 'memory'], ['usageSessionPercent', 'usage5h'], ['usageWeekPercent', 'usageWeek']]) {
         if (typeof source.metrics[metric] === 'number') data[field] = Math.round(source.metrics[metric]);
       }
-      this.update(data, source.sourceId);
+      this.update(data, source.sourceId, { activity });
     }
   }
 }

@@ -216,7 +216,7 @@ function handleCloudStatusUpdate(data, meta = {}) {
   const updateResult = routeResult.updateResult;
 
   // Every accepted update is activity, including unchanged/background updates.
-  stateManager.setupStateTimeout(projectId, stateData.state);
+  stateManager.setupStateTimeout(projectId, stateData.state, { remote: Boolean(meta.sourceId) });
 
   // No visible change - skip unnecessary renderer/tray updates
   if (!updateResult.updated) {
@@ -263,7 +263,7 @@ function showCharacterAgain() {
   if (!restored) return;
 
   if (restored.stateData) {
-    stateManager.setupStateTimeout(restored.projectId, restored.stateData.state);
+    stateManager.setupStateTimeout(restored.projectId, restored.stateData.state, { remote: restored.projectId.startsWith('cloud:') });
   }
   if (trayManager) {
     trayManager.updateMenu();
@@ -473,8 +473,8 @@ app.whenReady().then(() => {
   installWorkspaceMenu({ open: page => workspaceWindow.open(page), showCompanion: showCharacterAgain });
   trayManager.setShowCharacterHandler(showCharacterAgain);
   trayManager.createTray();
-  const cloudActivity = new CloudActivity((data, sourceId) => {
-    handleCloudStatusUpdate(data, { auto: Boolean(windowManager.getFocusedProjectId()), sourceId });
+  const cloudActivity = new CloudActivity((data, sourceId, { activity }) => {
+    handleCloudStatusUpdate(data, { auto: !activity || Boolean(windowManager.getFocusedProjectId()), sourceId });
   }, removeCloudProject);
   monitoringClient.on('change', snapshot => cloudActivity.accept(snapshot.sources));
   monitoringClient.start();

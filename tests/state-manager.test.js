@@ -29,6 +29,18 @@ describe('StateManager', () => {
     });
   });
 
+  test('remote presentation has one clock while sleeping windows still close', () => {
+    stateManager.onStateTimeout = jest.fn();
+    stateManager.onWindowCloseTimeout = jest.fn();
+    stateManager.setupStateTimeout('cloud:waiting', 'notification');
+    stateManager.setupStateTimeout('cloud:waiting', 'notification', { remote: true });
+    jest.advanceTimersByTime(3600000);
+    expect(stateManager.onStateTimeout).not.toHaveBeenCalled();
+    stateManager.setupStateTimeout('cloud:waiting', 'sleep', { remote: true });
+    jest.advanceTimersByTime(600000);
+    expect(stateManager.onWindowCloseTimeout).toHaveBeenCalledWith('cloud:waiting');
+  });
+
   describe('validateStateData', () => {
     test('returns invalid for null data', () => {
       const result = stateManager.validateStateData(null);

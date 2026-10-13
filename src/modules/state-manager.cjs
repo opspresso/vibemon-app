@@ -79,9 +79,16 @@ class StateManager {
    * @param {string} projectId - Project identifier
    * @param {string} currentState - Current state of the project
    */
-  setupStateTimeout(projectId, currentState) {
+  setupStateTimeout(projectId, currentState, { remote = false } = {}) {
     this.clearStateTimeout(projectId);
     this.clearWindowCloseTimer(projectId);
+
+    // Cloud polls already derive state from event and receipt timestamps.
+    // A local timer must not override a still-reporting input request.
+    if (remote) {
+      this.setupWindowCloseTimer(projectId, currentState);
+      return;
+    }
 
     const transition = agentTransition(currentState);
     if (transition) {
