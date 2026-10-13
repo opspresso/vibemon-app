@@ -12,7 +12,6 @@ from __future__ import annotations
 
 import glob
 import json
-import math
 import os
 import re
 import shutil
@@ -31,7 +30,7 @@ from urllib.request import Request, urlopen
 
 from account_context import cloud_context, project_cache_key
 from http_client import open_credential_request
-from usage_cache import CACHE_STALE_SECONDS, get_fresh_provider, is_fresh_observation, load_usage_cache, model_week_bucket, reverse_jsonl
+from usage_cache import CACHE_STALE_SECONDS, get_fresh_provider, is_finite_number, is_fresh_observation, load_usage_cache, model_week_bucket, valid_percent, reverse_jsonl
 
 try:
     import fcntl
@@ -328,7 +327,7 @@ def get_project_metadata(project: str, cwd: str | None = None) -> dict[str, Any]
 
 
 
-def get_codex_context_usage(data: dict[str, Any]) -> int | None:
+def get_codex_context_usage(data: dict[str, Any]) -> float | None:
     """Return the active Codex thread's context-window usage percentage."""
     transcript_path = data.get("transcript_path") or data.get("transcriptPath")
     if not isinstance(transcript_path, str) or not os.path.isfile(transcript_path):
@@ -363,16 +362,16 @@ def get_codex_context_usage(data: dict[str, Any]) -> int | None:
             continue
         total_tokens = usage.get("total_tokens")
         context_window = info.get("model_context_window")
-        if not isinstance(total_tokens, (int, float)) or isinstance(total_tokens, bool) or not math.isfinite(total_tokens) or total_tokens < 0:
+        if not is_finite_number(total_tokens) or total_tokens < 0:
             continue
         if (
-            not isinstance(context_window, (int, float))
-            or isinstance(context_window, bool)
-            or not math.isfinite(context_window)
+            not is_finite_number(context_window)
             or context_window <= 0
         ):
             continue
-        return max(0, min(100, int(total_tokens * 100 / context_window)))
+        percent = (total_tokens / context_window) * 100
+        if is_finite_number(percent):
+            return max(0, min(100, percent))
     return None
 
 
@@ -382,9 +381,10 @@ def _resets_in_minutes(entry: dict[str, Any]) -> int | None:
     `claude -p "/usage"` subprocess fallback, which only has a display string).
     """
     resets_at = entry.get("resets_at")
-    if not isinstance(resets_at, (int, float)):
+    if not is_finite_number(resets_at):
         return None
-    return max(0, round((resets_at - time.time()) / 60))
+    minutes = max(0, round((resets_at - time.time()) / 60))
+    return minutes if minutes <= 2**53 - 1 else None
 
 
 def _load_usage_provider(provider: str) -> dict[str, Any] | None:
@@ -409,14 +409,16 @@ def _usage_fields(bucket_data: dict[str, Any] | None) -> dict[str, Any]:
 
     result: dict[str, Any] = {}
     session = bucket_data.get("session")
-    if isinstance(session, dict) and isinstance(session.get("pct"), int):
-        result["usage5h"] = session["pct"]
+    session_pct = session.get("pct") if isinstance(session, dict) else None
+    if valid_percent(session_pct):
+        result["usage5h"] = session_pct
         resets_in = _resets_in_minutes(session)
         if resets_in is not None:
             result["usage5hResetsIn"] = resets_in
     week = bucket_data.get("week_all")
-    if isinstance(week, dict) and isinstance(week.get("pct"), int):
-        result["usageWeek"] = week["pct"]
+    week_pct = week.get("pct") if isinstance(week, dict) else None
+    if valid_percent(week_pct):
+        result["usageWeek"] = week_pct
         resets_in = _resets_in_minutes(week)
         if resets_in is not None:
             result["usageWeekResetsIn"] = resets_in

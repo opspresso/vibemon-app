@@ -113,12 +113,12 @@ test("usage and active model follow official llm_output fields and reset per run
   await h.emit("before_agent_run", {}, ctx);
   await h.emit("llm_output", {
     model: "actual", contextTokenBudget: 1000,
-    usage: { input: 100, output: 50, cacheRead: 200, cacheWrite: 50 },
+    usage: { input: 101, output: 50, cacheRead: 200, cacheWrite: 50 },
   }, ctx);
   await h.emit("agent_end", { success: true }, ctx);
   await h.advance(3000);
   assert.equal(h.requests.at(-1).payload.model, "actual");
-  assert.equal(h.requests.at(-1).payload.memory, 40);
+  assert.equal(h.requests.at(-1).payload.memory, 40.1);
   await h.emit("before_agent_run", {}, { runId: "next", sessionId: "s" });
   assert.equal(h.requests.at(-1).payload.memory, undefined);
   assert.equal(h.requests.at(-1).payload.model, "default");

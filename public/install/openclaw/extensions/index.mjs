@@ -208,12 +208,12 @@ function refreshConfig() {
 }
 
 /**
- * Clamp a raw percentage-ish number into an integer 0-100, or null if not
+ * Clamp a raw percentage-ish number into 0-100 without rounding, or null if not
  * a finite number.
  */
 function clampPercent(value) {
   if (!Number.isFinite(value)) return null;
-  return Math.max(0, Math.min(100, Math.round(value)));
+  return Math.max(0, Math.min(100, value));
 }
 
 /**

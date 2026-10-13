@@ -34,6 +34,8 @@ from usage_cache import (  # noqa: E402
     CACHE_STALE_SECONDS,
     get_fresh_provider,
     normalize_percent,
+    format_percent,
+    is_finite_number,
     load_usage_cache as _load_usage_cache,
     model_week_bucket,
     save_usage_cache as _save_usage_cache,
@@ -335,26 +337,30 @@ def get_git_info(directory: str) -> str:
 # ============================================================================
 
 
-def get_context_usage(data: dict[str, Any]) -> str:
-    """Return measured context utilization, or an empty display for unknown."""
+def get_context_percent(data: dict[str, Any]) -> float | None:
+    """Return the measured value separately from its formatted display."""
     window = data.get("context_window")
     if not isinstance(window, dict):
-        return ""
+        return None
     percent = normalize_percent(window.get("used_percentage"))
     if percent is not None:
-        return f"{percent}%"
+        return percent
     usage = window.get("current_usage")
     size = window.get("context_window_size")
-    if not isinstance(usage, dict) or not isinstance(size, (int, float)) or isinstance(size, bool) or size <= 0:
-        return ""
+    if not isinstance(usage, dict) or not is_finite_number(size) or size <= 0:
+        return None
     keys = ("input_tokens", "cache_creation_input_tokens", "cache_read_input_tokens")
     if not any(key in usage for key in keys):
-        return ""
+        return None
     values = [usage.get(key, 0) for key in keys]
-    if any(not isinstance(value, (int, float)) or isinstance(value, bool) or value < 0 for value in values):
-        return ""
-    percent = normalize_percent(sum(values) * 100 / size)
-    return f"{percent}%" if percent is not None else ""
+    if any(not is_finite_number(value) or value < 0 for value in values):
+        return None
+    return normalize_percent((sum(values) / size) * 100)
+
+
+def get_context_usage(data: dict[str, Any]) -> str:
+    """Return measured context utilization, or an empty display for unknown."""
+    return format_percent(get_context_percent(data))
 
 
 # ============================================================================
@@ -373,7 +379,7 @@ def get_cache_path() -> str:
     return os.path.expanduser(cache_path)
 
 
-def save_to_cache(project: str, model: str, memory: int | None, cwd: str | None = None) -> None:
+def save_to_cache(project: str, model: str, memory: float | None, cwd: str | None = None) -> None:
     """Save scoped context under the shared cross-process cache lock."""
     if not project:
         return
@@ -486,15 +492,9 @@ def build_progress_bar(percent_str: str | int | float, width: int = 10) -> str:
     if not cleaned:
         return ""
 
-    # Parse as float first to handle "12.5"
-    try:
-        percent_value = float(cleaned)
-    except (ValueError, TypeError):
+    percent_value = normalize_percent(cleaned)
+    if percent_value is None:
         return ""
-
-    # Clamp to valid range
-    percent_value = max(0.0, min(100.0, percent_value))
-    percent = int(percent_value)
 
     # Filled segment count follows the percentage proportionally, so the bar
     # visually reflects its actual ratio (no artificial floor/ceiling).
@@ -502,11 +502,11 @@ def build_progress_bar(percent_str: str | int | float, width: int = 10) -> str:
     empty = width - filled
 
     # Build the bar - filled segments use one color by total ratio, empty in dim
-    if percent > 90:
+    if percent_value > 90:
         color = C_RED
-    elif percent > 70:
+    elif percent_value > 70:
         color = C_ORANGE
-    elif percent > 50:
+    elif percent_value > 50:
         color = C_YELLOW
     else:
         color = C_GREEN
@@ -518,7 +518,7 @@ def build_progress_bar(percent_str: str | int | float, width: int = 10) -> str:
     if empty_bar:
         bar += f"{C_DIM}{empty_bar}{C_RESET}"
 
-    return f"{bar} {percent}%"
+    return f"{bar} {format_percent(percent_value)}"
 
 
 # ============================================================================
@@ -757,7 +757,7 @@ def build_statusline(
 # ============================================================================
 
 
-def save_cache_background(project: str, model: str, memory: int | None, cwd: str | None = None) -> None:
+def save_cache_background(project: str, model: str, memory: float | None, cwd: str | None = None) -> None:
     """Save to cache in background process.
 
     Uses fork on POSIX systems for efficiency, falls back to synchronous
@@ -832,7 +832,8 @@ def main() -> None:
     # Get additional info. git_info is purely for display, so skip the
     # `git status` subprocess entirely when it won't be shown.
     git_info = get_git_info(current_dir) if (SHOW_GIT and SHOW_STATUSLINE) else ""
-    context_usage = get_context_usage(data)
+    context_percent = get_context_percent(data)
+    context_usage = format_percent(context_percent)
 
     # Extract context window data
     context_window = data.get("context_window", {})
@@ -874,9 +875,8 @@ def main() -> None:
         version = str(version)
 
     # Save project metadata to cache in background
-    # Convert measured percentages; preserve unknown context as None.
-    memory_int = int(context_usage.rstrip("%")) if context_usage else None
-    save_cache_background(dir_name, model_display, memory_int, current_dir)
+    # Preserve measured precision and unknown context independently of formatting.
+    save_cache_background(dir_name, model_display, context_percent, current_dir)
 
     # Display toggle: data was collected above; only the rendered line is gated.
     if not SHOW_STATUSLINE:
