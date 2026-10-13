@@ -70,7 +70,7 @@ Web development normally runs on `http://localhost:3030`; the unpackaged App acc
 - [Web service](https://vibemon.io) — Login, source configuration, and browser dashboard.
 - [Hooks and collector source](docs/distribution.md) — Public installers, collector, shared schema, registries, and rendering assets live in this repository.
 - [Web source](https://github.com/opspresso/vibemon-web) — Private service implementation; App installation, builds, and CI do not require access.
-- [ESP32 firmware](https://github.com/opspresso/vibemon-esp32) — Separate hardware project; its legacy cloud WebSocket transport is unavailable.
+- [VibeMon Touch](https://github.com/opspresso/vibemon-esp32) — Four-inch ESP32-S3 display using the same HTTPS summaries, status rules, and palette. Legacy C6 devices use the previous firmware.
 
 ## License
 

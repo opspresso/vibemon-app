@@ -1,6 +1,8 @@
 # Public distribution ownership
 
-VibeMon is maintained in two repositories: public `vibemon-app` and private `vibemon-web`. App owns everything needed to install hooks, collect measurements, build the Desktop App, and render shared characters. Web owns authentication, ingestion, storage, the dashboard, and the documentation site.
+The public `vibemon-app` repository owns hooks, collectors, the Desktop App, and shared rendering contracts. Private `vibemon-web` owns authentication, ingestion, storage, the dashboard, and the documentation site. This guide describes their public file distribution.
+
+[VibeMon Touch](https://github.com/opspresso/vibemon-esp32) has its own firmware repository. It pins App-owned monitoring rules and design tokens, and reads summaries from Web over HTTPS.
 
 | Content | Source in App | Web destination |
 | --- | --- | --- |
