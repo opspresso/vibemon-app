@@ -202,7 +202,7 @@ def ask_yes_no(question: str, default: bool = True, unattended: bool = None) -> 
         try:
             answer = input(f"{question} {suffix}: ").strip().lower()
         except EOFError:
-            return default
+            return default if unattended is None else unattended
         if not answer:
             return default
         if answer in ("y", "yes"):
@@ -1230,7 +1230,9 @@ def install_claude(source: FileSource, cli_token: str = None) -> bool:
             existing_cmd = status_line.get("command", "")
             new_cmd = new_settings["statusLine"].get("command", "")
             if existing_cmd != new_cmd:
-                print(f"\n  Current statusLine: {colored(existing_cmd, 'yellow')}")
+                # User commands may embed credentials; never copy them into
+                # installer output or Desktop installation diagnostics.
+                print("\n  An existing statusLine command differs from VibeMon's configuration.")
                 print(f"  New statusLine:     {colored(new_cmd, 'cyan')}")
                 # unattended=False: statusLine is the user's own setting, not a
                 # VibeMon-owned file. An unattended run must not replace it.
@@ -1248,7 +1250,7 @@ def install_claude(source: FileSource, cli_token: str = None) -> bool:
         else:
             # A malformed (non-object) statusLine must not abort the install.
             # It is user-owned, so ask before replacing it, like the dict path.
-            print(f"\n  Current statusLine is not an object: {colored(str(status_line), 'yellow')}")
+            print("\n  The existing statusLine is not an object.")
             if ask_yes_no("Replace statusLine?", unattended=False):
                 existing_settings["statusLine"] = new_settings["statusLine"]
                 print(f"  {colored('✓', 'green')} statusLine updated")

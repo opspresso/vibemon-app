@@ -189,6 +189,12 @@ class AskYesNoTest(unittest.TestCase):
         self.assertTrue(install.ask_yes_no("?", default=True))
         self.assertFalse(install.ask_yes_no("?", default=False))
 
+    def test_lost_interactive_input_preserves_user_owned_configuration(self):
+        install.AUTO_APPROVE, install.NON_INTERACTIVE = False, False
+        with mock.patch('builtins.input', side_effect=EOFError):
+            self.assertFalse(install.ask_yes_no('Replace statusLine?', unattended=False))
+            self.assertTrue(install.ask_yes_no('Upgrade owned script?', unattended=True))
+
 
 class SelectedPlatformsTest(unittest.TestCase):
     class Args:
@@ -1176,6 +1182,15 @@ class InstallClaudeSettingsTest(unittest.TestCase):
             result, settings = self._run({"hooks": {}, "statusLine": 5})
         self.assertTrue(result)
         self.assertIsInstance(settings["statusLine"], dict)
+
+    def test_custom_status_line_values_are_preserved_without_logging_them(self):
+        value = 'PRIVATE_MARKER_FOR_TEST_ONLY custom-statusline'
+        for statusline in ({'type': 'command', 'command': value}, value):
+            with self.subTest(statusline_type=type(statusline).__name__), mock.patch.object(install, 'ask_yes_no', return_value=False), mock.patch('sys.stdout', new_callable=io.StringIO) as output:
+                result, settings = self._run({'hooks': {}, 'statusLine': statusline})
+            self.assertTrue(result)
+            self.assertEqual(settings['statusLine'], statusline)
+            self.assertNotIn(value, output.getvalue())
 
 
 class ConfigRobustnessTest(unittest.TestCase):
