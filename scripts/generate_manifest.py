@@ -25,7 +25,6 @@ MANIFEST_PATH = DOCS_DIR / "manifest.json"
 MANIFEST_FILES = [
     "claude/settings.json",
     "codex/hooks.json",
-    "codex/config.toml",
     "vibemon/config.example.json",
     "vibemon/statusline.example.json",
     "vibemon/usage.py",

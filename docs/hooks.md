@@ -54,7 +54,9 @@ Note that the plan-usage fields (`usage5h`/`usageWeek`/`usageWeekModel` and thei
 
 ### Codex Configuration
 
-Codex uses the same `~/.vibemon/config.json` as Claude Code, Kiro, the OpenClaw plugin, and the opencode plugin. Hooks are enabled by default; the installer preserves an explicit `[features].hooks = false` in `~/.codex/config.toml`. Merge [`codex/hooks.json`](../public/install/codex/hooks.json) into your existing `~/.codex/hooks.json` (do not overwrite), then open `/hooks` in Codex and review/trust the new definitions. Codex skips new or changed non-managed hooks until their current definition is trusted.
+Codex uses the same `~/.vibemon/config.json` as Claude Code, Kiro, the OpenClaw plugin, and the opencode plugin. Hooks are enabled by default. The installer does not create or edit `~/.codex/config.toml`; model, permissions, hook enablement, and native `tui.status_line` preferences belong to the user or their machine configuration manager. An explicit `[features].hooks = false` remains in effect. Merge [`codex/hooks.json`](../public/install/codex/hooks.json) into your existing `~/.codex/hooks.json` (do not overwrite), then open `/hooks` in Codex and review/trust the new definitions. Codex skips new or changed non-managed hooks until their current definition is trusted.
+
+The VibeMon installer owns its shared scripts in `~/.vibemon`, per-tool VibeMon hooks/plugins, and Claude's VibeMon `statusline.py`. It refreshes only its own registrations in shared settings, preserving neighboring memory-sync, terminal, and user hooks. Machine configuration managers must likewise merge their own hook registrations rather than replace event arrays, and must leave VibeMon files out of their copy/prune lists. Installing, updating, or removing VibeMon does not manage machine scripts.
 
 Kiro IDE 1.x and CLI 3.x load VibeMon from the global v1 hook file at `~/.kiro/hooks/vibemon.json`, so no custom agent needs to be selected. During upgrades, the installer removes only VibeMon's legacy hooks from `~/.kiro/agents/default.json` and its old `.kiro.hook` files; neighboring user hooks are preserved.
 

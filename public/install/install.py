@@ -1276,91 +1276,6 @@ def install_claude(source: FileSource, cli_token: str = None) -> bool:
     return True
 
 
-CODEX_STATUS_LINE_ITEMS = [
-    "model-with-reasoning",
-    "current-dir",
-    "git-branch",
-    "context-used",
-    "context-window-size",
-]
-
-
-def ensure_codex_status_line(config_text: str) -> str:
-    """Ensure Codex's status line includes context-window usage."""
-    tui_match = re.search(r"(?ms)^\[tui\]\n(.*?)(?=^\[|\Z)", config_text)
-    if tui_match:
-        section = tui_match.group(0)
-        # Match an array value whether it is inline (`status_line = ["a"]`) or
-        # multi-line. Anchoring the close on a column-zero `]` (the old regex)
-        # missed inline arrays and spliced items in without a separating comma
-        # when the multi-line list lacked a trailing comma, producing invalid
-        # TOML — a duplicate key or an unterminated element.
-        status_line_match = re.search(r"(?ms)^status_line\s*=\s*\[(.*?)\]", section)
-        if status_line_match:
-            # Only rebuild plain basic-string arrays. Literal strings, escapes,
-            # comments and brackets inside strings require a TOML parser; keep
-            # that user configuration intact instead of extracting partial values.
-            if not re.fullmatch(
-                r'\s*(?:"[^"\\\n]*"\s*(?:,\s*"[^"\\\n]*"\s*)*,?\s*)?',
-                status_line_match.group(1),
-            ):
-                print("  Warning: preserving unsupported Codex status_line syntax")
-                return config_text
-            existing_items = re.findall(r'"([^"]+)"', status_line_match.group(1))
-            missing_items = [
-                item for item in CODEX_STATUS_LINE_ITEMS if item not in existing_items
-            ]
-            if not missing_items:
-                return config_text
-            rebuilt = "status_line = [\n"
-            for item in (*existing_items, *missing_items):
-                rebuilt += f'  "{item}",\n'
-            rebuilt += "]"
-            updated_section = (
-                section[:status_line_match.start()]
-                + rebuilt
-                + section[status_line_match.end():]
-            )
-        elif re.search(r"(?m)^status_line\s*=", section):
-            # A non-array value (e.g. a bare string) can't be merged; replace it
-            # wholesale rather than appending a second, duplicate `status_line`.
-            status_line = "status_line = [\n"
-            status_line += "".join(f'  "{item}",\n' for item in CODEX_STATUS_LINE_ITEMS)
-            status_line += "]"
-            updated_section = re.sub(
-                r"(?m)^status_line[^\n]*", status_line, section, count=1
-            )
-        else:
-            status_line = "status_line = [\n"
-            status_line += "".join(f'  "{item}",\n' for item in CODEX_STATUS_LINE_ITEMS)
-            status_line += "]\n"
-            updated_section = section.rstrip() + "\n" + status_line
-        return config_text[:tui_match.start()] + updated_section + config_text[tui_match.end():]
-
-    status_line = "[tui]\nstatus_line = [\n"
-    status_line += "".join(f'  "{item}",\n' for item in CODEX_STATUS_LINE_ITEMS)
-    status_line += "]\n\n"
-    nested_tui_match = re.search(r"(?m)^\[tui\.", config_text)
-    if nested_tui_match:
-        return (
-            config_text[:nested_tui_match.start()]
-            + status_line
-            + config_text[nested_tui_match.start():]
-        )
-
-    suffix = "" if config_text.endswith("\n") else "\n"
-    return config_text + suffix + "\n" + status_line.rstrip() + "\n"
-
-
-def prepare_codex_config(config_text: str) -> str:
-    """Add VibeMon's status items without overriding the hook preference.
-
-    Codex hooks are enabled by default. An explicit `[features].hooks = false`
-    is therefore a user choice and must survive installation unchanged.
-    """
-    return ensure_codex_status_line(config_text)
-
-
 def install_codex(source: FileSource, cli_token: str = None) -> bool:
     """Install VibeMon for Codex CLI."""
     codex_home = tool_home("CODEX_HOME", ".codex")
@@ -1404,21 +1319,6 @@ def install_codex(source: FileSource, cli_token: str = None) -> bool:
     else:
         write_text_atomic(hooks_file, json.dumps(new_hooks, indent=2) + "\n")
         print(f"  {colored('✓', 'green')} {display_path(hooks_file)} created")
-
-    print("\nConfiguring config.toml:")
-    config_toml_file = codex_home / "config.toml"
-    if config_toml_file.exists():
-        backup_file(config_toml_file)
-        existing_toml = config_toml_file.read_text(encoding="utf-8")
-        updated_toml = prepare_codex_config(existing_toml)
-        write_text_atomic(config_toml_file, updated_toml)
-        print(
-            f"  {colored('✓', 'green')} status line configured in "
-            f"{display_path(config_toml_file)}"
-        )
-    else:
-        write_text_atomic(config_toml_file, source.get_file("codex/config.toml"))
-        print(f"  {colored('✓', 'green')} {display_path(config_toml_file)} created")
 
     configure_vibemon_config(source, cli_token)
     ok &= install_vibemon_shared(source)
@@ -1862,8 +1762,7 @@ def uninstall_codex(source: FileSource = None, cli_token: str = None) -> bool:
         codex_home / "hooks" / "vibemon.py",
         display_path(codex_home / "hooks" / "vibemon.py"),
     )
-    # config.toml keeps [features] hooks and [tui] status_line: both are
-    # generic Codex settings that predate and outlive VibeMon.
+    # Machine preferences are outside the VibeMon installer ownership.
     print(
         f"  {colored('!', 'yellow')} left "
         f"{display_path(codex_home / 'config.toml')} alone "
