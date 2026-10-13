@@ -5,6 +5,21 @@ import { dominantState, needsAttention, sourceState, accountState } from '../src
 import { mergeMean } from '../src/shared/resource-schema.cjs';
 import { monitoringContract } from '../scripts/generate-monitoring.mjs';
 import fixtures from '../src/shared/monitoring/cases.json' with { type: 'json' };
+import states from '../src/shared/data/states.json' with { type: 'json' };
+import { pickTextColor, hexToRgb } from '../src/bubble/vibemon-bubble.js';
+
+test('every shared speech-bubble state has readable text on its opaque background', () => {
+  const luminance = hex => {
+    const { r, g, b } = hexToRgb(hex);
+    const values = [r, g, b].map(byte => byte / 255).map(s => s <= 0.04045 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4);
+    return values[0] * 0.2126 + values[1] * 0.7152 + values[2] * 0.0722;
+  };
+  assert.equal(pickTextColor('#00AA00'), '#000000');
+  for (const { color } of Object.values(states.states)) {
+    const a = luminance(color), b = luminance(pickTextColor(color));
+    assert.ok((Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05) >= 4.5, color);
+  }
+});
 
 test('renderer labels match the validated canonical policy without network access', () => monitoringContract());
 test('measurement precision follows the shared device contract', () => {

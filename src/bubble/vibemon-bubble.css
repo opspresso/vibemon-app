@@ -6,7 +6,7 @@
  * src/bubble.html, using a .bubble class rather than its #bubble id for a
  * reusable .bubble class and with the tail's default top/left centered via
  * CSS (bubble.html always sets an explicit offset from JS instead, since its
- * bubble window is physics-positioned relative to the character).
+ * bubble window is positioned relative to the character).
  *
  * App loads this canonical file directly. web-distribution.json exports
  * it to Web's pinned public snapshot.

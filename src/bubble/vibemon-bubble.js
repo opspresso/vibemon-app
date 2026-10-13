@@ -44,8 +44,8 @@
  *
  * The optional 5th argument's `opaque` flag (default false) picks between a
  * solid `bgColor` background/tail and the default translucent
- * `bgRgba(bgColor, 0.9)` — the latter suits vibemon-app's floating desktop
- * overlay, the former matches vibemon's opaque card-style bubble.
+ * `bgRgba(bgColor, 0.9)`. Desktop and Web use opaque state backgrounds so
+ * the text contrast does not depend on content behind the bubble.
  */
 
 // Same green/yellow/orange/red thresholds as statusline.py's C_GREEN/C_YELLOW/C_ORANGE/C_RED.
@@ -81,12 +81,12 @@ export function bgRgba(hex, alpha) {
   return 'rgba(' + c.r + ',' + c.g + ',' + c.b + ',' + alpha + ')';
 }
 
-// Pick black or white text depending on how light the state-colored
-// background reads.
+// Choose the higher WCAG contrast using linear sRGB luminance.
 export function pickTextColor(hex) {
   const c = hexToRgb(hex);
-  const luminance = c.r * 0.299 + c.g * 0.587 + c.b * 0.114;
-  return luminance > 140 ? '#1a1a1a' : '#ffffff';
+  const linear = value => { const s = value / 255; return s <= 0.04045 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4; };
+  const luminance = 0.2126 * linear(c.r) + 0.7152 * linear(c.g) + 0.0722 * linear(c.b);
+  return (luminance + 0.05) / 0.05 >= 1.05 / (luminance + 0.05) ? '#000000' : '#ffffff';
 }
 
 // Loading dots beside the status text: all four pulse together via the CSS

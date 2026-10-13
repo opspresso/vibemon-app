@@ -83,7 +83,8 @@
     window.__setBubbleContent = function (fields, tailOffset, tailSide, bgColor, scale) {
       if (typeof scale === 'number') document.body.style.transform = `scale(${scale})`;
       const bubble = document.getElementById('bubble');
-      renderBubble(bubble, fields, tailSide, bgColor);
+      // An opaque state color keeps text contrast independent of the desktop behind it.
+      renderBubble(bubble, fields, tailSide, bgColor, { opaque: true });
 
       const tail = document.getElementById('bubble-tail');
       if (typeof tailOffset === 'number') {
