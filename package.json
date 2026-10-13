@@ -18,6 +18,7 @@
     "lint:fix": "eslint . --fix",
     "test": "jest",
     "test:overlays": "electron tests/native/overlay-smoke.cjs",
+    "test:hit-testing": "electron tests/native/hit-test-smoke.cjs",
     "test:workspace": "node tests/native/run-workspace.cjs",
     "preview:workspace": "node tests/native/run-workspace.cjs --preview",
     "test:watch": "jest --watch",

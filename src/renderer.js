@@ -68,6 +68,8 @@ async function init() {
     ]);
     vibeMonEngine = createVibeMonEngine(container, {
       THREE,
+      // Desktop alpha hit testing reads the last frame between animation ticks.
+      preserveDrawingBuffer: true,
       characters,
       defaultCharacter,
       states

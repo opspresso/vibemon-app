@@ -41,6 +41,8 @@ jobs:
         run: pnpm test:workspace
       - name: Verify native display scaling
         run: pnpm test:overlays
+      - name: Verify WebGL alpha hit testing
+        run: pnpm test:hit-testing
       - name: Verify fractional display scaling on Windows
         if: runner.os == 'Windows'
         shell: pwsh
@@ -61,3 +63,4 @@ jobs:
           path: |
             out/overlay-tests/
             out/workspace-tests/
+            out/hit-test/

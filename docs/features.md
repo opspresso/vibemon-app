@@ -69,6 +69,8 @@ Characters are defined in `src/shared/data/characters.json`: display name, accen
 
 Both engines are maintained here (`src/engine/`); three.js ships locally in `src/vendor/` because the renderer CSP forbids runtime CDN imports.
 
+Desktop 3D hit testing reads the preserved WebGL frame and reuses the alpha result for an unchanged pixel and frame. Pointer checks never render the scene, so they respect the animation frame limit and reduced-motion setting. Web rendering keeps the default unpreserved buffer. Run `pnpm test:hit-testing` to verify transparent pixels, transformed coordinates, and stopped frames in Electron.
+
 ### Character Lock
 
 Forces the character window to always show one character, ignoring whatever character each project's status reports.
