@@ -49,7 +49,8 @@ class WindowsHookCommandsTest(unittest.TestCase):
             home = Path(directory) / "O'Connor & $NAME `literal` %NAME% ! ; 한글"
             script = home / 'hooks/vibemon.py'
             script.parent.mkdir(parents=True)
-            environment = home / 'Python environment'
+            # venv rejects Windows' PATH separator; keep it in the script path.
+            environment = Path(directory) / "Python & $NAME `literal` %NAME% ! 한글"
             venv.EnvBuilder(with_pip=False).create(environment)
             python = install.hook_path(environment / 'Scripts/python.exe')
             script.write_text('import json,sys\nsys.stdin.reconfigure(encoding="utf-8")\nvalue=json.load(sys.stdin)\nprint(json.dumps({"file":__file__,"args":sys.argv[1:],"input":value}))\nsys.exit(value["exit"])\n', encoding='utf-8')
