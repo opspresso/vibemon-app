@@ -532,7 +532,7 @@ def send_serial_raw(port: str, data: str) -> bool:
     lock_fd = None
 
     try:
-        lock_fd = os.open(lock_path, os.O_CREAT | os.O_RDWR)
+        lock_fd = os.open(lock_path, os.O_CREAT | os.O_RDWR, 0o600)
 
         if not _acquire_lock(lock_fd):
             debug_log(
@@ -541,15 +541,6 @@ def send_serial_raw(port: str, data: str) -> bool:
             return False
 
         try:
-            # Configure serial port
-            flag = "-f" if sys.platform == "darwin" else "-F"
-            subprocess.run(
-                ["stty", flag, port, SERIAL_BAUD_RATE],
-                check=False,
-                capture_output=True,
-                timeout=2,
-            )
-
             # Write data. Open non-blocking so a device that never asserts
             # DCD/carrier can't hang this call indefinitely. os.write() may
             # return a short count, so loop until every byte is sent. A full
@@ -559,8 +550,19 @@ def send_serial_raw(port: str, data: str) -> bool:
             open_flags = os.O_WRONLY
             if hasattr(os, "O_NONBLOCK"):
                 open_flags |= os.O_NONBLOCK
+            if hasattr(os, "O_NOCTTY"):
+                open_flags |= os.O_NOCTTY
             port_fd = os.open(port, open_flags)
             try:
+                # Validate and configure the opened descriptor, not a path that
+                # could be a regular file or change between checks and writing.
+                if not os.isatty(port_fd):
+                    debug_log("Serial target is not a terminal device")
+                    return False
+                subprocess.run(
+                    ["stty", SERIAL_BAUD_RATE], stdin=port_fd, check=True,
+                    capture_output=True, timeout=2,
+                )
                 payload_bytes = (data + "\n").encode()
                 written = 0
                 stalls = 0
@@ -586,7 +588,7 @@ def send_serial_raw(port: str, data: str) -> bool:
         finally:
             fcntl.flock(lock_fd, fcntl.LOCK_UN)
 
-    except (IOError, OSError, subprocess.TimeoutExpired) as e:
+    except (IOError, OSError, subprocess.TimeoutExpired, subprocess.CalledProcessError) as e:
         debug_log(f"Serial send error: {e}")
         return False
     finally:
@@ -619,6 +621,7 @@ def send_serial(port: str, data: str) -> bool:
     my_id = str(uuid.uuid4())
 
     lock_fd = None
+    debounce_temp = None
     try:
         # Write our payload to the debounce file (with lock). A blocked
         # `flock(LOCK_EX)` here would stall the hook until the lock is free,
@@ -626,15 +629,20 @@ def send_serial(port: str, data: str) -> bool:
         # unresponsive device — a hung port could deadlock every subsequent
         # hook process. Try non-blocking first and fall back to a direct
         # send when the lock is busy.
-        lock_fd = os.open(lock_path, os.O_CREAT | os.O_RDWR)
+        lock_fd = os.open(lock_path, os.O_CREAT | os.O_RDWR, 0o600)
         if not _acquire_lock(lock_fd):
             debug_log("Serial debounce: lock busy, sending directly")
             os.close(lock_fd)
             lock_fd = None
             return send_serial_raw(port, data)
         try:
-            with open(debounce_path, "w", encoding="utf-8") as f:
+            # Atomic replacement does not follow a pre-existing symlink, and
+            # NamedTemporaryFile keeps the transient payload owner-readable.
+            with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", dir=os.path.dirname(debounce_path), prefix=".vibemon-serial-", delete=False) as f:
+                debounce_temp = f.name
                 json.dump({"id": my_id, "data": data, "time": time.time()}, f)
+            os.replace(debounce_temp, debounce_path)
+            debounce_temp = None
         finally:
             fcntl.flock(lock_fd, fcntl.LOCK_UN)
             os.close(lock_fd)
@@ -644,7 +652,7 @@ def send_serial(port: str, data: str) -> bool:
         time.sleep(SERIAL_DEBOUNCE_MS / 1000.0)
 
         # Check if we're still the latest (with lock)
-        lock_fd = os.open(lock_path, os.O_CREAT | os.O_RDWR)
+        lock_fd = os.open(lock_path, os.O_CREAT | os.O_RDWR, 0o600)
         if not _acquire_lock(lock_fd):
             debug_log("Serial debounce: re-lock busy, sending directly")
             os.close(lock_fd)
@@ -674,6 +682,8 @@ def send_serial(port: str, data: str) -> bool:
                 os.close(lock_fd)
             except OSError:
                 pass
+        if debounce_temp is not None:
+            Path(debounce_temp).unlink(missing_ok=True)
 
 
 def send_http_post(

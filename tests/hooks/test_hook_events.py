@@ -247,6 +247,7 @@ def test_stalled_stty_is_bounded(tmp_path):
     port.touch()
     with (
         patch.object(core.subprocess, "run", side_effect=subprocess.TimeoutExpired("stty", 2)) as stty,
+        patch.object(core.os, "isatty", return_value=True),
         patch.object(core, "_get_serial_lock_path", return_value=str(tmp_path / "lock")),
     ):
         assert core.send_serial_raw(str(port), "{}") is False

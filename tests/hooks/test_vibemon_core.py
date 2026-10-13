@@ -1,6 +1,7 @@
 import io
 import json
 import os
+import select
 import sys
 import tempfile
 import unittest
@@ -227,6 +228,7 @@ class SerialDebounceLockTest(unittest.TestCase):
             patch.object(
                 vibemon_core, "_get_serial_debounce_lock_path", return_value=lock_path
             ),
+            patch.object(vibemon_core, "_get_serial_debounce_path", return_value=str(Path(directory) / "debounce.json")),
             patch.object(vibemon_core.time, "sleep"),
             patch.object(
                 vibemon_core,
@@ -251,6 +253,19 @@ class SerialDebounceLockTest(unittest.TestCase):
         self.assertTrue(result)
         self.assertEqual(sent, [(str(Path(directory) / "ttyDevice"), '{"x":1}')])
 
+    @unittest.skipIf(vibemon_core.fcntl is None, 'POSIX serial transport')
+    def test_debounce_replaces_its_own_link_without_writing_the_link_target(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            target = root / 'private.json'; target.write_text('preserve')
+            debounce = root / 'debounce.json'; debounce.symlink_to(target)
+            port = root / 'fixture-device'; port.touch()
+            with patch.object(vibemon_core, '_get_serial_debounce_path', return_value=str(debounce)), patch.object(vibemon_core, '_get_serial_debounce_lock_path', return_value=str(root / 'lock')), patch.object(vibemon_core, 'send_serial_raw', return_value=True), patch.object(vibemon_core.time, 'sleep'):
+                self.assertTrue(vibemon_core.send_serial(str(port), '{}'))
+            self.assertEqual(target.read_text(), 'preserve')
+            self.assertFalse(debounce.is_symlink())
+            self.assertEqual(debounce.stat().st_mode & 0o777, 0o600)
+
 
 class SuppressedHookTest(unittest.TestCase):
     def test_cli_command_runs_even_when_hooks_are_suppressed(self):
@@ -274,6 +289,35 @@ class SuppressedHookTest(unittest.TestCase):
 
 @unittest.skipIf(vibemon_core.fcntl is None, "POSIX serial transport")
 class SerialWriteTest(unittest.TestCase):
+    def test_a_regular_file_cannot_be_used_as_a_serial_device(self):
+        with tempfile.TemporaryDirectory() as directory:
+            target = Path(directory) / 'user-settings.json'
+            target.write_text('{"preserve":"user data"}')
+            self.assertFalse(vibemon_core.send_serial_raw(str(target), '{"state":"working"}'))
+            self.assertEqual(target.read_text(), '{"preserve":"user data"}')
+
+    def test_real_terminal_accepts_a_complete_json_frame(self):
+        master, slave = os.openpty()
+        try:
+            with tempfile.TemporaryDirectory() as directory, patch.object(vibemon_core, '_get_serial_lock_path', return_value=str(Path(directory) / 'lock')):
+                self.assertTrue(vibemon_core.send_serial_raw(os.ttyname(slave), '{"state":"working"}'))
+                self.assertTrue(select.select([master], [], [], 1)[0])
+                self.assertEqual(json.loads(os.read(master, 4096).decode()), {'state': 'working'})
+        finally:
+            os.close(master); os.close(slave)
+
+    def test_failed_terminal_configuration_never_writes_the_frame(self):
+        master, slave = os.openpty()
+        try:
+            with tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                command = root / 'stty'; command.write_text('#!/bin/sh\nexit 1\n'); command.chmod(0o755)
+                with patch.dict(os.environ, {'PATH': str(root) + os.pathsep + os.environ.get('PATH', '')}), patch.object(vibemon_core, '_get_serial_lock_path', return_value=str(root / 'lock')):
+                    self.assertFalse(vibemon_core.send_serial_raw(os.ttyname(slave), '{"state":"working"}'))
+                self.assertFalse(select.select([master], [], [], 0)[0])
+        finally:
+            os.close(master); os.close(slave)
+
     def _send(self, write_side_effect):
         with tempfile.TemporaryDirectory() as directory:
             port = str(Path(directory) / "ttyDevice")
@@ -281,6 +325,7 @@ class SerialWriteTest(unittest.TestCase):
             with (
                 patch.object(vibemon_core, "IS_WINDOWS", False),
                 patch.object(vibemon_core, "_acquire_lock", return_value=True),
+                patch.object(vibemon_core.os, "isatty", return_value=True),
                 patch.object(vibemon_core.time, "sleep"),
                 patch.object(vibemon_core.subprocess, "run"),
                 patch.object(vibemon_core.os, "write", side_effect=write_side_effect),
