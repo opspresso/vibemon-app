@@ -58,6 +58,8 @@ def test_local_delivery_joins_a_trailing_slash_like_the_javascript_plugin():
     requests = []
     class Handler(BaseHTTPRequestHandler):
         def do_GET(self):
+            # Closing with unread request bytes can reset the TCP response.
+            self.rfile.read(int(self.headers.get('Content-Length', 0)))
             target = self.requestline.split()[1]
             requests.append(target)
             self.send_response(200 if target in ['/status', '/prefix/status'] else 404)
