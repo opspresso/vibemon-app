@@ -1,4 +1,4 @@
-const { BrowserWindow, ipcMain, shell } = require('electron');
+const { BrowserWindow, ipcMain, shell, autoUpdater } = require('electron');
 const path = require('node:path');
 const { URL } = require('node:url');
 const { centerOnCursorDisplay } = require('../modules/window-position.cjs');
@@ -23,6 +23,10 @@ class WorkspaceWindow {
       this.notify('usage');
     };
     monitoring.on('change', this.onCloudChange);
+    // macOS quitAndInstall closes windows before app's before-quit event.
+    // Release hide-on-close before that sequence can cancel the update.
+    this.onBeforeUpdate = () => this.cleanup();
+    autoUpdater.on('before-quit-for-update', this.onBeforeUpdate);
     ipcMain.handle(CHANNEL, async (event, command, args = []) => {
       if (!this.window || this.window.isDestroyed() || event.sender !== this.window.webContents || event.senderFrame !== this.window.webContents.mainFrame) throw new Error('Untrusted workspace request');
       if (!Array.isArray(args) || args.length > 3) throw new Error('Invalid workspace arguments');
@@ -147,6 +151,7 @@ class WorkspaceWindow {
     if (this.timer) clearTimeout(this.timer);
     this.timer = null;
     this.monitoring.off('change', this.onCloudChange);
+    autoUpdater.off('before-quit-for-update', this.onBeforeUpdate);
     ipcMain.removeHandler(CHANNEL);
     if (this.window && !this.window.isDestroyed()) this.window.destroy();
     this.window = null;

@@ -15,7 +15,7 @@ const os = require('os');
 const path = require('path');
 const https = require('https');
 const crypto = require('crypto');
-const { spawn, spawnSync } = require('child_process');
+const { spawn } = require('child_process');
 const { dialog, shell } = require('electron');
 const Store = require('electron-store');
 const { DOCS_BASE_URL, INSTALLER_SHA256 } = require('../shared/config.cjs');
@@ -383,11 +383,18 @@ const TOOLS = [
   }
 ];
 
-const WHICH_COMMAND = IS_WINDOWS ? 'where' : 'which';
-
 function commandExists(command) {
-  const result = spawnSync(WHICH_COMMAND, [command], { stdio: 'ignore', ...SPAWN_DEFAULTS });
-  return result.status === 0;
+  const extensions = IS_WINDOWS ? ['', ...(process.env.PATHEXT || '.EXE;.CMD;.BAT;.COM').split(';')] : [''];
+  return (process.env.PATH || '').split(path.delimiter).filter(Boolean).some(directory =>
+    extensions.some(extension => {
+      const filename = path.join(directory.replace(/^"|"$/g, ''), command + extension);
+      try {
+        if (!fs.statSync(filename).isFile()) return false;
+        fs.accessSync(filename, IS_WINDOWS ? fs.constants.F_OK : fs.constants.X_OK);
+        return true;
+      } catch { return false; }
+    })
+  );
 }
 
 
@@ -406,17 +413,14 @@ class HookInstaller {
     // Null until checkForChanges() succeeds once; without it, statuses
     // report changed: false (existence-only checking).
     this.manifest = null;
-    // Detecting tools spawns `which`/`where` per tool, which blocks the
-    // main process for tens of ms. Computed once eagerly here (a one-time
-    // startup cost) so workspace snapshots never trigger it. Refreshed again
-    // by getMissingTools() and after installTools() completes.
+    // Workspace snapshots reuse this cache instead of scanning tool files.
     this.cachedStatuses = this.refreshStatuses();
   }
 
   isPresent(tool) {
-    if (tool.sharedAssets) return true;
+    if (tool.sharedAssets || fs.existsSync(tool.homeDir)) return true;
     const commands = [tool.command, ...(tool.commandAliases || [])].filter(Boolean);
-    return commands.some(commandExists) || fs.existsSync(tool.homeDir);
+    return commands.some(commandExists);
   }
 
   /**
@@ -707,7 +711,7 @@ class HookInstaller {
 
     const results = [];
     try {
-      const python = findPython();
+      const python = await findPython();
       if (!python) {
         for (const tool of tools) {
           results.push({ tool, result: { ok: false, reason: 'python-not-found' } });

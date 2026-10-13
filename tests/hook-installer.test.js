@@ -24,7 +24,7 @@ jest.mock('electron-store', () => {
 });
 
 const fs = require('fs');
-const { spawnSync, spawn } = require('child_process');
+const { spawnSync, spawn, execFile } = require('child_process');
 const https = require('https');
 const { dialog, shell } = require('electron');
 const {
@@ -86,25 +86,19 @@ test('tool home resolver honors config-root environment overrides', () => {
   }
 });
 
-// spawnSync serves two callers: commandExists() runs which/where, and
-// findPython() probes an interpreter by executing `-c <code>`. Route by argv
-// shape so a test can control tool presence and Python availability apart.
-const PROBE_OK = { status: 0, stdout: '3\n' };
-// What a Microsoft Store alias stub does: a real python.exe on PATH that runs
-// nothing.
-const PROBE_FAIL = { status: 9009, stdout: '' };
-
 // What findPython() returns on POSIX; runScript() takes it as a parameter.
 const PYTHON = { command: 'python3', prefixArgs: [] };
 
 let pythonAvailable;
 let presentCommands;
 
-function mockSpawnSyncRouter() {
-  spawnSync.mockImplementation((command, args) => {
-    if (args.includes('-c')) return pythonAvailable ? PROBE_OK : PROBE_FAIL;
-    return { status: presentCommands.has(args[0]) ? 0 : 1 };
-  });
+function mockRuntime() {
+  execFile.mockImplementation((_command, _args, _options, callback) =>
+    callback(pythonAvailable ? null : new Error('unavailable'), pythonAvailable ? '3\n' : ''));
+  fs.statSync.mockImplementation(filename => ({
+    isFile: () => presentCommands.has(path.basename(filename).replace(/\.(exe|cmd|bat|com)$/i, ''))
+  }));
+  fs.accessSync.mockImplementation(() => {});
 }
 
 // Makes a tool "present" via its CLI command, with no hook file, so it
@@ -202,7 +196,8 @@ describe('HookInstaller', () => {
     pythonAvailable = true;
     presentCommands = new Set();
     spawnSync.mockReset();
-    mockSpawnSyncRouter();
+    execFile.mockReset();
+    mockRuntime();
     spawn.mockReset();
     https.get.mockReset();
     dialog.showMessageBox.mockReset().mockResolvedValue({ response: 0 });
@@ -322,14 +317,42 @@ describe('HookInstaller', () => {
   });
 
   describe('getCachedStatuses', () => {
+    test('PATH entries must be executable files, and detection never spawns a process', () => {
+      const tool = TOOLS.find(tool => tool.command === 'codex');
+      presentCommands = new Set(['codex']);
+      expect(hookInstaller.isPresent(tool)).toBe(true);
+      fs.accessSync.mockImplementation(() => { throw new Error('EACCES'); });
+      expect(hookInstaller.isPresent(tool)).toBe(false);
+      fs.accessSync.mockImplementation(() => {});
+      fs.statSync.mockReturnValue({ isFile: () => false });
+      expect(hookInstaller.isPresent(tool)).toBe(false);
+      expect(spawnSync).not.toHaveBeenCalled();
+    });
+
+    test('Windows command detection respects PATHEXT without executing shell wrappers', () => {
+      const previous = process.env.PATHEXT;
+      try {
+        process.env.PATHEXT = '.CMD;.EXE';
+        fs.statSync.mockImplementation(filename => ({ isFile: () => filename.endsWith('codex.CMD') }));
+        const { HookInstaller: WindowsInstaller, TOOLS: windowsTools } = loadInstallerFor({ platform: 'win32' });
+        const installer = new WindowsInstaller();
+        expect(installer.isPresent(windowsTools.find(tool => tool.command === 'codex'))).toBe(true);
+        expect(spawnSync).not.toHaveBeenCalled();
+      } finally {
+        if (previous === undefined) delete process.env.PATHEXT;
+        else process.env.PATHEXT = previous;
+      }
+    });
+
     test('reflects state as of the last refresh without spawning new commands', () => {
       hookInstaller.refreshStatuses(); // baseline call count
-      const callsAfterRefresh = spawnSync.mock.calls.length;
+      expect(spawnSync).not.toHaveBeenCalled();
+      const callsAfterRefresh = fs.statSync.mock.calls.length;
 
       const first = hookInstaller.getCachedStatuses();
       const second = hookInstaller.getCachedStatuses();
 
-      expect(spawnSync.mock.calls.length).toBe(callsAfterRefresh);
+      expect(fs.statSync.mock.calls.length).toBe(callsAfterRefresh);
       expect(first).toEqual(second);
       expect(first).not.toBe(hookInstaller.cachedStatuses); // defensive copy
     });

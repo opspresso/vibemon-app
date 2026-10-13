@@ -204,9 +204,9 @@ class TrayManager {
     this.updateMenu();
     this.updateIcon();
 
-    if (process.platform !== 'linux') {
+    if (process.platform === 'win32') {
       const showMenu = () => {
-        this.tray.popUpContextMenu(Menu.buildFromTemplate(this.buildMenuTemplate()));
+        this.tray.popUpContextMenu(this.contextMenu);
       };
       this.tray.on('click', showMenu);
       this.tray.on('right-click', showMenu);
@@ -242,11 +242,11 @@ class TrayManager {
   }
 
   updateMenu() {
-    // Linux desktops require a native context menu. Its navigation actions
-    // are static, so background status events do not need to rebuild it.
-    if (!this.tray || process.platform !== 'linux' || this.contextMenu) return;
+    // macOS handles mouse-down/tracking natively. Rebuilding a menu in a JS
+    // click callback delays opening and loses clicks during double-clicks.
+    if (!this.tray || this.contextMenu) return;
     this.contextMenu = Menu.buildFromTemplate(this.buildMenuTemplate());
-    this.tray.setContextMenu(this.contextMenu);
+    if (process.platform !== 'win32') this.tray.setContextMenu(this.contextMenu);
   }
 
   showContextMenu(sender) {

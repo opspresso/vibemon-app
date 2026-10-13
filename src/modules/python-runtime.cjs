@@ -6,7 +6,7 @@
  * `python3`, and the name that does exist may not be an interpreter at all.
  */
 
-const { spawnSync } = require('child_process');
+const { execFile } = require('child_process');
 const { PYTHON_PROBE_TIMEOUT_MS } = require('../shared/constants.cjs');
 
 const IS_WINDOWS = process.platform === 'win32';
@@ -51,22 +51,22 @@ const PROBE_ARGS = ['-c', 'import sys; print(sys.version_info[0])'];
 /**
  * Whether a candidate is a working Python 3.
  * @param {{command: string, prefixArgs: string[]}} candidate
- * @returns {boolean}
+ * @returns {Promise<boolean>}
  */
 function probePython(candidate) {
-  let result;
-  try {
-    result = spawnSync(candidate.command, [...candidate.prefixArgs, ...PROBE_ARGS], {
-      ...SPAWN_DEFAULTS,
-      encoding: 'utf8',
-      timeout: PYTHON_PROBE_TIMEOUT_MS,
-      killSignal: 'SIGKILL',
-      maxBuffer: 1024
-    });
-  } catch {
-    return false;
-  }
-  return Boolean(result) && result.status === 0 && String(result.stdout || '').trim() === '3';
+  return new Promise(resolve => {
+    try {
+      execFile(candidate.command, [...candidate.prefixArgs, ...PROBE_ARGS], {
+        ...SPAWN_DEFAULTS,
+        encoding: 'utf8',
+        timeout: PYTHON_PROBE_TIMEOUT_MS,
+        killSignal: 'SIGKILL',
+        maxBuffer: 1024
+      }, (error, stdout) => resolve(!error && String(stdout || '').trim() === '3'));
+    } catch {
+      resolve(false);
+    }
+  });
 }
 
 /**
@@ -75,10 +75,11 @@ function probePython(candidate) {
  * Deliberately uncached: resolution costs one spawn on the happy path, and a
  * cached "not found" would stick for the rest of the session even after the
  * user installs Python and retries.
- * @returns {{command: string, prefixArgs: string[]}|null}
+ * @returns {Promise<{command: string, prefixArgs: string[]}|null>}
  */
-function findPython() {
-  return CANDIDATES.find(probePython) || null;
+async function findPython() {
+  for (const candidate of CANDIDATES) if (await probePython(candidate)) return candidate;
+  return null;
 }
 
 module.exports = { findPython, probePython, CANDIDATES, SPAWN_DEFAULTS, IS_WINDOWS };

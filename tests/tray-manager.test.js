@@ -40,11 +40,11 @@ async function onPlatform(platform, check) {
   try { await check(); } finally { Object.defineProperty(process, 'platform', descriptor); }
 }
 
-test.each(['darwin', 'win32'])('%s tray clicks open only the menu; Dashboard opens the workspace', async platform => {
+test.each(['win32'])('%s tray clicks open only the menu; Dashboard opens the workspace', async platform => {
   await onPlatform(platform, async () => {
     manager.createTray(); await flush();
     for (let i = 0; i < 250; i++) manager.updateMenu();
-    expect(Menu.buildFromTemplate).not.toHaveBeenCalled();
+    expect(Menu.buildFromTemplate).toHaveBeenCalledTimes(1);
     expect(native.setContextMenu).not.toHaveBeenCalled();
     for (const event of ['click', 'right-click']) {
       events.get(event)();
@@ -53,15 +53,15 @@ test.each(['darwin', 'win32'])('%s tray clicks open only the menu; Dashboard ope
       const menu = native.popUpContextMenu.mock.calls.at(-1)[0];
       expect(menu.template.map(item => item.label)).toContain('Dashboard');
     }
-    expect(Menu.buildFromTemplate).toHaveBeenCalledTimes(2);
+    expect(Menu.buildFromTemplate).toHaveBeenCalledTimes(1);
     expect(native.popUpContextMenu).toHaveBeenCalledTimes(2);
     native.popUpContextMenu.mock.calls[0][0].template.find(item => item.label === 'Dashboard').click();
     expect(manager.openDashboard).toHaveBeenCalledTimes(1);
   });
 });
 
-test('Linux installs its static navigation menu once', async () => {
-  await onPlatform('linux', async () => {
+test.each(['darwin', 'linux'])('%s installs its static native menu once', async platform => {
+  await onPlatform(platform, async () => {
     manager.createTray(); await flush();
     for (let i = 0; i < 250; i++) manager.updateMenu();
     expect(Menu.buildFromTemplate).toHaveBeenCalledTimes(1);
