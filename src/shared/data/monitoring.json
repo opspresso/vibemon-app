@@ -1,0 +1,112 @@
+{
+  "version": 1,
+  "states": {
+    "ok": {
+      "label": "Healthy",
+      "tone": "good"
+    },
+    "warning": {
+      "label": "Attention",
+      "tone": "warning",
+      "attentionRank": 4
+    },
+    "error": {
+      "label": "Collection error",
+      "tone": "danger",
+      "attentionRank": 1
+    },
+    "unknown": {
+      "label": "Unknown health",
+      "tone": "neutral"
+    },
+    "stale": {
+      "label": "Stale",
+      "tone": "warning",
+      "attentionRank": 5
+    },
+    "inactive": {
+      "label": "Inactive",
+      "tone": "neutral"
+    },
+    "working": {
+      "label": "Working",
+      "tone": "active",
+      "transition": {
+        "state": "idle",
+        "after": "SLEEP_TIMEOUT_MS"
+      }
+    },
+    "thinking": {
+      "label": "Thinking",
+      "tone": "active",
+      "transition": {
+        "state": "idle",
+        "after": "SLEEP_TIMEOUT_MS"
+      }
+    },
+    "planning": {
+      "label": "Planning",
+      "tone": "active",
+      "transition": {
+        "state": "idle",
+        "after": "SLEEP_TIMEOUT_MS"
+      }
+    },
+    "packing": {
+      "label": "Compacting",
+      "tone": "active",
+      "transition": {
+        "state": "idle",
+        "after": "SLEEP_TIMEOUT_MS"
+      }
+    },
+    "notification": {
+      "label": "Needs input",
+      "tone": "warning",
+      "attentionRank": 3,
+      "holdWhileReporting": true,
+      "transition": {
+        "state": "idle",
+        "after": "SLEEP_TIMEOUT_MS"
+      }
+    },
+    "alert": {
+      "label": "Needs attention",
+      "tone": "danger",
+      "attentionRank": 2,
+      "holdWhileReporting": true,
+      "transition": {
+        "state": "idle",
+        "after": "SLEEP_TIMEOUT_MS"
+      }
+    },
+    "idle": {
+      "label": "Idle",
+      "tone": "neutral",
+      "transition": {
+        "state": "sleep",
+        "after": "SLEEP_TIMEOUT_MS"
+      }
+    },
+    "sleep": {
+      "label": "Resting",
+      "tone": "neutral"
+    },
+    "done": {
+      "label": "Done",
+      "tone": "good",
+      "transition": {
+        "state": "idle",
+        "after": "IDLE_TIMEOUT_MS"
+      }
+    },
+    "start": {
+      "label": "Starting",
+      "tone": "active",
+      "transition": {
+        "state": "idle",
+        "after": "IDLE_TIMEOUT_MS"
+      }
+    }
+  }
+}

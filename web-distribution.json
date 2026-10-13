@@ -59,6 +59,8 @@
     "public/static/design/icon-16.png": "assets/web/icon-16.png",
     "public/static/design/icon-32.png": "assets/web/icon-32.png",
     "public/static/design/presentation.mjs": "src/shared/design/presentation.mjs",
-    "public/static/design/presentation.d.mts": "src/shared/design/presentation.d.mts"
+    "public/static/design/presentation.d.mts": "src/shared/design/presentation.d.mts",
+    "public/static/data/monitoring.json": "src/shared/data/monitoring.json",
+    "public/static/data/monitoring-cases.json": "src/shared/monitoring/cases.json"
   }
 }

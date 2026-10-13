@@ -1,0 +1,798 @@
+{
+  "version": 1,
+  "cases": [
+    {
+      "name": "start before silence boundary",
+      "elapsedMs": 0,
+      "sources": [
+        {
+          "sourceId": "agent",
+          "kind": "agent",
+          "state": "start",
+          "receiptAgeMs": 119999
+        }
+      ],
+      "expected": {
+        "accounts": {
+          "codex:work": "start"
+        }
+      }
+    },
+    {
+      "name": "start at silence boundary",
+      "elapsedMs": 1,
+      "sources": [
+        {
+          "sourceId": "agent",
+          "kind": "agent",
+          "state": "start",
+          "receiptAgeMs": 119999
+        }
+      ],
+      "expected": {
+        "accounts": {
+          "codex:work": "inactive"
+        }
+      }
+    },
+    {
+      "name": "idle before silence boundary",
+      "elapsedMs": 0,
+      "sources": [
+        {
+          "sourceId": "agent",
+          "kind": "agent",
+          "state": "idle",
+          "receiptAgeMs": 119999
+        }
+      ],
+      "expected": {
+        "accounts": {
+          "codex:work": "idle"
+        }
+      }
+    },
+    {
+      "name": "idle at silence boundary",
+      "elapsedMs": 1,
+      "sources": [
+        {
+          "sourceId": "agent",
+          "kind": "agent",
+          "state": "idle",
+          "receiptAgeMs": 119999
+        }
+      ],
+      "expected": {
+        "accounts": {
+          "codex:work": "inactive"
+        }
+      }
+    },
+    {
+      "name": "thinking before silence boundary",
+      "elapsedMs": 0,
+      "sources": [
+        {
+          "sourceId": "agent",
+          "kind": "agent",
+          "state": "thinking",
+          "receiptAgeMs": 119999
+        }
+      ],
+      "expected": {
+        "accounts": {
+          "codex:work": "thinking"
+        }
+      }
+    },
+    {
+      "name": "thinking at silence boundary",
+      "elapsedMs": 1,
+      "sources": [
+        {
+          "sourceId": "agent",
+          "kind": "agent",
+          "state": "thinking",
+          "receiptAgeMs": 119999
+        }
+      ],
+      "expected": {
+        "accounts": {
+          "codex:work": "inactive"
+        }
+      }
+    },
+    {
+      "name": "planning before silence boundary",
+      "elapsedMs": 0,
+      "sources": [
+        {
+          "sourceId": "agent",
+          "kind": "agent",
+          "state": "planning",
+          "receiptAgeMs": 119999
+        }
+      ],
+      "expected": {
+        "accounts": {
+          "codex:work": "planning"
+        }
+      }
+    },
+    {
+      "name": "planning at silence boundary",
+      "elapsedMs": 1,
+      "sources": [
+        {
+          "sourceId": "agent",
+          "kind": "agent",
+          "state": "planning",
+          "receiptAgeMs": 119999
+        }
+      ],
+      "expected": {
+        "accounts": {
+          "codex:work": "inactive"
+        }
+      }
+    },
+    {
+      "name": "working before silence boundary",
+      "elapsedMs": 0,
+      "sources": [
+        {
+          "sourceId": "agent",
+          "kind": "agent",
+          "state": "working",
+          "receiptAgeMs": 119999
+        }
+      ],
+      "expected": {
+        "accounts": {
+          "codex:work": "working"
+        }
+      }
+    },
+    {
+      "name": "working at silence boundary",
+      "elapsedMs": 1,
+      "sources": [
+        {
+          "sourceId": "agent",
+          "kind": "agent",
+          "state": "working",
+          "receiptAgeMs": 119999
+        }
+      ],
+      "expected": {
+        "accounts": {
+          "codex:work": "inactive"
+        }
+      }
+    },
+    {
+      "name": "packing before silence boundary",
+      "elapsedMs": 0,
+      "sources": [
+        {
+          "sourceId": "agent",
+          "kind": "agent",
+          "state": "packing",
+          "receiptAgeMs": 119999
+        }
+      ],
+      "expected": {
+        "accounts": {
+          "codex:work": "packing"
+        }
+      }
+    },
+    {
+      "name": "packing at silence boundary",
+      "elapsedMs": 1,
+      "sources": [
+        {
+          "sourceId": "agent",
+          "kind": "agent",
+          "state": "packing",
+          "receiptAgeMs": 119999
+        }
+      ],
+      "expected": {
+        "accounts": {
+          "codex:work": "inactive"
+        }
+      }
+    },
+    {
+      "name": "notification before silence boundary",
+      "elapsedMs": 0,
+      "sources": [
+        {
+          "sourceId": "agent",
+          "kind": "agent",
+          "state": "notification",
+          "receiptAgeMs": 119999
+        }
+      ],
+      "expected": {
+        "accounts": {
+          "codex:work": "notification"
+        }
+      }
+    },
+    {
+      "name": "notification at silence boundary",
+      "elapsedMs": 1,
+      "sources": [
+        {
+          "sourceId": "agent",
+          "kind": "agent",
+          "state": "notification",
+          "receiptAgeMs": 119999
+        }
+      ],
+      "expected": {
+        "accounts": {
+          "codex:work": "inactive"
+        }
+      }
+    },
+    {
+      "name": "done before silence boundary",
+      "elapsedMs": 0,
+      "sources": [
+        {
+          "sourceId": "agent",
+          "kind": "agent",
+          "state": "done",
+          "receiptAgeMs": 119999
+        }
+      ],
+      "expected": {
+        "accounts": {
+          "codex:work": "done"
+        }
+      }
+    },
+    {
+      "name": "done at silence boundary",
+      "elapsedMs": 1,
+      "sources": [
+        {
+          "sourceId": "agent",
+          "kind": "agent",
+          "state": "done",
+          "receiptAgeMs": 119999
+        }
+      ],
+      "expected": {
+        "accounts": {
+          "codex:work": "inactive"
+        }
+      }
+    },
+    {
+      "name": "sleep before silence boundary",
+      "elapsedMs": 0,
+      "sources": [
+        {
+          "sourceId": "agent",
+          "kind": "agent",
+          "state": "sleep",
+          "receiptAgeMs": 119999
+        }
+      ],
+      "expected": {
+        "accounts": {
+          "codex:work": "sleep"
+        }
+      }
+    },
+    {
+      "name": "sleep at silence boundary",
+      "elapsedMs": 1,
+      "sources": [
+        {
+          "sourceId": "agent",
+          "kind": "agent",
+          "state": "sleep",
+          "receiptAgeMs": 119999
+        }
+      ],
+      "expected": {
+        "accounts": {
+          "codex:work": "inactive"
+        }
+      }
+    },
+    {
+      "name": "alert before silence boundary",
+      "elapsedMs": 0,
+      "sources": [
+        {
+          "sourceId": "agent",
+          "kind": "agent",
+          "state": "alert",
+          "receiptAgeMs": 119999
+        }
+      ],
+      "expected": {
+        "accounts": {
+          "codex:work": "alert"
+        }
+      }
+    },
+    {
+      "name": "alert at silence boundary",
+      "elapsedMs": 1,
+      "sources": [
+        {
+          "sourceId": "agent",
+          "kind": "agent",
+          "state": "alert",
+          "receiptAgeMs": 119999
+        }
+      ],
+      "expected": {
+        "accounts": {
+          "codex:work": "inactive"
+        }
+      }
+    },
+    {
+      "name": "host stale boundary",
+      "elapsedMs": 1,
+      "sources": [
+        {
+          "sourceId": "resource",
+          "kind": "host",
+          "receiptAgeMs": 119999
+        }
+      ],
+      "expected": {
+        "resources": {
+          "resource": "stale"
+        }
+      }
+    },
+    {
+      "name": "cluster stale boundary",
+      "elapsedMs": 1,
+      "sources": [
+        {
+          "sourceId": "resource",
+          "kind": "cluster",
+          "receiptAgeMs": 119999
+        }
+      ],
+      "expected": {
+        "resources": {
+          "resource": "stale"
+        }
+      }
+    },
+    {
+      "name": "resource stale boundary",
+      "elapsedMs": 1,
+      "sources": [
+        {
+          "sourceId": "resource",
+          "kind": "resource",
+          "receiptAgeMs": 119999
+        }
+      ],
+      "expected": {
+        "resources": {
+          "resource": "stale"
+        }
+      }
+    },
+    {
+      "name": "start event age 59999",
+      "elapsedMs": 0,
+      "sources": [
+        {
+          "sourceId": "agent",
+          "kind": "agent",
+          "state": "start",
+          "eventAgeMs": 59999
+        }
+      ],
+      "expected": {
+        "accounts": {
+          "codex:work": "start"
+        }
+      }
+    },
+    {
+      "name": "start event age 60000",
+      "elapsedMs": 0,
+      "sources": [
+        {
+          "sourceId": "agent",
+          "kind": "agent",
+          "state": "start",
+          "eventAgeMs": 60000
+        }
+      ],
+      "expected": {
+        "accounts": {
+          "codex:work": "idle"
+        }
+      }
+    },
+    {
+      "name": "done event age 360000",
+      "elapsedMs": 0,
+      "sources": [
+        {
+          "sourceId": "agent",
+          "kind": "agent",
+          "state": "done",
+          "eventAgeMs": 360000
+        }
+      ],
+      "expected": {
+        "accounts": {
+          "codex:work": "sleep"
+        }
+      }
+    },
+    {
+      "name": "working event age 299999",
+      "elapsedMs": 0,
+      "sources": [
+        {
+          "sourceId": "agent",
+          "kind": "agent",
+          "state": "working",
+          "eventAgeMs": 299999
+        }
+      ],
+      "expected": {
+        "accounts": {
+          "codex:work": "working"
+        }
+      }
+    },
+    {
+      "name": "working event age 300000",
+      "elapsedMs": 0,
+      "sources": [
+        {
+          "sourceId": "agent",
+          "kind": "agent",
+          "state": "working",
+          "eventAgeMs": 300000
+        }
+      ],
+      "expected": {
+        "accounts": {
+          "codex:work": "idle"
+        }
+      }
+    },
+    {
+      "name": "working event age 600000",
+      "elapsedMs": 0,
+      "sources": [
+        {
+          "sourceId": "agent",
+          "kind": "agent",
+          "state": "working",
+          "eventAgeMs": 600000
+        }
+      ],
+      "expected": {
+        "accounts": {
+          "codex:work": "sleep"
+        }
+      }
+    },
+    {
+      "name": "idle event age 300000",
+      "elapsedMs": 0,
+      "sources": [
+        {
+          "sourceId": "agent",
+          "kind": "agent",
+          "state": "idle",
+          "eventAgeMs": 300000
+        }
+      ],
+      "expected": {
+        "accounts": {
+          "codex:work": "sleep"
+        }
+      }
+    },
+    {
+      "name": "notification event age 3600000",
+      "elapsedMs": 0,
+      "sources": [
+        {
+          "sourceId": "agent",
+          "kind": "agent",
+          "state": "notification",
+          "eventAgeMs": 3600000
+        }
+      ],
+      "expected": {
+        "accounts": {
+          "codex:work": "notification"
+        }
+      }
+    },
+    {
+      "name": "alert event age 3600000",
+      "elapsedMs": 0,
+      "sources": [
+        {
+          "sourceId": "agent",
+          "kind": "agent",
+          "state": "alert",
+          "eventAgeMs": 3600000
+        }
+      ],
+      "expected": {
+        "accounts": {
+          "codex:work": "alert"
+        }
+      }
+    },
+    {
+      "name": "older reporting project needs input",
+      "elapsedMs": 0,
+      "sources": [
+        {
+          "sourceId": "latest",
+          "kind": "agent",
+          "state": "working"
+        },
+        {
+          "sourceId": "waiting",
+          "kind": "agent",
+          "state": "notification",
+          "eventAgeMs": 100000
+        }
+      ],
+      "expected": {
+        "accounts": {
+          "codex:work": "notification"
+        },
+        "latest": {
+          "codex:work": "latest"
+        }
+      }
+    },
+    {
+      "name": "old stopped error is neutral",
+      "elapsedMs": 0,
+      "sources": [
+        {
+          "sourceId": "old",
+          "kind": "agent",
+          "state": "alert",
+          "health": "error",
+          "eventAgeMs": 300000,
+          "receiptAgeMs": 120000
+        },
+        {
+          "sourceId": "live",
+          "kind": "agent",
+          "state": "thinking"
+        }
+      ],
+      "expected": {
+        "accounts": {
+          "codex:work": "thinking"
+        },
+        "latest": {
+          "codex:work": "live"
+        }
+      }
+    },
+    {
+      "name": "all stopped accounts are neutral",
+      "elapsedMs": 0,
+      "sources": [
+        {
+          "sourceId": "old",
+          "kind": "agent",
+          "state": "alert",
+          "health": "error",
+          "receiptAgeMs": 120000
+        },
+        {
+          "sourceId": "older",
+          "kind": "agent",
+          "state": "notification",
+          "stale": true
+        }
+      ],
+      "expected": {
+        "accounts": {
+          "codex:work": "inactive"
+        },
+        "latest": {
+          "codex:work": "old"
+        }
+      }
+    },
+    {
+      "name": "health error outranks requested input",
+      "elapsedMs": 0,
+      "sources": [
+        {
+          "sourceId": "error",
+          "kind": "agent",
+          "state": "working",
+          "health": "error"
+        },
+        {
+          "sourceId": "input",
+          "kind": "agent",
+          "state": "notification"
+        }
+      ],
+      "expected": {
+        "accounts": {
+          "codex:work": "error"
+        },
+        "latest": {
+          "codex:work": "error"
+        }
+      }
+    },
+    {
+      "name": "alert outranks health warning",
+      "elapsedMs": 0,
+      "sources": [
+        {
+          "sourceId": "warning",
+          "kind": "agent",
+          "state": "working",
+          "health": "warning"
+        },
+        {
+          "sourceId": "alert",
+          "kind": "agent",
+          "state": "alert"
+        }
+      ],
+      "expected": {
+        "accounts": {
+          "codex:work": "alert"
+        },
+        "latest": {
+          "codex:work": "alert"
+        }
+      }
+    },
+    {
+      "name": "input request outranks warning",
+      "elapsedMs": 0,
+      "sources": [
+        {
+          "sourceId": "warning",
+          "kind": "agent",
+          "state": "working",
+          "health": "warning"
+        },
+        {
+          "sourceId": "input",
+          "kind": "agent",
+          "state": "notification"
+        }
+      ],
+      "expected": {
+        "accounts": {
+          "codex:work": "notification"
+        },
+        "latest": {
+          "codex:work": "input"
+        }
+      }
+    },
+    {
+      "name": "new stopped report cannot hide older live work",
+      "elapsedMs": 0,
+      "sources": [
+        {
+          "sourceId": "new",
+          "kind": "agent",
+          "state": "working",
+          "stale": true
+        },
+        {
+          "sourceId": "live",
+          "kind": "agent",
+          "state": "planning",
+          "eventAgeMs": 1000
+        }
+      ],
+      "expected": {
+        "accounts": {
+          "codex:work": "planning"
+        },
+        "latest": {
+          "codex:work": "new"
+        }
+      }
+    },
+    {
+      "name": "offline elapsed ages each project separately",
+      "elapsedMs": 1,
+      "sources": [
+        {
+          "sourceId": "a",
+          "kind": "agent",
+          "state": "notification",
+          "receiptAgeMs": 119999
+        },
+        {
+          "sourceId": "b",
+          "kind": "agent",
+          "state": "thinking"
+        }
+      ],
+      "expected": {
+        "accounts": {
+          "codex:work": "thinking"
+        },
+        "latest": {
+          "codex:work": "a"
+        }
+      }
+    },
+    {
+      "name": "stable ASCII source identity breaks equal event times",
+      "elapsedMs": 0,
+      "sources": [
+        {
+          "sourceId": "a",
+          "kind": "agent",
+          "state": "working"
+        },
+        {
+          "sourceId": "Z",
+          "kind": "agent",
+          "state": "planning"
+        }
+      ],
+      "expected": {
+        "accounts": {
+          "codex:work": "planning"
+        },
+        "latest": {
+          "codex:work": "Z"
+        }
+      }
+    },
+    {
+      "name": "same account id remains isolated by provider",
+      "elapsedMs": 0,
+      "sources": [
+        {
+          "sourceId": "codex",
+          "kind": "agent",
+          "state": "working"
+        },
+        {
+          "sourceId": "claude",
+          "kind": "agent",
+          "state": "notification",
+          "provider": "claude"
+        }
+      ],
+      "expected": {
+        "accounts": {
+          "codex:work": "working",
+          "claude:work": "notification"
+        }
+      }
+    }
+  ]
+}

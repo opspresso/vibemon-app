@@ -1,11 +1,6 @@
 // Pure display rules shared by the Desktop renderer and the private Web client.
-const states = {
-  ok: ['Healthy', 'good'], warning: ['Attention', 'warning'], error: ['Collection error', 'danger'],
-  unknown: ['Unknown health', 'neutral'], stale: ['Stale', 'warning'], inactive: ['Inactive', 'neutral'],
-  working: ['Working', 'active'], thinking: ['Thinking', 'active'], planning: ['Planning', 'active'],
-  packing: ['Compacting', 'active'], notification: ['Needs input', 'warning'], alert: ['Needs attention', 'danger'],
-  idle: ['Idle', 'neutral'], sleep: ['Resting', 'neutral'], done: ['Done', 'good'], start: ['Starting', 'active']
-};
+import policy from '../data/monitoring.json' with { type: 'json' };
+const { states } = policy;
 export const codingProviders = Object.freeze([
   { id: 'codex', name: 'Codex', character: 'codex' },
   { id: 'claude', name: 'Claude Code', character: 'clawd' },
@@ -14,7 +9,7 @@ export const codingProviders = Object.freeze([
   { id: 'opencode', name: 'OpenCode', character: 'vibemon' }
 ].map(Object.freeze));
 export const providerLabel = provider => codingProviders.find(item => item.id === provider)?.name ?? provider;
-export const statePresentation = state => Object.hasOwn(states, state) ? [...states[state]] : [state, 'neutral'];
+export const statePresentation = state => Object.hasOwn(states, state) ? [states[state].label, states[state].tone] : [state, 'neutral'];
 export const stateLabel = state => statePresentation(state)[0];
 export const stateTone = state => statePresentation(state)[1];
 
