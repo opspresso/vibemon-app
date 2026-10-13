@@ -3,9 +3,9 @@ name: run-desktop
 description: Run and drive the VibeMon Electron app — launch it, put a character on screen, switch between the 2D and 3D engines, and screenshot the window. Use when asked to start the app, take a screenshot of it, check a rendering change in the real app, or interact with its windows.
 ---
 
-VibeMon is a tray-only Electron app: `pnpm start` shows no window, because the
-character window is created on demand by a `POST /status` to its local HTTP
-server. For automated regression checks, use `pnpm test:overlays` and the isolated
+VibeMon starts in the tray. A local `POST /status` or fresh selected cloud-agent
+activity creates its character window on demand. For automated regression
+checks, use `pnpm test:overlays` and the isolated
 workspace fixture with `pnpm test:workspace`. For interactive
 agent verification, run `pnpm preview:workspace` and use the UI tools provided by the current session. The preview uses synthetic data, a loopback API, and fake integration/credential ports. It does not read or change the user's hooks or keychain.
 The optional `driver.mjs` is a manual CDP utility; do not use it when session
@@ -67,7 +67,7 @@ curl -X POST http://127.0.0.1:19280/status -H 'Content-Type: application/json' \
 
 ## Gotchas
 
-- **Launching gives you no window.** The dock icon is hidden and the character
+- **The manual driver's isolated profile starts without a window.** The Dock icon is hidden and the character
   window is created by `POST /status` (port 19280). `launch` alone proves only
   that the main process booted — always follow it with `status`.
 
@@ -104,6 +104,6 @@ curl -X POST http://127.0.0.1:19280/status -H 'Content-Type: application/json' \
   real app and unrelated processes.
 - **`status` times out waiting for the character window** — check `logs`; a
   renderer crash (bad vendored engine, CSP violation) shows up there.
-- **3D shows the default purple monster for every character** — the registry
-  entry lost its `theme`; check `src/shared/data/characters.json` and re-sync
-  with `pnpm check:registry -- --fix`.
+- **3D shows the default purple monster for every character** — check each
+  entry's `theme` in `src/shared/data/characters.json`. Restore missing palette
+  fields and run `pnpm check:registry`; the command validates but does not repair files.
