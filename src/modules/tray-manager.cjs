@@ -127,7 +127,7 @@ class TrayManager {
     if (this.monitoringClient && this.onMonitoringChange) this.monitoringClient.off('change', this.onMonitoringChange);
     this.monitoringClient = monitoringClient;
     this.onMonitoringChange = snapshot => {
-      this.cloudAttention = !['connected', 'connecting', 'not-configured'].includes(snapshot.status) || snapshot.sources.some(source => source.stale || ['error', 'warning'].includes(source.health) || ['alert', 'notification'].includes(source.agent?.state));
+      this.cloudAttention = !['connected', 'connecting', 'not-configured'].includes(snapshot.status) || snapshot.attentionCount > 0;
       this.updateIcon();
     };
     if (monitoringClient) {

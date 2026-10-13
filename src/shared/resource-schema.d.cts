@@ -14,3 +14,4 @@ export function canExtendDefinitions(before: MetricDefinitions, after: MetricDef
 export function definitionsFor(source: ResourceDisplay): MetricDefinitions;
 export function selectionKey(source: ResourceDisplay, metric: string): string;
 export function metricCatalog(sources: ResourceDisplay[]): MetricDefinitions;
+export function mergeMean(previous: number, previousCount: number, value: number, count?: number): number;

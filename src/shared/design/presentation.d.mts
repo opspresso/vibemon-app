@@ -1,9 +1,6 @@
 export type StateTone = 'neutral' | 'good' | 'warning' | 'danger' | 'active';
 export const codingProviders: ReadonlyArray<Readonly<{ id: string; name: string; character: string }>>;
 export function providerLabel(provider: string): string;
-export function needsAttention(state: string): boolean;
-export function dominantState(observations: Array<string | undefined>, fallback?: string): string;
-export function codingAccountState(observations: string[]): string;
 export function statePresentation(state: string): [string, StateTone];
 export function stateLabel(state: string): string;
 export function stateTone(state: string): StateTone;

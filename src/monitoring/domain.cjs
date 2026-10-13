@@ -1,4 +1,5 @@
 const { webOrigin } = require('../shared/web-origin.cjs');
+const { accountKey: accountId, groupAccounts } = require('../shared/monitoring/state.cjs');
 const { BUILTIN_METRICS: METRICS, validateDefinitions, validateValues, validateOrder, validText, definitionsFor, selectionKey, metricCatalog } = require('../shared/resource-schema.cjs');
 const validId = id => typeof id === 'string' && /^[a-zA-Z0-9][a-zA-Z0-9_.:-]{0,127}$/.test(id);
 function metrics(value, definitions = METRICS) {
@@ -56,24 +57,10 @@ function validateTrend(value, definitions = METRICS) {
 }
 module.exports = { METRICS, validId, webOrigin, validateSources, validateTrend, validateDefinitions, validateOrder, displayMetrics, metricCatalog };
 
-function accountId(account) { return `${account.provider}:${account.id}`; }
 function validAccountId(value) {
   if (typeof value !== 'string') return false;
   const separator = value.indexOf(':');
   return separator > 0 && /^[a-z][a-z0-9_-]{0,31}$/.test(value.slice(0, separator)) && validId(value.slice(separator + 1));
-}
-function groupAccounts(sources) {
-  const groups = new Map();
-  for (const source of sources) {
-    if (source.kind !== 'agent' || !source.account) continue;
-    const id = accountId(source.account);
-    if (!groups.has(id)) groups.set(id, []);
-    groups.get(id).push(source);
-  }
-  return [...groups].map(([id, members]) => {
-    members.sort((a, b) => b.observedAt.localeCompare(a.observedAt));
-    return { accountId: id, ...members[0].account, latest: members[0], sources: members };
-  });
 }
 module.exports.accountId = accountId;
 module.exports.validAccountId = validAccountId;

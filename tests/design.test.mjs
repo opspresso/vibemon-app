@@ -1,16 +1,29 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { dominantState, needsAttention, statePresentation, providerLabel, formatMeasurement, observationAge, formatAxisValue } from '../src/shared/design/presentation.mjs';
-import { sourceState, accountCard } from '../src/workspace/views/cards.js';
+import { statePresentation, providerLabel, formatMeasurement, observationAge, formatAxisValue } from '../src/shared/design/presentation.mjs';
+import { dominantState, needsAttention, sourceState, accountState } from '../src/shared/monitoring/state.cjs';
+import { mergeMean } from '../src/shared/resource-schema.cjs';
+
+test('weighted means remain inside the observed range without inventing maxima', () => {
+  for (const value of [0.1, -0.1, 52.32263514632913]) {
+    let average = value;
+    for (let count = 1; count < 1000; count++) average = mergeMean(average, count, value);
+    assert.equal(average, value);
+  }
+  assert.equal(mergeMean(10, 2, 40), 20);
+  assert.equal(mergeMean(10, 2, 40, 4), 30);
+});
 
 test('account freshness follows reporting projects while preserving stale project details', () => {
-  const fresh = { health: 'ok', stale: false, agent: { state: 'working' } };
-  const old = { health: 'error', stale: true, agent: { state: 'alert' } };
-  const state = sources => sourceState(accountCard({ latest: sources[0], sources }));
+  const fresh = { kind: 'agent', health: 'ok', stale: false, agent: { state: 'working' } };
+  const old = { kind: 'agent', health: 'error', stale: true, agent: { state: 'alert' } };
+  const state = sources => accountState({ sources });
   assert.equal(state([fresh, old]), 'working');
   assert.equal(state([old, fresh]), 'working');
-  assert.equal(sourceState(old), 'stale');
-  assert.equal(state([old, { ...fresh, stale: true }]), 'stale');
+  assert.equal(sourceState(old), 'inactive');
+  assert.equal(state([old, { ...fresh, stale: true }]), 'inactive');
+  assert.equal(needsAttention(state([old])), false);
+  assert.deepEqual(statePresentation('inactive'), ['Inactive', 'neutral']);
   assert.equal(state([fresh, { ...fresh, agent: { state: 'notification' } }, old]), 'notification');
   assert.equal(state([fresh, { ...fresh, health: 'error' }, old]), 'error');
 });

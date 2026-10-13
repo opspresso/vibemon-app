@@ -1,6 +1,6 @@
 # Desktop workspace
 
-Click the VibeMon menu-bar or tray icon to open its menu, then select **Dashboard** to open **Overview**. Resources and coding accounts appear together; local projects and available plan usage appear below them. Use the sidebar for **Resources**, **Coding agents**, or **Settings**. Select **Need attention** in Overview to show selected cloud sources with warnings, errors, stale data, or projects waiting for input. Select it again to restore the overview. Closing the workspace keeps the companion and local hooks running. **Show companion** restores the character to the desktop.
+Click the VibeMon menu-bar or tray icon to open its menu, then select **Dashboard** to open **Overview**. Resources and coding accounts appear together; local projects and available plan usage appear below them. Use the sidebar for **Resources**, **Coding agents**, or **Settings**. Select **Need attention** in Overview to show selected cloud sources with warnings, errors, stale resource data, or active projects waiting for input. Inactive coding projects do not need attention. Select it again to restore the overview. Closing the workspace keeps the companion and local hooks running. **Show companion** restores the character to the desktop.
 
 The tray menu provides Dashboard, Settings, Show companion, Integrations, About, and Quit. The application menu uses the same workspace pages. On Windows, press `Alt` to reveal the menu bar. Preferences live in the workspace. Keyboard shortcuts are `Cmd/Ctrl+1` for Overview, `Cmd/Ctrl+2` for Resources, `Cmd/Ctrl+3` for Coding agents, and `Cmd/Ctrl+,` for Companion settings. `Cmd/Ctrl+W` closes the workspace window without quitting the App.
 
@@ -38,7 +38,7 @@ Open **Settings → Integrations → Send activity to Web**. Enter the Web origi
 
 ## Coding accounts and local activity
 
-Each provider/account ID has its own card and selection. Codex, Claude, Kiro, and other providers can each have several accounts. Cards show the account ID, latest observation's usage, and reporting projects. The status badge surfaces errors, input requests, and warnings from projects still reporting. An account becomes **Stale** only when all its projects are stale. **Details** preserves each project's status, including stopped projects. Search by account or project, or filter by provider. The account history averages its summaries; percentages are not summed.
+Each provider/account ID has its own card and selection. Codex, Claude, Kiro, and other providers can each have several accounts. Cards show the account ID, latest observation's usage, and reporting projects. The status badge surfaces errors, input requests, and warnings from projects still reporting. An account becomes **Inactive** when all its projects stop reporting for 120 seconds. Inactive projects do not affect attention counts or the tray badge. App and Web share the same state and account rules. **Details** preserves each project's status, including stopped projects. Search by account or project, or filter by provider. The account history averages its summaries; percentages are not summed.
 
 Equal project names across accounts remain separate. Identity metadata does not switch tool logins: use each tool's matching signed-in environment. **Connect account** opens Web's account setup, including Kiro account overrides. See the [provider/account contract](https://vibemon.io/docs/api/monitoring#multiple-provider-accounts).
 
@@ -63,6 +63,7 @@ Preference changes save automatically. Connection and selection forms save only 
 | --- | --- |
 | `—` | No supported measurement was reported. This is not zero. |
 | **Stale** | No accepted receipt for 120 seconds. Check the collector; displayed values are the last known observation. |
+| **Inactive** | A coding project has not reported for 120 seconds. Event-based hooks may be silent between tasks; no action is required. |
 | **Token not accepted** | Retrieve an active read token from Web Account. |
 | **Read access required** | Replace the token with one that has read permission. |
 | **Replace saved token** | The local credential cannot be decrypted. Enter it again from Web Account. |

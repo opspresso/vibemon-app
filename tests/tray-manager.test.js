@@ -115,15 +115,11 @@ test('focus defaults to the registry character when no project exists', () => {
 });
 
 test.each([
-  ['connected', [], false], ['connecting', [], false], ['not-configured', [], false],
-  ['connection-error', [], true], ['token-expired', [], true],
-  ['connected', [{ health: 'ok', stale: true }], true],
-  ['connected', [{ health: 'warning' }], true], ['connected', [{ health: 'error' }], true],
-  ['connected', [{ health: 'ok', agent: { state: 'notification' } }], true],
-  ['connected', [{ health: 'ok', agent: { state: 'alert' } }], true],
-  ['connected', [{ health: 'ok', agent: { state: 'working' } }], false]
-])('cloud attention: %s %p → %s', (status, sources, attention) => {
-  const client = Object.assign(new EventEmitter(), { snapshot: jest.fn(() => ({ status, sources })) });
+  ['connected', 0, false], ['connecting', 0, false], ['not-configured', 0, false],
+  ['connection-error', 0, true], ['token-expired', 0, true],
+  ['connected', 1, true], ['connected', 2, true]
+])('cloud attention: %s %p → %s', (status, attentionCount, attention) => {
+  const client = Object.assign(new EventEmitter(), { snapshot: jest.fn(() => ({ status, attentionCount })) });
   manager.setMonitoringClient(client);
   expect(manager.hasAttentionBadge()).toBe(attention);
   manager.updateIcon(); manager.updateIcon();
