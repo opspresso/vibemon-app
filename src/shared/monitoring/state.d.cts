@@ -18,7 +18,7 @@ export function sourceStale(source: Pick<MonitoringSource, 'receivedAt' | 'stale
 export function idleAgentState(state: string, observedAt: string, now?: number): string;
 export function sourceState(source: MonitoringSource, now?: number): string;
 export function codingAccountState(states: string[]): string;
-export function accountState(account: { sources: MonitoringSource[] }, now?: number): string;
+export function accountState<T extends { sources: MonitoringSource[] }>(account: T, now?: number): string;
 export function accountKey(account: { id: string; provider: string }): string;
 export function groupAccounts<T extends MonitoringSource>(sources: T[]): MonitoringAccount<T>[];
 export function attentionCount(sources: MonitoringSource[], now?: number): number;
