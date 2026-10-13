@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'">
 <title>VibeMon Speech Bubble</title>
-<link rel="stylesheet" href="bubble/vibemon-bubble.css">
+<link rel="stylesheet" href="shared/bubble/vibemon-bubble.css">
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
 
@@ -64,7 +64,7 @@
   </div>
 
   <script type="module">
-    import { renderBubble } from './bubble/vibemon-bubble.js';
+    import { renderBubble } from './shared/bubble/vibemon-bubble.js';
     import { installWindowInteraction, hitTestBubble } from './shared/window-interaction.js';
     const cleanupInteraction = installWindowInteraction({
       hitTest: (x, y) => hitTestBubble(document.getElementById('bubble'), x, y)
@@ -72,7 +72,7 @@
     window.addEventListener('unload', cleanupInteraction);
 
     // Called from the main process via webContents.executeJavaScript(). See
-    // bubble/vibemon-bubble.js's renderBubble() for the `fields` shape.
+    // shared/bubble/vibemon-bubble.js's renderBubble() for the `fields` shape.
     // tailSide is the bubble edge the tail sits on ('bottom'/'top' when the
     // bubble is above/below the character, 'left'/'right' when it's beside
     // it); tailOffset is the tail's offset in px along that edge (left

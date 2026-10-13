@@ -4,6 +4,7 @@
 
 const { VALID_STATES, OBSERVATION_MAX_AGE_MS, OBSERVATION_CLOCK_SKEW_MS } = require('../shared/config.cjs');
 const { validId, validAccountId } = require('../monitoring/domain.cjs');
+const { validPercentage } = require('../shared/resource-schema.cjs');
 
 // Local hook payload limits. Cloud source validation lives in
 // monitoring/domain.cjs and uses the cloud API's source contract.
@@ -98,8 +99,8 @@ function validateUsage(value, label) {
   if (typeof value !== 'number') {
     return { valid: false, error: `${label} must be a number` };
   }
-  if (!Number.isInteger(value) || value < 0 || value > 100) {
-    return { valid: false, error: `${label} must be an integer between 0 and 100` };
+  if (!validPercentage(value)) {
+    return { valid: false, error: `${label} must be a finite number between 0 and 100` };
   }
   return { valid: true, error: null };
 }

@@ -98,7 +98,7 @@ module.exports = [
   },
   // ES Module files (renderer, shared)
   {
-    files: ['src/renderer.js', 'src/workspace/**/*.js', 'src/shared/*.js', 'src/engine/*.{js,mjs}', 'src/bubble/*.js'],
+    files: ['src/renderer.js', 'src/workspace/**/*.js', 'src/shared/*.js', 'src/engine/*.{js,mjs}', 'src/shared/bubble/*.js'],
     languageOptions: {
       ecmaVersion: 2022,
       sourceType: 'module',

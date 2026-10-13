@@ -23,12 +23,12 @@ This reference describes the Desktop App's local HTTP server on `127.0.0.1:19280
 | `project` | 128 chars | String |
 | `tool` | 64 chars | String |
 | `model` | 64 chars | String |
-| `memory` | - | Integer 0-100 (context-window usage) |
-| `usage5h` | - | Integer 0-100 (5-hour plan-usage window) |
-| `usageWeek` | - | Integer 0-100 (weekly plan-usage window) |
+| `memory` | - | Finite number 0-100 (context-window usage) |
+| `usage5h` | - | Finite number 0-100 (5-hour plan-usage window) |
+| `usageWeek` | - | Finite number 0-100 (weekly plan-usage window) |
 | `usage5hResetsIn` | - | Non-negative integer (minutes until the 5-hour window resets) |
 | `usageWeekResetsIn` | - | Non-negative integer (minutes until the weekly window resets) |
-| `usageWeekModel` | - | Integer 0-100 (model-scoped weekly plan-usage window, e.g. the Fable bucket) |
+| `usageWeekModel` | - | Finite number 0-100 (model-scoped weekly plan-usage window, e.g. the Fable bucket) |
 | `usageWeekModelResetsIn` | - | Non-negative integer (minutes until the model-scoped weekly window resets) |
 | `usageWeekModelLabel` | 64 chars | Display label for the model-scoped weekly window (e.g. `Fable`) |
 | `character` | - | `vibemon`, `clawd`, `codex`, `kiro`, `claw`, or `daangni` (unknown names fall back to `vibemon`) |

@@ -1,6 +1,7 @@
 /** Pure resource display/validation contract shared by Web and Desktop. */
 const MAX_METRICS = 32;
 const MAX_VALUE = Number.MAX_SAFE_INTEGER;
+const validPercentage = value => typeof value === 'number' && Number.isFinite(value) && value >= 0 && value <= 100;
 const BUILTIN_METRICS = Object.freeze(Object.fromEntries(Object.entries({
   cpuPercent: { label: 'CPU', unit: '%', display: 'gauge', min: 0, max: 100 },
   memoryPercent: { label: 'Memory', unit: '%', display: 'gauge', min: 0, max: 100 },
@@ -85,4 +86,4 @@ function mergeMean(previous, previousCount, value, count = 1) {
   const mean = previous + (value - previous) * (count / (previousCount + count));
   return Math.min(Math.max(previous, value), Math.max(Math.min(previous, value), mean));
 }
-module.exports = { MAX_METRICS, MAX_VALUE, BUILTIN_METRICS, validText, validMetricKey, validateDefinitions, validateValues, validateOrder, sameMeaning, canExtendDefinitions, definitionsFor, selectionKey, metricCatalog, mergeMean };
+module.exports = { MAX_METRICS, MAX_VALUE, BUILTIN_METRICS, validPercentage, validText, validMetricKey, validateDefinitions, validateValues, validateOrder, sameMeaning, canExtendDefinitions, definitionsFor, selectionKey, metricCatalog, mergeMean };

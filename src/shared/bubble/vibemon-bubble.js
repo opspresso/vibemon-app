@@ -48,6 +48,8 @@
  * the text contrast does not depend on content behind the bubble.
  */
 
+import { formatMeasurement } from '../design/presentation.mjs';
+
 // Same green/yellow/orange/red thresholds as statusline.py's C_GREEN/C_YELLOW/C_ORANGE/C_RED.
 export function barColor(percent) {
   if (percent > 90) return '#FF4444';
@@ -144,8 +146,8 @@ export function renderBubble(bubbleEl, fields, tailSide, bgColor, opts) {
       fill.style.width = pct + '%';
       fill.style.background = barColor(pct);
       const pctText = typeof data.resetIn === 'number'
-        ? `${pct}% · ${formatMinutes(data.resetIn)}`
-        : `${pct}%`;
+        ? `${formatMeasurement(pct, '%')} · ${formatMinutes(data.resetIn)}`
+        : formatMeasurement(pct, '%');
       value.textContent = data.label ? `${data.label} ${pctText}` : pctText;
       row.style.display = 'flex';
     } else if (row.dataset.field === 'status') {

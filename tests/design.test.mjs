@@ -6,7 +6,7 @@ import { mergeMean } from '../src/shared/resource-schema.cjs';
 import { monitoringContract } from '../scripts/generate-monitoring.mjs';
 import fixtures from '../src/shared/monitoring/cases.json' with { type: 'json' };
 import states from '../src/shared/data/states.json' with { type: 'json' };
-import { pickTextColor, hexToRgb } from '../src/bubble/vibemon-bubble.js';
+import { pickTextColor, hexToRgb } from '../src/shared/bubble/vibemon-bubble.js';
 
 test('every shared speech-bubble state has readable text on its opaque background', () => {
   const luminance = hex => {

@@ -563,6 +563,9 @@ async function run() {
           const colors = await idleBubble.webContents.executeJavaScript('(() => { const style = getComputedStyle(document.getElementById("bubble")); return { text: style.color, background: style.backgroundColor }; })()');
           assert.deepEqual(colors, { text: 'rgb(0, 0, 0)', background: 'rgb(0, 170, 0)' });
           fs.writeFileSync(path.join(output, 'bubble-idle-contrast.png'), (await idleBubble.webContents.capturePage()).toPNG());
+          await bubbleManager.update('test', { state: { state: 'idle', usage5h: 1.005, usageWeek: 12.3456 }, speechBubbleFields: { usage5h: true, usageWeek: true } });
+          const values = await idleBubble.webContents.executeJavaScript('[...document.querySelectorAll(".bubble-metric")].filter(row => row.style.display !== "none").map(row => row.querySelector(".bubble-value").textContent)');
+          assert.deepEqual(values, ['1.01%', '12.35%']);
         }
         bubbleManager.cleanup();
         characterManager.cleanup();

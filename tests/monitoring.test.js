@@ -196,6 +196,13 @@ describe('cloud monitoring', () => {
     expect(() => webOrigin('https://user:password@example.com')).toThrow();
     expect(webOrigin('http://127.0.0.1:3000', true)).toBe('http://127.0.0.1:3000');
   });
+  test('cloud model-scoped percentages preserve decimals while reset durations remain integers', () => {
+    const raw = { ...source(1000000), kind: 'agent', account: { provider: 'codex', id: 'work', displayName: 'Work' },
+      agent: { state: 'working', character: 'codex', project: 'demo', usageWeekModel: 22.875, usageWeekModelResetsIn: 120 } };
+    expect(validateSources([raw])[0].agent.usageWeekModel).toBe(22.875);
+    for (const value of [-1, 101, Infinity, NaN]) expect(() => validateSources([{ ...raw, agent: { ...raw.agent, usageWeekModel: value } }])).toThrow();
+    expect(() => validateSources([{ ...raw, agent: { ...raw.agent, usageWeekModelResetsIn: 1.5 } }])).toThrow();
+  });
 });
 
 describe('credential storage', () => {

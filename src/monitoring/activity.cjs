@@ -25,7 +25,7 @@ class CloudActivity {
       this.seen.set(source.sourceId, { observedAt: source.observedAt, state });
       const data = { ...source.agent, state };
       for (const [metric, field] of [['contextPercent', 'memory'], ['usageSessionPercent', 'usage5h'], ['usageWeekPercent', 'usageWeek']]) {
-        if (typeof source.metrics[metric] === 'number') data[field] = Math.round(source.metrics[metric]);
+        if (typeof source.metrics[metric] === 'number') data[field] = source.metrics[metric];
       }
       this.update(data, source.sourceId, { activity });
     }

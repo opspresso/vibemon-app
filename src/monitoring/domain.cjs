@@ -1,6 +1,6 @@
 const { webOrigin } = require('../shared/web-origin.cjs');
 const { accountKey: accountId, groupAccounts } = require('../shared/monitoring/state.cjs');
-const { BUILTIN_METRICS: METRICS, validateDefinitions, validateValues, validateOrder, validText, definitionsFor, selectionKey, metricCatalog } = require('../shared/resource-schema.cjs');
+const { BUILTIN_METRICS: METRICS, validPercentage, validateDefinitions, validateValues, validateOrder, validText, definitionsFor, selectionKey, metricCatalog } = require('../shared/resource-schema.cjs');
 const validId = id => typeof id === 'string' && /^[a-zA-Z0-9][a-zA-Z0-9_.:-]{0,127}$/.test(id);
 function metrics(value, definitions = METRICS) {
   // Edited display ranges do not invalidate measurements outside the visible gauge.
@@ -35,7 +35,7 @@ function validateSources(value) {
       }
       for (const key of ['usage5hResetsIn', 'usageWeekResetsIn', 'usageWeekModelResetsIn', 'usageWeekModel']) {
         const number = source.agent[key];
-        if (number !== undefined && (!Number.isSafeInteger(number) || number < 0 || (key === 'usageWeekModel' && number > 100))) throw new Error('Invalid agent response');
+        if (number !== undefined && (key === 'usageWeekModel' ? !validPercentage(number) : !Number.isSafeInteger(number) || number < 0)) throw new Error('Invalid agent response');
         if (number !== undefined) agent[key] = number;
       }
       account = { id: source.account.id, provider: source.account.provider, displayName: source.account.displayName };

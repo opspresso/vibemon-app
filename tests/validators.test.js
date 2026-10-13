@@ -149,10 +149,9 @@ describe('validateMemory', () => {
     expect(result.error).toContain('0 and 100');
   });
 
-  test('rejects non-integer memory', () => {
+  test('accepts fractional memory without losing precision', () => {
     const result = validateMemory(50.5);
-    expect(result.valid).toBe(false);
-    expect(result.error).toContain('integer');
+    expect(result.valid).toBe(true);
   });
 });
 
@@ -164,13 +163,13 @@ describe('validateUsage', () => {
   });
 
   test('accepts valid usage values', () => {
-    [0, 36, 100].forEach(value => {
+    [0, 1.005, 36.123456, 100].forEach(value => {
       expect(validateUsage(value, 'usage5h').valid).toBe(true);
     });
   });
 
-  test('rejects out-of-range and non-integer values', () => {
-    [101, -1, 12.5].forEach(value => {
+  test('rejects out-of-range and non-finite values', () => {
+    [101, -1, NaN, Infinity, -Infinity].forEach(value => {
       expect(validateUsage(value, 'usageWeek').valid).toBe(false);
     });
   });
