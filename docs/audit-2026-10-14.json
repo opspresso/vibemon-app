@@ -1,6 +1,6 @@
 {
   "reviewDate": "2026-10-14",
-  "implementationHead": "706c2cf8474244c3b4b329537cd72eb86b51d709",
+  "implementationHead": "b05877dfa208f5c0952972783435fa90fbf554d7",
   "trackedFiles": 306,
   "scope": "All tracked files plus this authored report/inventory; symlink digests cover target bytes. Ignored build/dependency output excluded. Publication/device claims require separate evidence.",
   "files": [
@@ -276,7 +276,7 @@
     },
     {
       "path": "docs/audit-2026-10-14.md",
-      "sha256": "f4ddfccf2b5e8353a1786c29cd9df9173809cc4744e5d07687edab37212bcc8c",
+      "sha256": "802cfbcc92301acff64c02a25df82d5ffeab327310e3a90101ca094ec947876f",
       "boundary": "source, callers and applicable validation; documents checked against current contract or explicit historical scope"
     },
     {
@@ -1221,7 +1221,7 @@
     },
     {
       "path": "tests/hooks/test_install.py",
-      "sha256": "e393ae4bc7dc98dfea57ce48ac31f6c84aafd5197c4730575ba9266340538e54",
+      "sha256": "3847915b6adf31ef99c89979dd23568ee0db72794749f2ae804d54ba84c0a61f",
       "boundary": "source, callers and applicable validation; documents checked against current contract or explicit historical scope"
     },
     {
@@ -1361,7 +1361,7 @@
     },
     {
       "path": "tests/native/workspace-smoke.cjs",
-      "sha256": "0421ed0ac88db9442bea43ba0b0de9d3b185a79c86e2ef626d1b92308b479f68",
+      "sha256": "1e342d818dc043bb1f30c5d72a390ee3fb6b46d27391f87bcfb4147e72636295",
       "boundary": "source, callers and applicable validation; documents checked against current contract or explicit historical scope"
     },
     {
