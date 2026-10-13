@@ -39,8 +39,8 @@ After installation, edit `~/.vibemon/config.json` to configure your targets:
 | `debug` | Enable debug logging | `true` |
 | `cache_path` | Cache file path for project metadata | `~/.vibemon/cache/projects.json` |
 | `auto_launch` | Auto-launch Desktop App on session start | `true` |
-| `http_urls` | HTTP targets (Desktop App, ESP32 WiFi) | `["http://127.0.0.1:19280"]` |
-| `serial_port` | ESP32 USB serial port (wildcard supported; POSIX only, ignored on Windows) | `"/dev/cu.usbmodem*"` |
+| `http_urls` | Local status-push targets (Desktop App or legacy ESP32-C6 firmware) | `["http://127.0.0.1:19280"]` |
+| `serial_port` | Legacy ESP32-C6 USB serial port (wildcard supported; POSIX only, ignored on Windows) | `"/dev/cu.usbmodem*"` |
 | `vibemon_url` | VibeMon cloud API URL | `https://vibemon.io` |
 | `vibemon_token` | Generated write token (from /account) | |
 
@@ -94,11 +94,11 @@ The installer honors an `OPENCODE_CONFIG_DIR` override (default `$XDG_CONFIG_HOM
 
 ## CLI Commands
 
-The hook script supports these commands. `--status` works with every
-monitor target. `--lock`, `--unlock`, and `--lock-mode` are attempted
+The hook script supports these commands for local status-push targets, not
+VibeMon Touch. `--status` queries configured local targets. `--lock`, `--unlock`, and `--lock-mode` are attempted
 against every configured HTTP target first (a Desktop app that doesn't
 expose the endpoint is skipped) and then over serial; `--reboot` targets
-the ESP32 only and skips the Desktop app:
+legacy ESP32-C6 firmware only and skips the Desktop app:
 
 ```bash
 # Lock monitor to current project
@@ -113,7 +113,7 @@ python3 ~/.claude/hooks/vibemon.py --status
 # Get/set lock mode (first-project, on-thinking)
 python3 ~/.claude/hooks/vibemon.py --lock-mode [mode]
 
-# Reboot ESP32 device
+# Reboot a legacy ESP32-C6 device
 python3 ~/.claude/hooks/vibemon.py --reboot
 ```
 
@@ -135,7 +135,9 @@ Features: frameless floating window, always on top, system tray integration, sna
 
 ### ESP32 Hardware
 
-ESP32 firmware is outside this overhaul. Local serial integration is unchanged. See the [firmware repository](https://github.com/opspresso/vibemon-esp32) for hardware setup. The retired cloud WebSocket endpoint is unavailable.
+VibeMon Touch runs on the four-inch ESP32-S3 board and polls the same HTTPS summaries as Desktop. Configure Wi-Fi, the Web origin, and a read token on its screen. Hooks send activity to Web with a write token; Touch does not receive those events through `http_urls` or `serial_port`. See the [firmware repository](https://github.com/opspresso/vibemon-esp32) for setup.
+
+Existing ESP32-C6 devices use the [previous firmware](https://github.com/opspresso/vibemon-esp32/tree/e6c272c) and can retain local HTTP/serial delivery. Do not flash the Touch build to a C6 board. The retired cloud WebSocket endpoint is unavailable.
 
 ## API
 

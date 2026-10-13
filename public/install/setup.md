@@ -137,4 +137,10 @@ curl -fsSL https://vibemon.io/install/install.py | python3 - --uninstall --claud
 
 The Windows wrapper accepts the same flags. `--uninstall --all` removes tool integrations; `--uninstall --vibemon` removes shared scripts. Configuration and unrelated hooks remain. A removal failure returns a failing exit code.
 
-For hook event mappings and configuration details, see the [hook reference](https://vibemon.io/docs/hooks). ESP32 firmware and deployment are outside this overhaul; existing local serial integration is retained.
+For hook event mappings and configuration details, see the [hook reference](https://vibemon.io/docs/hooks).
+
+## VibeMon Touch and legacy devices
+
+VibeMon Touch on the four-inch ESP32-S3 board reads summaries from Web over HTTPS. Configure Wi-Fi, the Web origin, and a read token on the device. Hooks deliver to Web with a write token; neither `http_urls` nor `serial_port` configures Touch. See the [Touch setup guide](https://github.com/opspresso/vibemon-esp32#set-up-the-device).
+
+Local HTTP/serial delivery remains available for ESP32-C6 devices using the [previous firmware](https://github.com/opspresso/vibemon-esp32/tree/e6c272c). The Touch firmware is not compatible with C6 boards.

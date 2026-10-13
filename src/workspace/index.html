@@ -404,7 +404,7 @@
             <summary>Local delivery settings<span id="routing-status" class="chip neutral"></span></summary>
             <p id="routing-error" class="field-help" role="alert" hidden></p>
             <p class="muted small">
-              Forward local tool events to the desktop or another device. These settings do not contain your
+              Forward local tool events to the desktop or a legacy C6 device. These settings do not contain your
               dashboard read token.
             </p>
             <div class="section-heading">
@@ -422,9 +422,10 @@
               /><button class="button secondary">Add destination</button>
             </form>
             <div class="setting-row">
-              <label for="vibemon-serial-port">Serial device</label
-              ><input id="vibemon-serial-port" type="text" placeholder="No serial device" />
+              <label for="vibemon-serial-port">Legacy C6 serial device</label
+              ><input id="vibemon-serial-port" type="text" placeholder="No serial device" aria-describedby="touch-delivery-help" />
             </div>
+            <p id="touch-delivery-help" class="field-help">VibeMon Touch reads Web data directly. Set up Wi-Fi and a read token on its screen; these HTTP and serial destinations apply only to local status-push clients.</p>
             <div class="setting-row">
               <label for="vibemon-auto-launch">Open the installed App on session start</label
               ><input id="vibemon-auto-launch" type="checkbox" class="switch" />
