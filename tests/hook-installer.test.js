@@ -550,6 +550,25 @@ describe('HookInstaller', () => {
   describe('broken registrations', () => {
     const claude = TOOLS.find(t => t.flag === '--claude');
 
+    test('inspects literal Windows launchers without evaluating their encoded commands', () => {
+      const vector = jest.requireActual('./fixtures/windows-hook-commands.json');
+      const loaded = loadInstallerFor({ platform: 'win32' });
+      const tool = loaded.TOOLS.find(item => item.flag === '--codex');
+      mockToolInstalled(tool, { config: JSON.stringify({ hooks: { Stop: [{ hooks: [{ command: 'python3 ~/.codex/hooks/vibemon.py', commandWindows: vector.command }] }] } }) });
+      const exists = fs.existsSync.getMockImplementation();
+      fs.existsSync.mockImplementation(file => vector.args.slice(0, 2).includes(file) || exists(file));
+      const installer = new loaded.HookInstaller();
+      expect(installer.getCachedStatuses().find(item => item.flag === '--codex')).toMatchObject({ hasHook: true, broken: false });
+      fs.existsSync.mockImplementation(file => file !== vector.args[0] && (vector.args.includes(file) || exists(file)));
+      expect(installer.refreshStatuses().find(item => item.flag === '--codex')).toMatchObject({ hasHook: true, broken: true, brokenPath: vector.args[0] });
+      expect(spawn).not.toHaveBeenCalled();
+    });
+
+    test.each(['bad!', '', Buffer.from("Write-Output 'vibemon.py'", 'utf16le').toString('base64')])('does not mistake a nonliteral encoded command for an installed hook: %s', value => {
+      mockToolInstalled(claude, { config: JSON.stringify({ hooks: { Stop: [{ hooks: [{ command: 'powershell.exe -NoLogo -NoProfile -NonInteractive -EncodedCommand ' + value }] }] } }) });
+      expect(hookInstaller.refreshStatuses().find(item => item.flag === '--claude').hasHook).toBe(false);
+    });
+
     // install.py bakes absolute paths into the Windows hook command; a Python
     // upgrade moves the interpreter and every hook silently stops running,
     // while the script file and its hash both still look fine.

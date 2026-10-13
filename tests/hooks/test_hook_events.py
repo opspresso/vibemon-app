@@ -2,7 +2,6 @@ import io
 import json
 import os
 import runpy
-import shlex
 import subprocess
 import sys
 import threading
@@ -258,11 +257,12 @@ def test_stalled_stty_is_bounded(tmp_path):
 def test_custom_hook_paths_survive_real_shell_expansion(tmp_path):
     # These are literal path characters, not shell syntax to execute.
     special = tmp_path / "agent $NOT_A_VAR; 'quoted' & space"
-    special.mkdir()
-    script = special / "vibemon.py"
+    (special / 'hooks').mkdir(parents=True)
+    script = special / 'hooks/vibemon.py'
     script.write_text("print('hook-ran')\n")
     with patch.object(install, "IS_WINDOWS", False):
-        command = f"{shlex.quote(sys.executable)} {install._shell_quote(str(script))}"
+        config = install.adapt_codex_hooks({'hooks': {'Stop': [{'hooks': [{'command': 'python3 ~/.codex/hooks/vibemon.py'}]}]}}, special)
+        command = config['hooks']['Stop'][0]['hooks'][0]['command']
     result = subprocess.run(["/bin/sh", "-c", command], capture_output=True, text=True, timeout=5)
     assert result.returncode == 0
     assert result.stdout.strip() == "hook-ran"

@@ -36,6 +36,7 @@ against the manifest's "installer" hash before running it.
 from __future__ import annotations
 
 import argparse
+import base64
 import difflib
 import hashlib
 import getpass
@@ -609,9 +610,26 @@ def merge_hooks(existing: dict, new_hooks: dict) -> dict:
     return result
 
 
+WINDOWS_ENCODED_PREFIX = "powershell.exe -NoLogo -NoProfile -NonInteractive -EncodedCommand "
+WINDOWS_LITERAL_PREFIX = "$ErrorActionPreference='Stop'; & "
+WINDOWS_LITERAL_SUFFIX = "; exit $LASTEXITCODE"
+
+
 def _command_tokens(command: str, windows: bool = None) -> list[str]:
     if not isinstance(command, str):
         return []
+    if command.startswith(WINDOWS_ENCODED_PREFIX):
+        try:
+            script = base64.b64decode(command[len(WINDOWS_ENCODED_PREFIX):], validate=True).decode("utf-16le")
+        except (ValueError, UnicodeError):
+            return []
+        if not script.startswith(WINDOWS_LITERAL_PREFIX) or not script.endswith(WINDOWS_LITERAL_SUFFIX):
+            return []
+        arguments = script[len(WINDOWS_LITERAL_PREFIX):-len(WINDOWS_LITERAL_SUFFIX)]
+        literals = re.findall(r"'(?:''|[^'])*'", arguments)
+        if len(literals) < 2 or arguments != " ".join(literals):
+            return []
+        return [literal[1:-1].replace("''", "'") for literal in literals]
     windows = IS_WINDOWS if windows is None else windows
     if windows and command.lstrip().startswith('& '):
         # Literal arguments emitted by windows_shell_command. PowerShell
@@ -786,11 +804,19 @@ def hook_path(path: Path) -> str:
     return str(path).replace("\\", "/")
 
 
-def _shell_quote(value: str, windows: bool = None) -> str:
-    """Quote a path for a shell-form command, only when it actually needs it."""
-    if not (IS_WINDOWS if windows is None else windows):
-        return shlex.quote(value)
-    return f'"{value}"' if " " in value else value
+def windows_hook_command(python: str, script: str, *args: str) -> str:
+    """Run literal argv under any Windows provider shell, retaining stdin.
+
+    Simple paths work directly in CMD, PowerShell and Git Bash. Other paths
+    need an explicit shell: no quoted executable syntax works in all three.
+    EncodedCommand keeps the outer shell from expanding or splitting literals.
+    """
+    values = (python, script, *args)
+    if all(re.fullmatch(r"[A-Za-z0-9_./:-]+", value) for value in values):
+        return " ".join(values)
+    literals = ["'" + value.replace("'", "''") + "'" for value in values]
+    invocation = WINDOWS_LITERAL_PREFIX + " ".join(literals) + WINDOWS_LITERAL_SUFFIX
+    return WINDOWS_ENCODED_PREFIX + base64.b64encode(invocation.encode("utf-16le")).decode("ascii")
 
 
 def has_git_bash() -> bool:
@@ -889,13 +915,13 @@ def adapt_claude_settings(settings: dict, claude_home: Path = None) -> dict:
                         hook["command"] = python
                         hook["args"] = [hook_script]
                     else:
-                        hook["command"] = f"{python} {_shell_quote(hook_script)}"
+                        hook["command"] = f"{python} {shlex.quote(hook_script)}"
 
     status_line = settings.get("statusLine")
     if isinstance(status_line, dict) and "statusline.py" in status_line.get("command", ""):
         status_line["command"] = (
             windows_shell_command(python, statusline_script) if IS_WINDOWS
-            else f"{python} {_shell_quote(statusline_script)}"
+            else f"{python} {shlex.quote(statusline_script)}"
         )
 
     return settings
@@ -912,10 +938,8 @@ def adapt_codex_hooks(hooks_config: dict, codex_home: Path = None) -> dict:
     if not IS_WINDOWS and codex_home == Path.home() / ".codex":
         return hooks_config
 
-    command = "{} {}".format(
-        _shell_quote(hook_python() if IS_WINDOWS else "python3"),
-        _shell_quote(hook_path(codex_home / "hooks" / "vibemon.py")),
-    )
+    script = hook_path(codex_home / "hooks" / "vibemon.py")
+    command = windows_hook_command(hook_python(), script) if IS_WINDOWS else f"python3 {shlex.quote(script)}"
 
     for entries in hooks_config.get("hooks", {}).values():
         for entry in entries:
@@ -936,9 +960,7 @@ def adapt_kiro_hook_config(content: str, kiro_home: Path = None) -> str:
     byte-identical to its manifest hash there. Kiro's `action.command` is a
     shell string, so Windows and KIRO_HOME installs need absolute paths.
 
-    The quoting is deliberately conservative: unquoted forward-slash paths run
-    under cmd.exe, Git Bash and PowerShell alike, and quotes are added only
-    where a space forces them.
+    Windows commands preserve literal paths in CMD, Git Bash and PowerShell.
     """
     kiro_home = kiro_home or tool_home("KIRO_HOME", ".kiro")
     if not IS_WINDOWS and kiro_home == Path.home() / ".kiro":
@@ -953,11 +975,8 @@ def adapt_kiro_hook_config(content: str, kiro_home: Path = None) -> str:
             continue
         # "python3 ~/.kiro/hooks/vibemon.py SessionStart" -> keep event args.
         event_args = command.split()[2:]
-        action["command"] = " ".join([
-            _shell_quote(hook_python() if IS_WINDOWS else "python3"),
-            _shell_quote(hook_path(kiro_home / "hooks" / "vibemon.py")),
-            *event_args,
-        ])
+        script = hook_path(kiro_home / "hooks" / "vibemon.py")
+        action["command"] = windows_hook_command(hook_python(), script, *event_args) if IS_WINDOWS else shlex.join(["python3", script, *event_args])
         changed = True
     return json.dumps(config, indent=2) + "\n" if changed else content
 
