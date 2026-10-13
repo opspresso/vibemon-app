@@ -104,7 +104,8 @@ def main() -> None:
                 fw, fh = frame.size
             cx = ci * CELL + (CELL - fw) // 2
             cy = ri * CELL + (CELL - fh) // 2
-            out.paste(frame, (cx, cy), frame)
+            # Composite RGBA once; using the frame as a paste mask squares alpha.
+            out.alpha_composite(frame, dest=(cx, cy))
         print(f"row {ri+1}: {len(cols)} frames placed")
 
     out.save(dst)

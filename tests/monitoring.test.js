@@ -3,6 +3,7 @@ const { CredentialStore } = require('../src/monitoring/credential-store.cjs');
 const { validateSources, validateTrend, webOrigin } = require('../src/monitoring/domain.cjs');
 const rawToken = 'vm_' + '1'.repeat(60);
 function okResponse(value) {
+  if (value.sources && !Object.hasOwn(value, 'serverTime')) value = { ...value, serverTime: new Date(1000000).toISOString() };
   return { ok: true, body: { getReader: () => {
     let sent = false;
     return { read: async () => sent ? { done: true } : (sent = true, { done: false, value: Buffer.from(JSON.stringify(value)) }), cancel: jest.fn(), releaseLock: jest.fn() };
@@ -14,13 +15,16 @@ function store(initial = {}) {
   return { get: key => values.get(key), set: (key, value) => typeof key === 'object' ? Object.entries(key).forEach(([name, entry]) => values.set(name, entry)) : values.set(key, value), delete: key => values.delete(key), values };
 }
 const source = now => ({ sourceId: 'spark', kind: 'host', displayName: 'Spark', health: 'ok', stale: false, observedAt: new Date(now).toISOString(), receivedAt: new Date(now).toISOString(), metrics: { cpuPercent: 35, memoryPercent: 72, gpuTemperatureC: 40, gpuPercent: null }, memoryType: 'unified' });
+test.each(['First\nSecond', 'First\u007fSecond', '\ud800'])('source names use the same display-text contract: %p', displayName => {
+  expect(() => validateSources([{ ...source(1000), displayName }])).toThrow();
+});
 function fixture(now = 1000000) {
   const preferences = store({ url: 'https://web.example' });
   const secrets = store();
   let value = rawToken;
   const credentials = { has: () => Boolean(value), get: () => value, set: (token, origin) => { value = token; if (origin) preferences.set('url', origin); }, clear: () => { value = null; } };
   const fetchImpl = jest.fn().mockResolvedValue(okResponse({ sources: [source(now)] }));
-  return { client: new MonitoringClient({ preferences, credentials, fetchImpl, now: () => now }), preferences, secrets, fetchImpl };
+  return { client: new MonitoringClient({ preferences, credentials, fetchImpl, now: () => now, monotonicNow: () => now }), preferences, secrets, fetchImpl };
 }
 
 describe('cloud monitoring', () => {
@@ -139,13 +143,32 @@ describe('cloud monitoring', () => {
   });
   test('marks cached data stale during an outage and recovers without clearing it to zero', async () => {
     let now = 1000000;
-    const { client, fetchImpl } = fixture(now); client.now = () => now;
+    const { client, fetchImpl } = fixture(now); client.now = () => now; client.monotonicNow = () => now;
     await client.poll(); now += 120000;
     fetchImpl.mockRejectedValueOnce(new Error('Offline'));
     await client.poll();
     expect(client.snapshot().sources[0]).toMatchObject({ stale: true, metrics: { cpuPercent: 35, gpuPercent: null } });
-    fetchImpl.mockResolvedValue(okResponse({ sources: [source(now)] }));
+    fetchImpl.mockResolvedValue(okResponse({ sources: [source(now)], serverTime: new Date(now).toISOString() }));
     await client.poll(); expect(client.snapshot().sources[0].stale).toBe(false);
+  });
+  test.each([-86400000, 86400000])('server receipt age ignores a reader clock offset of %i ms', async offset => {
+    const { client, fetchImpl } = fixture();
+    let elapsed = 0;
+    client.now = () => 1000000 + offset;
+    client.monotonicNow = () => elapsed;
+    await client.poll();
+    expect(client.snapshot()).toMatchObject({ attentionCount: 0, evaluatedAt: 1000000 });
+    client.now = () => 1000000 - offset;
+    elapsed = 119999;
+    expect(client.snapshot().sources[0].displayState).toBe('ok');
+    elapsed++;
+    fetchImpl.mockRejectedValue(new Error('Offline'));
+    await client.poll();
+    expect(client.snapshot()).toMatchObject({ attentionCount: 1, evaluatedAt: 1120000 });
+    fetchImpl.mockResolvedValue(okResponse({ sources: [source(1120000)], serverTime: null }));
+    await client.poll();
+    expect(client.snapshot().sources[0].receivedAt).toBe(new Date(1000000).toISOString());
+    expect(client.snapshot().status).toBe('connection-error');
   });
   test('late responses cannot restore data after disconnect', async () => {
     const { client, fetchImpl } = fixture();
@@ -175,6 +198,13 @@ describe('cloud monitoring', () => {
     expect(() => webOrigin('http://example.com', true)).toThrow();
     expect(() => webOrigin('https://user:password@example.com')).toThrow();
     expect(webOrigin('http://127.0.0.1:3000', true)).toBe('http://127.0.0.1:3000');
+  });
+  test('cloud model-scoped percentages preserve decimals while reset durations remain integers', () => {
+    const raw = { ...source(1000000), kind: 'agent', account: { provider: 'codex', id: 'work', displayName: 'Work' },
+      agent: { state: 'working', character: 'codex', project: 'demo', usageWeekModel: 22.875, usageWeekModelResetsIn: 120 } };
+    expect(validateSources([raw])[0].agent.usageWeekModel).toBe(22.875);
+    for (const value of [-1, 101, Infinity, NaN]) expect(() => validateSources([{ ...raw, agent: { ...raw.agent, usageWeekModel: value } }])).toThrow();
+    expect(() => validateSources([{ ...raw, agent: { ...raw.agent, usageWeekModelResetsIn: 1.5 } }])).toThrow();
   });
 });
 

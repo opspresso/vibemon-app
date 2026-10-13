@@ -17,7 +17,7 @@ for (const name of ['.env.local', '.env']) {
   catch (error) { if (error.code !== 'ENOENT') throw error; }
 }
 
-const { app, BrowserWindow, ipcMain, dialog, powerMonitor, screen, safeStorage, shell } = require('electron');
+const { app, ipcMain, dialog, powerMonitor, screen, safeStorage, shell } = require('electron');
 const { MonitoringClient } = require('./monitoring/client.cjs');
 const { CredentialStore } = require('./monitoring/credential-store.cjs');
 const { CloudActivity } = require('./monitoring/activity.cjs');
@@ -40,10 +40,11 @@ const { VibemonConfigManager } = require('./modules/vibemon-config-manager.cjs')
 const { HookCloudDelivery } = require('./modules/hook-cloud-delivery.cjs');
 const { UpdateChecker } = require('./modules/update-checker.cjs');
 const { UsageRefresher } = require('./modules/usage-refresher.cjs');
-const { validateStatusPayload } = require('./modules/validators.cjs');
+const { StatusIngress } = require('./application/status-ingress.cjs');
+const { interactionTarget } = require('./modules/window-interaction-target.cjs');
 const registryCache = require('./shared/registry-cache.cjs');
 const {
-  CHARACTER_IMAGE_FETCH_TIMEOUT_MS,
+  CHARACTER_IMAGE_FETCH_TIMEOUT_MS, CHARACTER_IMAGE_MAX_BYTES, CHAR_SIZE,
   HOOK_CHECK_INITIAL_DELAY_MS, HOOK_CHECK_INTERVAL_MS,
   UPDATE_CHECK_INITIAL_DELAY_MS, UPDATE_CHECK_INTERVAL_MS,
   USAGE_REFRESH_INITIAL_DELAY_MS, USAGE_REFRESH_INTERVAL_MS
@@ -84,8 +85,13 @@ let usageRefreshTimer = null;
 let registryRefreshTimer = null;
 
 function getBubbleOptions(projectId) {
+  const source = projectId?.startsWith('cloud:')
+    ? monitoringClient?.sources.find(source => `cloud:${source.sourceId}` === projectId)
+    : null;
   return {
     state: windowManager.getState(projectId),
+    observedAt: source?.observedAt || windowManager.getRegisteredState(projectId)?.observedAt,
+    now: source ? monitoringClient.currentTime() : Date.now(),
     speechBubbleFields: windowManager.getSpeechBubbleFields()
   };
 }
@@ -176,64 +182,19 @@ windowManager.onWindowClosed = (projectId) => {
   }
 };
 
-/**
- * Handle status update from cloud
- * Reuses the same logic as HTTP POST /status
- * @param {Object} data - status payload
- * @param {{auto?: boolean, sourceId?: string}} [meta] - Preserve focus when
- *   another project is already shown. sourceId separates cloud identities
- *   from local project labels.
- */
-function handleCloudStatusUpdate(data, meta = {}) {
-  // Validate payload
-  const validation = validateStatusPayload(data);
-  if (!validation.valid) {
-    console.error('cloud invalid payload:', validation.error);
-    return;
-  }
+function notifyStatusChange(menuOnly) {
+  workspaceWindow?.notify('activity');
+  if (!menuOnly) trayManager?.updateIcon();
+  trayManager?.updateMenu();
+}
+const statusIngress = new StatusIngress(stateManager, windowManager, {
+  onProjectSwitched: id => bubbleWindowManager.destroy(id),
+  onStateUpdate: notifyStatusChange
+});
 
-  // Validate and normalize state data via stateManager
-  const stateValidation = stateManager.validateStateData(data);
-  if (!stateValidation.valid) {
-    console.error('cloud invalid state data:', stateValidation.error);
-    return;
-  }
-  const stateData = stateValidation.data;
-
-  // A status without a project name has nothing meaningful to display — drop it.
-  if (!stateData.project) return;
-  const projectId = meta.sourceId ? `cloud:${meta.sourceId}` : stateData.project;
-
-  const routeResult = windowManager.routeStatusUpdate(projectId, stateData, {
-    preserveFocus: meta.auto === true
-  });
-
-  // The window was retargeted from another project
-  if (routeResult.switchedProject) {
-    bubbleWindowManager.destroy(routeResult.switchedProject);
-  }
-
-  const updateResult = routeResult.updateResult;
-
-  // Every accepted update is activity, including unchanged/background updates.
-  stateManager.setupStateTimeout(projectId, stateData.state, { remote: Boolean(meta.sourceId) });
-
-  // No visible change - skip unnecessary renderer/tray updates
-  if (!updateResult.updated) {
-    return;
-  }
-
-  // State changed - full update (alwaysOnTop, timeout, tray)
-  if (updateResult.stateChanged) {
-    windowManager.updateAlwaysOnTopByState(stateData.state);
-    if (trayManager) {
-      trayManager.updateIcon();
-      trayManager.updateMenu();
-    }
-  }
-
-  // Send update to renderer (routeResult.stateData reflects Character Lock, if set)
-  windowManager.sendToWindow(projectId, 'state-update', routeResult.stateData);
+function handleCloudStatusUpdate(data, { auto = false, sourceId } = {}) {
+  const result = statusIngress.accept(data, { sourceId, preserveFocus: auto });
+  if (!result.valid) console.error('cloud invalid payload:', result.error);
 }
 
 /**
@@ -263,7 +224,7 @@ function showCharacterAgain() {
   if (!restored) return;
 
   if (restored.stateData) {
-    stateManager.setupStateTimeout(restored.projectId, restored.stateData.state, { remote: restored.projectId.startsWith('cloud:') });
+    stateManager.setupStateTimeout(restored.projectId, restored.stateData.state, { remote: Boolean(restored.projectId?.startsWith('cloud:')) });
   }
   if (trayManager) {
     trayManager.updateMenu();
@@ -278,13 +239,14 @@ ipcMain.handle('get-version', () => {
 
 // Character registry for the renderer's engine setup (canonical:
 // the public App distribution, resolved by registry-cache.cjs — cached remote copy or
-// bundled fallback). staticBaseUrl lets the renderer build remote-first
-// image URLs.
+// bundled fallback). Only images absent from the package require a download.
 ipcMain.handle('get-character-registry', () => {
   return {
     ...registryCache.charactersRegistry,
     staticBaseUrl: registryCache.STATIC_BASE_URL,
-    imageFetchTimeoutMs: CHARACTER_IMAGE_FETCH_TIMEOUT_MS
+    imageFetchTimeoutMs: CHARACTER_IMAGE_FETCH_TIMEOUT_MS,
+    imageMaxBytes: CHARACTER_IMAGE_MAX_BYTES, imageSize: CHAR_SIZE,
+    bundledImageFiles: registryCache.bundledImageFiles
   };
 });
 
@@ -312,33 +274,24 @@ ipcMain.on('show-context-menu', (event) => {
   }
 });
 
-// Only the active character and its bubble may control character interaction.
-function getInteractionProject(sender) {
-  const projectId = windowManager.getProjectIdByWebContents(sender);
-  if (projectId) return projectId;
-  for (const [id, win] of bubbleWindowManager.bubbleWindows) {
-    if (!win.isDestroyed() && win.webContents === sender && windowManager.getWindow(id)) return id;
-  }
-  return null;
-}
+const getInteractionTarget = sender => interactionTarget(sender, windowManager, bubbleWindowManager);
 
 ipcMain.on('window-ignore-mouse', (event, ignore) => {
-  const projectId = getInteractionProject(event.sender);
-  if (!projectId || typeof ignore !== 'boolean') return;
-  const character = windowManager.getWindow(projectId);
-  const win = character.webContents === event.sender
-    ? character : bubbleWindowManager.bubbleWindows.get(projectId);
-  win.setIgnoreMouseEvents(ignore, { forward: true });
+  const target = getInteractionTarget(event.sender);
+  if (target && typeof ignore === 'boolean') target.window.setIgnoreMouseEvents(ignore, { forward: true });
 });
 
 ipcMain.on('window-drag-start', (event) => {
-  if (getInteractionProject(event.sender)) windowManager.beginUserDrag(BrowserWindow.fromWebContents(event.sender));
+  const target = getInteractionTarget(event.sender);
+  if (target) windowManager.beginUserDrag(target.window);
 });
 ipcMain.on('window-drag-move', (event) => {
-  if (getInteractionProject(event.sender)) windowManager.moveUserDrag(BrowserWindow.fromWebContents(event.sender));
+  const target = getInteractionTarget(event.sender);
+  if (target) windowManager.moveUserDrag(target.window);
 });
 ipcMain.on('window-drag-end', (event) => {
-  if (getInteractionProject(event.sender)) windowManager.endUserDrag(BrowserWindow.fromWebContents(event.sender));
+  const target = getInteractionTarget(event.sender);
+  if (target) windowManager.endUserDrag(target.window);
 });
 
 // Focus terminal (iTerm2 or Ghostty on macOS)
@@ -349,7 +302,7 @@ ipcMain.handle('focus-terminal', async (event) => {
   }
 
   // Get project ID from the window that sent the request
-  const projectId = getInteractionProject(event.sender);
+  const projectId = getInteractionTarget(event.sender)?.projectId;
   if (!projectId) {
     return { success: false, reason: 'no-project' };
   }
@@ -475,25 +428,20 @@ app.whenReady().then(() => {
   trayManager.createTray();
   const cloudActivity = new CloudActivity((data, sourceId, { activity }) => {
     handleCloudStatusUpdate(data, { auto: !activity || Boolean(windowManager.getFocusedProjectId()), sourceId });
-  }, removeCloudProject);
-  monitoringClient.on('change', snapshot => cloudActivity.accept(snapshot.sources));
+  }, removeCloudProject, () => monitoringClient.currentTime());
+  monitoringClient.on('change', snapshot => {
+    cloudActivity.accept(snapshot.sources);
+    for (const projectId of windowManager.getProjectIds()) {
+      bubbleWindowManager.refresh(projectId, getBubbleOptions(projectId))
+        .catch(err => console.error('Bubble countdown refresh failed:', err));
+    }
+  });
   monitoringClient.start();
 
 
   // Start HTTP server
-  httpServer = new HttpServer(stateManager, windowManager, app);
-  httpServer.onStateUpdate = (menuOnly) => {
-    workspaceWindow.notify('activity');
-    if (trayManager) {
-      if (!menuOnly) {
-        trayManager.updateIcon();
-      }
-      trayManager.updateMenu();
-    }
-  };
-  httpServer.onProjectSwitched = (oldProjectId) => {
-    bubbleWindowManager.destroy(oldProjectId);
-  };
+  httpServer = new HttpServer(stateManager, windowManager, app, statusIngress);
+  httpServer.onStateUpdate = notifyStatusChange;
   httpServer.onError = (err) => {
     if (err.code === 'EADDRINUSE') {
       dialog.showErrorBox(

@@ -4,6 +4,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const { startFixture, TOKEN } = require('./workspace-fixture.cjs');
+const { AGENT_TEXT_LIMITS } = require('../../src/shared/resource-schema.cjs');
 const output = process.env.VIBEMON_TEST_ARTIFACTS || path.join(__dirname, '../../out/workspace-tests');
 fs.mkdirSync(output, { recursive: true });
 nativeTheme.themeSource = 'dark';
@@ -15,12 +16,17 @@ async function until(check, label) {
 }
 
 let cleanup;
+let rendererErrors = [];
 startFixture().then(async fixture => {
   cleanup = fixture.cleanup;
+  rendererErrors = fixture.errors;
   const { view, client, ports, state, errors, selectDashboard, trayManager } = fixture;
   const web = view.window.webContents;
   const ui = code => web.executeJavaScript(code);
-  const click = selector => ui(`document.querySelector(${JSON.stringify(selector)}).click()`);
+  const click = async selector => {
+    await until(() => ui(`Boolean(document.querySelector(${JSON.stringify(selector)})) && !document.querySelector(${JSON.stringify(selector)}).matches(':disabled')`), `${selector} accepts a click`);
+    return ui(`document.querySelector(${JSON.stringify(selector)}).click()`);
+  };
   const value = selector => ui(`document.querySelector(${JSON.stringify(selector)}).value`);
   const text = selector => ui(`document.querySelector(${JSON.stringify(selector)}).textContent`);
   const input = (selector, value, event = 'input') => ui(`(() => { const input = document.querySelector(${JSON.stringify(selector)}); input.value = ${JSON.stringify(value)}; input.dispatchEvent(new Event(${JSON.stringify(event)}, { bubbles: true })); })()`);
@@ -71,6 +77,15 @@ startFixture().then(async fixture => {
   assert.equal(await text('#summary-accounts'), '4');
   assert.equal(await text('#summary-local'), '2');
   assert.equal(await text('#summary-attention'), '3');
+  const localClock = client.now;
+  try {
+    for (const offset of [-86400000, 86400000]) {
+      client.now = () => Date.now() + offset;
+      await client.poll(true); await delay(150);
+      assert.equal(await text('#summary-attention'), '3', 'wall-clock skew does not add stale warnings');
+      assert.equal(await ui('[...document.querySelectorAll("#overview-accounts time")].every(node => node.textContent === "Just now")'), true, 'report age uses server time');
+    }
+  } finally { client.now = localClock; await client.poll(true); }
   const overviewBounds = await ui('({ bottom: document.querySelector("#overview-accounts .card").getBoundingClientRect().bottom, viewport: innerHeight })');
   assert.ok(overviewBounds.bottom < overviewBounds.viewport, `account metrics fit in the initial viewport: ${JSON.stringify(overviewBounds)}`);
   assert.equal(state.requests.some(url => url.includes('/trend?')), false, 'history is not prefetched');
@@ -119,11 +134,19 @@ startFixture().then(async fixture => {
   await click('#resource-cards .empty button');
   assert.equal(await value('#resource-search'), '');
   assert.equal(await ui('document.querySelectorAll("#resource-cards .card").length'), 4);
+  state.trendDelayMs = 1000;
   await click('[aria-label="View Cache service details"]');
+  const loadingEditTop = await ui('document.getElementById("edit-resource").getBoundingClientRect().top');
   await until(() => ui('document.querySelectorAll("#chart circle").length > 0'), 'custom resource history');
+  const loadedEditTop = await ui('document.getElementById("edit-resource").getBoundingClientRect().top');
+  console.log('History loading action shift:', loadedEditTop - loadingEditTop);
+  assert.ok(Math.abs(loadedEditTop - loadingEditTop) < 1, 'loading history does not move the edit action');
+  state.trendDelayMs = 0;
   assert.ok((await text('#detail-message')).includes('Latency is above'));
   assert.equal(await ui('document.activeElement.getAttribute("aria-label")'), 'Close source details');
   await screenshot('resource-detail');
+  await ui('document.querySelector(\'[data-close-dialog="detail-dialog"]\').click(); document.querySelector(\'[aria-label="View Cache service details"]\').click();');
+  await until(() => ui('document.querySelectorAll("#chart circle").length > 0'), 'reopening details before the queued close event preserves the new history');
   assert.equal(await ui('document.querySelectorAll("#chart path.average, #chart path.maximum").length'), 2, 'history renders averages and maxima');
   await ui('window.chartMutations = 0; window.chartObserver = new MutationObserver(() => window.chartMutations++); window.chartObserver.observe(document.getElementById("chart"), { childList: true, subtree: true });');
   for (let index = 0; index < 3; index++) { view.notify('activity'); await delay(150); }
@@ -156,7 +179,7 @@ startFixture().then(async fixture => {
   await client.poll(true);
 
   const originalTrend = state.trend;
-  state.trend = item => ({ ...originalTrend(item), metricDefinitions: { latency: { label: 'Temperature', unit: '°C', display: 'gauge', min: -40, max: 20 } }, metricOrder: ['latency'], points: [{ timestamp: new Date().toISOString(), average: { latency: -12 }, maximum: { latency: -12 }, samples: 1, expiresAt: Date.now() / 1000 + 86400 }] });
+  state.trend = item => ({ ...originalTrend(item), metricDefinitions: { latency: { label: 'Temperature', unit: '°C', display: 'gauge', min: -40, max: 20 } }, metricOrder: ['latency'], points: [{ timestamp: new Date(Math.floor(Date.now() / 60000) * 60000).toISOString(), average: { latency: -12 }, maximum: { latency: -12 }, samples: 1, expiresAt: Date.now() / 1000 + 86400 }] });
   await click('[aria-label="View Cache service details"]');
   await until(async () => (await text('#chart')).includes('-40') && (await text('#trend-metric')).includes('Temperature (°C)'), 'history uses its returned signed metric schema');
   await client.poll(true); await delay(150);
@@ -220,6 +243,12 @@ startFixture().then(async fixture => {
   await click('[data-page="agents"] [data-selection]');
   await until(() => visible('#selection-dialog'), 'selection dialog');
   const chosenMetrics = await ui('document.querySelectorAll("#metric-choices input:checked").length');
+  await ui(`new Promise(resolve => {
+    document.getElementById('selection-dialog').addEventListener('close', resolve, { once: true });
+    document.querySelector('[data-close-dialog="selection-dialog"]').click();
+    document.querySelector('[data-page="agents"] [data-selection]').click();
+  })`);
+  assert.equal(await ui('document.querySelectorAll("#metric-choices input:checked").length'), chosenMetrics, 'a queued close cannot clear reopened selection choices');
   await click('#select-none');
   assert.equal(await ui('document.querySelectorAll("#source-choices input:checked, #account-choices input:checked").length'), 0);
   assert.equal(await ui('document.querySelectorAll("#metric-choices input:checked").length'), chosenMetrics, 'clearing sources preserves metric preferences');
@@ -230,6 +259,41 @@ startFixture().then(async fixture => {
   assert.equal(await ui('document.querySelectorAll("#source-choices input:checked, #account-choices input:checked").length'), 8, 'clearing metrics preserves source choices');
   await click('#all-metrics');
   await click('#selection-dialog details summary');
+  await click('#select-none');
+  state.sourceDelayMs = 1000;
+  const discoveryRequests = state.requests.length;
+  await click('#discover');
+  await until(() => state.requests.length > discoveryRequests, 'delayed discovery started');
+  await click('[data-close-dialog="selection-dialog"]');
+  await click('[data-page="agents"] [data-selection]');
+  await click('#source-choices input[value="production"]');
+  state.sourceDelayMs = 0;
+  await until(() => ui('!document.getElementById("discover").disabled'), 'previous discovery completed');
+  assert.equal(await ui('document.querySelectorAll("#source-choices input:checked, #account-choices input:checked").length'), 7, 'previous discovery cannot overwrite a reopened selection draft');
+  state.sourceDelayMs = 1000;
+  const currentDiscoveryRequests = state.requests.length;
+  await click('#discover');
+  await until(() => state.requests.length > currentDiscoveryRequests, 'discovery with editable choices started');
+  await click('#source-choices input[value="production"]');
+  state.sourceDelayMs = 0;
+  await until(() => ui('!document.getElementById("discover").disabled'), 'current discovery completed');
+  assert.equal(await ui('document.querySelector(\'#source-choices input[value="production"]\').checked'), true, 'choices changed during discovery survive its response');
+  await click('#select-none');
+  await click('#source-choices input[value="production"]');
+  state.sourceDelayMs = 1000;
+  const selectionRequests = state.requests.length;
+  await click('#save-selection');
+  await until(() => state.requests.length > selectionRequests, 'delayed selection save started');
+  await click('[data-close-dialog="selection-dialog"]');
+  await click('[data-page="agents"] [data-selection]');
+  await click('#select-none');
+  await click('#source-choices input[value="production"]');
+  await click('#source-choices input[value="cache"]');
+  state.sourceDelayMs = 0;
+  await until(() => ui('!document.getElementById("save-selection").disabled'), 'previous selection save completed');
+  assert.equal(await ui('document.getElementById("selection-dialog").open'), true, 'previous save cannot close the reopened selector');
+  assert.equal(await ui('document.querySelectorAll("#source-choices input:checked, #account-choices input:checked").length'), 2, 'previous save preserves the new unsaved choices');
+  await click('#select-all');
   await click('#source-choices input[value="production"]');
   await client.poll(true); await delay(150);
   assert.equal(await ui('document.querySelector("#source-choices input[value=production]").checked'), false, 'polling preserves selection drafts');
@@ -275,8 +339,9 @@ startFixture().then(async fixture => {
   await input('#theme', 'light', 'change');
   assert.equal(await visible('#theme-storage-status'), false);
 
-  await navigate('overview');
+  await navigate('agents');
   await verifyContrast();
+  await navigate('overview');
   await screenshot('overview-light');
   await navigate('companion');
   assert.equal(await value('#render-mode'), '2d');
@@ -424,11 +489,14 @@ startFixture().then(async fixture => {
     };
     if (source.sourceId === 'codex-team') return {
       ...source, account: { provider: 'p'.repeat(32), id: 'a'.repeat(128), displayName: longName },
-      agent: { ...source.agent, project: '計'.repeat(256), state: 's'.repeat(256) }
+      agent: { ...source.agent, project: '計'.repeat(AGENT_TEXT_LIMITS.project), state: 'notification',
+        tool: '道'.repeat(AGENT_TEXT_LIMITS.tool), model: '型'.repeat(AGENT_TEXT_LIMITS.model),
+        usageWeekModelLabel: '型'.repeat(AGENT_TEXT_LIMITS.usageWeekModelLabel) }
     };
     return source;
   });
   await client.poll(true);
+  assert.equal(client.getStatus(), 'connected', 'accepted-limit fixture must satisfy the source contract');
   await client.select({ sources: null, accounts: null, metrics: Object.keys(client.snapshot().metrics) });
   await input('#resource-search', '');
   const overflow = [];
@@ -463,4 +531,4 @@ startFixture().then(async fixture => {
   assert.deepEqual(errors, [], 'no renderer or loading errors');
   console.log('PASS native workspace: navigation, custom metrics, multiple accounts, focus, selection, preferences, credential boundaries, recovery, resizing and visibility.');
   app.quit();
-}).catch(error => { console.error(error.stack); cleanup?.(); app.exit(1); });
+}).catch(error => { console.error(error.stack); for (const message of rendererErrors) console.error(message); cleanup?.(); app.exit(1); });

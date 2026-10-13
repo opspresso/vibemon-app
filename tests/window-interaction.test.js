@@ -41,22 +41,33 @@ describe('createCharacterHitTest', () => {
     expect(hit(3 + 64 * scale, 5 + 64 * scale)).toBe(false);
   });
 
-  test('WebGL is rendered before sampling its non-preserved drawing buffer', () => {
+  test('WebGL hit testing reuses the preserved frame without rendering the scene', () => {
     const { createCharacterHitTest, context } = loadInteraction();
     const renderer = {
       domElement: { width: 100, height: 100, getBoundingClientRect: () => ({ left: 0, top: 0, right: 100, bottom: 100, width: 100, height: 100 }) },
-      render: jest.fn()
+      render: jest.fn(), info: { render: { frame: 1 } }
     };
-    expect(createCharacterHitTest({ renderer, scene: {}, camera: {} })(50, 50)).toBe(true);
-    expect(renderer.render.mock.invocationCallOrder[0]).toBeLessThan(context.drawImage.mock.invocationCallOrder[0]);
+    const hit = createCharacterHitTest({ renderer });
+    for (let i = 0; i < 120; i++) expect(hit(50, 50)).toBe(true);
+    expect(renderer.render).not.toHaveBeenCalled();
+    expect(context.drawImage).toHaveBeenCalledTimes(1);
+    context.getImageData.mockReturnValue({ data: [0, 0, 0, 0] });
+    renderer.info.render.frame++;
+    expect(hit(50, 50)).toBe(false);
+    expect(context.drawImage).toHaveBeenCalledTimes(2);
+    expect(hit(51, 50)).toBe(false);
+    expect(context.drawImage).toHaveBeenCalledTimes(3);
   });
 
-  test('3D hit testing uses the transform updated by the render hook', () => {
+  test('3D hit testing remaps a cached pixel after the displayed transform changes', () => {
     const { createCharacterHitTest, context } = loadInteraction();
     let rect = { left: 0, top: 0, right: 100, bottom: 100, width: 100, height: 100 };
     const canvas = { width: 100, height: 100, getBoundingClientRect: () => rect };
-    const renderer = { domElement: canvas, render: () => { rect = { left: -50, top: -50, right: 150, bottom: 150, width: 200, height: 200 }; } };
-    expect(createCharacterHitTest({ renderer, scene: {}, camera: {} })(25, 25)).toBe(true);
+    const renderer = { domElement: canvas, info: { render: { frame: 1 } } };
+    const hit = createCharacterHitTest({ renderer });
+    expect(hit(25, 25)).toBe(true);
+    rect = { left: -50, top: -50, right: 150, bottom: 150, width: 200, height: 200 };
+    expect(hit(25, 25)).toBe(true);
     expect(context.drawImage).toHaveBeenCalledWith(canvas, 37, 37, 1, 1, 0, 0, 1, 1);
   });
 });

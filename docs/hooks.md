@@ -39,8 +39,8 @@ After installation, edit `~/.vibemon/config.json` to configure your targets:
 | `debug` | Enable debug logging | `true` |
 | `cache_path` | Cache file path for project metadata | `~/.vibemon/cache/projects.json` |
 | `auto_launch` | Auto-launch Desktop App on session start | `true` |
-| `http_urls` | HTTP targets (Desktop App, ESP32 WiFi) | `["http://127.0.0.1:19280"]` |
-| `serial_port` | ESP32 USB serial port (wildcard supported; POSIX only, ignored on Windows) | `"/dev/cu.usbmodem*"` |
+| `http_urls` | Local status-push targets (Desktop App or legacy ESP32-C6 firmware) | `["http://127.0.0.1:19280"]` |
+| `serial_port` | Legacy ESP32-C6 USB serial port (wildcard supported; POSIX only, ignored on Windows) | `"/dev/cu.usbmodem*"` |
 | `vibemon_url` | VibeMon cloud API URL | `https://vibemon.io` |
 | `vibemon_token` | Generated write token (from /account) | |
 
@@ -49,6 +49,8 @@ Claude Code's statusline reads a separate `~/.vibemon/statusline.json` for displ
 The Claude Code installer also places a standalone refresher at `~/.vibemon/usage.py`. For Claude, it fetches plan usage directly from Anthropic's OAuth usage API using the local Claude Code login token (no active session required), falling back to a `claude -p "/usage"` subprocess when a token isn't available or the API call fails. For Codex, it queries the same account-level usage API Codex CLI's own `/status` polls using the local Codex login token, falling back to a recent local session snapshot. This fallback reads at most the newest 1 MiB of up to eight recent logs, preserves the observation timestamp, and does not renew stale usage by rewriting the cache. Either way it writes the shared `~/.vibemon/cache/usage.json`, so the Desktop app can run it (`python3 ~/.vibemon/usage.py --max-age 600`) on startup or on a schedule to keep usage data fresh even when no Claude Code or Codex session is active. Since the `claude -p "/usage"` fallback is itself a real Claude Code session, the Desktop app sets `VIBEMON_SUPPRESS_HOOKS=1` in its environment so the spawned session's own hooks don't report status back. Independently of that env var, the hooks also skip any session whose cwd is `~/.vibemon` itself, so spawners that don't set the variable (older Desktop app versions, manual `usage.py` runs) can't surface a phantom `.vibemon` project either.
 
 The reset-countdown fields the hooks attach (`usage5hResetsIn`/`usageWeekResetsIn`/`usageWeekModelResetsIn`) are populated whenever the cache was refreshed via a `resets_at` epoch — either an active Claude Code session's statusline (the official `rate_limits` path), `usage.py`'s direct Anthropic/Codex API queries, or a Codex session log. Only the last-resort `claude -p "/usage"` text fallback lacks a machine-parseable reset time, so the reset countdown is omitted in that case while the usage percentages still update.
+
+Context and plan-usage percentages retain their measured precision in the cache and both local and Web payloads. The statusline and dashboards format percentages to at most two decimal places. Formatting never becomes the input to a later cache write. Missing or invalid readings stay unavailable; a measured zero remains zero.
 
 Note that the plan-usage fields (`usage5h`/`usageWeek`/`usageWeekModel` and their reset countdowns) are sent by the **Claude Code and Codex hooks**, since they both read from the same `usage.py`-refreshed cache (under provider/account-specific cache keys). The Kiro and opencode hooks don't report usage, and OpenClaw reports context-window usage as `memory` instead.
 
@@ -92,11 +94,11 @@ The installer honors an `OPENCODE_CONFIG_DIR` override (default `$XDG_CONFIG_HOM
 
 ## CLI Commands
 
-The hook script supports these commands. `--status` works with every
-monitor target. `--lock`, `--unlock`, and `--lock-mode` are attempted
+The hook script supports these commands for local status-push targets, not
+VibeMon Touch. `--status` queries configured local targets. `--lock`, `--unlock`, and `--lock-mode` are attempted
 against every configured HTTP target first (a Desktop app that doesn't
 expose the endpoint is skipped) and then over serial; `--reboot` targets
-the ESP32 only and skips the Desktop app:
+legacy ESP32-C6 firmware only and skips the Desktop app:
 
 ```bash
 # Lock monitor to current project
@@ -111,7 +113,7 @@ python3 ~/.claude/hooks/vibemon.py --status
 # Get/set lock mode (first-project, on-thinking)
 python3 ~/.claude/hooks/vibemon.py --lock-mode [mode]
 
-# Reboot ESP32 device
+# Reboot a legacy ESP32-C6 device
 python3 ~/.claude/hooks/vibemon.py --reboot
 ```
 
@@ -133,7 +135,9 @@ Features: frameless floating window, always on top, system tray integration, sna
 
 ### ESP32 Hardware
 
-ESP32 firmware is outside this overhaul. Local serial integration is unchanged. See the [firmware repository](https://github.com/opspresso/vibemon-esp32) for hardware setup. The retired cloud WebSocket endpoint is unavailable.
+VibeMon Touch runs on the four-inch ESP32-S3 board and polls the same HTTPS summaries as Desktop. Configure Wi-Fi, the Web origin, and a read token on its screen. Hooks send activity to Web with a write token; Touch does not receive those events through `http_urls` or `serial_port`. See the [firmware repository](https://github.com/opspresso/vibemon-esp32) for setup.
+
+Existing ESP32-C6 devices use the [previous firmware](https://github.com/opspresso/vibemon-esp32/tree/e6c272c) and can retain local HTTP/serial delivery. Do not flash the Touch build to a C6 board. The retired cloud WebSocket endpoint is unavailable.
 
 ## API
 
@@ -142,6 +146,8 @@ Hooks deliver coding activity to the [Status API](https://vibemon.io/docs/api/st
 ## State Mapping
 
 State reporting is edge-driven: a new state start replaces the previous state. Completion hooks are retained only where no later start event reliably restores the state (`PostToolUse`/`PostCompact`) or an explicit turn/session ending must be reported (`Stop`/`SessionEnd`). Claude and Codex subagent `Agent` calls already pass through the matcher-free tool hooks, so separate subagent hooks would only duplicate those transitions.
+
+Python hooks capture the observation time when they finish reading the event, before Git discovery or usage-cache reads. Local and Web delivery share that timestamp, so delayed metadata collection cannot make an older event appear newer.
 
 ### Claude Code
 
@@ -162,6 +168,8 @@ State reporting is edge-driven: a new state start replaces the previous state. C
 | StopFailure | done |
 
 **Plan Mode**: When Claude Code is in plan mode, `thinking` and `working` states automatically become `planning`.
+
+Claude `Notification` reports **Needs input** only for `permission_prompt`, `elicitation_dialog`, `elicitation_url_dialog`, and `agent_needs_input`. Idle reminders, login-success messages, completed-task notices, and other informational notifications do not change activity or refresh its timestamp. The installer filters these events before launching Python; the adapter also checks them for older hook registrations. See the [Claude notification contract](https://code.claude.com/docs/en/hooks#notification).
 
 ### Codex CLI
 

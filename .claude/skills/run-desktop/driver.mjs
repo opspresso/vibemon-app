@@ -267,7 +267,7 @@ const COMMANDS = {
   // so a raw shot is hard to read in review). Use ss-raw for the real frame.
   // Prints the focused project alongside, so the image is self-describing.
   async ss(name) {
-    if (!page) return console.log('ERROR: no window — run "status" first');
+    if (!page) throw new Error('no window — run "status" first');
     await evaluate(page, 'document.documentElement.style.background = "#2b2b33"');
     await sleep(300);
     const file = path.join(SHOT_DIR, `${name.trim() || `ss-${Date.now()}`}.png`);
@@ -278,7 +278,7 @@ const COMMANDS = {
   },
 
   async 'ss-raw'(name) {
-    if (!page) return console.log('ERROR: no window — run "status" first');
+    if (!page) throw new Error('no window — run "status" first');
     const file = path.join(SHOT_DIR, `${name.trim() || `raw-${Date.now()}`}.png`);
     await screenshot(page, file, { transparent: true });
     console.log('screenshot:', file);
@@ -287,31 +287,31 @@ const COMMANDS = {
   // page <character|bubble> — retarget subsequent commands.
   async page(kind) {
     const found = windowByKind(kind.trim() || 'character');
-    if (!found) return console.log('not open:', kind);
+    if (!found) throw new Error(`window is not open: ${kind}`);
     page = found;
     console.log('now driving:', page.url.split('/').pop());
   },
 
   async windows() {
-    if (!cdp) return console.log('ERROR: launch first');
+    if (!cdp) throw new Error('launch first');
     for (const session of sessions.values()) console.log(' ', session.url);
   },
 
   // engine — which renderer actually booted (2D canvas vs WebGL canvas).
   async engine() {
-    if (!page) return console.log('ERROR: no window — run "status" first');
+    if (!page) throw new Error('no window — run "status" first');
     console.log(JSON.stringify(await evaluate(page,
       '(() => { const c = document.querySelector("canvas");' +
       ' return c ? { className: c.className, width: c.width, height: c.height } : null; })()')));
   },
 
   async eval(expr) {
-    if (!page) return console.log('ERROR: no window — run "status" first');
+    if (!page) throw new Error('no window — run "status" first');
     console.log(JSON.stringify(await evaluate(page, expr)));
   },
 
   async text(sel) {
-    if (!page) return console.log('ERROR: no window — run "status" first');
+    if (!page) throw new Error('no window — run "status" first');
     const target = sel.trim() ? `document.querySelector(${JSON.stringify(sel.trim())})` : 'document.body';
     console.log(await evaluate(page, `${target}?.innerText ?? '(null)'`));
   },
@@ -347,7 +347,7 @@ const COMMANDS = {
 async function run(line) {
   const [cmd, ...rest] = line.trim().split(/\s+/);
   if (!cmd) return true;
-  const fn = COMMANDS[cmd];
+  const fn = Object.hasOwn(COMMANDS, cmd) ? COMMANDS[cmd] : null;
   if (!fn) { console.log('unknown:', cmd, '— try: help'); return false; }
   try { await fn(rest.join(' ')); return true; }
   catch (e) { console.log('ERROR:', e.message); return false; }

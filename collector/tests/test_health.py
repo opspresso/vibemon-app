@@ -9,6 +9,14 @@ from vibemon_collector.health import DeliveryHealth
 
 
 class ReadinessTests(unittest.TestCase):
+    def test_duplicate_acknowledgement_does_not_refresh_delivery_readiness(self):
+        clock = [0]
+        delivered = Mock()
+        run(Mock(sample=lambda: Sample({'cpuPercent': 10})), lambda _: {'accepted': False, 'reason': 'duplicate_or_older'},
+            'host', 'host', 'Host', ['cpuPercent'], lambda: clock[0], lambda: clock[0],
+            lambda delay: clock.__setitem__(0, clock[0] + delay), once=True, on_delivery=delivered)
+        delivered.assert_not_called()
+
     def test_only_acknowledged_delivery_becomes_ready_and_then_expires(self):
         with tempfile.TemporaryDirectory() as directory:
             health = DeliveryHealth(Path(directory) / 'health')
@@ -22,6 +30,7 @@ class ReadinessTests(unittest.TestCase):
             with self.assertLogs(level='WARNING'):
                 run(Mock(sample=lambda: Sample({'cpuPercent': 10})), send, 'host', 'host', 'Host', ['cpuPercent'], lambda: clock[0], lambda: clock[0], lambda delay: clock.__setitem__(0, clock[0] + delay), once=True, on_delivery=health.record)
             self.assertTrue(health.ready(clock[0]))
+            self.assertFalse(health.ready(clock[0] + 120))
             self.assertFalse(health.ready(clock[0] + 121))
             self.assertFalse(health.ready(clock[0] - 1))
             if os.name == "posix":

@@ -16,6 +16,10 @@ A replacement read token is verified before it replaces the saved connection. Fa
 
 Latest state is polled every 30 seconds, restricted to the saved selection. Selecting no sources pauses data requests and preserves the connection result. The local project and usage panels work without a cloud connection. HTTPS is required; an unpackaged development App also accepts loopback HTTP for isolated tests.
 
+Cloud report age is anchored to the response's `serverTime` and advances with a monotonic elapsed clock. The computer's date or time-zone settings do not change freshness, attention, or the recent-hour window. Failed requests keep aging the last accepted snapshot; they do not reset its age.
+
+Companion usage reset countdowns use the observation timestamp and the same cloud clock. Local hook countdowns use their local observation time. Each monitoring poll refreshes a visible bubble only when its displayed values change; this does not refresh agent activity, extend sleep timers, or reopen a closed companion. A legacy report without an observation timestamp keeps its supplied duration.
+
 ## Resources and history
 
 Resource cards support arbitrary types, metric labels, units, order, and display ranges. Host cards support CPU, memory, GPU, and temperature. Spark reports **Unified memory**. Kubernetes cards support CPU, memory, ready/total nodes, and unhealthy pods.

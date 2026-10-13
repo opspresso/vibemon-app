@@ -1,4 +1,4 @@
-"""Readiness reflects acknowledged delivery, without storing credentials or metrics."""
+"""Readiness reflects newly accepted observations, without storing credentials or metrics."""
 import argparse
 import math
 import os
@@ -34,7 +34,7 @@ class DeliveryHealth:
     def ready(self, now, max_age=120):
         try:
             timestamp = float(self.path.read_text())
-            return math.isfinite(timestamp) and 0 <= now - timestamp <= max_age
+            return math.isfinite(timestamp) and 0 <= now - timestamp < max_age
         except (OSError, ValueError):
             return False
 

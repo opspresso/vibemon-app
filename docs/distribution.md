@@ -1,6 +1,8 @@
 # Public distribution ownership
 
-VibeMon is maintained in two repositories: public `vibemon-app` and private `vibemon-web`. App owns everything needed to install hooks, collect measurements, build the Desktop App, and render shared characters. Web owns authentication, ingestion, storage, the dashboard, and the documentation site.
+The public `vibemon-app` repository owns hooks, collectors, the Desktop App, and shared rendering contracts. Private `vibemon-web` owns authentication, ingestion, storage, the dashboard, and the documentation site. This guide describes their public file distribution.
+
+[VibeMon Touch](https://github.com/opspresso/vibemon-esp32) has its own firmware repository. It pins App-owned monitoring rules and design tokens, and reads summaries from Web over HTTPS.
 
 | Content | Source in App | Web destination |
 | --- | --- | --- |
@@ -8,7 +10,7 @@ VibeMon is maintained in two repositories: public `vibemon-app` and private `vib
 | State and character registries | `src/shared/data/` | `/static/data/*` |
 | Product design tokens and mark | `src/shared/design/` | `/static/design/*` |
 | Character images | `src/assets/characters/` | `/static/characters/*` |
-| Shared renderers and resource schema | `src/engine/`, `src/bubble/`, `src/shared/resource-schema.*` | `/static/js/*`, `/static/css/*` |
+| Shared renderers and resource schema | `src/engine/`, `src/shared/bubble/`, `src/shared/resource-schema.*` | `/static/js/*`, `/static/css/*` |
 | Hook and collector guides | `docs/hooks.md`, `collector/README.md` | `/docs/hooks`, `/docs/collector` |
 | Python resource collector | `collector/` | Install from this public repository |
 | Sprite authoring tools and references | `tools/sprites/` | Not included in runtime packages |

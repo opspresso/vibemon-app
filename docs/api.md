@@ -23,12 +23,12 @@ This reference describes the Desktop App's local HTTP server on `127.0.0.1:19280
 | `project` | 128 chars | String |
 | `tool` | 64 chars | String |
 | `model` | 64 chars | String |
-| `memory` | - | Integer 0-100 (context-window usage) |
-| `usage5h` | - | Integer 0-100 (5-hour plan-usage window) |
-| `usageWeek` | - | Integer 0-100 (weekly plan-usage window) |
+| `memory` | - | Finite number 0-100 (context-window usage) |
+| `usage5h` | - | Finite number 0-100 (5-hour plan-usage window) |
+| `usageWeek` | - | Finite number 0-100 (weekly plan-usage window) |
 | `usage5hResetsIn` | - | Non-negative integer (minutes until the 5-hour window resets) |
 | `usageWeekResetsIn` | - | Non-negative integer (minutes until the weekly window resets) |
-| `usageWeekModel` | - | Integer 0-100 (model-scoped weekly plan-usage window, e.g. the Fable bucket) |
+| `usageWeekModel` | - | Finite number 0-100 (model-scoped weekly plan-usage window, e.g. the Fable bucket) |
 | `usageWeekModelResetsIn` | - | Non-negative integer (minutes until the model-scoped weekly window resets) |
 | `usageWeekModelLabel` | 64 chars | Display label for the model-scoped weekly window (e.g. `Fable`) |
 | `character` | - | `vibemon`, `clawd`, `codex`, `kiro`, `claw`, or `daangni` (unknown names fall back to `vibemon`) |
@@ -75,6 +75,9 @@ curl -X POST http://127.0.0.1:19280/status \
 | `state` | string | `start`, `idle`, `thinking`, `planning`, `working`, `packing`, `notification`, `done`, `sleep`, `alert` |
 | `tool` | string | Tool name (e.g., `Bash`, `Read`, `Edit`) |
 | `project` | string | Project name |
+| `sourceId` | string | Optional stable source identity, using the Web source-ID rules |
+| `account` | object | Optional `{ provider, id, displayName }`, with the same identity rules as Web |
+| `observedAt` | string | Optional UTC event time; at most 120 seconds old or 30 seconds ahead |
 | `model` | string | Model name (e.g., `opus`, `sonnet`) |
 | `memory` | number | Context-window usage (0-100) |
 | `usage5h` | number | 5-hour plan-usage window (0-100) |
@@ -99,6 +102,10 @@ Agent bridges usually set `character` automatically:
 - bridges without their own character fall back to `vibemon`
 
 Unknown character names are accepted and normalized to `vibemon`; they do not reject the status update or become Character Lock options. OpenCode uses the same `POST /status` endpoint and cloud relay payload as the other bridges. Its adapter omits context and plan-usage fields because it does not collect usage metrics.
+
+Current hooks send the same `sourceId`, account metadata and event timestamp to Desktop and Web. Desktop keys these local events as `local:<sourceId>`; cloud observations use `cloud:<sourceId>`. Project labels remain unchanged. Accounts and workspaces with the same project name stay separate. Untimestamped legacy payloads without a source ID continue to use the project name as their key.
+
+For a timestamped source, duplicate or older events return `skipped: true` with `reason: "duplicate_or_older"`. They do not replace state or refresh timers. A source ID cannot move between accounts. `GET /status` exposes the resulting project keys; use those keys with `/close` and `/show`.
 
 **Response:**
 ```json

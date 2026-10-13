@@ -2,7 +2,7 @@ import { formatAxisValue } from '../../shared/design/presentation.mjs';
 import { $, el, text, choices, keyed, svg, reading, badge, providerName, stateLabel, ago } from '../dom.js';
 import { resourceType, accountCard, sourceState } from './cards.js';
 
-export function setupDetail({ getFrame, request, run }) {
+export function setupDetail({ getFrame, cloudTime, request, run }) {
   const dialog = $('detail-dialog');
   let selected = null;
   let points = [];
@@ -26,7 +26,7 @@ export function setupDetail({ getFrame, request, run }) {
       return;
     }
     const precise = metric.selectionKey.startsWith('resource:');
-    const now = Date.now(),
+    const now = cloudTime(),
       start = now - 3600000;
     const samples = points
       .map(point => ({ time: Date.parse(point.timestamp), average: point.average?.[key], maximum: point.maximum?.[key] }))
@@ -115,7 +115,7 @@ export function setupDetail({ getFrame, request, run }) {
     $('detail-status').replaceChildren(status);
     text($('detail-message'), source.statusMessage || '');
     $('detail-message').hidden = !source.statusMessage;
-    text($('detail-received'), `Received ${ago(source.receivedAt).toLowerCase()}`);
+    text($('detail-received'), `Received ${ago(source.receivedAt, cloudTime()).toLowerCase()}`);
     const selectedMetrics = metrics(source);
     keyed(
       $('detail-readings'),
@@ -177,6 +177,8 @@ export function setupDetail({ getFrame, request, run }) {
     run($('edit-resource'), () => request('open-web', 'edit-resource', selected.sourceId))
   );
   dialog.addEventListener('close', () => {
+    // A queued close event can arrive after this dialog has reopened.
+    if (dialog.open) return;
     stop();
     selected = null;
     points = [];

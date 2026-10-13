@@ -28,6 +28,9 @@ def test_invalid_provider_percent_is_unknown(value):
     ({'context_window_size': 100, 'current_usage': {}}, ''),
     ({'context_window_size': 100, 'current_usage': {'input_tokens': 0}}, '0%'),
     ({'context_window_size': 100, 'current_usage': {'input_tokens': 20, 'cache_read_input_tokens': 10}}, '30%'),
+    ({'context_window_size': float('inf'), 'current_usage': {'input_tokens': 1}}, ''),
+    ({'context_window_size': 10**400, 'current_usage': {'input_tokens': 1}}, ''),
+    ({'context_window_size': 100, 'current_usage': {'input_tokens': 10**400}}, ''),
 ])
 def test_context_distinguishes_zero_from_missing(window, expected):
     assert statusline.get_context_usage({'context_window': window}) == expected
@@ -42,7 +45,7 @@ def test_zero_session_usage_is_not_invented_from_weekly_usage(tmp_path):
     assert usage_cache.get_fresh_provider(usage_cache.load_usage_cache(path), 'claude', 60, now=110)['session']['pct'] == 0
 
 
-@pytest.mark.parametrize('memory', [None, 0, 42])
+@pytest.mark.parametrize('memory', [None, 0, 42, 1.005])
 def test_cloud_omits_unknown_context_but_keeps_measured_zero(memory):
     response = MagicMock()
     response.__enter__.return_value.status = 200
@@ -63,3 +66,57 @@ def test_invalid_reset_epoch_is_not_cached(value):
 
 def test_reset_countdown_is_absent_without_provider_evidence():
     assert statusline.format_usage_reset({'session': {'pct': 20}}) == ''
+
+
+@pytest.mark.parametrize('reset', [True, float('nan'), float('inf'), 10**400, 1e308])
+def test_invalid_reset_metadata_does_not_drop_a_valid_usage_measurement(reset):
+    assert vibemon_core._usage_fields({'session': {'pct': 1.005, 'resets_at': reset}}) == {'usage5h': 1.005}
+
+
+@pytest.mark.parametrize('invalid', [True, '12.5', float('nan'), float('inf'), 101, -1])
+def test_cached_percentages_use_the_same_strict_numeric_boundary_as_desktop(invalid):
+    cache = {'claude': {'updated_at': 100, 'session': {'pct': invalid}, 'week_all': {'pct': 12.5}}}
+    fresh = usage_cache.get_fresh_provider(cache, 'claude', 1800, now=100)
+    assert 'session' not in fresh
+    assert vibemon_core._usage_fields(fresh) == {'usageWeek': 12.5}
+
+
+def test_percentage_cache_and_transport_keep_measured_precision():
+    buckets = usage_cache.usage_from_rate_limits({'rate_limits': {
+        'five_hour': {'used_percentage': 1.005}, 'seven_day': {'used_percentage': 12.3456}
+    }})
+    buckets.update({'week_first': {'pct': 22.1, 'label': 'First'}, 'week_second': {'pct': 22.4, 'label': 'Second'}})
+    assert buckets['session']['pct'] == 1.005
+    assert buckets['week_all']['pct'] == 12.3456
+    assert vibemon_core._usage_fields(buckets) == {
+        'usage5h': 1.005, 'usageWeek': 12.3456, 'usageWeekModel': 22.4, 'usageWeekModelLabel': 'Second'
+    }
+    assert usage_cache.parse_usage_output('Current session: 12.3456% used')['session']['pct'] == 12.3456
+
+
+def test_terminal_percentages_follow_the_shared_measurement_cases():
+    cases = json.loads((ROOT.parents[1] / 'src/shared/monitoring/cases.json').read_text())['measurements']
+    for case in cases:
+        value = case['value']
+        if case['unit'] == '%' and isinstance(value, (int, float)) and 0 <= value <= 100:
+            assert usage_cache.format_percent(value) == case['expected'] + '%'
+    for invalid in [None, float('inf'), float('nan'), -1, 101]:
+        assert statusline.build_progress_bar(invalid) == ''
+    assert usage_cache.format_percent(-0.0) == '0%'
+
+
+def test_codex_context_is_not_rounded_before_delivery(tmp_path):
+    transcript = tmp_path / 'session.jsonl'
+    transcript.write_text(json.dumps({'type': 'event_msg', 'payload': {'type': 'token_count', 'info': {
+        'last_token_usage': {'total_tokens': 12345}, 'model_context_window': 100000
+    }}}) + '\n')
+    assert vibemon_core.get_codex_context_usage({'transcript_path': str(transcript)}) == 12.345
+
+
+def test_statusline_caches_raw_context_instead_of_parsing_its_rounded_display():
+    data = {'model': {'display_name': 'Fixture'}, 'workspace': {'current_dir': '/workspace/demo'}, 'context_window': {'used_percentage': 1.005}}
+    with patch.object(statusline, 'read_input', return_value=json.dumps(data)), patch.object(statusline, 'get_git_info', return_value=''), \
+         patch.object(statusline, 'load_usage_cache', return_value=None), patch.object(statusline, 'save_cache_background') as save:
+        statusline.main()
+    assert save.call_args.args[2] == 1.005
+    assert statusline.get_context_usage(data) == '1.01%'

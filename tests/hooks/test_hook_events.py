@@ -2,12 +2,12 @@ import io
 import json
 import os
 import runpy
-import shlex
 import subprocess
 import sys
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+from datetime import datetime, timedelta, timezone
 from unittest.mock import patch
 
 import pytest
@@ -18,6 +18,7 @@ sys.path.insert(0, str(DOCS))
 
 import install
 import vibemon_core as core
+import account_context
 
 
 def invoke(tool, payload, argv=()):
@@ -47,11 +48,54 @@ def test_claude_failure_paths(event, state):
     assert invoke("claude", {"hook_event_name": event})[0][0]["state"] == state
 
 
+@pytest.mark.parametrize('notification_type', [
+    'idle_prompt', 'auth_success', 'agent_completed', 'elicitation_complete',
+    'elicitation_response', 'quota_auto_resume_fired', 'quota_auto_resume_stale',
+    'quota_auto_resume_disabled', 'unknown', None, ['permission_prompt'],
+])
+def test_claude_information_notifications_never_become_attention(notification_type):
+    assert invoke('claude', {'hook_event_name': 'Notification', 'notification_type': notification_type}) == []
+
+
+@pytest.mark.parametrize('notification_type', ['permission_prompt', 'elicitation_dialog', 'elicitation_url_dialog', 'agent_needs_input'])
+def test_claude_input_notifications_keep_attention(notification_type):
+    assert invoke('claude', {'hook_event_name': 'Notification', 'notification_type': notification_type})[0][0]['state'] == 'notification'
+
+
 def test_codex_interrupt_and_plan_mode():
     assert invoke("codex", {"hook_event_name": "Interrupt"})[0][0]["state"] == "done"
     assert invoke("codex", {
         "hook_event_name": "PreToolUse", "permission_mode": "plan",
     })[0][0]["state"] == "planning"
+
+
+def test_hook_observation_precedes_slow_metadata_and_newer_events(tmp_path):
+    elapsed = [0]
+    newer = []
+    class Clock:
+        @staticmethod
+        def now(_zone):
+            return datetime(2026, 10, 14, tzinfo=timezone.utc) + timedelta(seconds=elapsed[0])
+    def project(*_):
+        elapsed[0] = 2
+        return 'project'
+    def metadata(state, tool, name, data):
+        newer.append(account_context.cloud_context('codex', name, str(tmp_path)))
+        elapsed[0] = 5
+        return {'state': state, 'tool': tool, 'project': name, 'character': 'codex'}
+    with (
+        patch.dict(os.environ, {'VIBEMON_SUPPRESS_HOOKS': '0', 'VIBEMON_CODEX_ACCOUNT_ID': 'default', 'VIBEMON_CODEX_ACCOUNT_NAME': 'Test'}),
+        patch.object(sys, 'argv', ['hook']),
+        patch.object(core, 'read_input', return_value=json.dumps({'hook_event_name': 'PreToolUse', 'cwd': str(tmp_path)})),
+        patch.object(core, 'get_project_name', side_effect=project),
+        patch.object(account_context, 'datetime', Clock),
+        patch.object(core, 'send_to_all') as send,
+    ):
+        core.run({'PreToolUse': 'working'}, metadata, 'SessionStart')
+    original = send.call_args.args[2]
+    assert original['observedAt'] == '2026-10-14T00:00:00.000Z'
+    assert original['observedAt'] < newer[0]['observedAt']
+    assert original['sourceId'] == newer[0]['sourceId']
 
 
 @pytest.mark.parametrize("tool", ["codex", "opencode"])
@@ -202,6 +246,7 @@ def test_stalled_stty_is_bounded(tmp_path):
     port.touch()
     with (
         patch.object(core.subprocess, "run", side_effect=subprocess.TimeoutExpired("stty", 2)) as stty,
+        patch.object(core.os, "isatty", return_value=True),
         patch.object(core, "_get_serial_lock_path", return_value=str(tmp_path / "lock")),
     ):
         assert core.send_serial_raw(str(port), "{}") is False
@@ -212,11 +257,12 @@ def test_stalled_stty_is_bounded(tmp_path):
 def test_custom_hook_paths_survive_real_shell_expansion(tmp_path):
     # These are literal path characters, not shell syntax to execute.
     special = tmp_path / "agent $NOT_A_VAR; 'quoted' & space"
-    special.mkdir()
-    script = special / "vibemon.py"
+    (special / 'hooks').mkdir(parents=True)
+    script = special / 'hooks/vibemon.py'
     script.write_text("print('hook-ran')\n")
     with patch.object(install, "IS_WINDOWS", False):
-        command = f"{shlex.quote(sys.executable)} {install._shell_quote(str(script))}"
+        config = install.adapt_codex_hooks({'hooks': {'Stop': [{'hooks': [{'command': 'python3 ~/.codex/hooks/vibemon.py'}]}]}}, special)
+        command = config['hooks']['Stop'][0]['hooks'][0]['command']
     result = subprocess.run(["/bin/sh", "-c", command], capture_output=True, text=True, timeout=5)
     assert result.returncode == 0
     assert result.stdout.strip() == "hook-ran"

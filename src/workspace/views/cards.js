@@ -85,7 +85,8 @@ export function renderCards(
     emptyTitle = 'Nothing to show yet',
     emptyDescription = 'Choose sources from your workspace to see their latest readings.',
     emptyAction = 'Customize view'
-  } = {}
+  } = {},
+  now = Date.now()
 ) {
   const ordered = [...sources].sort((a, b) => Number(needsAttention(b)) - Number(needsAttention(a)) || a.displayName.localeCompare(b.displayName));
   const shown = limit ? ordered.slice(0, limit) : ordered;
@@ -183,7 +184,7 @@ export function renderCards(
         (node, member) => text(node, member.agent.project)
       );
       parts.members.hidden = !projects.length;
-      text(parts.received, ago(source.receivedAt));
+      text(parts.received, ago(source.receivedAt, now));
       parts.received.dateTime = source.receivedAt;
       parts.received.title = new Date(source.receivedAt).toLocaleString();
       parts.details.setAttribute('aria-label', `View ${source.displayName} details`);
@@ -239,7 +240,7 @@ export function renderActivity(container, activity, compact = false) {
       text(title, item.project || item.id);
       text(
         subtitle,
-        [item.model, item.tool, item.focused ? 'Following on desktop' : null].filter(Boolean).join(' · ') ||
+        [item.account ? `${providerName(item.account.provider)} · ${item.account.displayName}` : null, item.model, item.tool, item.focused ? 'Following on desktop' : null].filter(Boolean).join(' · ') ||
           'Local project'
       );
       badge(status, item.state || 'idle');

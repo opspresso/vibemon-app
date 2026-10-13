@@ -29,7 +29,7 @@ Generate the token at [Account](https://vibemon.io/account) and select **Show to
 | `--metrics cpuPercent,memoryPercent` | Collect only the selected metrics |
 | `--memory-type auto` | Detect Spark/GB10 unified memory; `ram` and `unified` explicitly override |
 | `--once` | Exit after one successfully acknowledged 30-second summary |
-| `--health-file PATH` | Atomically record the last acknowledged delivery time for readiness checks |
+| `--health-file PATH` | Atomically record the last newly accepted observation time for readiness checks |
 | `--allow-local-http` | Permit HTTP on loopback addresses only for isolated development |
 
 `VIBEMON_WRITE_TOKEN` supplies the Web token. `PROMETHEUS_TOKEN`, if set, supplies a separate read credential for Prometheus. TLS certificate verification is always enabled. Redirects are rejected to avoid forwarding credentials to another host.
@@ -116,4 +116,4 @@ Use `--health-file /tmp/vibemon-health` and a readiness probe:
 python -m vibemon_collector.health /tmp/vibemon-health --max-age 120
 ```
 
-Readiness is false until a valid acknowledgement arrives, expires after 120 seconds without one, and resets on process start. It contains no credentials or measurements. Readiness failure must not restart a working collector during a Web outage. Kubernetes still exposes a permanent configuration failure through its container restart/backoff state; repair the Secret or arguments and restart the deployment. A systemd service can use `RestartPreventExitStatus=2` to wait for an operator instead.
+Readiness is false until Web accepts a new observation, expires at 120 seconds without another acceptance, and resets on process start. A `duplicate_or_older` acknowledgement discards the obsolete window without refreshing readiness because it does not refresh the server receipt. The file contains no credentials or measurements. Readiness failure must not restart a working collector during a Web outage. Kubernetes still exposes a permanent configuration failure through its container restart/backoff state; repair the Secret or arguments and restart the deployment. A systemd service can use `RestartPreventExitStatus=2` to wait for an operator instead.

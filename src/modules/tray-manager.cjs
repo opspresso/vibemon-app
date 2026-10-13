@@ -108,9 +108,11 @@ class TrayManager {
     this.contextMenu = null;
     this.monitoringClient = null;
     this.onMonitoringChange = null;
-    this.cloudAttention = false;
+    this.cloudStatus = 'not-configured';
+    this.cloudAttentionCount = 0;
     this.iconGeneration = 0;
     this.iconKey = null;
+    this.tooltip = null;
     this.hookInstaller = null;
     this.updateChecker = null;
     this.openSettings = null;
@@ -127,13 +129,14 @@ class TrayManager {
     if (this.monitoringClient && this.onMonitoringChange) this.monitoringClient.off('change', this.onMonitoringChange);
     this.monitoringClient = monitoringClient;
     this.onMonitoringChange = snapshot => {
-      this.cloudAttention = !['connected', 'connecting', 'not-configured'].includes(snapshot.status) || snapshot.attentionCount > 0;
+      this.cloudStatus = snapshot.status;
+      this.cloudAttentionCount = snapshot.attentionCount || 0;
       this.updateIcon();
     };
     if (monitoringClient) {
       monitoringClient.on('change', this.onMonitoringChange);
       this.onMonitoringChange(monitoringClient.snapshot());
-    } else { this.cloudAttention = false; this.updateIcon(); }
+    } else { this.cloudStatus = 'not-configured'; this.cloudAttentionCount = 0; this.updateIcon(); }
   }
 
   /**
@@ -190,8 +193,23 @@ class TrayManager {
    * @returns {boolean}
    */
   hasAttentionBadge() {
-    return this.cloudAttention || this.hasUpdateAvailable() ||
-      Boolean(this.hookInstaller && this.hookInstaller.hasChanges());
+    return this.attentionReasons().length > 0;
+  }
+
+  attentionReasons() {
+    const reasons = [];
+    if (!['connected', 'connecting', 'not-configured'].includes(this.cloudStatus)) {
+      const connection = {
+        'token-expired': 'Read token rejected — check Connections',
+        'permission-denied': 'Read permission required — check Connections',
+        'credential-unavailable': 'Saved token unavailable — check Connections'
+      };
+      reasons.push(connection[this.cloudStatus] || 'Cloud connection interrupted — check Connections');
+    }
+    if (this.cloudAttentionCount > 0) reasons.push(`${this.cloudAttentionCount} monitored item${this.cloudAttentionCount === 1 ? '' : 's'} need${this.cloudAttentionCount === 1 ? 's' : ''} attention — open Dashboard`);
+    if (this.hookInstaller?.hasChanges()) reasons.push('Integrations need repair — open Integrations');
+    if (this.hasUpdateAvailable()) reasons.push('App update available — open About VibeMon');
+    return reasons;
   }
 
   createTray() {
@@ -200,7 +218,6 @@ class TrayManager {
     // Start with a synchronous background-only icon; the character sprite
     // is drawn in as soon as its image finishes loading (updateIcon below).
     this.tray = new Tray(drawTrayIcon(state.state, null, this.hasAttentionBadge()));
-    this.tray.setToolTip('VibeMon');
     this.updateMenu();
     this.updateIcon();
 
@@ -218,7 +235,10 @@ class TrayManager {
   updateIcon() {
     if (!this.tray) return;
     const state = this.getFocusedState();
-    const badge = this.hasAttentionBadge();
+    const reasons = this.attentionReasons();
+    const badge = reasons.length > 0;
+    const tooltip = ['VibeMon', ...reasons].join('\n');
+    if (this.tooltip !== tooltip) { this.tray.setToolTip(tooltip); this.tooltip = tooltip; }
     const key = `${state.state}:${state.character}:${badge}`;
     if (this.iconKey === key) return;
     this.iconKey = key;
@@ -269,6 +289,7 @@ class TrayManager {
     characterImageCache.clear();
     this.iconGeneration++;
     this.iconKey = null;
+    this.tooltip = null;
     this.contextMenu = null;
     if (this.monitoringClient && this.onMonitoringChange) this.monitoringClient.off('change', this.onMonitoringChange);
     if (this.tray) {

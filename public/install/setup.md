@@ -47,6 +47,8 @@ On Windows PowerShell:
 
 The wrapper locates Python 3, downloads `install.py`, and requires its published SHA-256 before executing it. Use this wrapper instead of piping Python source through Windows PowerShell's text encoding. Install Python from python.org if no usable interpreter is found.
 
+Windows hooks keep the interpreter that ran the installer. Codex and Kiro may use different command shells. Plain paths run directly; paths with spaces or shell characters use Windows PowerShell's [UTF-16LE `EncodedCommand`](https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.core/about/about_powershell_exe?view=powershell-5.1) to preserve literal executable and script arguments. Standard input and failure results still reach the provider. The App inspects these arguments without executing them, so a moved interpreter remains **Needs repair**. Reinstall after moving Python or a tool's configuration directory.
+
 All remote scripts and configuration templates require a matching [manifest.json](manifest.json). Missing or mismatched references stop installation. Retry after the publisher deploys matching files; do not bypass verification.
 
 The installer backs up modified configuration to `.bak`, writes atomically, and preserves unrelated hooks. Exit code `0` means every attempted installation succeeded. Undetected tools are skipped; a failure or a run with no installed tool returns `1`.
@@ -137,4 +139,10 @@ curl -fsSL https://vibemon.io/install/install.py | python3 - --uninstall --claud
 
 The Windows wrapper accepts the same flags. `--uninstall --all` removes tool integrations; `--uninstall --vibemon` removes shared scripts. Configuration and unrelated hooks remain. A removal failure returns a failing exit code.
 
-For hook event mappings and configuration details, see the [hook reference](https://vibemon.io/docs/hooks). ESP32 firmware and deployment are outside this overhaul; existing local serial integration is retained.
+For hook event mappings and configuration details, see the [hook reference](https://vibemon.io/docs/hooks).
+
+## VibeMon Touch and legacy devices
+
+VibeMon Touch on the four-inch ESP32-S3 board reads summaries from Web over HTTPS. Configure Wi-Fi, the Web origin, and a read token on the device. Hooks deliver to Web with a write token; neither `http_urls` nor `serial_port` configures Touch. See the [Touch setup guide](https://github.com/opspresso/vibemon-esp32#set-up-the-device).
+
+Local HTTP/serial delivery remains available for ESP32-C6 devices using the [previous firmware](https://github.com/opspresso/vibemon-esp32/tree/e6c272c). The Touch firmware is not compatible with C6 boards.

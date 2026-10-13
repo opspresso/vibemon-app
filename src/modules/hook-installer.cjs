@@ -112,6 +112,19 @@ function isVibemonEntry({ command, args }) {
  * @returns {string[]}
  */
 function tokenizeCommand(command) {
+  const prefix = 'powershell.exe -NoLogo -NoProfile -NonInteractive -EncodedCommand ';
+  if (command.startsWith(prefix)) {
+    const encoded = command.slice(prefix.length);
+    if (!/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(encoded)) return [];
+    const script = Buffer.from(encoded, 'base64').toString('utf16le');
+    const start = "$ErrorActionPreference='Stop'; & ", end = '; exit $LASTEXITCODE';
+    if (!script.startsWith(start) || !script.endsWith(end)) return [];
+    const args = script.slice(start.length, -end.length);
+    const literals = args.match(/'(?:''|[^'])*'/g) || [];
+    // Inspect only our literal invocation; never evaluate installed commands.
+    if (literals.length < 2 || args !== literals.join(' ')) return [];
+    return literals.map(literal => literal.slice(1, -1).replaceAll("''", "'"));
+  }
   const tokens = command.trim().replace(/^&\s+/, '').match(/(?:"[^"]*"|'[^']*'|[^\s"'])+/g) || [];
   return tokens.map(token => token.replace(/"([^"]*)"|'([^']*)'/g, (_match, double, single) => double ?? single));
 }

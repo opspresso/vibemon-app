@@ -4,10 +4,13 @@ import json
 import os
 import re
 import runpy
+import shutil
 import shlex
+import subprocess
 import sys
 import tempfile
 import unittest
+import venv
 from pathlib import Path
 from unittest import mock
 
@@ -188,6 +191,12 @@ class AskYesNoTest(unittest.TestCase):
         install.AUTO_APPROVE, install.NON_INTERACTIVE = False, True
         self.assertTrue(install.ask_yes_no("?", default=True))
         self.assertFalse(install.ask_yes_no("?", default=False))
+
+    def test_lost_interactive_input_preserves_user_owned_configuration(self):
+        install.AUTO_APPROVE, install.NON_INTERACTIVE = False, False
+        with mock.patch('builtins.input', side_effect=EOFError):
+            self.assertFalse(install.ask_yes_no('Replace statusLine?', unattended=False))
+            self.assertTrue(install.ask_yes_no('Upgrade owned script?', unattended=True))
 
 
 class SelectedPlatformsTest(unittest.TestCase):
@@ -604,34 +613,51 @@ class WindowsShellCommandTest(unittest.TestCase):
     PY_SPACED = "C:/Program Files/Python313/python.exe"
     SCRIPT_SPACED = "C:/Users/a b/.claude/statusline.py"
 
-    def test_space_free_paths_are_shell_agnostic(self):
-        for git_bash in (True, False):
-            with mock.patch.object(install, "has_git_bash", lambda: git_bash):
-                self.assertEqual(
-                    install.windows_shell_command(self.PY, "C:/Users/dev/x.py"),
-                    f"{self.PY} C:/Users/dev/x.py",
-                )
+    def test_literal_commands_keep_the_complete_installed_path_identity(self):
+        with tempfile.TemporaryDirectory() as directory:
+            script = Path(directory) / "O'Connor & $NAME `literal`" / 'statusline.py'
+            for bash in (True, False):
+                with mock.patch.object(install, 'has_git_bash', return_value=bash), mock.patch.object(install, 'IS_WINDOWS', True):
+                    command = install.windows_shell_command(self.PY_SPACED, install.hook_path(script))
+                    self.assertTrue(install._uses_installed_script(command, script))
+                    self.assertFalse(install._uses_installed_script(command, script.parent / 'other.py'))
 
-    def test_a_quoted_argument_alone_stays_shell_agnostic(self):
-        """Only a quoted *command* forces the PowerShell call operator."""
-        for git_bash in (True, False):
-            with mock.patch.object(install, "has_git_bash", lambda: git_bash):
-                self.assertEqual(
-                    install.windows_shell_command(self.PY, self.SCRIPT_SPACED),
-                    f'{self.PY} "{self.SCRIPT_SPACED}"',
-                )
+    def _run_shell(self, shell, args, bash):
+        with tempfile.TemporaryDirectory() as directory:
+            script = Path(directory) / "O'Connor & $NAME `literal`" / 'statusline.py'
+            script.parent.mkdir()
+            environment = script.parent / 'Python environment'
+            venv.EnvBuilder(with_pip=False).create(environment)
+            python = environment / ('Scripts/python.exe' if os.name == 'nt' else 'bin/python')
+            script.write_text('import json,sys\nfrom pathlib import Path\ntrace=Path(__file__).with_suffix(".trace")\ntrace.write_text("reading stdin")\nsys.stdin.reconfigure(encoding="utf-8")\ndata=json.load(sys.stdin)\ntrace.write_text("input received")\nprint(json.dumps({"name":__file__,"data":data}))\n', encoding='utf-8')
+            with mock.patch.object(install, 'has_git_bash', return_value=bash):
+                command = install.windows_shell_command(install.hook_path(python), install.hook_path(script))
+            try:
+                result = subprocess.run([shell, *args, command], input='{"value":"한글 fixture"}', capture_output=True, encoding='utf-8', timeout=10, env={**os.environ, 'NAME': 'must-not-expand'})
+            except subprocess.TimeoutExpired as error:
+                trace = script.with_suffix('.trace')
+                phase = trace.read_text() if trace.exists() else 'Python has not entered the script'
+                self.fail(f'{shell} timed out: {phase}; stdout bytes={len(error.stdout or b"")}, stderr bytes={len(error.stderr or b"")}')
+            self.assertEqual(result.returncode, 0, result.stderr)
+            output = json.loads(result.stdout)
+            self.assertEqual(Path(output['name']).resolve(), script.resolve())
+            self.assertEqual(output['data'], {'value': '한글 fixture'})
 
-    def test_quoted_command_gets_an_ampersand_only_without_git_bash(self):
-        with mock.patch.object(install, "has_git_bash", lambda: True):
-            self.assertEqual(
-                install.windows_shell_command(self.PY_SPACED, "C:/Users/dev/x.py"),
-                f'"{self.PY_SPACED}" C:/Users/dev/x.py',
-            )
-        with mock.patch.object(install, "has_git_bash", lambda: False):
-            self.assertEqual(
-                install.windows_shell_command(self.PY_SPACED, "C:/Users/dev/x.py"),
-                f'& "{self.PY_SPACED}" C:/Users/dev/x.py',
-            )
+    def test_real_bash_preserves_paths_and_stdin(self):
+        if os.name == 'nt':
+            # Do not accidentally run Windows' WSL bash launcher.
+            git = shutil.which('git')
+            shell = Path(git).parent.parent / 'bin' / 'bash.exe' if git else None
+            self.assertTrue(shell and shell.is_file(), 'Windows CI must provide Git Bash')
+        else:
+            shell = shutil.which('bash')
+            if not shell:
+                self.skipTest('Bash executable required')
+        self._run_shell(str(shell), ['-c'], True)
+
+    @unittest.skipUnless(os.name == 'nt', 'Windows PowerShell is verified on Windows CI')
+    def test_real_windows_powershell_preserves_paths_and_stdin(self):
+        self._run_shell('powershell.exe', ['-NoLogo', '-NoProfile', '-NonInteractive', '-Command'], False)
 
 
 class AdaptCodexHooksTest(unittest.TestCase):
@@ -1176,6 +1202,15 @@ class InstallClaudeSettingsTest(unittest.TestCase):
             result, settings = self._run({"hooks": {}, "statusLine": 5})
         self.assertTrue(result)
         self.assertIsInstance(settings["statusLine"], dict)
+
+    def test_custom_status_line_values_are_preserved_without_logging_them(self):
+        value = 'PRIVATE_MARKER_FOR_TEST_ONLY custom-statusline'
+        for statusline in ({'type': 'command', 'command': value}, value):
+            with self.subTest(statusline_type=type(statusline).__name__), mock.patch.object(install, 'ask_yes_no', return_value=False), mock.patch('sys.stdout', new_callable=io.StringIO) as output:
+                result, settings = self._run({'hooks': {}, 'statusLine': statusline})
+            self.assertTrue(result)
+            self.assertEqual(settings['statusLine'], statusline)
+            self.assertNotIn(value, output.getvalue())
 
 
 class ConfigRobustnessTest(unittest.TestCase):

@@ -2,7 +2,7 @@
 
 ## Project Structure & Module Organization
 
-VibeMon is an Electron desktop application. The main process starts in `src/main.js`; CommonJS services live in `src/modules/`, shared registries in `src/shared/`, and renderer code in `src/renderer.js`, `src/bubble/`, and `src/engine/`. Keep tests in `tests/`, documentation in `docs/`, character art in `src/assets/characters/`, and application icons in `assets/`.
+VibeMon is an Electron desktop application. The main process starts in `src/main.js`; CommonJS services live in `src/modules/`, shared registries in `src/shared/`, and renderer code in `src/renderer.js`, `src/shared/bubble/`, and `src/engine/`. Keep tests in `tests/`, documentation in `docs/`, character art in `src/assets/characters/`, and application icons in `assets/`.
 
 ## Architecture & Data Flow
 
@@ -25,7 +25,7 @@ Use Node.js 26.11.1 from `.nvmrc` and pnpm:
 
 ## Coding Style & Naming Conventions
 
-Follow `eslint.config.js`: two-space indentation, single quotes, semicolons, no trailing commas, and an ending newline. Use `camelCase` for variables and functions, `PascalCase` for classes, and kebab-case filenames such as `state-manager.cjs`. Preserve module boundaries: main-process modules use CommonJS (`.cjs`), while renderer and engine code may use ES modules. Do not edit files under `src/vendor/`. `src/shared/design/` owns the shared App/Web visual tokens and brand mark. Export changes through `web-distribution.json`; do not maintain a second palette in Web. `src/shared/resource-schema.cjs`, `src/engine/`, `src/bubble/`, `src/shared/data/{states,characters}.json`, and `src/assets/characters/` are canonical here. Installer sources live in `public/install/`, their tests in `tests/hooks/`, and sprite authoring tools in `tools/sprites/`. Regenerate `public/install/manifest.json` with `python3 scripts/generate_manifest.py` when an installer payload changes.
+Follow `eslint.config.js`: two-space indentation, single quotes, semicolons, no trailing commas, and an ending newline. Use `camelCase` for variables and functions, `PascalCase` for classes, and kebab-case filenames such as `state-manager.cjs`. Preserve module boundaries: main-process modules use CommonJS (`.cjs`), while renderer and engine code may use ES modules. Do not edit files under `src/vendor/`. `src/shared/design/` owns the shared App/Web visual tokens and brand mark. Export changes through `web-distribution.json`; do not maintain a second palette in Web. `src/shared/resource-schema.cjs`, `src/engine/`, `src/shared/bubble/`, `src/shared/data/{states,characters}.json`, and `src/assets/characters/` are canonical here. Installer sources live in `public/install/`, their tests in `tests/hooks/`, and sprite authoring tools in `tools/sprites/`. Regenerate `public/install/manifest.json` with `python3 scripts/generate_manifest.py` when an installer payload changes.
 
 ## Testing Guidelines
 

@@ -34,7 +34,7 @@
     "public/static/characters/kiro.png": "src/assets/characters/kiro.png",
     "public/static/characters/vibemon.png": "assets/web/characters/vibemon.png",
     "public/static/characters/vibemon-v2.png": "src/assets/characters/vibemon-v2.png",
-    "public/static/css/vibemon-bubble.css": "src/bubble/vibemon-bubble.css",
+    "public/static/css/vibemon-bubble.css": "src/shared/bubble/vibemon-bubble.css",
     "public/static/data/characters.json": "src/shared/data/characters.json",
     "public/static/data/states.json": "src/shared/data/states.json",
     "public/static/favicon.ico": "assets/web/favicon.ico",
@@ -46,10 +46,12 @@
     "public/static/js/resource-schema.cjs": "src/shared/resource-schema.cjs",
     "public/static/js/resource-schema.d.cts": "src/shared/resource-schema.d.cts",
     "public/static/js/monitoring-state.cjs": "src/shared/monitoring/state.cjs",
+    "public/static/js/monitoring-clock.cjs": "src/shared/monitoring/clock.cjs",
+    "public/static/js/monitoring-clock.d.cts": "src/shared/monitoring/clock.d.cts",
     "public/static/js/monitoring-state.d.cts": "src/shared/monitoring/state.d.cts",
     "public/static/data/constants.json": "src/shared/data/constants.json",
-    "public/static/js/vibemon-bubble.d.ts": "src/bubble/vibemon-bubble.d.ts",
-    "public/static/js/vibemon-bubble.js": "src/bubble/vibemon-bubble.js",
+    "public/static/js/vibemon-bubble.d.ts": "src/shared/bubble/vibemon-bubble.d.ts",
+    "public/static/js/vibemon-bubble.js": "src/shared/bubble/vibemon-bubble.js",
     "public/static/js/vibemon-engine-3d.js": "src/engine/vibemon-engine-3d.js",
     "public/static/js/vibemon-engine.d.ts": "src/engine/vibemon-engine.d.ts",
     "public/static/js/vibemon-engine.js": "src/engine/vibemon-engine.js",
@@ -59,6 +61,9 @@
     "public/static/design/icon-16.png": "assets/web/icon-16.png",
     "public/static/design/icon-32.png": "assets/web/icon-32.png",
     "public/static/design/presentation.mjs": "src/shared/design/presentation.mjs",
-    "public/static/design/presentation.d.mts": "src/shared/design/presentation.d.mts"
+    "public/static/design/presentation.d.mts": "src/shared/design/presentation.d.mts",
+    "public/static/data/monitoring.json": "src/shared/data/monitoring.json",
+    "public/static/data/monitoring-cases.json": "src/shared/monitoring/cases.json",
+    "public/static/design/monitoring-labels.mjs": "src/shared/design/monitoring-labels.mjs"
   }
 }

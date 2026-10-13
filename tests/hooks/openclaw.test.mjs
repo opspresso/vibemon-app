@@ -4,6 +4,20 @@ import { openclaw } from "./plugin_harness.mjs";
 
 const ctx = { runId: "r", sessionId: "s", sessionKey: "agent:main:s" };
 
+test("status and health requests release their response streams", async () => {
+  let released = 0;
+  const h = await openclaw({
+    pluginConfig: { autoLaunch: true, httpUrls: ["http://127.0.0.1:19280"] },
+    fetch: async () => new Response(new ReadableStream({
+      start(controller) { controller.enqueue(new Uint8Array([123, 125])); },
+      cancel() { released++; },
+    }), { status: 200 }),
+  });
+  await h.emit("gateway_start");
+  assert.equal(released, h.requests.length);
+  assert.ok(released >= 2);
+});
+
 test("connection diagnostics omit URL credentials, query secrets and raw transport errors", async () => {
   const h = await openclaw({
     pluginConfig: { debug: true, httpUrls: ["http://user:fixture-password@monitor/?key=fixture-query"], vibemonUrl: "https://user:fixture-password@cloud.example/?key=fixture-query", vibemonToken: "fixture-write" },
@@ -30,6 +44,12 @@ test("cloud delivery uses shared account identity without putting credentials in
   assert.equal(cloud.options.env.VIBEMON_OPENCLAW_ACCOUNT_ID, "work");
   assert.equal(JSON.stringify(cloud.args).includes("fixture-write"), false);
   assert.equal(JSON.parse(cloud.child.raw).state, "thinking");
+  const local = h.requests.find(request => request.payload?.state === "thinking").payload;
+  const sent = JSON.parse(cloud.child.raw);
+  assert.deepEqual(sent.account, local.account);
+  assert.equal(sent.sourceId, "agent:84718e3543c37148d811992cd3a6f77d4fdae75b02dff7d410b6b43c30dd536b");
+  assert.equal(sent.sourceId, local.sourceId);
+  assert.equal(sent.observedAt, local.observedAt);
   assert.equal(cloud.options.timeout, 5000);
   assert.equal(h.requests.some(request => request.url.includes("cloud.example")), false);
 });
@@ -107,12 +127,12 @@ test("usage and active model follow official llm_output fields and reset per run
   await h.emit("before_agent_run", {}, ctx);
   await h.emit("llm_output", {
     model: "actual", contextTokenBudget: 1000,
-    usage: { input: 100, output: 50, cacheRead: 200, cacheWrite: 50 },
+    usage: { input: 101, output: 50, cacheRead: 200, cacheWrite: 50 },
   }, ctx);
   await h.emit("agent_end", { success: true }, ctx);
   await h.advance(3000);
   assert.equal(h.requests.at(-1).payload.model, "actual");
-  assert.equal(h.requests.at(-1).payload.memory, 40);
+  assert.equal(h.requests.at(-1).payload.memory, 40.1);
   await h.emit("before_agent_run", {}, { runId: "next", sessionId: "s" });
   assert.equal(h.requests.at(-1).payload.memory, undefined);
   assert.equal(h.requests.at(-1).payload.model, "default");

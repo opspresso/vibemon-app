@@ -2,14 +2,13 @@
  * Input validation functions for the Vibe Monitor
  */
 
-const { VALID_STATES } = require('../shared/config.cjs');
+const { VALID_STATES, OBSERVATION_MAX_AGE_MS, OBSERVATION_CLOCK_SKEW_MS } = require('../shared/config.cjs');
+const { validId, validAccountId } = require('../monitoring/domain.cjs');
+const { validPercentage, validText, AGENT_TEXT_LIMITS } = require('../shared/resource-schema.cjs');
 
 // Local hook payload limits. Cloud source validation lives in
 // monitoring/domain.cjs and uses the cloud API's source contract.
-const PROJECT_MAX_LENGTH = 128;
-const TOOL_MAX_LENGTH = 64;
-const MODEL_MAX_LENGTH = 64;
-const CHARACTER_MAX_LENGTH = 64;
+const { project: PROJECT_MAX_LENGTH, tool: TOOL_MAX_LENGTH, model: MODEL_MAX_LENGTH, character: CHARACTER_MAX_LENGTH } = AGENT_TEXT_LIMITS;
 const TERMINAL_ID_MAX_LENGTH = 100;
 // Memory is now a number (0-100), not a string
 // iTerm2: iterm2:w0t0p0:UUID format, Ghostty: ghostty:PID format
@@ -29,6 +28,8 @@ function validateState(state) {
   if (state === undefined) {
     return { valid: false, error: 'state is required' };
   }
+  if (typeof state !== 'string') return { valid: false, error: 'State must be a string' };
+  if (!validText(state, AGENT_TEXT_LIMITS.state)) return { valid: false, error: 'State must be single-line Unicode text' };
   if (!VALID_STATES.includes(state)) {
     return { valid: false, error: `Invalid state: ${state}. Valid states: ${VALID_STATES.join(', ')}` };
   }
@@ -53,6 +54,7 @@ function validateCharacter(character) {
   if (character.length > CHARACTER_MAX_LENGTH) {
     return { valid: false, error: `Character name exceeds ${CHARACTER_MAX_LENGTH} characters` };
   }
+  if (!validText(character, CHARACTER_MAX_LENGTH, true)) return { valid: false, error: 'Character must be single-line Unicode text' };
   return { valid: true, error: null };
 }
 
@@ -71,6 +73,7 @@ function validateProject(project) {
   if (project.length > PROJECT_MAX_LENGTH) {
     return { valid: false, error: `Project name exceeds ${PROJECT_MAX_LENGTH} characters` };
   }
+  if (!validText(project, PROJECT_MAX_LENGTH, true)) return { valid: false, error: 'Project must be single-line Unicode text' };
   return { valid: true, error: null };
 }
 
@@ -96,8 +99,8 @@ function validateUsage(value, label) {
   if (typeof value !== 'number') {
     return { valid: false, error: `${label} must be a number` };
   }
-  if (!Number.isInteger(value) || value < 0 || value > 100) {
-    return { valid: false, error: `${label} must be an integer between 0 and 100` };
+  if (!validPercentage(value)) {
+    return { valid: false, error: `${label} must be a finite number between 0 and 100` };
   }
   return { valid: true, error: null };
 }
@@ -115,7 +118,7 @@ function validateResetMinutes(value, label) {
   if (typeof value !== 'number') {
     return { valid: false, error: `${label} must be a number` };
   }
-  if (!Number.isInteger(value) || value < 0) {
+  if (!Number.isSafeInteger(value) || value < 0) {
     return { valid: false, error: `${label} must be a non-negative integer` };
   }
   return { valid: true, error: null };
@@ -136,6 +139,7 @@ function validateTool(tool) {
   if (tool.length > TOOL_MAX_LENGTH) {
     return { valid: false, error: `Tool name exceeds ${TOOL_MAX_LENGTH} characters` };
   }
+  if (!validText(tool, TOOL_MAX_LENGTH, true)) return { valid: false, error: 'Tool must be single-line Unicode text' };
   return { valid: true, error: null };
 }
 
@@ -154,6 +158,7 @@ function validateModel(model) {
   if (model.length > MODEL_MAX_LENGTH) {
     return { valid: false, error: `Model name exceeds ${MODEL_MAX_LENGTH} characters` };
   }
+  if (!validText(model, MODEL_MAX_LENGTH, true)) return { valid: false, error: 'Model must be single-line Unicode text' };
   return { valid: true, error: null };
 }
 
@@ -172,6 +177,7 @@ function validateUsageLabel(label) {
   if (label.length > MODEL_MAX_LENGTH) {
     return { valid: false, error: `usageWeekModelLabel exceeds ${MODEL_MAX_LENGTH} characters` };
   }
+  if (!validText(label, AGENT_TEXT_LIMITS.usageWeekModelLabel, true)) return { valid: false, error: 'usageWeekModelLabel must be single-line Unicode text' };
   return { valid: true, error: null };
 }
 
@@ -205,6 +211,24 @@ function validateTerminalId(terminalId) {
 function validateStatusPayload(data) {
   if (!data || typeof data !== 'object' || Array.isArray(data)) {
     return { valid: false, error: 'Payload must be a JSON object' };
+  }
+  if (data.sourceId !== undefined && !validId(data.sourceId)) return { valid: false, error: 'Invalid sourceId' };
+  if (data.account !== undefined) {
+    const account = data.account;
+    if (!account || typeof account !== 'object' || Array.isArray(account) ||
+        Object.keys(account).some(key => !['id', 'provider', 'displayName'].includes(key)) ||
+        typeof account.provider !== 'string' || typeof account.id !== 'string' ||
+        !validAccountId(`${account.provider}:${account.id}`) ||
+        !validText(account.displayName, 128)) {
+      return { valid: false, error: 'Invalid account identity' };
+    }
+  }
+  if (data.observedAt !== undefined) {
+    const now = Date.now();
+    const time = typeof data.observedAt === 'string' ? Date.parse(data.observedAt) : NaN;
+    if (!Number.isFinite(time) || !/^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(?:\.\d{1,3})?Z$/.test(data.observedAt) || time < now - OBSERVATION_MAX_AGE_MS || time > now + OBSERVATION_CLOCK_SKEW_MS) {
+      return { valid: false, error: 'observedAt must be a recent UTC timestamp' };
+    }
   }
 
   const stateResult = validateState(data.state);

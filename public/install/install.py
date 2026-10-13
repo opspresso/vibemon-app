@@ -36,6 +36,7 @@ against the manifest's "installer" hash before running it.
 from __future__ import annotations
 
 import argparse
+import base64
 import difflib
 import hashlib
 import getpass
@@ -202,7 +203,7 @@ def ask_yes_no(question: str, default: bool = True, unattended: bool = None) -> 
         try:
             answer = input(f"{question} {suffix}: ").strip().lower()
         except EOFError:
-            return default
+            return default if unattended is None else unattended
         if not answer:
             return default
         if answer in ("y", "yes"):
@@ -609,10 +610,33 @@ def merge_hooks(existing: dict, new_hooks: dict) -> dict:
     return result
 
 
+WINDOWS_ENCODED_PREFIX = "powershell.exe -NoLogo -NoProfile -NonInteractive -EncodedCommand "
+WINDOWS_LITERAL_PREFIX = "$ErrorActionPreference='Stop'; & "
+WINDOWS_LITERAL_SUFFIX = "; exit $LASTEXITCODE"
+
+
 def _command_tokens(command: str, windows: bool = None) -> list[str]:
     if not isinstance(command, str):
         return []
+    if command.startswith(WINDOWS_ENCODED_PREFIX):
+        try:
+            script = base64.b64decode(command[len(WINDOWS_ENCODED_PREFIX):], validate=True).decode("utf-16le")
+        except (ValueError, UnicodeError):
+            return []
+        if not script.startswith(WINDOWS_LITERAL_PREFIX) or not script.endswith(WINDOWS_LITERAL_SUFFIX):
+            return []
+        arguments = script[len(WINDOWS_LITERAL_PREFIX):-len(WINDOWS_LITERAL_SUFFIX)]
+        literals = re.findall(r"'(?:''|[^'])*'", arguments)
+        if len(literals) < 2 or arguments != " ".join(literals):
+            return []
+        return [literal[1:-1].replace("''", "'") for literal in literals]
     windows = IS_WINDOWS if windows is None else windows
+    if windows and command.lstrip().startswith('& '):
+        # Literal arguments emitted by windows_shell_command. PowerShell
+        # escapes apostrophes by doubling them; POSIX shlex removes both.
+        tokens = re.findall(r"'(?:(?:'')|[^'])*'|\"[^\"]*\"|[^\s]+", command)
+        return [token[1:-1].replace("''", "'") if token.startswith("'") and token.endswith("'")
+                else token[1:-1] if token.startswith('"') and token.endswith('"') else token for token in tokens]
     try:
         tokens = shlex.split(command, posix=not windows)
     except ValueError:
@@ -629,7 +653,12 @@ def _is_vibemon_hook(hook: dict) -> bool:
 
 
 def _uses_installed_script(command: str, script: Path) -> bool:
-    for token in _command_tokens(command):
+    # A Windows status line can have been generated for Git Bash or PowerShell.
+    # Recognize both literal forms even if Git Bash was added or removed later.
+    tokens = _command_tokens(command)
+    if IS_WINDOWS:
+        tokens += _command_tokens(command, windows=False)
+    for token in tokens:
         normalized = token.replace("\\", "/")
         if normalized.split("/")[-1] != script.name:
             continue
@@ -775,11 +804,19 @@ def hook_path(path: Path) -> str:
     return str(path).replace("\\", "/")
 
 
-def _shell_quote(value: str, windows: bool = None) -> str:
-    """Quote a path for a shell-form command, only when it actually needs it."""
-    if not (IS_WINDOWS if windows is None else windows):
-        return shlex.quote(value)
-    return f'"{value}"' if " " in value else value
+def windows_hook_command(python: str, script: str, *args: str) -> str:
+    """Run literal argv under any Windows provider shell, retaining stdin.
+
+    Simple paths work directly in CMD, PowerShell and Git Bash. Other paths
+    need an explicit shell: no quoted executable syntax works in all three.
+    EncodedCommand keeps the outer shell from expanding or splitting literals.
+    """
+    values = (python, script, *args)
+    if all(re.fullmatch(r"[A-Za-z0-9_./:-]+", value) for value in values):
+        return " ".join(values)
+    literals = ["'" + value.replace("'", "''") + "'" for value in values]
+    invocation = WINDOWS_LITERAL_PREFIX + " ".join(literals) + WINDOWS_LITERAL_SUFFIX
+    return WINDOWS_ENCODED_PREFIX + base64.b64encode(invocation.encode("utf-16le")).decode("ascii")
 
 
 def has_git_bash() -> bool:
@@ -813,17 +850,13 @@ def has_git_bash() -> bool:
 
 
 def windows_shell_command(python: str, script: str) -> str:
-    """Build a shell-form command the shell Claude Code picks can actually run.
-
-    Unquoted forward-slash paths run in both Git Bash and PowerShell, and so
-    does a quoted *argument*, so most commands stay shell-agnostic. Only a
-    quoted first token forces a choice: PowerShell needs the call operator `&`
-    in front of it, which Git Bash would read as backgrounding the command.
-    """
-    command = f"{_shell_quote(python, windows=True)} {_shell_quote(script, windows=True)}"
-    if " " in python and not has_git_bash():
-        return f"& {command}"
-    return command
+    """Quote literal paths for Claude's selected Windows status-line shell."""
+    if has_git_bash():
+        return f"{shlex.quote(python)} {shlex.quote(script)}"
+    # The call operator invokes a quoted executable. Single quotes preserve
+    # dollar signs/backticks; doubled apostrophes preserve the path itself.
+    quote = lambda value: "'" + value.replace("'", "''") + "'"
+    return f"& {quote(python)} {quote(script)}"
 
 
 def tool_home(env_var: str, default_dir: str) -> Path:
@@ -882,13 +915,13 @@ def adapt_claude_settings(settings: dict, claude_home: Path = None) -> dict:
                         hook["command"] = python
                         hook["args"] = [hook_script]
                     else:
-                        hook["command"] = f"{python} {_shell_quote(hook_script)}"
+                        hook["command"] = f"{python} {shlex.quote(hook_script)}"
 
     status_line = settings.get("statusLine")
     if isinstance(status_line, dict) and "statusline.py" in status_line.get("command", ""):
         status_line["command"] = (
             windows_shell_command(python, statusline_script) if IS_WINDOWS
-            else f"{python} {_shell_quote(statusline_script)}"
+            else f"{python} {shlex.quote(statusline_script)}"
         )
 
     return settings
@@ -905,10 +938,8 @@ def adapt_codex_hooks(hooks_config: dict, codex_home: Path = None) -> dict:
     if not IS_WINDOWS and codex_home == Path.home() / ".codex":
         return hooks_config
 
-    command = "{} {}".format(
-        _shell_quote(hook_python() if IS_WINDOWS else "python3"),
-        _shell_quote(hook_path(codex_home / "hooks" / "vibemon.py")),
-    )
+    script = hook_path(codex_home / "hooks" / "vibemon.py")
+    command = windows_hook_command(hook_python(), script) if IS_WINDOWS else f"python3 {shlex.quote(script)}"
 
     for entries in hooks_config.get("hooks", {}).values():
         for entry in entries:
@@ -929,9 +960,7 @@ def adapt_kiro_hook_config(content: str, kiro_home: Path = None) -> str:
     byte-identical to its manifest hash there. Kiro's `action.command` is a
     shell string, so Windows and KIRO_HOME installs need absolute paths.
 
-    The quoting is deliberately conservative: unquoted forward-slash paths run
-    under cmd.exe, Git Bash and PowerShell alike, and quotes are added only
-    where a space forces them.
+    Windows commands preserve literal paths in CMD, Git Bash and PowerShell.
     """
     kiro_home = kiro_home or tool_home("KIRO_HOME", ".kiro")
     if not IS_WINDOWS and kiro_home == Path.home() / ".kiro":
@@ -946,11 +975,8 @@ def adapt_kiro_hook_config(content: str, kiro_home: Path = None) -> str:
             continue
         # "python3 ~/.kiro/hooks/vibemon.py SessionStart" -> keep event args.
         event_args = command.split()[2:]
-        action["command"] = " ".join([
-            _shell_quote(hook_python() if IS_WINDOWS else "python3"),
-            _shell_quote(hook_path(kiro_home / "hooks" / "vibemon.py")),
-            *event_args,
-        ])
+        script = hook_path(kiro_home / "hooks" / "vibemon.py")
+        action["command"] = windows_hook_command(hook_python(), script, *event_args) if IS_WINDOWS else shlex.join(["python3", script, *event_args])
         changed = True
     return json.dumps(config, indent=2) + "\n" if changed else content
 
@@ -1230,7 +1256,9 @@ def install_claude(source: FileSource, cli_token: str = None) -> bool:
             existing_cmd = status_line.get("command", "")
             new_cmd = new_settings["statusLine"].get("command", "")
             if existing_cmd != new_cmd:
-                print(f"\n  Current statusLine: {colored(existing_cmd, 'yellow')}")
+                # User commands may embed credentials; never copy them into
+                # installer output or Desktop installation diagnostics.
+                print("\n  An existing statusLine command differs from VibeMon's configuration.")
                 print(f"  New statusLine:     {colored(new_cmd, 'cyan')}")
                 # unattended=False: statusLine is the user's own setting, not a
                 # VibeMon-owned file. An unattended run must not replace it.
@@ -1248,7 +1276,7 @@ def install_claude(source: FileSource, cli_token: str = None) -> bool:
         else:
             # A malformed (non-object) statusLine must not abort the install.
             # It is user-owned, so ask before replacing it, like the dict path.
-            print(f"\n  Current statusLine is not an object: {colored(str(status_line), 'yellow')}")
+            print("\n  The existing statusLine is not an object.")
             if ask_yes_no("Replace statusLine?", unattended=False):
                 existing_settings["statusLine"] = new_settings["statusLine"]
                 print(f"  {colored('✓', 'green')} statusLine updated")

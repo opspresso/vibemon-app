@@ -1,9 +1,7 @@
 /**
  * Speech bubble window management
  * One small transparent BrowserWindow per project, positioned
- * in screen coordinates relative to the character window using a d3-force
- * simulation (forceLink + forceCollide) so it never overlaps the character
- * and stays on-screen.
+ * beside the character by a bounded, pure rectangle layout.
  */
 
 'use strict';
@@ -11,28 +9,9 @@
 const { BrowserWindow, screen } = require('electron');
 const path = require('path');
 const { trackWindowPointer } = require('./window-pointer.cjs');
+const { placeBubble } = require('./bubble-layout.cjs');
+const { remainingResetMinutes } = require('../shared/monitoring/clock.cjs');
 const { STATE_COLORS, STATE_TEXTS, TOOL_TEXTS, LOADING_STATES } = require('../shared/config.cjs');
-
-// The character sprite's center offset and collision radius within a
-// full-size character window, matching the rendering engine's layout
-// constants (CHAR_X_BASE=3, CHAR_Y_BASE=5, CHAR_SIZE=128 in
-// src/engine/vibemon-engine.js). The radius is generous
-// (measured opaque sprite bounds span nearly the full 128x128 canvas for some
-// characters) since the bubble now has the whole screen to move in.
-// The Character Size setting shrinks the window, so both are scaled by the
-// configured render scale in computePlacement().
-const CHARACTER_OFFSET = { x: 67, y: 69 };
-const CHARACTER_RADIUS = 70;
-const BUBBLE_COLLIDE_PADDING = 4;
-const LINK_DISTANCE = 100;
-const BIAS_DISTANCE = 100;
-
-// How close the character window's edge must be to the work area's edge to
-// count as "pinned" there (the character window is continuously clamped on
-// screen, so a pinned edge sits flush — this just tolerates rounding). The
-// configured edge margin is added on top, since the character window is
-// clamped to the work area inset by it.
-const EDGE_PIN_EPSILON = 2;
 
 // Must match character-window-manager.cjs's ALWAYS_ON_TOP_LEVEL so the
 // bubble stacks at the same level as its character window.
@@ -73,7 +52,7 @@ const RESET_MINUTES_FIELDS = {
  * @param {Object|null} speechBubbleFields
  * @returns {Object.<string, {type: 'text', text: string}|{type: 'metric', icon: string, value: number, resetIn: number|undefined}>}
  */
-function buildFieldPayload(state, speechBubbleFields) {
+function buildFieldPayload(state, speechBubbleFields, { observedAt = state?.observedAt, now = Date.now() } = {}) {
   const payload = {};
 
   if (speechBubbleFields && speechBubbleFields.status && state && state.state) {
@@ -108,7 +87,7 @@ function buildFieldPayload(state, speechBubbleFields) {
       const resetField = RESET_MINUTES_FIELDS[field];
       const resetValue = resetField && state[resetField];
       if (resetValue !== undefined && resetValue !== null && resetValue !== '') {
-        metric.resetIn = Number(resetValue);
+        metric.resetIn = remainingResetMinutes(resetValue, observedAt, now);
       }
 
       if (field === 'usageWeekModel' && typeof state.usageWeekModelLabel === 'string' && state.usageWeekModelLabel) {
@@ -154,16 +133,8 @@ class BubbleWindowManager {
     this.lastFields = new Map(); // Map<projectId, Object> — needed so reposition() can re-render the tail
     this.lastBgColors = new Map(); // Map<projectId, string> — same, for the state-colored background
     this.loadingWindows = new Map(); // Map<projectId, Promise<boolean>> — in-flight bubble.html load
-    this.d3ForceModule = null;
     this.placementRequests = new Map();
     this.contentRequests = new Map();
-  }
-
-  async getD3Force() {
-    if (!this.d3ForceModule) {
-      this.d3ForceModule = await import('d3-force');
-    }
-    return this.d3ForceModule;
   }
 
   isWindowValid(win) {
@@ -283,14 +254,14 @@ class BubbleWindowManager {
    * executeJavaScript round-trip takes a moment), and without re-checking, a
    * stale call can recreate a bubble window right after destroy() removed it.
    * @param {string} projectId
-   * @param {{state: Object|null, speechBubbleFields: Object}} options
+   * @param {{state: Object|null, speechBubbleFields: Object, observedAt?: string, now?: number}} options
    */
-  async update(projectId, { state, speechBubbleFields }) {
+  async update(projectId, { state, speechBubbleFields, observedAt, now }) {
     const request = {};
     this.contentRequests.set(projectId, request);
     this.placementRequests.delete(projectId);
     const isCurrent = () => this.contentRequests.get(projectId) === request;
-    const fields = buildFieldPayload(state, speechBubbleFields);
+    const fields = buildFieldPayload(state, speechBubbleFields, { observedAt, now });
 
     if (Object.keys(fields).length === 0 || !this.isWindowValid(this.getCharacterWindow(projectId))) {
       this.hide(projectId);
@@ -337,6 +308,17 @@ class BubbleWindowManager {
     this.syncAlwaysOnTop(projectId);
     if (!win.isVisible()) win.showInactive();
     this.reposition(projectId);
+  }
+
+  // Poll ticks refresh presentation only. They must neither reopen a closed
+  // companion nor go through status ingestion and extend its lifecycle timers.
+  async refresh(projectId, options) {
+    const win = this.bubbleWindows.get(projectId);
+    if (!this.isWindowValid(win) || !win.isVisible()) return;
+    const fields = buildFieldPayload(options.state, options.speechBubbleFields, options);
+    if (JSON.stringify(fields) === JSON.stringify(this.lastFields.get(projectId)) &&
+        resolveBgColor(options.state) === this.lastBgColors.get(projectId)) return;
+    await this.update(projectId, options);
   }
 
   /**
@@ -389,146 +371,13 @@ class BubbleWindowManager {
     }
   }
 
-  /**
-   * Run the collision/link simulation and return the clamped on-screen
-   * placement for the bubble window, plus which edge the tail sits on and
-   * its offset along that edge.
-   * @param {Electron.BrowserWindow} charWindow
-   * @param {{width: number, height: number}} size
-   * @returns {Promise<{x: number, y: number, tailOffset: number, tailSide: string}|null>}
-   */
   async computePlacement(charWindow, size) {
     const dock = this.getDockLayout();
     if (dock?.bubble) return { ...dock.bubble, scale: dock.scale };
-    const { forceSimulation, forceCollide, forceLink, forceX, forceY } = await this.getD3Force();
     if (!this.isWindowValid(charWindow)) return null;
-
-    const charBounds = charWindow.getBounds();
-    // Use the rendering setting, not native window bounds: Windows frame
-    // insets and fractional-DPI rounding must not feed back into sprite scale.
-    const charScale = this.getCharacterScale();
-    const charCenterX = charBounds.x + CHARACTER_OFFSET.x * charScale;
-    const charCenterY = charBounds.y + CHARACTER_OFFSET.y * charScale;
-    const characterRadius = CHARACTER_RADIUS * charScale;
-
-    const display = screen.getDisplayNearestPoint({ x: charCenterX, y: charCenterY });
-    const { workArea } = display;
-    const onRightHalf = charCenterX > workArea.x + workArea.width / 2;
-
-    // How close to the screen's edges the bubble may be pushed. This used to
-    // be a fixed 8px, which contradicted the Edge Margin setting at both
-    // ends: it held the bubble back at margin 0, and let it sit closer than
-    // the character it belongs to at larger margins. It only binds when the
-    // bubble is squeezed against an edge — placement is otherwise driven by
-    // the character's position below.
-    const screenMargin = this.getEdgeMargin();
-
-    const bubbleRadius = Math.max(size.width, size.height) / 2;
-
-    // The bias point only helps if it's far enough from the character that
-    // the on-screen clamp below never has to drag it back into overlap —
-    // e.g. new windows spawn flush against the top of the screen, so "always
-    // bias upward" has no room there and the clamp would just pull the
-    // simulation's result back down into the character. Flip toward
-    // whichever side of each axis actually has room instead.
-    const requiredClearance = characterRadius + bubbleRadius + BUBBLE_COLLIDE_PADDING + screenMargin;
-
-    let biasXOffset = onRightHalf ? -BIAS_DISTANCE : BIAS_DISTANCE;
-    const spaceX = biasXOffset < 0 ? charCenterX - workArea.x : workArea.x + workArea.width - charCenterX;
-    if (spaceX < requiredClearance) biasXOffset = -biasXOffset;
-
-    let biasYOffset = -BIAS_DISTANCE; // prefer above, matching a speech bubble's usual placement
-    const spaceAbove = charCenterY - workArea.y;
-    if (spaceAbove < requiredClearance) biasYOffset = BIAS_DISTANCE;
-
-    // The character window is continuously clamped on screen (see
-    // character-window-manager.cjs's handleWindowMove), so when it's pinned
-    // flush against an edge, force the bubble onto the axis that still has
-    // room instead of the usual diagonal bias: pinned top/bottom -> bubble
-    // beside the character; pinned left/right -> bubble above/below it.
-    // A corner pin satisfies both checks — top/bottom wins there.
-    const pinDistance = EDGE_PIN_EPSILON + this.getEdgeMargin();
-    const pinnedTop = charBounds.y <= workArea.y + pinDistance;
-    const pinnedBottom = (charBounds.y + charBounds.height) >= (workArea.y + workArea.height - pinDistance);
-    const pinnedLeft = charBounds.x <= workArea.x + pinDistance;
-    const pinnedRight = (charBounds.x + charBounds.width) >= (workArea.x + workArea.width - pinDistance);
-
-    if (pinnedTop || pinnedBottom) {
-      biasYOffset = 0;
-    } else if (pinnedLeft || pinnedRight) {
-      biasXOffset = 0;
-    }
-
-    const biasX = charCenterX + biasXOffset;
-    const biasY = charCenterY + biasYOffset;
-
-    const nodes = [
-      { id: 'character', x: charCenterX, y: charCenterY, fx: charCenterX, fy: charCenterY, radius: characterRadius },
-      { id: 'bubble', x: biasX, y: biasY, radius: bubbleRadius }
-    ];
-
-    const simulation = forceSimulation(nodes)
-      .force('link', forceLink([{ source: 'character', target: 'bubble' }]).id((d) => d.id).distance(LINK_DISTANCE).strength(0.3))
-      .force('collide', forceCollide((d) => d.radius + BUBBLE_COLLIDE_PADDING))
-      .force('x', forceX((d) => (d.id === 'bubble' ? biasX : d.x)).strength(0.1))
-      .force('y', forceY((d) => (d.id === 'bubble' ? biasY : d.y)).strength(0.1))
-      .stop();
-
-    for (let i = 0; i < 120; i++) simulation.tick();
-
-    const bubbleNode = nodes[1];
-
-    // forceCollide treats the bubble as a circle of max(width, height) / 2,
-    // which overshoots the real half-extent of a wide, short bubble along
-    // the vertical axis — placed above/below the character it ends up with
-    // a much larger visual gap than beside it. Pull it back toward the
-    // character along the center-to-center direction until the bubble
-    // *rectangle* (not the circle) sits at the intended padding.
-    const dx = bubbleNode.x - charCenterX;
-    const dy = bubbleNode.y - charCenterY;
-    const dist = Math.hypot(dx, dy);
-    if (dist > 0) {
-      const ux = dx / dist;
-      const uy = dy / dist;
-      // Half-extent of the bubble rectangle along the placement direction
-      const halfExtent = Math.abs(ux) * size.width / 2 + Math.abs(uy) * size.height / 2;
-      const desired = characterRadius + BUBBLE_COLLIDE_PADDING + halfExtent;
-      if (dist > desired) {
-        bubbleNode.x = charCenterX + ux * desired;
-        bubbleNode.y = charCenterY + uy * desired;
-      }
-    }
-
-    const minX = workArea.x + screenMargin + size.width / 2;
-    const maxX = workArea.x + workArea.width - screenMargin - size.width / 2;
-    const minY = workArea.y + screenMargin + size.height / 2;
-    const maxY = workArea.y + workArea.height - screenMargin - size.height / 2;
-    const clampedX = Math.min(maxX, Math.max(minX, bubbleNode.x));
-    const clampedY = Math.min(maxY, Math.max(minY, bubbleNode.y));
-
-    const x = Math.round(clampedX - size.width / 2);
-    const y = Math.round(clampedY - size.height / 2);
-
-    // Which edge of the bubble the tail sits on: pick the axis along which
-    // the character actually lies outside the bubble's extent — above/below
-    // placements get a top/bottom tail, beside placements (character pinned
-    // to the screen's top/bottom edge) get a left/right tail pointing
-    // sideways at it. tailOffset positions the tail along that edge,
-    // relative to #bubble (inset 6px from the window edge by bubble.html's
-    // body padding that reserves the tail's overflow space).
-    const sepX = Math.abs(clampedX - charCenterX) - size.width / 2;
-    const sepY = Math.abs(clampedY - charCenterY) - size.height / 2;
-    let tailSide;
-    let tailOffset;
-    if (sepX > sepY) {
-      tailSide = clampedX < charCenterX ? 'right' : 'left';
-      tailOffset = Math.max(12, Math.min(size.height - 24, Math.round(charCenterY - (y + 6))));
-    } else {
-      tailSide = clampedY < charCenterY ? 'bottom' : 'top';
-      tailOffset = Math.max(12, Math.min(size.width - 24, Math.round(charCenterX - (x + 6))));
-    }
-
-    return { x, y, tailOffset, tailSide };
+    const bounds = charWindow.getBounds();
+    const { workArea } = screen.getDisplayNearestPoint({ x: bounds.x + bounds.width / 2, y: bounds.y + bounds.height / 2 });
+    return placeBubble(bounds, size, workArea, this.getCharacterScale(), this.getEdgeMargin());
   }
 
   /**

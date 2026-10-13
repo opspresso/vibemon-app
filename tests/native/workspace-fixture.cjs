@@ -17,7 +17,7 @@ app.setPath('userData', directory);
 async function startFixture() {
   await app.whenReady();
   const ports = createPorts();
-  const state = { sources, status: 200, requests: [], trendStatus: 200, trendDelayMs: 0, trend };
+  const state = { sources, status: 200, requests: [], trendStatus: 200, trendDelayMs: 0, sourceDelayMs: 0, trend };
   const server = http.createServer((request, response) => {
     response.setHeader('Content-Type', 'application/json');
     state.requests.push(request.url);
@@ -41,7 +41,9 @@ async function startFixture() {
       return;
     }
     const ids = url.searchParams.get('ids')?.split(','), accounts = url.searchParams.get('accounts')?.split(',');
-    response.end(JSON.stringify({ sources: ids || accounts ? data.filter(item => ids?.includes(item.sourceId) || item.account && accounts?.includes(`${item.account.provider}:${item.account.id}`)) : data }));
+    const payload = JSON.stringify({ sources: ids || accounts ? data.filter(item => ids?.includes(item.sourceId) || item.account && accounts?.includes(`${item.account.provider}:${item.account.id}`)) : data, serverTime: new Date().toISOString() });
+    if (state.sourceDelayMs) setTimeout(() => response.end(payload), state.sourceDelayMs);
+    else response.end(payload);
   });
   await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
   const origin = `http://127.0.0.1:${server.address().port}`;

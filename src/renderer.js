@@ -1,6 +1,7 @@
 import { installWindowInteraction, createCharacterHitTest } from './shared/window-interaction.js';
 import { install3DFraming } from './shared/3d-framing.js';
 import { observeAnimation } from './engine/animation-policy.js';
+import { characterImages } from './shared/character-images.mjs';
 
 // VibeMon engine instance (2D pixel-art or 3D pet, chosen by the persisted
 // render mode — see init())
@@ -48,12 +49,13 @@ async function init() {
   // registry-cache.cjs in the main process), fetched via preload.js, the
   // persisted render mode selecting which engine to boot, and the display
   // options the character area is drawn with.
-  const [{ characters, default: defaultCharacter, staticBaseUrl, imageFetchTimeoutMs }, { states }, renderMode, displayOptions] = await Promise.all([
+  const [registry, { states }, renderMode, displayOptions] = await Promise.all([
     window.electronAPI.getCharacterRegistry(),
     window.electronAPI.getStateRegistry(),
     window.electronAPI.getRenderMode(),
     window.electronAPI.getDisplayOptions()
   ]);
+  const { characters, default: defaultCharacter } = registry;
 
   applyDisplayOptions(container, displayOptions);
 
@@ -66,6 +68,8 @@ async function init() {
     ]);
     vibeMonEngine = createVibeMonEngine(container, {
       THREE,
+      // Desktop alpha hit testing reads the last frame between animation ticks.
+      preserveDrawingBuffer: true,
       characters,
       defaultCharacter,
       states
@@ -74,35 +78,20 @@ async function init() {
     vibeMonEngine.renderer.setPixelRatio((window.devicePixelRatio || 1) * displayOptions.renderScale3d);
     cleanupFraming = install3DFraming(vibeMonEngine, container, THREE, displayOptions.renderPadding3d);
   } else {
-    // 2D pixel-art engine: character images are remote-first
-    // (vibemon.io/static), with the bundled asset as offline fallback —
-    // fetch into origin-clean blobs so alpha hit testing can read the canvas.
+    // Bundled art never waits for the network. New registry images become
+    // origin-clean blobs so alpha hit testing can still read the canvas.
     const { createVibeMonEngine } = await import('./engine/vibemon-engine.js');
-    const imageUrls = await Promise.all(Object.entries(characters).map(async ([name, config]) => {
-      const localUrl = `assets/characters/${config.image}`;
-      try {
-        const response = await window.fetch(`${staticBaseUrl}/characters/${config.image}`, {
-          signal: window.AbortSignal.timeout(imageFetchTimeoutMs)
-        });
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
-        return [name, [URL.createObjectURL(await response.blob()), localUrl]];
-      } catch (error) {
-        console.warn(`Using bundled character ${name}:`, error.message);
-        return [name, [localUrl]];
-      }
-    }));
+    const images = await characterImages(registry);
     vibeMonEngine = createVibeMonEngine(container, {
       characters,
       defaultCharacter,
-      characterImageUrls: Object.fromEntries(imageUrls),
+      characterImageUrls: images.sources,
       states
     });
     try {
       await vibeMonEngine.init();
     } finally {
-      for (const [, urls] of imageUrls) {
-        if (urls[0].startsWith('blob:')) URL.revokeObjectURL(urls[0]);
-      }
+      images.dispose();
     }
   }
 

@@ -10,6 +10,7 @@ import os
 import re
 import time
 from datetime import datetime
+from decimal import Decimal, ROUND_HALF_UP
 from typing import Any
 
 from cache_io import update_json_cache
@@ -56,7 +57,7 @@ def reverse_jsonl(path: str):
 
 
 def parse_epoch(value: Any) -> float | None:
-    if value is None:
+    if value is None or isinstance(value, bool):
         return None
     try:
         number = float(value)
@@ -74,14 +75,36 @@ def parse_epoch(value: Any) -> float | None:
     return None
 
 
-def normalize_percent(value: Any) -> int | None:
+def is_finite_number(value: Any) -> bool:
+    if not isinstance(value, (int, float)) or isinstance(value, bool):
+        return False
+    try:
+        return math.isfinite(value)
+    except OverflowError:
+        return False
+
+
+def valid_percent(value: Any) -> bool:
+    return is_finite_number(value) and 0 <= value <= 100
+
+
+def normalize_percent(value: Any) -> float | None:
     if isinstance(value, bool):
         return None
     try:
         number = float(value)
     except (TypeError, ValueError, OverflowError):
         return None
-    return round(number) if math.isfinite(number) and 0 <= number <= 100 else None
+    return (0.0 if number == 0 else number) if valid_percent(number) else None
+
+
+def format_percent(value: Any) -> str:
+    """Display at most two decimals without changing the cached measurement."""
+    number = normalize_percent(value)
+    if number is None:
+        return ""
+    rounded = Decimal(str(number)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+    return format(rounded, "f").rstrip("0").rstrip(".") + "%"
 
 
 def is_fresh_observation(value: Any, max_age_seconds: int, now: float) -> bool:
@@ -122,9 +145,10 @@ def model_week_bucket(bucket_data: Any) -> dict[str, Any] | None:
     for name, bucket in bucket_data.items():
         if name == "week_all" or not is_usage_bucket(name) or name == "session":
             continue
-        if not isinstance(bucket, dict) or not isinstance(bucket.get("pct"), int):
+        if not isinstance(bucket, dict):
             continue
-        if best is None or bucket["pct"] > best["pct"]:
+        pct = bucket.get("pct")
+        if valid_percent(pct) and (best is None or pct > best["pct"]):
             best = bucket
     return best
 
@@ -140,10 +164,7 @@ def build_bucket(bucket: Any, pct_key: str, reset_key: str = "resets_at") -> dic
     """
     if not isinstance(bucket, dict):
         return None
-    try:
-        pct = normalize_percent(bucket.get(pct_key))
-    except (TypeError, ValueError):
-        return None
+    pct = normalize_percent(bucket.get(pct_key))
     if pct is None:
         return None
     entry: dict[str, Any] = {"pct": pct}
@@ -244,7 +265,8 @@ def get_fresh_provider(
     fresh = dict(data)
     for bucket_name in [name for name in data if is_usage_bucket(name)]:
         bucket = data.get(bucket_name)
-        if not isinstance(bucket, dict):
+        if not isinstance(bucket, dict) or not valid_percent(bucket.get("pct")):
+            fresh.pop(bucket_name, None)
             continue
         resets_at = parse_epoch(bucket.get("resets_at"))
         if (

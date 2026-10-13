@@ -35,6 +35,19 @@ except ImportError:
 # Character configuration
 CHARACTER = "clawd"
 
+# Notification includes idle reminders and informational events. Only explicit
+# requests for user input may replace the lifecycle state with needs-input.
+INPUT_NOTIFICATION_TYPES = frozenset({
+    "permission_prompt", "elicitation_dialog", "elicitation_url_dialog", "agent_needs_input",
+})
+
+
+def should_report(event: str, data: dict[str, Any]) -> bool:
+    if event != "Notification":
+        return True
+    kind = data.get("notification_type")
+    return isinstance(kind, str) and kind in INPUT_NOTIFICATION_TYPES
+
 # Event to state mapping (immutable)
 EVENT_STATE_MAP: dict[str, str] = {
     "SessionStart": "start",
@@ -77,5 +90,6 @@ if __name__ == "__main__":
         event_state_map=EVENT_STATE_MAP,
         build_payload=build_payload,
         start_event="SessionStart",
+        should_report=should_report,
     )
     sys.exit(0)

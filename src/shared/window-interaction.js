@@ -3,20 +3,24 @@ export function createCharacterHitTest(engine) {
   const sample = document.createElement('canvas');
   sample.width = sample.height = 1;
   const context = sample.getContext('2d', { willReadFrequently: true });
+  let lastSample = null;
   return (x, y) => {
     const canvas = engine.canvas || engine.renderer?.domElement;
     if (!canvas) return false;
-    // Rendering can update the adaptive 3D canvas transform. Read its bounds
-    // afterwards, while the WebGL drawing buffer is still available.
-    if (engine.renderer) engine.renderer.render(engine.scene, engine.camera);
+    // The desktop 3D engine preserves its last frame. Pointer sampling must
+    // not render the scene or bypass its animation/reduced-motion policy.
     const rect = canvas.getBoundingClientRect();
     if (x < rect.left || y < rect.top || x >= rect.right || y >= rect.bottom || !rect.width || !rect.height) return false;
+    const px = Math.floor((x - rect.left) * canvas.width / rect.width);
+    const py = Math.floor((y - rect.top) * canvas.height / rect.height);
+    const frame = engine.renderer?.info.render.frame;
+    if (frame !== undefined && lastSample?.frame === frame && lastSample.x === px && lastSample.y === py
+      && lastSample.width === canvas.width && lastSample.height === canvas.height) return lastSample.opaque;
     context.clearRect(0, 0, 1, 1);
-    context.drawImage(canvas,
-      Math.floor((x - rect.left) * canvas.width / rect.width),
-      Math.floor((y - rect.top) * canvas.height / rect.height), 1, 1,
-      0, 0, 1, 1);
-    return context.getImageData(0, 0, 1, 1).data[3] > 0;
+    context.drawImage(canvas, px, py, 1, 1, 0, 0, 1, 1);
+    const opaque = context.getImageData(0, 0, 1, 1).data[3] > 0;
+    lastSample = { frame, x: px, y: py, width: canvas.width, height: canvas.height, opaque };
+    return opaque;
   };
 }
 

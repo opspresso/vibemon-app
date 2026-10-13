@@ -1,15 +1,16 @@
-// Canonical monitoring rules for the Desktop main process and Web.
-const { CLOUD_STALE_MS, IDLE_TIMEOUT_MS, SLEEP_TIMEOUT_MS } = require('../data/constants.json');
+// Canonical monitoring rules; ESP32 compiles the same policy and verifies the same cases.
+const constants = require('../data/constants.json');
+const { states } = require('../data/monitoring.json');
+const rule = state => Object.hasOwn(states, state) ? states[state] : {};
 
-const attention = ['error', 'alert', 'notification', 'warning', 'stale'];
+const attention = Object.keys(states).filter(state => states[state].attentionRank).sort((a, b) => states[a].attentionRank - states[b].attentionRank);
 const needsAttention = state => attention.includes(state);
 const dominantState = (states, fallback = 'unknown') => attention.find(state => states.includes(state)) ?? fallback;
-const sourceStale = (source, now = Date.now()) => Boolean(source.stale) || now - Date.parse(source.receivedAt) >= CLOUD_STALE_MS;
+const sourceStale = (source, now = Date.now()) => Boolean(source.stale) || now - Date.parse(source.receivedAt) >= constants.CLOUD_STALE_MS;
 
 function agentTransition(state) {
-  if (['start', 'done'].includes(state)) return { state: 'idle', after: IDLE_TIMEOUT_MS };
-  if (['thinking', 'planning', 'working', 'notification', 'packing', 'alert'].includes(state)) return { state: 'idle', after: SLEEP_TIMEOUT_MS };
-  return state === 'idle' ? { state: 'sleep', after: SLEEP_TIMEOUT_MS } : null;
+  const transition = rule(state).transition;
+  return transition ? { state: transition.state, after: constants[transition.after] } : null;
 }
 
 function idleAgentState(state, observedAt, now = Date.now()) {
@@ -28,7 +29,7 @@ function sourceState(source, now = Date.now()) {
   if (sourceStale(source, now)) return source.kind === 'agent' ? 'inactive' : 'stale';
   // A fresh receipt keeps an explicit input request/error actionable even if
   // the original event is old. Only a new state or stopped reporting clears it.
-  const state = source.agent ? ['notification', 'alert'].includes(source.agent.state) ? source.agent.state
+  const state = source.agent ? rule(source.agent.state).holdWhileReporting ? source.agent.state
     : idleAgentState(source.agent.state, source.observedAt, now) : source.health;
   return dominantState([source.health, state], state);
 }
@@ -55,7 +56,8 @@ function groupAccounts(sources) {
     groups.get(key).push(source);
   }
   return [...groups].map(([accountId, members]) => {
-    members.sort((a, b) => Date.parse(b.observedAt) - Date.parse(a.observedAt) || a.sourceId.localeCompare(b.sourceId));
+    // Source IDs are ASCII. Code-point ordering is identical on all platforms/locales.
+    members.sort((a, b) => Date.parse(b.observedAt) - Date.parse(a.observedAt) || (a.sourceId < b.sourceId ? -1 : a.sourceId > b.sourceId ? 1 : 0));
     return { accountId, ...members[0].account, latest: members[0], sources: members, sourceIds: members.map(source => source.sourceId) };
   });
 }

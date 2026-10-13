@@ -4,6 +4,13 @@ const { sources } = require('./fixtures/workspace.cjs');
 const start = Date.parse('2026-10-13T08:00:00Z');
 const source = sources(start).find(source => source.kind === 'agent');
 
+test('cloud usage values keep their source precision on the local status path', () => {
+  const update = jest.fn();
+  const tracker = new CloudActivity(update, jest.fn(), () => start);
+  tracker.accept([{ ...source, metrics: { contextPercent: 1.005, usageSessionPercent: 12.3456, usageWeekPercent: 0.125 }, agent: { ...source.agent, usageWeekModel: 22.875 } }]);
+  expect(update).toHaveBeenCalledWith(expect.objectContaining({ memory: 1.005, usage5h: 12.3456, usageWeek: 0.125, usageWeekModel: 22.875 }), source.sourceId, { activity: true });
+});
+
 test('cloud activity ages with unchanged timestamps, without repeatedly resetting local timers', () => {
   let now = start;
   const update = jest.fn(), remove = jest.fn();

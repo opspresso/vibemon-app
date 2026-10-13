@@ -380,6 +380,7 @@ export class VibeMonEngine3D {
     this.characters = options.characters || {};
     this.defaultCharacter = options.defaultCharacter || Object.keys(this.characters)[0] || null;
     this.states = options.states || {};
+    this.preserveDrawingBuffer = options.preserveDrawingBuffer === true;
 
     this.currentState = 'start';
     this.currentCharacter = this.defaultCharacter;
@@ -413,7 +414,7 @@ export class VibeMonEngine3D {
     const width = this.container.clientWidth || CONSTANTS.VIEW_WIDTH;
     const height = this.container.clientHeight || CONSTANTS.VIEW_HEIGHT;
 
-    this.renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
+    this.renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true, preserveDrawingBuffer: this.preserveDrawingBuffer });
     this.renderer.setPixelRatio(window.devicePixelRatio || 1);
     this.renderer.setSize(width, height);
     this.renderer.setClearColor(0x000000, 0);

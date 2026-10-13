@@ -8,6 +8,7 @@ from unittest.mock import patch
 import pytest
 
 from http_client import open_credential_request
+import vibemon_core
 
 
 def test_redirect_cannot_forward_bearer_credentials(monkeypatch):
@@ -51,3 +52,28 @@ def test_loopback_http_requires_explicit_test_opt_in(monkeypatch):
     with patch('http_client.build_opener') as network, pytest.raises(URLError):
         open_credential_request(Request('http://127.0.0.1:3000/api/status'), timeout=2)
     network.assert_not_called()
+
+
+def test_local_delivery_joins_a_trailing_slash_like_the_javascript_plugin():
+    requests = []
+    class Handler(BaseHTTPRequestHandler):
+        def do_GET(self):
+            # Closing with unread request bytes can reset the TCP response.
+            self.rfile.read(int(self.headers.get('Content-Length', 0)))
+            target = self.requestline.split()[1]
+            requests.append(target)
+            self.send_response(200 if target in ['/status', '/prefix/status'] else 404)
+            self.end_headers()
+            self.wfile.write(b'{}')
+        do_POST = do_GET
+        def log_message(self, *_): pass
+    server = ThreadingHTTPServer(('127.0.0.1', 0), Handler)
+    thread = threading.Thread(target=server.serve_forever, daemon=True); thread.start()
+    try:
+        for prefix in ['', '/prefix']:
+            origin = f'http://127.0.0.1:{server.server_port}{prefix}/'
+            assert vibemon_core.send_http_post(origin, '/status', '{}')[0]
+            assert vibemon_core.send_http_get(origin, '/status')[0]
+        assert requests == ['/status', '/status', '/prefix/status', '/prefix/status']
+    finally:
+        server.shutdown(); server.server_close(); thread.join(timeout=2)

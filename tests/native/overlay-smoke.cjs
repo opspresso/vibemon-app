@@ -18,7 +18,7 @@ const { dockCorner } = require('../../src/modules/dock-layout.cjs');
 const { getDockCandidates } = require('./dock-candidates.cjs');
 const characters = require('../../src/shared/data/characters.json');
 const states = require('../../src/shared/data/states.json');
-const { CHARACTER_IMAGE_FETCH_TIMEOUT_MS, STATIC_BASE_URL } = require('../../src/shared/config.cjs');
+const { CHARACTER_IMAGE_FETCH_TIMEOUT_MS, CHARACTER_IMAGE_MAX_BYTES, CHAR_SIZE, STATIC_BASE_URL } = require('../../src/shared/config.cjs');
 const root = path.resolve(__dirname, '../..');
 const output = path.join(root, 'out', 'overlay-tests', process.platform, app.commandLine.getSwitchValue('force-device-scale-factor') || 'native');
 fs.mkdirSync(output, { recursive: true });
@@ -42,7 +42,8 @@ async function until(check, label) {
   throw new Error(`Timed out: ${label}`);
 }
 
-ipcMain.handle('get-character-registry', () => ({ ...characters, staticBaseUrl: STATIC_BASE_URL, imageFetchTimeoutMs: CHARACTER_IMAGE_FETCH_TIMEOUT_MS }));
+ipcMain.handle('get-character-registry', () => ({ ...characters, staticBaseUrl: STATIC_BASE_URL, imageFetchTimeoutMs: CHARACTER_IMAGE_FETCH_TIMEOUT_MS,
+  bundledImageFiles: Object.values(characters.characters).map(character => character.image), imageMaxBytes: CHARACTER_IMAGE_MAX_BYTES, imageSize: CHAR_SIZE }));
 ipcMain.handle('get-state-registry', () => states);
 ipcMain.handle('get-render-mode', () => characterManager.getRenderMode());
 ipcMain.handle('get-display-options', () => characterManager.getDisplayOptions());
@@ -436,7 +437,7 @@ async function verifyDockSettings() {
 
 async function run() {
   await app.whenReady();
-  // Keep the remote-first image/CORS path deterministic without depending on CDN availability.
+  // A stalled CDN must not affect bundled art or the initial pointer interaction.
   let stalledImage = false;
   protocol.handle('https', request => {
     if (!stalledImage) {
@@ -463,6 +464,7 @@ async function run() {
         characterManager.windowPosition = origin;
         bubbleManager = new BubbleWindowManager(id => characterManager.getWindow(id), () => 0, () => scale / 100);
         characterManager.onWindowMoved = id => bubbleManager.reposition(id);
+        const openedAt = Date.now();
         const { window: win } = characterManager.ensureWindow('test');
         const initialState = { state: 'working', character: 'clawd', project: 'test' };
         characterManager.entry.state = initialState;
@@ -472,6 +474,7 @@ async function run() {
           await win.webContents.executeJavaScript(`document.dispatchEvent(new MouseEvent('mousemove', { clientX: ${center.x}, clientY: ${center.y} }))`);
           return ignored.get(win.webContents.id) === false;
         }, `${mode}/${scale} renderer initialized`);
+        results.push({ mode, scale, phase: 'renderer-init', durationMs: Date.now() - openedAt });
         let replayedState;
         await until(async () => {
           replayedState = await win.webContents.executeJavaScript('(() => { let state; const stop = window.electronAPI.onStateUpdate(value => { state = value; }); stop(); return state; })()');
@@ -553,6 +556,28 @@ async function run() {
           }
           monitor.cleanup();
         }
+        if (mode === '2d' && scale === 100) {
+          bubbleManager.getDockLayout = () => null;
+          await bubbleManager.update('test', { state: { state: 'idle' }, speechBubbleFields: { status: true } });
+          const idleBubble = bubbleManager.bubbleWindows.get('test');
+          const colors = await idleBubble.webContents.executeJavaScript('(() => { const style = getComputedStyle(document.getElementById("bubble")); return { text: style.color, background: style.backgroundColor }; })()');
+          assert.deepEqual(colors, { text: 'rgb(0, 0, 0)', background: 'rgb(0, 170, 0)' });
+          fs.writeFileSync(path.join(output, 'bubble-idle-contrast.png'), (await idleBubble.webContents.capturePage()).toPNG());
+          await bubbleManager.update('test', { state: { state: 'idle', usage5h: 1.005, usageWeek: 12.3456 }, speechBubbleFields: { usage5h: true, usageWeek: true } });
+          const values = await idleBubble.webContents.executeJavaScript('[...document.querySelectorAll(".bubble-metric")].filter(row => row.style.display !== "none").map(row => row.querySelector(".bubble-value").textContent)');
+          assert.deepEqual(values, ['1.01%', '12.35%']);
+          const countdown = {
+            state: { state: 'sleep', usageWeek: 30, usageWeekResetsIn: 65 },
+            speechBubbleFields: { usageWeek: true },
+            observedAt: '2026-10-09T10:00:00Z', now: Date.parse('2026-10-09T10:00:00Z')
+          };
+          await bubbleManager.update('test', countdown);
+          await bubbleManager.refresh('test', { ...countdown, now: countdown.now + 300000 });
+          const resetText = await idleBubble.webContents.executeJavaScript('document.querySelector("[data-field=usageWeek] .bubble-value").textContent');
+          assert.equal(resetText, '30% · 1h');
+          assert.equal(countdown.state.usageWeekResetsIn, 65);
+          results.push({ source: 'bubble-countdown', elapsedMinutes: 5, text: resetText });
+        }
         bubbleManager.cleanup();
         characterManager.cleanup();
         win.destroy();
@@ -563,6 +588,7 @@ async function run() {
     mouse?.close();
     receiver.destroy();
   }
+  assert.equal(stalledImage, false, 'bundled characters issue no remote image requests');
   fs.writeFileSync(path.join(output, 'results.json'), JSON.stringify({ platform: process.platform, electron: process.versions.electron, displays: screen.getAllDisplays(), results }, null, 2));
   console.log(JSON.stringify(results));
 }

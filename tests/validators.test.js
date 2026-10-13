@@ -13,6 +13,17 @@ const {
   validateStatusPayload
 } = require('../src/modules/validators.cjs');
 
+test.each(['First\nSecond', 'First\u0000Second', 'First\u007fSecond', '\ud800'])('display fields reject text Touch cannot decode: %p', value => {
+  for (const field of ['project', 'character', 'tool', 'model', 'usageWeekModelLabel']) {
+    expect(validateStatusPayload({ state: 'working', project: 'demo', [field]: value }).valid).toBe(false);
+  }
+  expect(validateStatusPayload({ state: 'working', account: { provider: 'codex', id: 'work', displayName: value } }).valid).toBe(false);
+});
+
+test('display fields preserve valid Unicode and optional empty values', () => {
+  expect(validateStatusPayload({ state: 'working', project: '한글 🐱', character: 'codex', tool: '', model: '模型 🚀' }).valid).toBe(true);
+});
+
 describe('validateState', () => {
   test('rejects undefined state (required, matching the cloud API)', () => {
     const result = validateState(undefined);
@@ -149,10 +160,9 @@ describe('validateMemory', () => {
     expect(result.error).toContain('0 and 100');
   });
 
-  test('rejects non-integer memory', () => {
+  test('accepts fractional memory without losing precision', () => {
     const result = validateMemory(50.5);
-    expect(result.valid).toBe(false);
-    expect(result.error).toContain('integer');
+    expect(result.valid).toBe(true);
   });
 });
 
@@ -164,13 +174,13 @@ describe('validateUsage', () => {
   });
 
   test('accepts valid usage values', () => {
-    [0, 36, 100].forEach(value => {
+    [0, 1.005, 36.123456, 100].forEach(value => {
       expect(validateUsage(value, 'usage5h').valid).toBe(true);
     });
   });
 
-  test('rejects out-of-range and non-integer values', () => {
-    [101, -1, 12.5].forEach(value => {
+  test('rejects out-of-range and non-finite values', () => {
+    [101, -1, NaN, Infinity, -Infinity].forEach(value => {
       expect(validateUsage(value, 'usageWeek').valid).toBe(false);
     });
   });

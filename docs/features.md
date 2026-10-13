@@ -4,6 +4,8 @@
 
 Select **Dashboard** from the tray menu to open the workspace and select custom resources, host/cluster presets, and multiple accounts per provider. The App polls summaries with an OS-encrypted read token. Web resource edits control labels, display ranges, and metric order; local hook activity still works independently. See [cloud monitoring](monitoring.md) for setup, selection, trends, and failure states.
 
+The tray's orange-red dot marks a monitored item needing attention, a failed cloud connection, an integration needing repair, or an available app update. Hover over the icon to see each cause and where to resolve it. Inactive coding agents do not turn on the dot.
+
 
 ## Agent Support
 
@@ -52,7 +54,7 @@ On Windows, the installer pins the Python interpreter in the plugin; custom conf
 
 OpenCode reports `character: "opencode"`, which currently falls back to `vibemon` because the canonical registry does not contain that name. Its states, project, tool, and model remain visible. Add a dedicated character to this repository's registry and export map before it can be bundled or offered in Character Lock.
 
-In **2D** (default) all characters use **image-based rendering** (128x128 PNG). Images load remote-first from `vibemon.io/static`, with copies bundled in `src/assets/characters/` as the offline fallback. Character is **auto-selected by bridge**, not by the core display runtime. You can also force one with [Character Lock](#character-lock).
+In **2D** (default) all characters use **image-based rendering** (128x128 PNG). Images bundled in `src/assets/characters/` load without network requests. Only new, versioned images from a refreshed registry are downloaded from `vibemon.io/static`; downloads are bounded to 64 KiB and must declare 128×128 PNG dimensions. Character is **auto-selected by bridge**, not by the core display runtime. You can also force one with [Character Lock](#character-lock).
 
 Characters are defined in `src/shared/data/characters.json`: display name, accent color, PNG, eye/effect coordinates, and 3D theme. App owns these sources; Web serves the pinned public snapshot at `vibemon.io/static/data/characters.json`. Rendering, tray menus, and validation derive from the same registry. Add the image and registry entry here, update `web-distribution.json`, and run `pnpm check:registry` plus `pnpm check:distribution`.
 
@@ -68,6 +70,8 @@ Characters are defined in `src/shared/data/characters.json`: display name, accen
 ![Adaptive 3D character framing](images/3d-size-after.png)
 
 Both engines are maintained here (`src/engine/`); three.js ships locally in `src/vendor/` because the renderer CSP forbids runtime CDN imports.
+
+Desktop 3D hit testing reads the preserved WebGL frame and reuses the alpha result for an unchanged pixel and frame. Pointer checks never render the scene, so they respect the animation frame limit and reduced-motion setting. Web rendering keeps the default unpreserved buffer. Run `pnpm test:hit-testing` to verify transparent pixels, transformed coordinates, and stopped frames in Electron.
 
 ### Character Lock
 
@@ -148,6 +152,7 @@ The app shows exactly one character window plus its following speech bubble:
 - Can be dragged past the screen edge while the drag is in progress; once you let go, it's clamped back fully on-screen.
 - Reappears at the same spot you last left it, across restarts.
 - The speech bubble follows the character everywhere:
+  - A pure rectangle calculation chooses a full-size position before considering a smaller fit; ordinary placement prefers above the character. No physics simulation runs during movement.
   - If the character is pinned to the top or bottom edge, the bubble moves beside it; a shorter bubble shares the character's vertical center, including at Dock corners
   - If the character is pinned to the left or right edge, the bubble moves above or below it
 
@@ -222,7 +227,7 @@ See [the desktop workspace guide](monitoring.md) for navigation, connection, set
 
 ## Rendering Engine
 
-The character is rendered by a bundled engine (`src/engine/vibemon-engine.js`): a 128x128 canvas drawing the character PNG, state-driven pixel-art eyes/effects, and the floating animation, over a fully transparent background. Character images load remote-first from `vibemon.io/static`, falling back to the bundled copies in `src/assets/characters/` — rendering works fully offline.
+The character is rendered by a bundled engine (`src/engine/vibemon-engine.js`): a 128x128 canvas drawing the character PNG, state-driven pixel-art eyes/effects, and the floating animation, over a fully transparent background. Bundled character images load locally, so starting or reopening the companion does not wait for the CDN. New registry artwork uses bounded downloads; keep versioned filenames when changing artwork.
 
 ## Build
 
