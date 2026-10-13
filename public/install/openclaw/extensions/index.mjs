@@ -410,6 +410,7 @@ async function isDesktopRunning() {
     const response = await fetch(`${desktopUrl.replace(/\/+$/, "")}/health`, {
       method: "GET", signal: AbortSignal.timeout(HTTP_TIMEOUT_MS),
     });
+    await response.body?.cancel();
     return response.ok;
   } catch {
     return false;
@@ -466,6 +467,7 @@ async function sendHttpToUrl(url, payload) {
       body: JSON.stringify(payload),
       signal: AbortSignal.timeout(HTTP_TIMEOUT_MS),
     });
+    await response.body?.cancel();
 
     if (!response.ok) {
       debug(`HTTP failed (${targetLabel(url)}): ${response.status}`);

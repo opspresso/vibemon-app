@@ -681,7 +681,7 @@ def send_http_post(
 ) -> tuple[bool, str | None]:
     """Send HTTP POST request."""
     try:
-        full_url = f"{url}{endpoint}"
+        full_url = f"{url.rstrip('/')}{endpoint}"
         if data:
             req = Request(
                 full_url,
@@ -701,7 +701,7 @@ def send_http_post(
 def send_http_get(url: str, endpoint: str) -> tuple[bool, str | None]:
     """Send HTTP GET request."""
     try:
-        with urlopen(f"{url}{endpoint}", timeout=HTTP_TIMEOUT_SECONDS) as response:
+        with urlopen(f"{url.rstrip('/')}{endpoint}", timeout=HTTP_TIMEOUT_SECONDS) as response:
             return True, response.read().decode("utf-8")
     except (URLError, TimeoutError, OSError):
         return False, None

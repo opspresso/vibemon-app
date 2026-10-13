@@ -4,6 +4,20 @@ import { openclaw } from "./plugin_harness.mjs";
 
 const ctx = { runId: "r", sessionId: "s", sessionKey: "agent:main:s" };
 
+test("status and health requests release their response streams", async () => {
+  let released = 0;
+  const h = await openclaw({
+    pluginConfig: { autoLaunch: true, httpUrls: ["http://127.0.0.1:19280"] },
+    fetch: async () => new Response(new ReadableStream({
+      start(controller) { controller.enqueue(new Uint8Array([123, 125])); },
+      cancel() { released++; },
+    }), { status: 200 }),
+  });
+  await h.emit("gateway_start");
+  assert.equal(released, h.requests.length);
+  assert.ok(released >= 2);
+});
+
 test("connection diagnostics omit URL credentials, query secrets and raw transport errors", async () => {
   const h = await openclaw({
     pluginConfig: { debug: true, httpUrls: ["http://user:fixture-password@monitor/?key=fixture-query"], vibemonUrl: "https://user:fixture-password@cloud.example/?key=fixture-query", vibemonToken: "fixture-write" },
