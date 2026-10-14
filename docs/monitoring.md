@@ -10,7 +10,7 @@ The tray menu provides Dashboard, Settings, Show companion, Integrations, About,
 
 1. Sign in to [Web Account](https://vibemon.io/account) with Google. Create a token with read permission. **Show token** retrieves an existing token.
 2. Open **Settings → Connections** in Desktop. Enter the Web address and read token, then select **Save and connect**.
-3. Open **Customize view**. Select resources, provider accounts, and visible metrics, then select **Save view**. **Discover sources** refreshes the available list without discarding unsaved choices.
+3. Open **Customize view**. Select resources, provider accounts, and visible metrics, then select **Save view**. **Discover sources** refreshes the available list without discarding unsaved choices. When every listed item in a group is selected, the view follows that whole group, including accounts, resources, and metrics that appear later. A partial selection shows only the chosen items; open **Customize view** to add new ones.
 
 A replacement read token is verified before it replaces the saved connection. Failed checks preserve the current workspace and credential. The read token is encrypted with Electron `safeStorage`, backed by the operating system keychain or secret service. The saved value never returns to the renderer. Linux `basic_text` storage is rejected. Unlock or configure secure storage if the App cannot save a token. **Disconnect this device** removes the local credential and displayed cloud data. Delete the token in Web Account to revoke it for every client. Dashboard read tokens are never copied to hook configuration.
 
