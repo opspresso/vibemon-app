@@ -31,11 +31,11 @@ VibeMon normalizes multiple agent ecosystems into one display model. The renderi
 - **Codex**: Strong interactive lifecycle and local tool coverage. VibeMon's `PreToolUse` and `PostToolUse` hooks observe shell commands, `apply_patch`, MCP tools, and other local function tools; `codex exec --json` remains useful for CI or batch jobs.
 - **Kiro**: Strong tool-level support with explicit `PreToolUse` and `PostToolUse`, plus namespaced MCP tool names.
 - **OpenClaw**: Strongest when treated as a plugin platform. The VibeMon bridge should continue to use plugin hooks instead of depending on the lighter internal hook system.
-- **OpenCode**: Session creation, prompts, tool execution, permission requests, compaction, and completion map to the existing states. Plan-agent activity uses `planning`; known child sessions are suppressed by the bridge. The adapter omits context and plan-usage fields when no measurement is available. See the [bridge event mappings](https://vibemon.io/docs/hooks#opencode) for details.
+- **OpenCode** (2.0 or later): Session creation, prompts, tool execution, permission requests, compaction, and completion map to the existing states. Plan-agent activity uses `planning`; known child sessions are suppressed by the bridge. The adapter omits context and plan-usage fields when no measurement is available. See the [bridge event mappings](https://vibemon.io/docs/hooks#opencode) for details.
 
 ### OpenCode Setup
 
-In **Settings → Integrations**, click **Install integration** for OpenCode, then restart OpenCode. The [official plugin loader](https://opencode.ai/docs/plugins/) discovers local plugins at startup; no `opencode.json` registration is required.
+OpenCode 2.0 or later is required; OpenCode 1.x cannot load the plugin. In **Settings → Integrations**, click **Install integration** for OpenCode, then restart OpenCode. OpenCode discovers local plugins in `plugins/` at startup; no `opencode.jsonc` registration is required.
 
 The installer places `plugins/vibemon.js` and `hooks/vibemon.py` under `OPENCODE_CONFIG_DIR`, or `$XDG_CONFIG_HOME/opencode` (default `~/.config/opencode`). Both files must be present for the app to report the integration as installed. Transmission settings come from the shared `~/.vibemon/config.json`.
 

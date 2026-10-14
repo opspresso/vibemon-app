@@ -2,9 +2,9 @@
 """
 VibeMon Hook for opencode
 Desktop App + ESP32 (USB Serial / HTTP)
-Note: opencode has no Claude Code-style hooks. The opencode plugin
-(~/.config/opencode/plugins/vibemon.js) bridges opencode events to these
-hook events. Unsupported context and plan usage are omitted.
+The opencode 2.x plugin (~/.config/opencode/plugins/vibemon.js) maps
+opencode tool hooks and bus events to these hook events. Context and plan
+usage are not available and are omitted.
 Shared transport lives in vibemon_core.py (~/.vibemon/vibemon_core.py).
 """
 

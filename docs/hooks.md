@@ -88,7 +88,9 @@ After installing or updating the plugin, rebuild OpenClaw's persisted plugin reg
 
 ### opencode Configuration
 
-The opencode plugin reads transmission settings (`http_urls`, `serial_port`, `vibemon_url`, `vibemon_token`) from the same `~/.vibemon/config.json` as the other tools. opencode has no Claude Code-style hooks, so the plugin at `~/.config/opencode/plugins/vibemon.js` bridges opencode events to VibeMon's hook pipeline: it spawns the adapter at `~/.config/opencode/hooks/vibemon.py`, which feeds `vibemon_core.py`. opencode auto-discovers plugins in `~/.config/opencode/plugins/` at startup, so no config registration is needed — install the plugin file and restart opencode.
+The opencode integration requires opencode 2.0 or later. opencode 1.x cannot load the plugin.
+
+The opencode plugin reads transmission settings (`http_urls`, `serial_port`, `vibemon_url`, `vibemon_token`) from the same `~/.vibemon/config.json` as the other tools. The plugin at `~/.config/opencode/plugins/vibemon.js` maps opencode events to VibeMon hook events: it spawns the adapter at `~/.config/opencode/hooks/vibemon.py`, which feeds `vibemon_core.py`. opencode auto-discovers plugins in `~/.config/opencode/plugins/` at startup, so no config registration is needed — install the plugin file and restart opencode.
 
 The installer honors an `OPENCODE_CONFIG_DIR` override (default `$XDG_CONFIG_HOME/opencode`, falling back to `~/.config/opencode`); on Windows it also pins the plugin's interpreter to the Python that ran the installer, since `python3` isn't on `PATH` there.
 
@@ -228,20 +230,25 @@ OpenClaw reads the active model and context usage from `llm_output`, resets them
 | Stop | done |
 | SessionEnd | done |
 
-opencode has no Claude Code-style hooks, so the plugin bridges its events to these hook events:
+The plugin default-exports the opencode 2.x definition `{ id, setup }`. `setup` registers two tool hooks and reads the event bus (`ctx.event.subscribe()`):
 
 - `session.created` → SessionStart
-- `chat.message` → UserPromptSubmit
-- `tool.execute.before` → PreToolUse
-- `tool.execute.after` → PostToolUse
-- `permission.asked` (bus event; legacy `permission.ask` hook) → PermissionRequest
-- `experimental.session.compacting` → PreCompact
-- `session.compacted` → PostCompact
-- `session.status` (`busy`/`retry`) → UserPromptSubmit
-- `session.idle`, `session.status` (`idle`), or `session.error` → Stop
+- `session.execution.started` or `session.retry.scheduled` → UserPromptSubmit
+- tool hook `execute.before` → PreToolUse
+- tool hook `execute.after` → PostToolUse
+- `permission.asked` → PermissionRequest
+- `session.compaction.started` → PreCompact
+- `session.compaction.ended` → PostCompact
+- `session.execution.succeeded`, `session.execution.failed`, or `session.execution.interrupted` → Stop
 - `session.deleted` → SessionEnd
 
-Resumed OpenCode sessions use the project instance directory and resolved chat model. Known child sessions do not publish independent status because the parent task tool represents them. Each adapter process has a 10-second deadline so a stalled child cannot stop the queue.
+The plugin ignores streaming events (`session.text.*`, `session.reasoning.*`, `session.tool.*`) because they add no state. It sends `Stop` once per completed turn.
+
+opencode loads the plugin once per project instance (one directory). The event bus delivers the events of every instance, so each plugin instance sends only the sessions whose `location.directory` equals its own directory. That directory is the payload `cwd`.
+
+The event bus does not replay events sent before the plugin subscribes. For a session without a `session.created` event (the session that starts the project instance, or a resumed session), the plugin reads the session metadata once with `ctx.session.get()`. That session starts at UserPromptSubmit instead of SessionStart.
+
+The model and agent come from the session metadata and `session.step.started`; the `plan` agent sets `permission_mode` to `plan`. Child sessions (metadata with `parentID`) do not publish status, because the parent's `subagent` tool represents them. Each adapter process has a 10-second deadline so a stalled child cannot stop the queue.
 
 ## Related Projects
 

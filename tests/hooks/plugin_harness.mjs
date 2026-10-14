@@ -47,6 +47,7 @@ export async function loadPlugin(relativePath, options = {}) {
   const sandbox = vm.createContext({
     process: { env: options.env || {}, platform: "linux", cwd: () => "/server" },
     URL,
+    AbortController,
     Date: class extends Date { static now() { return now; } },
     AbortSignal: { timeout: (ms) => { timeouts.push(ms); return { timeout: ms }; } },
     setTimeout: (callback, delay) => {
