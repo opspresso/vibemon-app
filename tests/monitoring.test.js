@@ -411,3 +411,18 @@ test('the credential adapter commits encrypted token and origin together', () =>
   expect(storage.set).toHaveBeenCalledTimes(1);
   expect(storage.set).toHaveBeenCalledWith({ credential: Buffer.from('encrypted').toString('base64'), url: 'https://new.example' });
 });
+
+describe('selection saved before version 2', () => {
+  const saved = { url: 'https://web.example', selectedSources: ['eks-demo', 'k3s-demo', 'spark-0702'], selectedAccounts: ['codex:default'], selectedMetrics: ['cpuPercent'] };
+  test('resets a frozen list once so accounts created later are polled', async () => {
+    const preferences = store({ ...saved });
+    const fetchImpl = jest.fn().mockResolvedValue(okResponse({ sources: [source(1000000)] }));
+    const client = new MonitoringClient({ preferences, credentials: { has: () => true, get: () => rawToken }, fetchImpl, now: () => 1000000, monotonicNow: () => 1000000 });
+    await client.poll();
+    expect(fetchImpl.mock.calls[0][0]).toBe('https://web.example/api/v1/sources');
+    expect(preferences.get('selectionVersion')).toBe(2);
+    preferences.set('selectedAccounts', ['codex:default']);
+    new MonitoringClient({ preferences, credentials: { has: () => true, get: () => rawToken }, fetchImpl });
+    expect(preferences.get('selectedAccounts')).toEqual(['codex:default']);
+  });
+});
