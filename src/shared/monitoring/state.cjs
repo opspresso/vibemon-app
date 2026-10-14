@@ -28,7 +28,7 @@ function idleAgentState(state, observedAt, now = Date.now()) {
 }
 
 function sourceState(source, now = Date.now()) {
-  if (source.kind === 'agent') {
+  if (source.agent) {
     // A project whose event clock reached sleep has stopped reporting.
     const state = idleAgentState(source.agent.state, source.observedAt, now);
     if (state === 'sleep') return 'inactive';

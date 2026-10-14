@@ -42,6 +42,10 @@ test('event-age transitions ignore receipt freshness', () => {
   expect(sourceState({ ...source, observedAt: new Date(now - 360000).toISOString() }, now)).toBe('inactive');
 });
 
+test('an agent source without activity details falls back to its health', () => {
+  expect(sourceState({ ...agent, agent: null, health: 'warning' }, now + 600000)).toBe('warning');
+});
+
 test('an aged alert drops the error health it was reported with', () => {
   const source = { ...agent, health: 'error', agent: { ...agent.agent, state: 'alert' } };
   expect(sourceState(source, now)).toBe('error');
