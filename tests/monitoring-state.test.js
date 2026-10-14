@@ -4,12 +4,15 @@ const { memoryStore, sources } = require('./fixtures/workspace.cjs');
 const now = Date.parse('2026-10-13T08:00:00Z');
 const agent = { ...sources(now).find(source => source.kind === 'agent') };
 
-test.each(['working', 'thinking', 'notification', 'alert', 'done', 'idle', 'sleep'])('silent %s coding hooks become inactive without attention', state => {
+// Hooks report events only: a long tool call or response is silent while the agent works.
+test.each(['working', 'thinking', 'planning', 'packing', 'notification', 'alert'])('a silent %s hook stays live until its event clock expires', state => {
   const source = { ...agent, agent: { ...agent.agent, state } };
-  expect(sourceStale(source, now + 119999)).toBe(false);
-  expect(sourceState(source, now + 120000)).toBe('inactive');
-  expect(needsAttention(sourceState(source, now + 120000))).toBe(false);
-  expect(sourceState({ ...source, stale: true, health: 'error' }, now)).toBe('inactive');
+  expect(sourceStale(source, now + 600000)).toBe(false);
+  expect(sourceState(source, now + 299999)).toBe(state);
+  expect(sourceState({ ...source, stale: true }, now)).toBe(state);
+  expect(sourceState(source, now + 300000)).toBe('idle');
+  expect(sourceState(source, now + 600000)).toBe('inactive');
+  expect(needsAttention(sourceState(source, now + 600000))).toBe(false);
 });
 
 test.each(['host', 'cluster', 'resource'])('%s silence still requires attention', kind => {
@@ -20,7 +23,7 @@ test.each(['host', 'cluster', 'resource'])('%s silence still requires attention'
 });
 
 test('fresh errors and input requests are visible, and recovery clears the account once', () => {
-  const old = { ...agent, sourceId: 'old', stale: true, health: 'error', agent: { ...agent.agent, state: 'alert' } };
+  const old = { ...agent, sourceId: 'old', health: 'error', observedAt: new Date(now - 600000).toISOString(), agent: { ...agent.agent, state: 'alert' } };
   const waiting = { ...agent, sourceId: 'waiting', agent: { ...agent.agent, state: 'notification' } };
   const failed = { ...agent, sourceId: 'failed', health: 'error' };
   expect(attentionCount([agent, old], now)).toBe(0);
@@ -29,22 +32,21 @@ test('fresh errors and input requests are visible, and recovery clears the accou
   expect(accountState({ sources: [agent, waiting, failed] }, now)).toBe('error');
   expect(attentionCount([agent, waiting, failed], now)).toBe(1);
   expect(accountState({ sources: [agent, waiting] }, now)).toBe('notification');
-  expect(attentionCount([agent, old, { ...waiting, stale: true }], now)).toBe(0);
+  expect(attentionCount([agent, old, { ...waiting, observedAt: old.observedAt }], now)).toBe(0);
 });
 
-test('receipt freshness and event-age transitions are independent', () => {
+test('event-age transitions ignore receipt freshness', () => {
   const source = { ...agent, observedAt: new Date(now - 60000).toISOString(), agent: { ...agent.agent, state: 'done' } };
   expect(sourceState(source, now - 1)).toBe('done');
   expect(sourceState(source, now)).toBe('idle');
-  expect(sourceState({ ...source, observedAt: new Date(now - 360000).toISOString() }, now)).toBe('sleep');
+  expect(sourceState({ ...source, observedAt: new Date(now - 360000).toISOString() }, now)).toBe('inactive');
 });
 
-test.each(['notification', 'alert'])('fresh receipts preserve an old %s until resolution or silence', state => {
-  const source = { ...agent, observedAt: new Date(now - 3600000).toISOString(), agent: { ...agent.agent, state } };
-  expect(sourceState(source, now)).toBe(state);
-  expect(attentionCount([source], now)).toBe(1);
-  expect(sourceState({ ...source, agent: { ...source.agent, state: 'done' }, observedAt: source.receivedAt }, now)).toBe('done');
-  expect(sourceState(source, now + 120000)).toBe('inactive');
+test('an aged alert drops the error health it was reported with', () => {
+  const source = { ...agent, health: 'error', agent: { ...agent.agent, state: 'alert' } };
+  expect(sourceState(source, now)).toBe('error');
+  expect(sourceState(source, now + 300000)).toBe('idle');
+  expect(attentionCount([source], now + 300000)).toBe(0);
 });
 
 test('accounts use timestamp order and stable ties without mutating input or blending providers', () => {
@@ -63,7 +65,7 @@ test('the title follows the project driving the state and keeps the last project
   const waiting = { ...agent, sourceId: 'review', observedAt: new Date(now - 1000).toISOString(), agent: { ...agent.agent, project: 'release-review', state: 'notification' } };
   const account = groupAccounts([waiting, agent])[0];
   expect(accountActivity(account, now)).toEqual({ state: 'notification', source: waiting, project: 'release-review' });
-  expect(accountActivity(account, now + 120000)).toEqual({ state: 'inactive', source: agent, project: agent.agent.project });
+  expect(accountActivity(account, now + 610000)).toEqual({ state: 'inactive', source: agent, project: agent.agent.project });
   expect(accountActivity({ ...account, sources: [] }, now)).toEqual({ state: 'inactive', source: undefined, project: account.displayName });
   expect(accountActivity({ ...account, sources: [{ ...agent, agent: { ...agent.agent, project: ' ' } }] }, now).project).toBe(agent.displayName);
 });
@@ -72,12 +74,12 @@ test('desktop cards, account counts and tray snapshot share the same selected-so
   let clock = now;
   const preferences = memoryStore();
   const client = new MonitoringClient({ preferences, credentials: { has: () => true }, now: () => clock });
-  client.sources = [agent, { ...agent, sourceId: 'stopped', stale: true, health: 'error' }];
+  client.sources = [agent, { ...agent, sourceId: 'stopped', health: 'error', observedAt: new Date(now - 600000).toISOString() }];
   let snapshot = client.snapshot();
   expect(snapshot.attentionCount).toBe(0);
   expect(snapshot.accounts[0]).toMatchObject({ displayState: 'working', displayProject: agent.agent.project, needsAttention: false });
   expect(snapshot.sources[1]).toMatchObject({ displayState: 'inactive', needsAttention: false });
-  clock += 120000;
+  clock += 600000;
   snapshot = client.snapshot();
   expect(snapshot.attentionCount).toBe(0);
   expect(snapshot.accounts[0]).toMatchObject({ displayState: 'inactive', needsAttention: false });

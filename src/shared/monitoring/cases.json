@@ -2,48 +2,15 @@
   "version": 1,
   "cases": [
     {
-      "name": "start before silence boundary",
+      "name": "silent start hook stays live at 120000",
       "elapsedMs": 0,
       "sources": [
         {
           "sourceId": "agent",
           "kind": "agent",
           "state": "start",
-          "receiptAgeMs": 119999
-        }
-      ],
-      "expected": {
-        "accounts": {
-          "codex:work": "start"
-        }
-      }
-    },
-    {
-      "name": "start at silence boundary",
-      "elapsedMs": 1,
-      "sources": [
-        {
-          "sourceId": "agent",
-          "kind": "agent",
-          "state": "start",
-          "receiptAgeMs": 119999
-        }
-      ],
-      "expected": {
-        "accounts": {
-          "codex:work": "inactive"
-        }
-      }
-    },
-    {
-      "name": "idle before silence boundary",
-      "elapsedMs": 0,
-      "sources": [
-        {
-          "sourceId": "agent",
-          "kind": "agent",
-          "state": "idle",
-          "receiptAgeMs": 119999
+          "receiptAgeMs": 120000,
+          "eventAgeMs": 120000
         }
       ],
       "expected": {
@@ -53,31 +20,15 @@
       }
     },
     {
-      "name": "idle at silence boundary",
-      "elapsedMs": 1,
-      "sources": [
-        {
-          "sourceId": "agent",
-          "kind": "agent",
-          "state": "idle",
-          "receiptAgeMs": 119999
-        }
-      ],
-      "expected": {
-        "accounts": {
-          "codex:work": "inactive"
-        }
-      }
-    },
-    {
-      "name": "thinking before silence boundary",
+      "name": "silent thinking hook stays live at 120000",
       "elapsedMs": 0,
       "sources": [
         {
           "sourceId": "agent",
           "kind": "agent",
           "state": "thinking",
-          "receiptAgeMs": 119999
+          "receiptAgeMs": 120000,
+          "eventAgeMs": 120000
         }
       ],
       "expected": {
@@ -87,31 +38,15 @@
       }
     },
     {
-      "name": "thinking at silence boundary",
-      "elapsedMs": 1,
-      "sources": [
-        {
-          "sourceId": "agent",
-          "kind": "agent",
-          "state": "thinking",
-          "receiptAgeMs": 119999
-        }
-      ],
-      "expected": {
-        "accounts": {
-          "codex:work": "inactive"
-        }
-      }
-    },
-    {
-      "name": "planning before silence boundary",
+      "name": "silent planning hook stays live at 120000",
       "elapsedMs": 0,
       "sources": [
         {
           "sourceId": "agent",
           "kind": "agent",
           "state": "planning",
-          "receiptAgeMs": 119999
+          "receiptAgeMs": 120000,
+          "eventAgeMs": 120000
         }
       ],
       "expected": {
@@ -121,31 +56,15 @@
       }
     },
     {
-      "name": "planning at silence boundary",
-      "elapsedMs": 1,
-      "sources": [
-        {
-          "sourceId": "agent",
-          "kind": "agent",
-          "state": "planning",
-          "receiptAgeMs": 119999
-        }
-      ],
-      "expected": {
-        "accounts": {
-          "codex:work": "inactive"
-        }
-      }
-    },
-    {
-      "name": "working before silence boundary",
+      "name": "silent working hook stays live at 120000",
       "elapsedMs": 0,
       "sources": [
         {
           "sourceId": "agent",
           "kind": "agent",
           "state": "working",
-          "receiptAgeMs": 119999
+          "receiptAgeMs": 120000,
+          "eventAgeMs": 120000
         }
       ],
       "expected": {
@@ -155,31 +74,15 @@
       }
     },
     {
-      "name": "working at silence boundary",
-      "elapsedMs": 1,
-      "sources": [
-        {
-          "sourceId": "agent",
-          "kind": "agent",
-          "state": "working",
-          "receiptAgeMs": 119999
-        }
-      ],
-      "expected": {
-        "accounts": {
-          "codex:work": "inactive"
-        }
-      }
-    },
-    {
-      "name": "packing before silence boundary",
+      "name": "silent packing hook stays live at 120000",
       "elapsedMs": 0,
       "sources": [
         {
           "sourceId": "agent",
           "kind": "agent",
           "state": "packing",
-          "receiptAgeMs": 119999
+          "receiptAgeMs": 120000,
+          "eventAgeMs": 120000
         }
       ],
       "expected": {
@@ -189,31 +92,15 @@
       }
     },
     {
-      "name": "packing at silence boundary",
-      "elapsedMs": 1,
-      "sources": [
-        {
-          "sourceId": "agent",
-          "kind": "agent",
-          "state": "packing",
-          "receiptAgeMs": 119999
-        }
-      ],
-      "expected": {
-        "accounts": {
-          "codex:work": "inactive"
-        }
-      }
-    },
-    {
-      "name": "notification before silence boundary",
+      "name": "silent notification hook stays live at 120000",
       "elapsedMs": 0,
       "sources": [
         {
           "sourceId": "agent",
           "kind": "agent",
           "state": "notification",
-          "receiptAgeMs": 119999
+          "receiptAgeMs": 120000,
+          "eventAgeMs": 120000
         }
       ],
       "expected": {
@@ -223,99 +110,15 @@
       }
     },
     {
-      "name": "notification at silence boundary",
-      "elapsedMs": 1,
-      "sources": [
-        {
-          "sourceId": "agent",
-          "kind": "agent",
-          "state": "notification",
-          "receiptAgeMs": 119999
-        }
-      ],
-      "expected": {
-        "accounts": {
-          "codex:work": "inactive"
-        }
-      }
-    },
-    {
-      "name": "done before silence boundary",
-      "elapsedMs": 0,
-      "sources": [
-        {
-          "sourceId": "agent",
-          "kind": "agent",
-          "state": "done",
-          "receiptAgeMs": 119999
-        }
-      ],
-      "expected": {
-        "accounts": {
-          "codex:work": "done"
-        }
-      }
-    },
-    {
-      "name": "done at silence boundary",
-      "elapsedMs": 1,
-      "sources": [
-        {
-          "sourceId": "agent",
-          "kind": "agent",
-          "state": "done",
-          "receiptAgeMs": 119999
-        }
-      ],
-      "expected": {
-        "accounts": {
-          "codex:work": "inactive"
-        }
-      }
-    },
-    {
-      "name": "sleep before silence boundary",
-      "elapsedMs": 0,
-      "sources": [
-        {
-          "sourceId": "agent",
-          "kind": "agent",
-          "state": "sleep",
-          "receiptAgeMs": 119999
-        }
-      ],
-      "expected": {
-        "accounts": {
-          "codex:work": "sleep"
-        }
-      }
-    },
-    {
-      "name": "sleep at silence boundary",
-      "elapsedMs": 1,
-      "sources": [
-        {
-          "sourceId": "agent",
-          "kind": "agent",
-          "state": "sleep",
-          "receiptAgeMs": 119999
-        }
-      ],
-      "expected": {
-        "accounts": {
-          "codex:work": "inactive"
-        }
-      }
-    },
-    {
-      "name": "alert before silence boundary",
+      "name": "silent alert hook stays live at 120000",
       "elapsedMs": 0,
       "sources": [
         {
           "sourceId": "agent",
           "kind": "agent",
           "state": "alert",
-          "receiptAgeMs": 119999
+          "receiptAgeMs": 120000,
+          "eventAgeMs": 120000
         }
       ],
       "expected": {
@@ -325,19 +128,71 @@
       }
     },
     {
-      "name": "alert at silence boundary",
-      "elapsedMs": 1,
+      "name": "silent done hook stays live at 120000",
+      "elapsedMs": 0,
       "sources": [
         {
           "sourceId": "agent",
           "kind": "agent",
-          "state": "alert",
-          "receiptAgeMs": 119999
+          "state": "done",
+          "receiptAgeMs": 120000,
+          "eventAgeMs": 120000
+        }
+      ],
+      "expected": {
+        "accounts": {
+          "codex:work": "idle"
+        }
+      }
+    },
+    {
+      "name": "silent idle hook stays live at 120000",
+      "elapsedMs": 0,
+      "sources": [
+        {
+          "sourceId": "agent",
+          "kind": "agent",
+          "state": "idle",
+          "receiptAgeMs": 120000,
+          "eventAgeMs": 120000
+        }
+      ],
+      "expected": {
+        "accounts": {
+          "codex:work": "idle"
+        }
+      }
+    },
+    {
+      "name": "reported sleep is inactive",
+      "elapsedMs": 0,
+      "sources": [
+        {
+          "sourceId": "agent",
+          "kind": "agent",
+          "state": "sleep"
         }
       ],
       "expected": {
         "accounts": {
           "codex:work": "inactive"
+        }
+      }
+    },
+    {
+      "name": "collector stale flag does not stop a coding project",
+      "elapsedMs": 0,
+      "sources": [
+        {
+          "sourceId": "agent",
+          "kind": "agent",
+          "state": "working",
+          "stale": true
+        }
+      ],
+      "expected": {
+        "accounts": {
+          "codex:work": "working"
         }
       }
     },
@@ -436,7 +291,7 @@
       ],
       "expected": {
         "accounts": {
-          "codex:work": "sleep"
+          "codex:work": "inactive"
         }
       }
     },
@@ -487,7 +342,7 @@
       ],
       "expected": {
         "accounts": {
-          "codex:work": "sleep"
+          "codex:work": "inactive"
         }
       }
     },
@@ -504,7 +359,25 @@
       ],
       "expected": {
         "accounts": {
-          "codex:work": "sleep"
+          "codex:work": "inactive"
+        }
+      }
+    },
+    {
+      "name": "notification event age 300000",
+      "elapsedMs": 0,
+      "sources": [
+        {
+          "sourceId": "agent",
+          "kind": "agent",
+          "state": "notification",
+          "receiptAgeMs": 300000,
+          "eventAgeMs": 300000
+        }
+      ],
+      "expected": {
+        "accounts": {
+          "codex:work": "idle"
         }
       }
     },
@@ -516,12 +389,32 @@
           "sourceId": "agent",
           "kind": "agent",
           "state": "notification",
-          "eventAgeMs": 3600000
+          "eventAgeMs": 3600000,
+          "receiptAgeMs": 3600000
         }
       ],
       "expected": {
         "accounts": {
-          "codex:work": "notification"
+          "codex:work": "inactive"
+        }
+      }
+    },
+    {
+      "name": "aged alert drops its error health",
+      "elapsedMs": 0,
+      "sources": [
+        {
+          "sourceId": "agent",
+          "kind": "agent",
+          "state": "alert",
+          "receiptAgeMs": 300000,
+          "eventAgeMs": 300000,
+          "health": "error"
+        }
+      ],
+      "expected": {
+        "accounts": {
+          "codex:work": "idle"
         }
       }
     },
@@ -533,12 +426,13 @@
           "sourceId": "agent",
           "kind": "agent",
           "state": "alert",
-          "eventAgeMs": 3600000
+          "eventAgeMs": 3600000,
+          "receiptAgeMs": 3600000
         }
       ],
       "expected": {
         "accounts": {
-          "codex:work": "alert"
+          "codex:work": "inactive"
         }
       }
     },
@@ -579,8 +473,8 @@
           "kind": "agent",
           "state": "alert",
           "health": "error",
-          "eventAgeMs": 300000,
-          "receiptAgeMs": 120000
+          "eventAgeMs": 600000,
+          "receiptAgeMs": 600000
         },
         {
           "sourceId": "live",
@@ -609,13 +503,15 @@
           "kind": "agent",
           "state": "alert",
           "health": "error",
-          "receiptAgeMs": 120000
+          "eventAgeMs": 600000,
+          "receiptAgeMs": 600000
         },
         {
           "sourceId": "older",
           "kind": "agent",
           "state": "notification",
-          "stale": true
+          "eventAgeMs": 700000,
+          "receiptAgeMs": 700000
         }
       ],
       "expected": {
@@ -721,8 +617,7 @@
         {
           "sourceId": "new",
           "kind": "agent",
-          "state": "working",
-          "stale": true
+          "state": "sleep"
         },
         {
           "sourceId": "live",
@@ -751,7 +646,8 @@
           "sourceId": "a",
           "kind": "agent",
           "state": "notification",
-          "receiptAgeMs": 119999
+          "receiptAgeMs": 599999,
+          "eventAgeMs": 599999
         },
         {
           "sourceId": "b",
@@ -764,7 +660,7 @@
           "codex:work": "thinking"
         },
         "latest": {
-          "codex:work": "a"
+          "codex:work": "b"
         },
         "activity": {
           "codex:work": "b"
@@ -861,7 +757,7 @@
     {
       "value": null,
       "unit": "%",
-      "expected": "\u2014"
+      "expected": "—"
     },
     {
       "value": 1.005,

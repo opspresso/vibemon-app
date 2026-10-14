@@ -6,7 +6,10 @@ const rule = state => Object.hasOwn(states, state) ? states[state] : {};
 const attention = Object.keys(states).filter(state => states[state].attentionRank).sort((a, b) => states[a].attentionRank - states[b].attentionRank);
 const needsAttention = state => attention.includes(state);
 const dominantState = (states, fallback = 'unknown') => attention.find(state => states.includes(state)) ?? fallback;
-const sourceStale = (source, now = Date.now()) => Boolean(source.stale) || now - Date.parse(source.receivedAt) >= constants.CLOUD_STALE_MS;
+// Collectors report resources periodically, so silence means lost data. Coding
+// hooks report events only: a long tool call or response is silent while work
+// continues, so agent liveness comes from the event clock instead.
+const sourceStale = (source, now = Date.now()) => source.kind !== 'agent' && (Boolean(source.stale) || now - Date.parse(source.receivedAt) >= constants.CLOUD_STALE_MS);
 
 function agentTransition(state) {
   const transition = rule(state).transition;
@@ -25,13 +28,14 @@ function idleAgentState(state, observedAt, now = Date.now()) {
 }
 
 function sourceState(source, now = Date.now()) {
-  // Coding hooks report events, not a continuous heartbeat. Silence is normal.
-  if (sourceStale(source, now)) return source.kind === 'agent' ? 'inactive' : 'stale';
-  // A fresh receipt keeps an explicit input request/error actionable even if
-  // the original event is old. Only a new state or stopped reporting clears it.
-  const state = source.agent ? rule(source.agent.state).holdWhileReporting ? source.agent.state
-    : idleAgentState(source.agent.state, source.observedAt, now) : source.health;
-  return dominantState([source.health, state], state);
+  if (source.kind === 'agent') {
+    // A project whose event clock reached sleep has stopped reporting.
+    const state = idleAgentState(source.agent.state, source.observedAt, now);
+    if (state === 'sleep') return 'inactive';
+    // Health belongs to the event; once its state has aged, so has its health.
+    return state === source.agent.state ? dominantState([source.health, state], state) : state;
+  }
+  return sourceStale(source, now) ? 'stale' : source.health;
 }
 
 function codingAccountState(states) {

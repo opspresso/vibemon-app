@@ -64,7 +64,6 @@
       "label": "Needs input",
       "tone": "warning",
       "attentionRank": 3,
-      "holdWhileReporting": true,
       "transition": {
         "state": "idle",
         "after": "SLEEP_TIMEOUT_MS"
@@ -74,7 +73,6 @@
       "label": "Needs attention",
       "tone": "danger",
       "attentionRank": 2,
-      "holdWhileReporting": true,
       "transition": {
         "state": "idle",
         "after": "SLEEP_TIMEOUT_MS"

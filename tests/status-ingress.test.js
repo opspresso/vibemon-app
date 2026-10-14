@@ -3,9 +3,9 @@ const { StateManager } = require('../src/modules/state-manager.cjs');
 
 function fixture() {
   const normalizer = new StateManager();
-  const timers = { validateStateData: data => normalizer.validateStateData(data), setupStateTimeout: jest.fn() };
+  const timers = { validateStateData: data => normalizer.validateStateData(data), setupStateTimeout: jest.fn(), cleanupProject: jest.fn() };
   const windows = {
-    getRegisteredState: jest.fn(() => null),
+    getRegisteredState: jest.fn(() => null), removeProject: jest.fn(),
     getFocusedProjectId: () => 'focused', routeStatusUpdate: jest.fn((_id, state) => ({
       switchedProject: 'old', updateResult: { updated: true, stateChanged: true }, stateData: { ...state, character: 'codex' }
     })), updateAlwaysOnTopByState: jest.fn(), sendToWindow: jest.fn()

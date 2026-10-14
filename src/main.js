@@ -20,7 +20,6 @@ for (const name of ['.env.local', '.env']) {
 const { app, ipcMain, dialog, powerMonitor, screen, safeStorage, shell } = require('electron');
 const { MonitoringClient } = require('./monitoring/client.cjs');
 const { CredentialStore } = require('./monitoring/credential-store.cjs');
-const { CloudActivity } = require('./monitoring/activity.cjs');
 const { WorkspaceWindow } = require('./workspace/window.cjs');
 const { WorkspaceSettings } = require('./workspace/settings.cjs');
 const { localActivity } = require('./workspace/activity.cjs');
@@ -191,25 +190,6 @@ const statusIngress = new StatusIngress(stateManager, windowManager, {
   onProjectSwitched: id => bubbleWindowManager.destroy(id),
   onStateUpdate: notifyStatusChange
 });
-
-function handleCloudStatusUpdate(data, { auto = false, sourceId } = {}) {
-  const result = statusIngress.accept(data, { sourceId, preserveFocus: auto });
-  if (!result.valid) console.error('cloud invalid payload:', result.error);
-}
-
-/**
- * Remove a deleted, deselected, or disconnected cloud source.
- * Activity timers and remembered state are removed explicitly. The companion
- * closes only when it follows this source; other focused projects stay visible.
- */
-function removeCloudProject(projectId) {
-  if (typeof projectId !== 'string' || projectId.length === 0) {
-    return;
-  }
-  stateManager.cleanupProject(projectId);
-  windowManager.removeProject(projectId, { forgetLastState: true });
-  if (windowManager.getWindow(projectId)) windowManager.closeWindow(projectId);
-}
 
 /**
  * Tray action "Show Character": reopen the character window — and its
@@ -426,9 +406,7 @@ app.whenReady().then(() => {
   installWorkspaceMenu({ open: page => workspaceWindow.open(page), showCompanion: showCharacterAgain });
   trayManager.setShowCharacterHandler(showCharacterAgain);
   trayManager.createTray();
-  const cloudActivity = new CloudActivity((data, sourceId, { activity }) => {
-    handleCloudStatusUpdate(data, { auto: !activity || Boolean(windowManager.getFocusedProjectId()), sourceId });
-  }, removeCloudProject, () => monitoringClient.currentTime());
+  const cloudActivity = statusIngress.cloudActivity(() => monitoringClient.currentTime());
   monitoringClient.on('change', snapshot => {
     cloudActivity.accept(snapshot.sources);
     for (const projectId of windowManager.getProjectIds()) {

@@ -15,7 +15,7 @@ export interface MonitoringAccount<T extends MonitoringSource> {
 }
 export function needsAttention(state: string): boolean;
 export function dominantState(states: Array<string | undefined>, fallback?: string): string;
-export function sourceStale(source: Pick<MonitoringSource, 'receivedAt' | 'stale'>, now?: number): boolean;
+export function sourceStale(source: Pick<MonitoringSource, 'kind' | 'receivedAt' | 'stale'>, now?: number): boolean;
 export function idleAgentState(state: string, observedAt: string, now?: number): string;
 export function agentTransition(state: string): { state: string; after: number } | null;
 export function sourceState(source: MonitoringSource, now?: number): string;
