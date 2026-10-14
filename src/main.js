@@ -448,12 +448,13 @@ app.whenReady().then(() => {
   // ~/.vibemon/config.json pointed at this app, since a hook file can be
   // present while that shared config is missing or stale. The same cycle
   // compares installed hook/script files against the published manifest and
-  // surfaces drift in the tray badge and Settings > Integrations.
+  // updates drifted ones; broken registrations surface in the tray badge and
+  // Settings > Integrations.
   const runHookCheck = () => {
     vibemonConfigManager.ensureDesktopUrl(null);
     hookInstaller.checkAndPrompt(null)
       .catch((err) => console.error('Hook check failed:', err));
-    hookInstaller.checkForChanges()
+    hookInstaller.updateChanged()
       .then(() => {
         if (trayManager) {
           trayManager.updateIcon();
