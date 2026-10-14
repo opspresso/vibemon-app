@@ -9,6 +9,13 @@ class MonitoringClient extends EventEmitter {
   constructor({ preferences, credentials, fetchImpl = fetch, allowLocalHttp = false, now = Date.now, monotonicNow = () => globalThis.performance.now() }) {
     super();
     this.preferences = preferences;
+    // Before selection version 2, saving Customize view froze the lists even
+    // when every item was chosen, hiding accounts created later. A frozen list
+    // cannot be told apart from a deliberate subset, so it resets to all once.
+    if (preferences.get('selectionVersion') !== 2) {
+      for (const key of ['selectedAccounts', 'selectedSources', 'selectedMetrics']) preferences.delete(key);
+      preferences.set('selectionVersion', 2);
+    }
     this.credentials = credentials;
     this.fetch = fetchImpl;
     this.allowLocalHttp = allowLocalHttp;
