@@ -191,6 +191,15 @@ startFixture().then(async fixture => {
 
   await navigate('agents');
   assert.equal(await ui('document.querySelectorAll("#agent-cards .card").length'), 4);
+  for (const [name, states] of [['agent-active-states', ['working', 'planning', 'thinking', 'packing']], ['agent-response-states', ['done', 'idle', 'alert', 'notification']]]) {
+    state.sources = () => {
+      let index = 0;
+      return originalSources().map(source => source.kind === 'agent' ? { ...source, agent: { ...source.agent, state: states[index++] } } : source);
+    };
+    await client.poll(true);
+    await until(() => ui(`JSON.stringify([...document.querySelectorAll('#agent-cards .card')].map(card => card.dataset.agentState).sort()) === ${JSON.stringify(JSON.stringify([...states].sort()))}`), name);
+    await screenshot(name);
+  }
   state.sources = () => {
     const data = originalSources();
     const team = data.find(source => source.sourceId === 'codex-team');
@@ -200,7 +209,7 @@ startFixture().then(async fixture => {
   await until(() => ui('[...document.querySelectorAll("#agent-cards .card")].find(card => card.querySelector("h3").textContent === "release-review")?.querySelector(".chip").textContent === "Needs input"'), 'account surfaces attention from an older reporting project');
   await ui('window.activityCard = document.querySelector(\'#agent-cards [aria-label="release-review · Codex · team"]\')');
   assert.equal(await ui('activityCard.dataset.agentTone'), 'warning');
-  assert.equal(await ui('getComputedStyle(activityCard.querySelector(".vm-agent-edge"), "::before").animationName'), 'vm-agent-wait');
+  assert.equal(await ui('getComputedStyle(activityCard.querySelector(".vm-agent-edge"), "::before").animationName'), await ui('matchMedia("(prefers-reduced-motion: reduce)").matches') ? 'none' : 'vm-agent-wait');
   await click('#agent-cards [aria-label="View release-review · Codex · team details"]');
   assert.equal(await text('#detail-status .chip'), 'Needs input');
   assert.ok((await text('#detail-members')).includes('release-review'));
