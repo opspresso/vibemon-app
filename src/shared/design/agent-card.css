@@ -8,22 +8,44 @@
 .vm-agent-card[data-agent-tone='warning'] { --vm-agent-edge: var(--vm-warning); }
 .vm-agent-card[data-agent-tone='danger'] { --vm-agent-edge: var(--vm-danger); }
 .vm-agent-card[data-agent-tone='good'] { --vm-agent-edge: var(--vm-good); }
+.vm-agent-card[data-agent-state='thinking'] { --vm-agent-edge: var(--vm-accent); }
+.vm-agent-card[data-agent-state='planning'] { --vm-agent-edge: color-mix(in srgb, var(--vm-info) 65%, var(--vm-good)); }
+.vm-agent-card[data-agent-state='packing'] { --vm-agent-edge: color-mix(in srgb, var(--vm-accent) 65%, var(--vm-danger)); }
 .vm-agent-card[data-agent-tone='active'] :is(.chip, .workspace-status) {
-  color: var(--vm-info);
-  background: var(--vm-info-soft);
+  color: var(--vm-agent-edge);
+  background: color-mix(in srgb, var(--vm-agent-edge) 14%, var(--vm-surface));
 }
 .vm-agent-card[data-agent-tone] {
   border-color: color-mix(in srgb, var(--vm-agent-edge) 55%, var(--vm-border));
 }
+.vm-agent-card[data-agent-tone]:not([data-agent-tone='neutral']) {
+  background-image: radial-gradient(ellipse at top right, color-mix(in srgb, var(--vm-agent-edge) 9%, transparent), transparent 70%);
+  box-shadow: var(--vm-shadow), 0 0 18px color-mix(in srgb, var(--vm-agent-edge) 16%, transparent);
+}
+.vm-agent-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  box-shadow: inset 0 0 24px color-mix(in srgb, var(--vm-agent-edge) 18%, transparent);
+  opacity: 0;
+}
+.vm-agent-card[data-agent-tone='active']::before { animation: vm-agent-breathe 3.2s ease-in-out infinite; }
+.vm-agent-card[data-agent-tone='warning']::before { opacity: .45; }
+.vm-agent-card[data-agent-tone='danger']::before { animation: vm-agent-breathe 2.4s ease-in-out infinite; }
+.vm-agent-card[data-agent-tone='good']::before { opacity: .35; }
 .vm-agent-card:hover,
 .vm-agent-card:focus-within {
   border-color: var(--vm-agent-edge);
-  box-shadow: var(--vm-shadow), 0 0 0 3px color-mix(in srgb, var(--vm-agent-edge) 12%, transparent);
+  box-shadow: var(--vm-shadow), 0 0 0 3px color-mix(in srgb, var(--vm-agent-edge) 18%, transparent), 0 0 30px color-mix(in srgb, var(--vm-agent-edge) 28%, transparent);
 }
+.vm-agent-card:focus-within::before { animation: none; opacity: .9; }
+.vm-agent-card[data-agent-tone]:not([data-agent-tone='neutral']) :is(.chip, .workspace-status)::before { box-shadow: 0 0 8px currentColor; }
 .vm-agent-edge {
   position: absolute;
   inset: -1px;
-  padding: 2px;
+  padding: 3px;
   border-radius: inherit;
   overflow: hidden;
   pointer-events: none;
@@ -40,7 +62,7 @@
 }
 .vm-agent-card[data-agent-tone='active'] .vm-agent-edge::before {
   opacity: .9;
-  background: conic-gradient(transparent 0 55%, var(--vm-agent-edge) 80%, transparent 100%);
+  background: conic-gradient(transparent 0 40%, var(--vm-agent-edge) 70%, color-mix(in srgb, var(--vm-agent-edge) 45%, white) 82%, var(--vm-agent-edge) 86%, transparent 100%);
   animation: vm-agent-orbit 3.6s linear infinite;
 }
 .vm-agent-card[data-agent-state='thinking'] .vm-agent-edge::before {
@@ -52,7 +74,7 @@
   animation-timing-function: cubic-bezier(.45, 0, .55, 1);
 }
 .vm-agent-card[data-agent-state='packing'] .vm-agent-edge::before {
-  background: conic-gradient(transparent, var(--vm-agent-edge), transparent 50%, var(--vm-agent-edge), transparent);
+  background: conic-gradient(transparent, var(--vm-agent-edge) 30%, color-mix(in srgb, var(--vm-agent-edge) 45%, white) 38%, transparent 50%, var(--vm-agent-edge) 80%, color-mix(in srgb, var(--vm-agent-edge) 45%, white) 88%, transparent);
   animation-direction: reverse;
   animation-duration: 2.4s;
 }
@@ -83,6 +105,9 @@
 }
 @media (prefers-reduced-motion: reduce) {
   .vm-agent-card { transition: none; }
+  .vm-agent-card[data-agent-tone]::before { animation: none; }
+  .vm-agent-card[data-agent-tone='active']::before,
+  .vm-agent-card[data-agent-tone='danger']::before { opacity: .5; }
   .vm-agent-card[data-agent-tone] .vm-agent-edge::before { animation: none; }
   .vm-agent-card[data-agent-tone='active'] .vm-agent-edge::before,
   .vm-agent-card[data-agent-tone='warning'] .vm-agent-edge::before {

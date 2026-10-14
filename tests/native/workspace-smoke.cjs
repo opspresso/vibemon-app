@@ -226,6 +226,7 @@ startFixture().then(async fixture => {
   const cardSize = await ui('[activityCard.offsetWidth, activityCard.offsetHeight]');
   await web.debugger.sendCommand('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value: 'reduce' }] });
   assert.equal(await ui('getComputedStyle(activityCard.querySelector(".vm-agent-edge"), "::before").animationName'), 'none');
+  assert.equal(await ui('getComputedStyle(activityCard, "::before").animationName'), 'none');
   assert.deepEqual(await ui('[activityCard.offsetWidth, activityCard.offsetHeight]'), cardSize, 'motion does not change layout');
   web.debugger.detach();
   state.sources = () => originalSources().filter(source => source.kind === 'agent').map(source => ({
@@ -248,6 +249,11 @@ startFixture().then(async fixture => {
   assert.deepEqual(await ui('[...document.querySelectorAll("#agent-cards h3")].map(node => node.textContent)'), ['api-gateway', 'web-console']);
   assert.ok((await text('#agent-cards')).includes('Codex · team'));
   assert.ok((await text('#agent-cards')).includes('Codex · personal'));
+  for (const query of ['Engineering', 'team', 'web-console']) {
+    await input('#agent-search', query);
+    assert.deepEqual(await ui('[...document.querySelectorAll("#agent-cards .card")].map(card => card._source.sourceId)'), ['codex:team'], `${query} finds the same account after its title changes`);
+  }
+  await input('#agent-search', '');
   await input('#agent-filter', 'kiro');
   assert.ok((await text('#agent-cards')).includes('Needs input'));
   assert.ok((await text('#agent-cards')).includes('—'), 'unreported provider quota is not zero');
