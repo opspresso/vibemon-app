@@ -1,4 +1,5 @@
 import io
+from contextlib import ExitStack
 import json
 import os
 import runpy
@@ -328,3 +329,77 @@ def test_replacing_non_object_hooks_installs_current_definitions(existing):
     result, removed = install.replace_vibemon_hooks(existing, packaged)
     assert result == packaged
     assert removed == []
+
+
+def run_session(tmp_path, events, now=None):
+    """Run Claude hook events of one session in delivery order; return (state, observedAt) per event."""
+    from types import SimpleNamespace
+    config = SimpleNamespace(cache_path=str(tmp_path / "projects.json"), debug=False, http_urls=(), serial_port=None,
+                             vibemon_url=None, vibemon_token=None, auto_launch=False)
+    reports = []
+    for event in events:
+        payload = {"session_id": "session-1", "cwd": str(tmp_path), **event}
+        with ExitStack() as stack:
+            stack.enter_context(patch.object(core, "get_config", return_value=config))
+            stack.enter_context(patch.object(core, "send_to_all", side_effect=lambda p, start, context=None: reports.append((p["state"], context["observedAt"]))))
+            if now is not None:
+                stack.enter_context(patch.object(core.time, "time", return_value=now))
+            invoke_raw("claude", payload)
+    return reports
+
+
+def invoke_raw(tool, payload):
+    with (
+        patch.dict(os.environ, {"VIBEMON_SUPPRESS_HOOKS": "0"}),
+        patch.object(sys, "argv", ["vibemon.py"]),
+        patch.object(sys, "stdin", io.StringIO(json.dumps(payload))),
+        patch.object(core, "get_project_name", return_value="project"),
+        patch.object(core, "get_project_metadata", return_value={}),
+        patch.object(core, "get_usage_metadata", return_value={}),
+        pytest.raises(SystemExit),
+    ):
+        runpy.run_path(str(DOCS / tool / "hooks" / "vibemon.py"), run_name="__main__")
+
+
+def pre(tool_id):
+    return {"hook_event_name": "PreToolUse", "tool_name": "Bash", "tool_use_id": tool_id}
+
+
+def post(tool_id, event="PostToolUse"):
+    return {"hook_event_name": event, "tool_name": "Read", "tool_use_id": tool_id}
+
+
+def test_a_finished_parallel_tool_keeps_the_session_working(tmp_path):
+    states = [state for state, _ in run_session(tmp_path, [pre("slow"), pre("fast"), post("fast"), post("slow")])]
+    assert states == ["working", "working", "working", "thinking"]
+
+
+@pytest.mark.parametrize("order", [
+    [pre("a"), pre("b"), post("a")],
+    [pre("a"), post("a"), pre("b")],
+])
+def test_delivery_order_cannot_hide_a_running_tool(tmp_path, order):
+    # Startup jitter can swap near-simultaneous hooks; the newest stamp still carries the running tool.
+    reports = run_session(tmp_path, order, now=1_760_000_000.000)
+    stamps = [stamp for _, stamp in reports]
+    assert stamps == sorted(set(stamps))
+    assert reports[-1][0] == "working"
+
+
+@pytest.mark.parametrize("ending", [post("a", "PostToolUseFailure"), post("a", "PermissionDenied"), {"hook_event_name": "Stop"}])
+def test_interrupted_denied_or_finished_turns_release_their_tools(tmp_path, ending):
+    reports = run_session(tmp_path, [pre("a"), ending, {"hook_event_name": "UserPromptSubmit"}, post("other")])
+    assert [state for state, _ in reports][-2:] == ["thinking", "thinking"]
+
+
+def test_plan_mode_keeps_planning_while_tools_run(tmp_path):
+    plan = {"permission_mode": "plan"}
+    states = [state for state, _ in run_session(tmp_path, [{**pre("a"), **plan}, {**pre("b"), **plan}, {**post("a"), **plan}])]
+    assert states == ["planning", "planning", "planning"]
+
+
+def test_abandoned_sessions_are_dropped(tmp_path):
+    run_session(tmp_path, [pre("left-running")], now=1_760_000_000.0)
+    run_session(tmp_path, [{"hook_event_name": "UserPromptSubmit", "session_id": "session-2"}], now=1_760_000_000.0 + 86_400)
+    cache = json.loads((tmp_path / "activity.json").read_text())
+    assert list(cache["sessions"]) == ["session-2"]

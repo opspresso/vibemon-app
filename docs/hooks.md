@@ -149,7 +149,9 @@ Hooks deliver coding activity to the [Status API](https://vibemon.io/docs/api/st
 
 State reporting is edge-driven: a new state start replaces the previous state. Completion hooks are retained only where no later start event reliably restores the state (`PostToolUse`/`PostCompact`) or an explicit turn/session ending must be reported (`Stop`/`SessionEnd`). Claude and Codex subagent `Agent` calls already pass through the matcher-free tool hooks, so separate subagent hooks would only duplicate those transitions.
 
-Python hooks capture the observation time when they finish reading the event, before Git discovery or usage-cache reads. Local and Web delivery share that timestamp, so delayed metadata collection cannot make an older event appear newer.
+Python hooks capture the observation time after mapping the event, before Git discovery or usage-cache reads. Local and Web delivery share that timestamp, so delayed metadata collection cannot make an older event appear newer.
+
+When an event carries `session_id`, the hook records the session's running tools (`tool_use_id` from `PreToolUse`, released by `PostToolUse`, `PostToolUseFailure` or `PermissionDenied`; `start` and `done` clear them) in `~/.vibemon/cache/activity.json` under one cross-process lock. A finished tool reports `working` instead of `thinking` while a parallel tool still runs, and plan mode keeps `planning`. The same lock issues strictly increasing timestamps, so hooks that start out of order cannot place an older tool set after a newer one. If the lock stays busy for 0.5 seconds, the hook reports its mapped state with the current time.
 
 ### Claude Code
 
