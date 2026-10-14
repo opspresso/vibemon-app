@@ -29,6 +29,7 @@ from urllib.parse import urlsplit
 from urllib.request import Request, urlopen
 
 from account_context import cloud_context, observation_time, project_cache_key
+from cache_io import update_json_cache
 from http_client import open_credential_request
 from usage_cache import CACHE_STALE_SECONDS, get_fresh_provider, is_finite_number, is_fresh_observation, load_usage_cache, model_week_bucket, valid_percent, reverse_jsonl
 
@@ -289,6 +290,55 @@ def get_state(
         return "planning"
 
     return state
+
+
+# Sessions without a hook for a day are abandoned; their entries are dropped.
+ACTIVITY_SESSION_MAX_AGE_MS = 86_400_000
+
+
+def sequence_activity(data: dict[str, Any], state: str) -> tuple[str, str]:
+    """Derive a session's state and observation time in delivery order.
+
+    Hooks run as concurrent processes whose startup time varies by tens of
+    milliseconds, so near-simultaneous events (parallel tool calls) can stamp
+    their times out of order. A fast tool's PostToolUse also cannot see that a
+    sibling tool is still running. Under one cross-process lock, this records
+    the session's in-flight tools and issues strictly increasing timestamps,
+    so the newest timestamp always carries the state of the newest tool set.
+    """
+    session = data.get("session_id")
+    tool = data.get("tool_use_id")
+    if not isinstance(session, str) or not session:
+        return state, observation_time()
+    result = {"state": state, "observedAt": ""}
+
+    def update(cache: dict[str, Any]) -> dict[str, Any]:
+        now = int(time.time() * 1000)
+        stamp = max(now, cache.get("lastMs", 0) + 1) if isinstance(cache.get("lastMs"), int) else now
+        sessions = {
+            key: value for key, value in (cache.get("sessions") or {}).items()
+            if isinstance(value, dict) and isinstance(value.get("updatedMs"), int) and now - value["updatedMs"] < ACTIVITY_SESSION_MAX_AGE_MS
+        }
+        tools = set(sessions.get(session, {}).get("tools") or [])
+        if isinstance(tool, str) and tool:
+            if data.get("hook_event_name") == "PreToolUse":
+                tools.add(tool)
+            else:
+                tools.discard(tool)
+        elif state in ("start", "done"):
+            tools.clear()
+        if state in ("thinking", "planning") and tools and data.get("hook_event_name") != "UserPromptSubmit":
+            result["state"] = "planning" if state == "planning" else "working"
+        sessions[session] = {"tools": sorted(tools), "updatedMs": now}
+        result["observedAt"] = observation_time(stamp)
+        return {"lastMs": stamp, "sessions": sessions}
+
+    path = os.path.join(os.path.dirname(get_config().cache_path), "activity.json")
+    if not update_json_cache(path, update):
+        # Display delivery must not wait on a busy or unwritable cache.
+        debug_log("Activity cache unavailable; reporting the mapped state")
+        return state, observation_time()
+    return result["state"], result["observedAt"]
 
 
 def get_project_metadata(project: str, cwd: str | None = None) -> dict[str, Any]:
@@ -1223,11 +1273,7 @@ def run(
         return
 
     # Read and parse input once
-    input_raw = read_input()
-    # Git discovery and usage metadata can finish after a newer hook. Keep
-    # the event's arrival time so late delivery cannot replace newer activity.
-    observed_at = observation_time()
-    data = parse_json(input_raw)
+    data = parse_json(read_input())
 
     # Extract fields from parsed data
     event_name = data.get("hook_event_name", "") or argv_event or "Unknown"
@@ -1255,11 +1301,14 @@ def run(
         debug_log("Hook skipped (cwd is the VibeMon home dir)")
         return
 
-    project_name = get_project_name(cwd, transcript_path)
     state = get_state(event_name, permission_mode, event_state_map)
     if state is None:
         debug_log(f"Event not mapped, skipping: {event_name}")
         return
+    # Stamp before git discovery and usage metadata, which can finish after a
+    # newer hook; late delivery then cannot replace newer activity.
+    state, observed_at = sequence_activity(data, state)
+    project_name = get_project_name(cwd, transcript_path)
 
     debug_log(f"Event: {event_name}, Tool: {tool_name}, Project: {project_name}")
 

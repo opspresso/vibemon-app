@@ -34,8 +34,9 @@ def project_cache_key(project: str, provider: str = "claude", cwd: str | None = 
     return f"{cache_key(provider)}:{hashlib.sha256(key.encode()).hexdigest()}"
 
 
-def observation_time() -> str:
-    return datetime.now(timezone.utc).isoformat(timespec="milliseconds").replace("+00:00", "Z")
+def observation_time(epoch_ms: int | None = None) -> str:
+    moment = datetime.now(timezone.utc) if epoch_ms is None else datetime.fromtimestamp(epoch_ms / 1000, timezone.utc)
+    return moment.isoformat(timespec="milliseconds").replace("+00:00", "Z")
 
 
 def cloud_context(character: str, project: str, cwd: str | None = None, observed_at: str | None = None) -> dict:
