@@ -1252,6 +1252,26 @@ describe('HookInstaller', () => {
       expect(status.changed).toBe(true);
     });
 
+    test('updateChanged reinstalls only drifted integrations, without prompting or a summary', async () => {
+      mockClaudeInstalled('local-bytes');
+      mockManifestResponse(manifestFor({ 'claude/hooks/vibemon.py': sha256('published-bytes') }));
+      const install = jest.spyOn(hookInstaller, 'installTools').mockResolvedValue([{ result: { ok: true } }]);
+
+      await hookInstaller.updateChanged();
+
+      expect(install).toHaveBeenCalledWith([expect.objectContaining({ flag: '--claude' })], null, { showSummary: false });
+      expect(install.mock.calls[0][0].every(tool => tool.changed && !tool.broken)).toBe(true);
+    });
+
+    test('updateChanged does nothing when every installed file matches', async () => {
+      mockClaudeInstalled('local-bytes');
+      mockManifestResponse(manifestFor({ 'claude/hooks/vibemon.py': sha256('local-bytes'), 'claude/statusline.py': sha256('local-bytes') }));
+      const install = jest.spyOn(hookInstaller, 'installTools');
+
+      await expect(hookInstaller.updateChanged()).resolves.toEqual([]);
+      expect(install).not.toHaveBeenCalled();
+    });
+
     test('checkForChanges reports no drift when hashes match', async () => {
       mockClaudeInstalled('local-bytes');
       mockManifestResponse(manifestFor({

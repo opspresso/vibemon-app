@@ -656,6 +656,21 @@ class HookInstaller {
   }
 
   /**
+   * Repair installed integrations whose files drifted from the published
+   * manifest. Fixes to hooks and shared scripts otherwise stay on each machine
+   * only as a badge until someone reinstalls by hand. The unattended installer
+   * replaces VibeMon-owned files only; user-owned settings are left alone.
+   * Broken registrations still need the user, so they are not touched here.
+   * @returns {Promise<Array>} install results, empty when nothing drifted
+   */
+  async updateChanged() {
+    await this.checkForChanges();
+    const changed = this.cachedStatuses.filter(tool => tool.changed && !tool.broken);
+    if (this.isRunning || changed.length === 0) return [];
+    return this.installTools(changed, null, { showSummary: false });
+  }
+
+  /**
    * Run already-downloaded install.py source via `python3 -` with the given
    * flags, piping the script over stdin (no shell, no temp file).
    *
