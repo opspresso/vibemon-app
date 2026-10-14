@@ -1,7 +1,7 @@
 const { snapshotClock, remainingResetMinutes } = require('../src/shared/monitoring/clock.cjs');
 const { sourceState } = require('../src/shared/monitoring/state.cjs');
 
-test.each([86400000, -86400000])('reader wall-clock skew of %i ms does not change freshness', skew => {
+test.each([86400000, -86400000])('reader wall-clock skew of %i ms does not change freshness or event age', skew => {
   const server = Date.parse('2026-10-13T08:00:00.000Z');
   const wallClock = jest.spyOn(Date, 'now').mockReturnValue(server + skew);
   let elapsed = 500;
@@ -14,7 +14,10 @@ test.each([86400000, -86400000])('reader wall-clock skew of %i ms does not chang
     expect(sourceState(source, clock())).toBe('ok');
     elapsed++;
     expect(sourceState(source, clock())).toBe('stale');
-    expect(sourceState({ ...source, kind: 'agent' }, clock())).toBe('inactive');
+    const agent = { ...source, kind: 'agent', observedAt: source.receivedAt, agent: { state: 'working' } };
+    expect(sourceState(agent, clock())).toBe('working');
+    elapsed += 180000;
+    expect(sourceState(agent, clock())).toBe('idle');
   } finally { wallClock.mockRestore(); }
 });
 

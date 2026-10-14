@@ -17,13 +17,17 @@ test('cloud activity ages with unchanged timestamps, without repeatedly resettin
   const tracker = new CloudActivity(update, remove, () => now);
   tracker.accept([source]);
   expect(update).toHaveBeenLastCalledWith(expect.objectContaining({ state: 'working' }), source.sourceId, { activity: true });
+  now += 120000;
   tracker.accept([source]);
   expect(update).toHaveBeenCalledTimes(1);
-  now += 120000;
+  now += 180000;
+  tracker.accept([source]);
+  expect(update).toHaveBeenLastCalledWith(expect.objectContaining({ state: 'idle' }), source.sourceId, { activity: false });
+  now += 300000;
   tracker.accept([source]);
   expect(update).toHaveBeenLastCalledWith(expect.objectContaining({ state: 'sleep' }), source.sourceId, { activity: false });
   tracker.accept([source]);
-  expect(update).toHaveBeenCalledTimes(2);
+  expect(update).toHaveBeenCalledTimes(3);
   const fresh = { ...source, observedAt: new Date(now).toISOString(), receivedAt: new Date(now).toISOString() };
   tracker.accept([fresh]);
   expect(update).toHaveBeenLastCalledWith(expect.objectContaining({ state: 'working' }), source.sourceId, { activity: true });
@@ -31,17 +35,32 @@ test('cloud activity ages with unchanged timestamps, without repeatedly resettin
   expect(remove).toHaveBeenCalledWith(`cloud:${source.sourceId}`);
 });
 
-test('opening or reconnecting a workspace never creates companions for old projects', () => {
+test('opening or reconnecting a workspace never creates companions for expired projects', () => {
   const update = jest.fn();
-  const tracker = new CloudActivity(update, jest.fn(), () => start + 120000);
-  tracker.accept([source, { ...source, sourceId: 'other', stale: true }]);
+  const tracker = new CloudActivity(update, jest.fn(), () => start + 600000);
+  tracker.accept([source, { ...source, sourceId: 'other', agent: { ...source.agent, state: 'sleep' } }]);
   expect(update).not.toHaveBeenCalled();
 });
 
-test('cloud characters and cards share current errors, event age and inactivity', () => {
+test('sources delivered locally are left to local delivery, dropping an earlier cloud copy', () => {
+  const update = jest.fn(), remove = jest.fn();
+  const local = new Set();
+  const tracker = new CloudActivity(update, remove, () => start, id => local.has(id));
+  tracker.accept([source]);
+  expect(update).toHaveBeenCalledTimes(1);
+  local.add(source.sourceId);
+  tracker.accept([{ ...source, observedAt: new Date(start + 1000).toISOString() }]);
+  expect(update).toHaveBeenCalledTimes(1);
+  expect(remove).toHaveBeenCalledWith(`cloud:${source.sourceId}`);
+  tracker.accept([source]);
+  expect(remove).toHaveBeenCalledTimes(1);
+});
+
+test('cloud characters and cards share current errors and event age', () => {
   expect(companionState({ ...source, health: 'error' }, start)).toBe('alert');
   expect(companionState({ ...source, health: 'warning' }, start)).toBe('notification');
-  expect(companionState({ ...source, stale: true }, start)).toBe('sleep');
+  expect(companionState({ ...source, stale: true }, start + 120000)).toBe('working');
   expect(companionState({ ...source, agent: { ...source.agent, state: 'done' }, observedAt: new Date(start - 60000).toISOString() }, start)).toBe('idle');
+  expect(companionState({ ...source, observedAt: new Date(start - 600000).toISOString() }, start)).toBe('sleep');
   expect(companionState({ ...source, agent: { ...source.agent, state: 'constructor' } }, start)).toBe('constructor');
 });

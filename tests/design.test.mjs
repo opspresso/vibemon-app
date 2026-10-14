@@ -36,14 +36,15 @@ test('weighted means remain inside the observed range without inventing maxima',
   assert.equal(mergeMean(10, 2, 40, 4), 30);
 });
 
-test('account freshness follows reporting projects while preserving stale project details', () => {
-  const fresh = { kind: 'agent', health: 'ok', stale: false, agent: { state: 'working' } };
-  const old = { kind: 'agent', health: 'error', stale: true, agent: { state: 'alert' } };
-  const state = sources => accountState({ sources });
+test('account freshness follows reporting projects while preserving stopped project details', () => {
+  const now = Date.now();
+  const fresh = { kind: 'agent', health: 'ok', stale: false, observedAt: new Date(now).toISOString(), agent: { state: 'working' } };
+  const old = { kind: 'agent', health: 'error', stale: false, observedAt: new Date(now - 600000).toISOString(), agent: { state: 'alert' } };
+  const state = sources => accountState({ sources }, now);
   assert.equal(state([fresh, old]), 'working');
   assert.equal(state([old, fresh]), 'working');
-  assert.equal(sourceState(old), 'inactive');
-  assert.equal(state([old, { ...fresh, stale: true }]), 'inactive');
+  assert.equal(sourceState(old, now), 'inactive');
+  assert.equal(state([old, { ...fresh, observedAt: old.observedAt }]), 'inactive');
   assert.equal(needsAttention(state([old])), false);
   assert.deepEqual(statePresentation('inactive'), ['Inactive', 'neutral']);
   assert.equal(state([fresh, { ...fresh, agent: { state: 'notification' } }, old]), 'notification');

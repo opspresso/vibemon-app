@@ -236,7 +236,7 @@ startFixture().then(async fixture => {
   assert.deepEqual(await ui('[activityCard.offsetWidth, activityCard.offsetHeight]'), cardSize, 'motion does not change layout');
   web.debugger.detach();
   state.sources = () => originalSources().filter(source => source.kind === 'agent').map(source => ({
-    ...source, stale: true, receivedAt: new Date(Date.now() - 120000).toISOString()
+    ...source, observedAt: new Date(Date.now() - 600000).toISOString(), receivedAt: new Date(Date.now() - 600000).toISOString()
   }));
   await client.poll(true);
   await until(() => ui('[...document.querySelectorAll("#agent-cards .chip")].every(chip => chip.textContent === "Inactive")'), 'stopped coding hooks are neutral in every card');

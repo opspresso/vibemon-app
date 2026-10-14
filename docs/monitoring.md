@@ -42,11 +42,11 @@ Open **Settings → Integrations → Send activity to Web**. Enter the Web origi
 
 ## Coding accounts and local activity
 
-Each provider/account ID has its own card and selection. Codex, Claude, Kiro, and other providers can each have several accounts. Cards show the account ID, latest observation's usage, and reporting projects. The status badge surfaces errors, input requests, and warnings from projects still reporting. An account becomes **Inactive** when all its projects stop reporting for 120 seconds. Inactive projects do not affect attention counts or the tray badge. App and Web share the same state and account rules. **Details** preserves each project's status, including stopped projects. Search by account or project, or filter by provider. The account history averages its summaries; percentages are not summed.
+Each provider/account ID has its own card and selection. Codex, Claude, Kiro, and other providers can each have several accounts. Cards show the account ID, latest observation's usage, and reporting projects. The status badge surfaces errors, input requests, and warnings from projects still reporting. Coding hooks report events, not a heartbeat, so a long tool call or response is silent while the agent works. Each project's state therefore follows its last event through the [state timeouts](features.md#state-timeout); a project is **Inactive** once that clock reaches `sleep`, and an account is **Inactive** when all its projects are. An event's health ages with its state. Inactive projects do not affect attention counts or the tray badge. App and Web share the same state and account rules. **Details** preserves each project's status, including stopped projects. Search by account or project, or filter by provider. The account history averages its summaries; percentages are not summed.
 
 Equal project names across accounts remain separate. Identity metadata does not switch tool logins: use each tool's matching signed-in environment. **Connect account** opens Web's account setup, including Kiro account overrides. See the [provider/account contract](https://vibemon.io/docs/api/monitoring#multiple-provider-accounts).
 
-**On this device** lists local hook activity independently of cloud accounts. Fresh selected cloud observations also enter the existing companion routing path under cloud-specific IDs. Local and cloud projects cannot overwrite each other by sharing a name.
+**On this device** lists local hook activity independently of cloud accounts. Fresh selected cloud observations also enter the existing companion routing path under cloud-specific IDs, and a new cloud event competes for the companion like a local one. A source that this device's hooks deliver locally is shown only through local delivery, which is immediate and supports terminal focus; it replaces an earlier cloud copy. Local and cloud projects cannot overwrite each other by sharing a name.
 
 ## Settings
 
@@ -66,8 +66,8 @@ Preference changes save automatically. Connection and selection forms save only 
 | Display | Meaning and action |
 | --- | --- |
 | `—` | No supported measurement was reported. This is not zero. |
-| **Stale** | No accepted receipt for 120 seconds. Check the collector; displayed values are the last known observation. |
-| **Inactive** | A coding project has not reported for 120 seconds. Event-based hooks may be silent between tasks; no action is required. |
+| **Stale** | A resource has no accepted receipt for 120 seconds. Check the collector; displayed values are the last known observation. |
+| **Inactive** | A coding project's last event has aged to `sleep`. No action is required. |
 | **Token not accepted** | Retrieve an active read token from Web Account. |
 | **Read access required** | Replace the token with one that has read permission. |
 | **Replace saved token** | The local credential cannot be decrypted. Enter it again from Web Account. |
