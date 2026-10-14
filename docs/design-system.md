@@ -10,7 +10,7 @@ VibeMon Desktop and Web share one visual language. Desktop adds local activity a
 
 After changing monitoring labels, run `node scripts/generate-monitoring.mjs --write`. It creates the local display module used by sandboxed renderers without network access. Distribution and design checks reject drift. Web imports a pinned public App snapshot; ESP32 compiles the same policy into a C++ state table. The behavioral cases in `src/shared/monitoring/cases.json` verify identical boundaries and account aggregation across runtimes.
 
-Use violet for actions and active work, teal for healthy states, amber for attention, and rose for errors. A measurement's magnitude does not imply failure: only plan limits have usage thresholds. Always pair color with a state label. Unavailable measurements are distinct from zero. Trend selectors show units once; axis labels use scientific notation for very large or tiny values, while readings and tooltips retain their precision. Stale observations retain their receipt time.
+Use violet for actions, blue for active work, teal for healthy states, amber for attention, and rose for errors. A measurement's magnitude does not imply failure: only plan limits have usage thresholds. Always pair color with a state label. Unavailable measurements are distinct from zero. Trend selectors show units once; axis labels use scientific notation for very large or tiny values, while readings and tooltips retain their precision. Stale observations retain their receipt time.
 
 Speech bubbles use opaque state colors and choose black or white text by relative luminance. The shared palette is checked against the [4.5:1 text contrast threshold](https://www.w3.org/WAI/WCAG22/Understanding/contrast-minimum.html). This check covers bubble colors; it does not establish full WCAG conformance.
 
@@ -25,6 +25,8 @@ The new sprite is `vibemon-v2.png`. The public `characters/vibemon.png` URL reta
 ![VibeMon ready, working, and resting in 2D and 3D](images/companion-identity.png)
 
 ## Workspace
+
+Coding account cards use the project responsible for the displayed state as their title. Older reporting input requests take priority over newer ordinary work; inactive accounts keep their last project. Provider and account ID remain visible, and selection keys and latest account usage do not change. Desktop and Web share `agent-card.css`: working edges carry a moving light, thinking breathes, planning moves slowly, and compacting reverses a two-part trail. Input requests use a slow pulse; errors stay emphasized. Completed work settles into green, while idle/inactive edges remain neutral. Hover and keyboard focus emphasize the edge without moving the card. Only transform and opacity animate. Reduced-motion users receive a static edge. Touch uses the same state colors with static edges to preserve its redraw budget.
 
 Keep primary navigation in this order: **Overview**, **Resources**, **Coding agents**. Put account or device settings below it. The page header names the current task and provides its primary action. **Customize view** controls source and metric selection without occupying the monitoring canvas.
 

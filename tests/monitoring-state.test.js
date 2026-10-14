@@ -1,4 +1,4 @@
-const { sourceState, sourceStale, accountState, groupAccounts, needsAttention, attentionCount } = require('../src/shared/monitoring/state.cjs');
+const { sourceState, sourceStale, accountState, accountActivity, groupAccounts, needsAttention, attentionCount } = require('../src/shared/monitoring/state.cjs');
 const { MonitoringClient } = require('../src/monitoring/client.cjs');
 const { memoryStore, sources } = require('./fixtures/workspace.cjs');
 const now = Date.parse('2026-10-13T08:00:00Z');
@@ -59,6 +59,15 @@ test('accounts use timestamp order and stable ties without mutating input or ble
   expect(input).toEqual([first, second, other]);
 });
 
+test('the title follows the project driving the state and keeps the last project when inactive', () => {
+  const waiting = { ...agent, sourceId: 'review', observedAt: new Date(now - 1000).toISOString(), agent: { ...agent.agent, project: 'release-review', state: 'notification' } };
+  const account = groupAccounts([waiting, agent])[0];
+  expect(accountActivity(account, now)).toEqual({ state: 'notification', source: waiting, project: 'release-review' });
+  expect(accountActivity(account, now + 120000)).toEqual({ state: 'inactive', source: agent, project: agent.agent.project });
+  expect(accountActivity({ ...account, sources: [] }, now)).toEqual({ state: 'inactive', source: undefined, project: account.displayName });
+  expect(accountActivity({ ...account, sources: [{ ...agent, agent: { ...agent.agent, project: ' ' } }] }, now).project).toBe(agent.displayName);
+});
+
 test('desktop cards, account counts and tray snapshot share the same selected-source decision', () => {
   let clock = now;
   const preferences = memoryStore();
@@ -66,7 +75,7 @@ test('desktop cards, account counts and tray snapshot share the same selected-so
   client.sources = [agent, { ...agent, sourceId: 'stopped', stale: true, health: 'error' }];
   let snapshot = client.snapshot();
   expect(snapshot.attentionCount).toBe(0);
-  expect(snapshot.accounts[0]).toMatchObject({ displayState: 'working', needsAttention: false });
+  expect(snapshot.accounts[0]).toMatchObject({ displayState: 'working', displayProject: agent.agent.project, needsAttention: false });
   expect(snapshot.sources[1]).toMatchObject({ displayState: 'inactive', needsAttention: false });
   clock += 120000;
   snapshot = client.snapshot();

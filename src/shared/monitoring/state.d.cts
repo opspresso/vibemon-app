@@ -5,7 +5,8 @@ export interface MonitoringSource {
   observedAt: string;
   health: string;
   stale?: boolean;
-  agent?: { state: string } | null;
+  displayName?: string;
+  agent?: { state: string; project?: string } | null;
   account?: { id: string; provider: string; displayName: string } | null;
 }
 export interface MonitoringAccount<T extends MonitoringSource> {
@@ -21,6 +22,7 @@ export function sourceState(source: MonitoringSource, now?: number): string;
 export function companionState(source: MonitoringSource, now?: number): string;
 export function codingAccountState(states: string[]): string;
 export function accountState<T extends { sources: MonitoringSource[] }>(account: T, now?: number): string;
+export function accountActivity<T extends MonitoringSource>(account: { sources: T[]; displayName: string }, now?: number): { state: string; source: T | undefined; project: string };
 export function accountKey(account: { id: string; provider: string }): string;
 export function groupAccounts<T extends MonitoringSource>(sources: T[]): MonitoringAccount<T>[];
 export function attentionCount(sources: MonitoringSource[], now?: number): number;

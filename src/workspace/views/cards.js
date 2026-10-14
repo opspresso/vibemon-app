@@ -1,4 +1,4 @@
-import { measurementUnit } from '../../shared/design/presentation.mjs';
+import { measurementUnit, stateTone } from '../../shared/design/presentation.mjs';
 import {
   el,
   text,
@@ -21,7 +21,7 @@ export const resourceType = (source) =>
 export const accountCard = (account) => ({
   ...account.latest,
   sourceId: account.accountId,
-  displayName: account.displayName,
+  displayName: account.displayProject,
   isAccount: true,
   provider: account.provider,
   displayState: account.displayState,
@@ -117,6 +117,8 @@ export function renderCards(
     (source) => `${source.isAccount ? 'account' : 'resource'}:${source.sourceId}`,
     () => {
       const card = el('article', undefined, 'card');
+      const edge = el('span', undefined, 'vm-agent-edge');
+      edge.setAttribute('aria-hidden', 'true');
       const heading = el('div', undefined, 'card-heading');
       const image = el('div', undefined, 'source-icon');
       const titles = el('div', undefined, 'card-title-group');
@@ -133,15 +135,24 @@ export function renderCards(
       const details = button('Details', () => openDetail(card._source), '');
       details.append(icon('arrow'));
       footer.append(received, details);
-      card.append(heading, message, metrics, members, footer);
-      card._parts = { name, type, image, status, message, metrics, members, received, details };
+      card.append(edge, heading, message, metrics, members, footer);
+      card._parts = { edge, name, type, image, status, message, metrics, members, received, details };
       return card;
     },
     (card, source) => {
       card._source = source;
       card.classList.toggle('compact-card', compact);
-      card.setAttribute('aria-label', source.displayName);
+      card.classList.toggle('vm-agent-card', Boolean(source.isAccount));
+      if (source.isAccount) {
+        card.dataset.agentTone = stateTone(sourceState(source));
+        card.dataset.agentState = sourceState(source);
+      } else {
+        delete card.dataset.agentTone;
+        delete card.dataset.agentState;
+      }
+      card.setAttribute('aria-label', source.isAccount ? `${source.displayName} · ${providerName(source.provider)} · ${source.sourceId.slice(source.provider.length + 1)}` : source.displayName);
       const parts = card._parts;
+      parts.edge.hidden = !source.isAccount;
       text(parts.name, source.displayName);
       text(parts.type, source.isAccount ? `${providerName(source.provider)} · ${source.sourceId.slice(source.provider.length + 1)}` : resourceType(source));
       const identity = source.isAccount ? source.agent?.character : source.kind;
@@ -187,7 +198,7 @@ export function renderCards(
       text(parts.received, ago(source.receivedAt, now));
       parts.received.dateTime = source.receivedAt;
       parts.received.title = new Date(source.receivedAt).toLocaleString();
-      parts.details.setAttribute('aria-label', `View ${source.displayName} details`);
+      parts.details.setAttribute('aria-label', `View ${card.getAttribute('aria-label')} details`);
     }
   );
 }
