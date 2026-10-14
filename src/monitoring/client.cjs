@@ -104,9 +104,12 @@ class MonitoringClient extends EventEmitter {
     if (sources !== null && (!Array.isArray(sources) || sources.length > 100 || !sources.every(validId))) throw new Error('Invalid source selection');
     const available = metricCatalog(this.catalog);
     if (!Array.isArray(metrics) || metrics.length > 4096 || metrics.some(key => typeof key !== 'string' || !Object.hasOwn(available, key))) throw new Error('Invalid metric selection');
-    this.preferences.set('selectedAccounts', accounts === null ? null : [...new Set(accounts)]);
-    this.preferences.set('selectedSources', sources === null ? null : [...new Set(sources)]);
-    this.preferences.set('selectedMetrics', [...new Set(metrics)]);
+    // Choosing every available item means "all": accounts, resources and
+    // metrics that appear later are followed instead of silently excluded.
+    const chosen = (values, available) => values === null || (available.length > 0 && available.every(value => values.includes(value))) ? null : [...new Set(values)];
+    this.preferences.set('selectedAccounts', chosen(accounts, this.accountCatalog.map(account => account.accountId)));
+    this.preferences.set('selectedSources', chosen(sources, this.catalog.filter(source => source.kind !== 'agent').map(source => source.sourceId)));
+    this.preferences.set('selectedMetrics', chosen(metrics, Object.keys(available)));
     if (this.inflight) await this.inflight;
     return this.poll();
   }

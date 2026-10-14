@@ -54,7 +54,7 @@ describe('cloud monitoring', () => {
     const { client, fetchImpl } = fixture();
     await client.poll(true);
     await client.select({ sources: ['spark'], metrics: ['cpuPercent'] });
-    expect(fetchImpl.mock.calls[1][0]).toContain('?ids=spark');
+    expect(fetchImpl.mock.calls[1][0]).toBe('https://web.example/api/v1/sources');
     expect(client.snapshot().catalog).toEqual([{ sourceId: 'spark', displayName: 'Spark', kind: 'host' }]);
     await client.select({ sources: [], metrics: [] });
     expect(fetchImpl).toHaveBeenCalledTimes(2);
@@ -259,6 +259,23 @@ describe('multiple accounts and resources', () => {
     const calls = fetchImpl.mock.calls.length;
     await client.select({ sources: [], accounts: [], metrics: [] });
     expect(fetchImpl).toHaveBeenCalledTimes(calls);
+  });
+});
+
+describe('selection of every available item', () => {
+  test('follows accounts that appear after the selection was saved', async () => {
+    const { client, preferences, fetchImpl } = fixture();
+    const agent = (provider) => ({ ...source(1000000), sourceId: `${provider}-default`, kind: 'agent', metrics: {}, account: { provider, id: 'default', displayName: `${provider} default` }, agent: { state: 'working', character: provider, project: 'project' } });
+    fetchImpl.mockResolvedValue(okResponse({ sources: [source(1000000), agent('codex')] }));
+    await client.poll(true);
+    await client.select({ sources: ['spark'], accounts: ['codex:default'], metrics: ['cpuPercent'] });
+    expect(preferences.get('selectedAccounts')).toBeNull();
+    expect(preferences.get('selectedSources')).toBeNull();
+    expect(preferences.get('selectedMetrics')).toEqual(['cpuPercent']);
+    fetchImpl.mockResolvedValue(okResponse({ sources: [source(1000000), agent('codex'), agent('claude'), agent('opencode')] }));
+    await client.poll();
+    expect(fetchImpl.mock.calls.at(-1)[0]).toBe('https://web.example/api/v1/sources');
+    expect(client.snapshot().accounts.map(account => account.accountId).sort()).toEqual(['claude:default', 'codex:default', 'opencode:default']);
   });
 });
 
