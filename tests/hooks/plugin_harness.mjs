@@ -1,6 +1,37 @@
 import fs from "node:fs";
 import path from "node:path";
+import { execFileSync } from "node:child_process";
 import vm from "node:vm";
+
+// Child processes spawned inside a sandbox must not inherit the harness's
+// default timeout (null = kill only on timeout): a hung command could hang
+// every hook test until the runner's own timeout fires.
+function spawnInSandbox(command, args, spawnOptions) {
+  const child = new vm.EventEmitter();
+  child.stdin = new vm.EventEmitter();
+  child.stdin.write = () => true;
+  child.stdin.end = () => {};
+  child.unref = () => {};
+  try {
+    const result = execFileSync(
+      command,
+      args,
+      { encoding: "utf8", timeout: 5000, ...spawnOptions }
+    );
+    queueMicrotask(() => {
+      child.emit("close", 0);
+      child.emit("exit", 0);
+    });
+    child.result = result;
+  } catch (error) {
+    queueMicrotask(() => {
+      child.emit("error", error);
+      child.emit("close", 1);
+      child.emit("exit", 1);
+    });
+  }
+  return child;
+}
 import { EventEmitter } from "node:events";
 import { createHash } from "node:crypto";
 
