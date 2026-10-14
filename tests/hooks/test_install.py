@@ -447,7 +447,9 @@ class LifecycleConfigTest(unittest.TestCase):
         plugin = (DOCS_DIR / "opencode" / "plugin" / "vibemon.js").read_text(
             encoding="utf-8"
         )
-        emitted = set(re.findall(r'(?:sendStatus|toolHook)\("([A-Za-z]+)"', plugin))
+        emitted = set(re.findall(
+            r'(?:, |toolHook\(|": )"([A-Z][A-Za-z]+)"', plugin
+        ))
         self.assertEqual(emitted, set(event_map))
         self.assertEqual(event_map["SessionStart"], "start")
         self.assertEqual(event_map["Stop"], "done")
@@ -461,7 +463,7 @@ class LifecycleConfigTest(unittest.TestCase):
         )
         self.assertIn('export default { id: "vibemon", setup };', plugin)
         self.assertNotIn("@opencode", plugin.split("*/", 1)[1])
-        self.assertIn('case "permission.asked"', plugin)
+        self.assertIn('"permission.asked": "PermissionRequest"', plugin)
 
     def test_canonical_document_tables_match_hook_adapters(self):
         readme = (DOCS_DIR.parents[1] / "docs" / "hooks.md").read_text(encoding="utf-8")

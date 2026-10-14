@@ -107,21 +107,62 @@ function modelName(model) {
   return text(model) || text(model?.id);
 }
 
-// opencode calls setup once per project instance in one server. Each call
-// keeps its own session map, so metadata cannot leak between projects.
+// opencode calls setup once per project instance (one directory) in one
+// server. The event bus delivers the events of every instance, but tool hooks
+// fire only in the instance that runs the session. A session belongs to this
+// instance when its `location.directory` equals the instance directory, so
+// each session is sent once and with its own project directory.
 function setup(ctx) {
-  const defaultDir = text(ctx.location?.directory) || process.cwd();
+  const directory = text(ctx.location?.directory) || process.cwd();
   const sessions = new Map();
+  const lookups = new Map();
 
-  function session(sessionID) {
-    if (!sessions.has(sessionID)) {
-      sessions.set(sessionID, { directory: defaultDir, agent: "", model: "" });
-    }
-    return sessions.get(sessionID);
+  // `info` is session metadata: a session.created payload or the
+  // ctx.session.get() result. Both use the same field names.
+  function remember(sessionID, info) {
+    const state = sessions.get(sessionID) || { owned: false, agent: "", model: "" };
+    const location = text(info?.location?.directory);
+    if (location) state.owned = location === directory;
+    state.parentID = text(info?.parentID) || state.parentID;
+    state.model = modelName(info?.model) || state.model;
+    state.agent = text(info?.agent) || state.agent;
+    sessions.set(sessionID, state);
+    return state;
   }
 
-  function sendStatus(eventName, sessionID, tool = "") {
-    const state = session(sessionID);
+  // The event stream does not replay events sent before setup subscribes.
+  // The session that boots a project instance, a resumed session, and a
+  // session of another instance have no session.created event here. Read
+  // their metadata once before their first status. Calls for one session run
+  // in order, also while the lookup is pending.
+  function withSession(sessionID, use) {
+    const run = (state) => {
+      try {
+        use(state);
+      } catch {
+        // Never let a bridge failure affect opencode.
+      }
+    };
+    if (sessions.has(sessionID)) {
+      run(sessions.get(sessionID));
+      return;
+    }
+    if (!lookups.has(sessionID)) {
+      lookups.set(sessionID, Promise.resolve()
+        .then(() => ctx.session.get({ sessionID }))
+        // A deleted session has no metadata. It stays unowned unless a tool
+        // hook of this instance claims it.
+        .catch(() => undefined)
+        .then((info) => {
+          lookups.delete(sessionID);
+          return remember(sessionID, info);
+        }));
+    }
+    lookups.get(sessionID).then(run);
+  }
+
+  function sendStatus(state, eventName, sessionID, tool = "") {
+    if (!state.owned) return;
     // The parent's subagent tool already represents child work. A child's
     // completion must not mark the still-running parent as done.
     if (state.parentID) return;
@@ -131,12 +172,24 @@ function setup(ctx) {
       hook_event_name: eventName,
       session_id: sessionID,
       tool_name: text(tool),
-      cwd: state.directory,
+      cwd: directory,
       transcript_path: "",
       permission_mode: state.agent === "plan" ? "plan" : "default",
       model: state.model,
     });
   }
+
+  const STATUS_EVENTS = {
+    "session.execution.started": "UserPromptSubmit",
+    "session.retry.scheduled": "UserPromptSubmit",
+    "permission.asked": "PermissionRequest",
+    "session.compaction.started": "PreCompact",
+    "session.compaction.ended": "PostCompact",
+    "session.execution.succeeded": "Stop",
+    "session.execution.failed": "Stop",
+    "session.execution.interrupted": "Stop",
+    "session.deleted": "SessionEnd",
+  };
 
   // Bus events carry their fields in `event.data`. Streaming deltas
   // (session.text.*, session.reasoning.*, session.tool.*) are ignored: they
@@ -146,59 +199,32 @@ function setup(ctx) {
     const sessionID = text(data.sessionID);
     if (!sessionID) return;
 
-    switch (event.type) {
-      case "session.created": {
-        const state = session(sessionID);
-        state.directory = text(data.location?.directory) || state.directory;
-        state.parentID = text(data.parentID) || state.parentID;
+    if (event.type === "session.created") {
+      sendStatus(remember(sessionID, data), "SessionStart", sessionID);
+    } else if (event.type === "session.step.started") {
+      withSession(sessionID, (state) => {
         state.model = modelName(data.model) || state.model;
         state.agent = text(data.agent) || state.agent;
-        sendStatus("SessionStart", sessionID);
-        break;
-      }
-      case "session.step.started": {
-        const state = session(sessionID);
-        state.model = modelName(data.model) || state.model;
-        state.agent = text(data.agent) || state.agent;
-        break;
-      }
-      case "session.execution.started":
-      case "session.retry.scheduled":
-        sendStatus("UserPromptSubmit", sessionID);
-        break;
-      case "permission.asked":
-        sendStatus("PermissionRequest", sessionID, data.action);
-        break;
-      case "session.compaction.started":
-        sendStatus("PreCompact", sessionID);
-        break;
-      case "session.compaction.ended":
-        sendStatus("PostCompact", sessionID);
-        break;
-      case "session.execution.succeeded":
-      case "session.execution.failed":
-      case "session.execution.interrupted":
-        sendStatus("Stop", sessionID);
-        break;
-      case "session.deleted":
-        sendStatus("SessionEnd", sessionID);
-        sessions.delete(sessionID);
-        break;
+      });
+    } else if (STATUS_EVENTS[event.type]) {
+      const eventName = STATUS_EVENTS[event.type];
+      withSession(sessionID, (state) => {
+        sendStatus(state, eventName, sessionID, event.type === "permission.asked" ? data.action : "");
+        if (eventName === "SessionEnd") sessions.delete(sessionID);
+      });
     }
   }
 
-  // Tool hooks run inside opencode's tool call, so a bridge failure must not
-  // escape them.
+  // Tool hooks run inside opencode's tool call. withSession() keeps bridge
+  // failures inside the plugin. Only the owning instance runs these hooks.
   const toolHook = (eventName) => (event) => {
-    try {
-      const sessionID = text(event?.sessionID);
-      if (!sessionID) return;
-      const state = session(sessionID);
+    const sessionID = text(event?.sessionID);
+    if (!sessionID) return;
+    withSession(sessionID, (state) => {
+      state.owned = true;
       state.agent = text(event.agent) || state.agent;
-      sendStatus(eventName, sessionID, event.tool);
-    } catch {
-      // Never let a bridge failure affect opencode.
-    }
+      sendStatus(state, eventName, sessionID, event.tool);
+    });
   };
   ctx.tool.hook("execute.before", toolHook("PreToolUse"));
   ctx.tool.hook("execute.after", toolHook("PostToolUse"));

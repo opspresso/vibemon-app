@@ -18,7 +18,7 @@
     "kiro/hooks/vibemon.json": "b4f43d0d1f3ae7f9884a2379ecc8d3f9ff62ac7b166f4b0b5e1f6a2c959cb2b9",
     "openclaw/extensions/index.mjs": "4c3cf2781a01ab21464aa2e2e294625e11ce405ad2450a82dfac6383fd5aabd4",
     "openclaw/extensions/openclaw.plugin.json": "128a5d1b57649575b25764614e5d8a8e93f68ab2b63d69ae759f244f125d49b0",
-    "opencode/plugin/vibemon.js": "3451493879699100b6ed5979693b7bb548af39378b9c075409406779dc5afddd",
+    "opencode/plugin/vibemon.js": "651ec983509972ce1c02c9ae067981569305bc6b03f060b49357851b72fdd0ea",
     "opencode/hooks/vibemon.py": "802d9dfa27cf370bf76a120bb1c36049e4fa570662ba4778a6947cac7aded7a7"
   }
 }

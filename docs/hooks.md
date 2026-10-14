@@ -244,7 +244,11 @@ The plugin default-exports the opencode 2.x definition `{ id, setup }`. `setup` 
 
 The plugin ignores streaming events (`session.text.*`, `session.reasoning.*`, `session.tool.*`) because they add no state. It sends `Stop` once per completed turn.
 
-The project comes from the session's `location.directory`; a resumed session uses the plugin instance directory. The model and agent come from `session.created` and `session.step.started`; the `plan` agent sets `permission_mode` to `plan`. Child sessions (`session.created` with `parentID`) do not publish status, because the parent's `subagent` tool represents them. Each adapter process has a 10-second deadline so a stalled child cannot stop the queue.
+opencode loads the plugin once per project instance (one directory). The event bus delivers the events of every instance, so each plugin instance sends only the sessions whose `location.directory` equals its own directory. That directory is the payload `cwd`.
+
+The event bus does not replay events sent before the plugin subscribes. For a session without a `session.created` event (the session that starts the project instance, or a resumed session), the plugin reads the session metadata once with `ctx.session.get()`. That session starts at UserPromptSubmit instead of SessionStart.
+
+The model and agent come from the session metadata and `session.step.started`; the `plan` agent sets `permission_mode` to `plan`. Child sessions (metadata with `parentID`) do not publish status, because the parent's `subagent` tool represents them. Each adapter process has a 10-second deadline so a stalled child cannot stop the queue.
 
 ## Related Projects
 
