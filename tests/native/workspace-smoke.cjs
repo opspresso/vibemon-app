@@ -54,10 +54,11 @@ startFixture().then(async fixture => {
     await until(() => visible(`section[data-page="${route}"]`), `${route} page visible`);
   };
   const screenshot = async name => {
+    console.log(`Capture: ${name}`);
     await until(() => ui('document.getElementById("toast").hidden'), 'transient feedback completed');
     await ui(`Promise.all(document.getAnimations().filter(animation => {
       const target = animation.effect?.target;
-      if (!(target instanceof Element) || !target.checkVisibility({ contentVisibilityAuto: true }) || animation.effect.getTiming().iterations === Infinity) return false;
+      if (!(target instanceof Element) || !target.checkVisibility({ contentVisibilityAuto: true }) || animation.effect.getTiming().iterations === Infinity || animation.playState === 'paused') return false;
       const bounds = target.getBoundingClientRect();
       return bounds.bottom > 0 && bounds.top < innerHeight && bounds.right > 0 && bounds.left < innerWidth;
     }).map(animation => animation.finished))`);
@@ -94,7 +95,7 @@ startFixture().then(async fixture => {
   assert.equal(await ui('document.getElementById("overview-attention").getAttribute("aria-pressed")'), 'true');
   assert.equal(await ui('[...document.querySelectorAll("#overview-resources .card, #overview-accounts .card")].some(card => card.classList.contains("compact-card"))'), false, 'attention view expands every reused card');
   assert.deepEqual(await ui('[...document.querySelectorAll("#overview-resources .card h3")].map(node => node.textContent)'), ['Build runner', 'Cache service']);
-  assert.deepEqual(await ui('[...document.querySelectorAll("#overview-accounts .card h3")].map(node => node.textContent)'), ['Research lab']);
+  assert.deepEqual(await ui('[...document.querySelectorAll("#overview-accounts .card h3")].map(node => node.textContent)'), ['experiments']);
   await client.poll(true); await delay(150);
   assert.equal(await ui('document.querySelectorAll("#overview-accounts .card").length'), 1, 'background refresh preserves the attention filter');
   await click('#overview-attention');
@@ -196,20 +197,34 @@ startFixture().then(async fixture => {
     return [...data, { ...team, sourceId: 'waiting-review', displayName: 'release-review', observedAt: new Date(Date.now() - 1000).toISOString(), agent: { ...team.agent, state: 'notification', project: 'release-review' } }];
   };
   await client.poll(true);
-  await until(() => ui('[...document.querySelectorAll("#agent-cards .card")].find(card => card.querySelector("h3").textContent === "Engineering").querySelector(".chip").textContent === "Needs input"'), 'account surfaces attention from an older reporting project');
-  await click('#agent-cards [aria-label="View Engineering details"]');
+  await until(() => ui('[...document.querySelectorAll("#agent-cards .card")].find(card => card.querySelector("h3").textContent === "release-review")?.querySelector(".chip").textContent === "Needs input"'), 'account surfaces attention from an older reporting project');
+  await ui('window.activityCard = document.querySelector(\'#agent-cards [aria-label="release-review · Codex · team"]\')');
+  assert.equal(await ui('activityCard.dataset.agentTone'), 'warning');
+  assert.equal(await ui('getComputedStyle(activityCard.querySelector(".vm-agent-edge"), "::before").animationName'), 'vm-agent-wait');
+  await click('#agent-cards [aria-label="View release-review · Codex · team details"]');
   assert.equal(await text('#detail-status .chip'), 'Needs input');
   assert.ok((await text('#detail-members')).includes('release-review'));
   assert.ok((await text('#detail-readings')).includes('38%'), 'account usage still comes from its latest observation');
   await click('[data-close-dialog="detail-dialog"]');
   state.sources = originalSources;
   await client.poll(true);
-  await until(() => ui('[...document.querySelectorAll("#agent-cards .card")].find(card => card.querySelector("h3").textContent === "Engineering").querySelector(".chip").textContent === "Working"'), 'account attention clears when the project no longer reports it');
+  await until(() => ui('[...document.querySelectorAll("#agent-cards .card")].find(card => card._source.sourceId === "codex:team")?.querySelector(".chip").textContent === "Working"'), 'account attention clears when the project no longer reports it');
+  assert.equal(await ui('activityCard === document.querySelector(\'#agent-cards [aria-label="web-console · Codex · team"]\')'), true, 'project changes preserve the account card node');
+  assert.equal(await ui('activityCard.dataset.agentTone'), 'active');
+  web.debugger.attach('1.3');
+  await web.debugger.sendCommand('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value: 'no-preference' }] });
+  assert.equal(await ui('getComputedStyle(activityCard.querySelector(".vm-agent-edge"), "::before").animationName'), 'vm-agent-orbit');
+  const cardSize = await ui('[activityCard.offsetWidth, activityCard.offsetHeight]');
+  await web.debugger.sendCommand('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value: 'reduce' }] });
+  assert.equal(await ui('getComputedStyle(activityCard.querySelector(".vm-agent-edge"), "::before").animationName'), 'none');
+  assert.deepEqual(await ui('[activityCard.offsetWidth, activityCard.offsetHeight]'), cardSize, 'motion does not change layout');
+  web.debugger.detach();
   state.sources = () => originalSources().filter(source => source.kind === 'agent').map(source => ({
     ...source, stale: true, receivedAt: new Date(Date.now() - 120000).toISOString()
   }));
   await client.poll(true);
   await until(() => ui('[...document.querySelectorAll("#agent-cards .chip")].every(chip => chip.textContent === "Inactive")'), 'stopped coding hooks are neutral in every card');
+  assert.equal(await ui('[...document.querySelectorAll("#agent-cards .card")].every(card => card.dataset.agentTone === "neutral" && getComputedStyle(card.querySelector(".vm-agent-edge"), "::before").animationName === "none")'), true);
   assert.equal(client.snapshot().attentionCount, 0);
   assert.equal(trayManager.hasAttentionBadge(), false, 'inactive agents do not light the menu badge');
   await navigate('overview');
@@ -221,7 +236,7 @@ startFixture().then(async fixture => {
   await client.poll(true);
   await navigate('agents');
   await input('#agent-filter', 'codex');
-  assert.deepEqual(await ui('[...document.querySelectorAll("#agent-cards h3")].map(node => node.textContent)'), ['Engineering', 'Personal projects']);
+  assert.deepEqual(await ui('[...document.querySelectorAll("#agent-cards h3")].map(node => node.textContent)'), ['api-gateway', 'web-console']);
   assert.ok((await text('#agent-cards')).includes('Codex · team'));
   assert.ok((await text('#agent-cards')).includes('Codex · personal'));
   await input('#agent-filter', 'kiro');
@@ -232,7 +247,7 @@ startFixture().then(async fixture => {
   await client.select({ sources: beforeMetricSelection.selectedSources, accounts: beforeMetricSelection.selectedAccounts, metrics: [] });
   await delay(150);
   const historyRequests = state.requests.filter(url => url.includes('/trend?')).length;
-  await click('#agent-cards [aria-label="View Engineering details"]');
+  await click('#agent-cards [aria-label="View web-console · Codex · team details"]');
   await delay(150);
   assert.equal(state.requests.filter(url => url.includes('/trend?')).length, historyRequests, 'hidden metrics do not cause unused history requests');
   assert.ok((await text('#trend-state')).includes('Choose a visible metric'));
@@ -507,10 +522,12 @@ startFixture().then(async fixture => {
   };
   for (const route of ['overview', 'resources', 'agents']) {
     await navigate(route);
-    await until(async () => (await text(route === 'agents' ? '#agent-cards' : route === 'resources' ? '#resource-cards' : '#overview-resources')).includes(longName), `${route} renders accepted long names`);
+    const cardTitle = route === 'agents' ? '計'.repeat(AGENT_TEXT_LIMITS.project) : longName;
+    await until(async () => (await text(route === 'agents' ? '#agent-cards' : route === 'resources' ? '#resource-cards' : '#overview-resources')).includes(cardTitle), `${route} renders accepted long names`);
     await checkFit(route, '#main, .card, .card-heading, .metric, .metric-line, .card-title-group');
     if (route === 'overview') continue;
-    await click(`section[data-page="${route}"] [aria-label="View ${longName} details"]`);
+    const detailIdentity = route === 'agents' ? `${cardTitle} · ${'p'.repeat(32)} · ${'a'.repeat(128)}` : cardTitle;
+    await click(`section[data-page="${route}"] [aria-label="View ${detailIdentity} details"]`);
     await until(() => visible('#detail-dialog'), 'long source details');
     assert.equal(await text('#detail-type'), route === 'agents' ? `${'p'.repeat(32)} · ${'a'.repeat(128)}` : '基'.repeat(64));
     await checkFit(`${route} detail`, '#detail-dialog, .dialog-heading, #detail-type, .detail-message, .detail-reading, .detail-member');

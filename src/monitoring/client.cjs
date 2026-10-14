@@ -2,7 +2,7 @@ const { readJsonResponse } = require('../shared/json-response.cjs');
 const { EventEmitter } = require('events');
 const { METRICS, validId, validAccountId, accountId, groupAccounts, webOrigin, validateSources, validateTrend, validateDefinitions, validateOrder, displayMetrics, metricCatalog } = require('./domain.cjs');
 const { CLOUD_POLL_MS, CLOUD_REQUEST_TIMEOUT_MS, CLOUD_TREND_MS, CLOUD_MAX_RESPONSE_BYTES } = require('../shared/constants.cjs');
-const { sourceStale, sourceState, accountState, needsAttention, attentionCount } = require('../shared/monitoring/state.cjs');
+const { sourceStale, sourceState, accountActivity, needsAttention, attentionCount } = require('../shared/monitoring/state.cjs');
 const { snapshotClock } = require('../shared/monitoring/clock.cjs');
 
 class MonitoringClient extends EventEmitter {
@@ -54,8 +54,8 @@ class MonitoringClient extends EventEmitter {
       evaluatedAt: now,
       selectedSources, selectedAccounts, accountCatalog: this.accountCatalog,
       accounts: groupAccounts(sources).map(account => {
-        const displayState = accountState(account, now);
-        return { ...account, displayState, needsAttention: needsAttention(displayState) };
+        const { state: displayState, project: displayProject } = accountActivity(account, now);
+        return { ...account, displayState, displayProject, needsAttention: needsAttention(displayState) };
       }),
       attentionCount: attentionCount(sources, now),
       selectedMetrics,

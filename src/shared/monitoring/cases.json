@@ -564,6 +564,9 @@
         },
         "latest": {
           "codex:work": "latest"
+        },
+        "activity": {
+          "codex:work": "waiting"
         }
       }
     },
@@ -590,6 +593,9 @@
           "codex:work": "thinking"
         },
         "latest": {
+          "codex:work": "live"
+        },
+        "activity": {
           "codex:work": "live"
         }
       }
@@ -618,6 +624,9 @@
         },
         "latest": {
           "codex:work": "old"
+        },
+        "activity": {
+          "codex:work": "old"
         }
       }
     },
@@ -642,6 +651,9 @@
           "codex:work": "error"
         },
         "latest": {
+          "codex:work": "error"
+        },
+        "activity": {
           "codex:work": "error"
         }
       }
@@ -668,6 +680,9 @@
         },
         "latest": {
           "codex:work": "alert"
+        },
+        "activity": {
+          "codex:work": "alert"
         }
       }
     },
@@ -692,6 +707,9 @@
           "codex:work": "notification"
         },
         "latest": {
+          "codex:work": "input"
+        },
+        "activity": {
           "codex:work": "input"
         }
       }
@@ -719,6 +737,9 @@
         },
         "latest": {
           "codex:work": "new"
+        },
+        "activity": {
+          "codex:work": "live"
         }
       }
     },
@@ -744,6 +765,9 @@
         },
         "latest": {
           "codex:work": "a"
+        },
+        "activity": {
+          "codex:work": "b"
         }
       }
     },
@@ -767,6 +791,9 @@
           "codex:work": "planning"
         },
         "latest": {
+          "codex:work": "Z"
+        },
+        "activity": {
           "codex:work": "Z"
         }
       }

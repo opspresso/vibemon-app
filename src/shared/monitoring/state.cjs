@@ -40,6 +40,14 @@ function codingAccountState(states) {
 }
 
 const accountState = (account, now = Date.now()) => codingAccountState(account.sources.map(source => sourceState(source, now)));
+function accountActivity(account, now = Date.now()) {
+  const state = accountState(account, now);
+  // Sources are newest first. Select the project responsible for the badge,
+  // including older input requests; when inactive, retain the last project.
+  const source = account.sources.find(source => sourceState(source, now) === state);
+  const project = source?.agent?.project?.trim() || source?.displayName || account.displayName;
+  return { state, source, project };
+}
 function companionState(source, now = Date.now()) {
   const state = sourceState(source, now);
   const mapped = { inactive: 'sleep', stale: 'sleep', error: 'alert', warning: 'notification', unknown: 'idle', ok: 'idle' };
@@ -67,4 +75,4 @@ function attentionCount(sources, now = Date.now()) {
     + groupAccounts(sources).filter(account => needsAttention(accountState(account, now))).length;
 }
 
-module.exports = { needsAttention, dominantState, sourceStale, agentTransition, idleAgentState, sourceState, companionState, codingAccountState, accountState, accountKey, groupAccounts, attentionCount };
+module.exports = { needsAttention, dominantState, sourceStale, agentTransition, idleAgentState, sourceState, companionState, codingAccountState, accountState, accountActivity, accountKey, groupAccounts, attentionCount };

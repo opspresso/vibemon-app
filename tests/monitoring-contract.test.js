@@ -1,5 +1,5 @@
 const { cases } = require('../src/shared/monitoring/cases.json');
-const { sourceState, groupAccounts, accountState } = require('../src/shared/monitoring/state.cjs');
+const { sourceState, groupAccounts, accountState, accountActivity } = require('../src/shared/monitoring/state.cjs');
 const now = Date.parse('2026-10-13T08:00:00Z');
 
 test.each(cases)('shared monitoring contract: $name', fixture => {
@@ -17,5 +17,6 @@ test.each(cases)('shared monitoring contract: $name', fixture => {
   const accounts = groupAccounts(sources);
   if (fixture.expected.resources) expect(Object.fromEntries(sources.filter(source => source.kind !== 'agent').map(source => [source.sourceId, sourceState(source, clock)]))).toEqual(fixture.expected.resources);
   if (fixture.expected.accounts) expect(Object.fromEntries(accounts.map(account => [account.accountId, accountState(account, clock)]))).toEqual(fixture.expected.accounts);
+  if (fixture.expected.activity) expect(Object.fromEntries(accounts.map(account => [account.accountId, accountActivity(account, clock).source?.sourceId]))).toEqual(fixture.expected.activity);
   if (fixture.expected.latest) expect(Object.fromEntries(accounts.map(account => [account.accountId, account.latest.sourceId]))).toEqual(fixture.expected.latest);
 });

@@ -1,0 +1,88 @@
+/* Shared Desktop/Web activity edges. The masked track is fixed; only its light moves. */
+.vm-agent-card {
+  position: relative;
+  --vm-agent-edge: var(--vm-border);
+  transition: border-color 180ms ease, box-shadow 180ms ease;
+}
+.vm-agent-card[data-agent-tone='active'] { --vm-agent-edge: var(--vm-info); }
+.vm-agent-card[data-agent-tone='warning'] { --vm-agent-edge: var(--vm-warning); }
+.vm-agent-card[data-agent-tone='danger'] { --vm-agent-edge: var(--vm-danger); }
+.vm-agent-card[data-agent-tone='good'] { --vm-agent-edge: var(--vm-good); }
+.vm-agent-card[data-agent-tone] {
+  border-color: color-mix(in srgb, var(--vm-agent-edge) 55%, var(--vm-border));
+}
+.vm-agent-card:hover,
+.vm-agent-card:focus-within {
+  border-color: var(--vm-agent-edge);
+  box-shadow: var(--vm-shadow), 0 0 0 3px color-mix(in srgb, var(--vm-agent-edge) 12%, transparent);
+}
+.vm-agent-edge {
+  position: absolute;
+  inset: -1px;
+  padding: 2px;
+  border-radius: inherit;
+  overflow: hidden;
+  pointer-events: none;
+  /* Subtract the content box to leave a crisp, rounded light track. */
+  mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  mask-composite: exclude;
+}
+.vm-agent-edge::before {
+  content: '';
+  position: absolute;
+  inset: -150%;
+  background: var(--vm-agent-edge);
+  opacity: 0;
+}
+.vm-agent-card[data-agent-tone='active'] .vm-agent-edge::before {
+  opacity: .9;
+  background: conic-gradient(transparent 0 55%, var(--vm-agent-edge) 80%, transparent 100%);
+  animation: vm-agent-orbit 3.6s linear infinite;
+}
+.vm-agent-card[data-agent-state='thinking'] .vm-agent-edge::before {
+  background: var(--vm-agent-edge);
+  animation: vm-agent-breathe 3.2s ease-in-out infinite;
+}
+.vm-agent-card[data-agent-state='planning'] .vm-agent-edge::before {
+  animation-duration: 7s;
+  animation-timing-function: cubic-bezier(.45, 0, .55, 1);
+}
+.vm-agent-card[data-agent-state='packing'] .vm-agent-edge::before {
+  background: conic-gradient(transparent, var(--vm-agent-edge), transparent 50%, var(--vm-agent-edge), transparent);
+  animation-direction: reverse;
+  animation-duration: 2.4s;
+}
+.vm-agent-card[data-agent-state='start'] .vm-agent-edge::before {
+  animation-duration: 2s;
+}
+.vm-agent-card[data-agent-tone='warning'] .vm-agent-edge::before {
+  animation: vm-agent-wait 4.8s ease-in-out infinite;
+}
+.vm-agent-card[data-agent-tone='danger'] .vm-agent-edge::before { opacity: .9; }
+.vm-agent-card[data-agent-tone='good'] .vm-agent-edge::before {
+  opacity: .6;
+  animation: vm-agent-complete 800ms ease-out;
+}
+.vm-agent-card:focus-within .vm-agent-edge::before { animation-play-state: paused; }
+@keyframes vm-agent-orbit { to { transform: rotate(360deg); } }
+@keyframes vm-agent-breathe {
+  0%, 100% { opacity: .15; }
+  50% { opacity: .85; }
+}
+@keyframes vm-agent-wait {
+  0%, 75%, 100% { opacity: .45; }
+  86% { opacity: .95; }
+}
+@keyframes vm-agent-complete {
+  from { opacity: 1; }
+  to { opacity: .6; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .vm-agent-card { transition: none; }
+  .vm-agent-card[data-agent-tone] .vm-agent-edge::before { animation: none; }
+  .vm-agent-card[data-agent-tone='active'] .vm-agent-edge::before,
+  .vm-agent-card[data-agent-tone='warning'] .vm-agent-edge::before {
+    background: var(--vm-agent-edge);
+    opacity: .65;
+  }
+}
