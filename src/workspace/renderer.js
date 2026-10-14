@@ -317,7 +317,7 @@ function render(value) {
     const matches = accounts.filter(
       (item) =>
         (filter === 'all' || item.provider === filter) &&
-        `${item.displayName} ${item.provider} ${item.members.map((member) => member.agent.project).join(' ')}`
+        `${item.displayName} ${item.account.displayName} ${item.account.id} ${item.provider} ${item.members.map((member) => member.agent.project).join(' ')}`
           .toLowerCase()
           .includes(search)
     );

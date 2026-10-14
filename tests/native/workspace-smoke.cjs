@@ -61,7 +61,10 @@ startFixture().then(async fixture => {
       if (!(target instanceof Element) || !target.checkVisibility({ contentVisibilityAuto: true }) || animation.effect.getTiming().iterations === Infinity || animation.playState === 'paused') return false;
       const bounds = target.getBoundingClientRect();
       return bounds.bottom > 0 && bounds.top < innerHeight && bounds.right > 0 && bounds.left < innerWidth;
-    }).map(animation => animation.finished))`);
+    }).map(animation => animation.finished.catch(error => {
+      // Hover/focus transitions can be superseded by the next state update.
+      if (error.name !== 'AbortError') throw error;
+    })))`);
     await ui('new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))');
     fs.writeFileSync(path.join(output, `${name}.png`), (await web.capturePage()).toPNG());
   };
@@ -220,12 +223,16 @@ startFixture().then(async fixture => {
   await until(() => ui('[...document.querySelectorAll("#agent-cards .card")].find(card => card._source.sourceId === "codex:team")?.querySelector(".chip").textContent === "Working"'), 'account attention clears when the project no longer reports it');
   assert.equal(await ui('activityCard === document.querySelector(\'#agent-cards [aria-label="web-console · Codex · team"]\')'), true, 'project changes preserve the account card node');
   assert.equal(await ui('activityCard.dataset.agentTone'), 'active');
+  await ui('activityCard.querySelector("button").focus()');
+  await until(() => ui('getComputedStyle(activityCard).boxShadow.includes("0px 0px 0px 3px")'), 'keyboard focus strengthens the active glow');
+  await ui('activityCard.querySelector("button").blur()');
   web.debugger.attach('1.3');
   await web.debugger.sendCommand('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value: 'no-preference' }] });
   assert.equal(await ui('getComputedStyle(activityCard.querySelector(".vm-agent-edge"), "::before").animationName'), 'vm-agent-orbit');
   const cardSize = await ui('[activityCard.offsetWidth, activityCard.offsetHeight]');
   await web.debugger.sendCommand('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value: 'reduce' }] });
   assert.equal(await ui('getComputedStyle(activityCard.querySelector(".vm-agent-edge"), "::before").animationName'), 'none');
+  assert.equal(await ui('getComputedStyle(activityCard, "::before").animationName'), 'none');
   assert.deepEqual(await ui('[activityCard.offsetWidth, activityCard.offsetHeight]'), cardSize, 'motion does not change layout');
   web.debugger.detach();
   state.sources = () => originalSources().filter(source => source.kind === 'agent').map(source => ({
@@ -248,6 +255,11 @@ startFixture().then(async fixture => {
   assert.deepEqual(await ui('[...document.querySelectorAll("#agent-cards h3")].map(node => node.textContent)'), ['api-gateway', 'web-console']);
   assert.ok((await text('#agent-cards')).includes('Codex · team'));
   assert.ok((await text('#agent-cards')).includes('Codex · personal'));
+  for (const query of ['Engineering', 'team', 'web-console']) {
+    await input('#agent-search', query);
+    assert.deepEqual(await ui('[...document.querySelectorAll("#agent-cards .card")].map(card => card._source.sourceId)'), ['codex:team'], `${query} finds the same account after its title changes`);
+  }
+  await input('#agent-search', '');
   await input('#agent-filter', 'kiro');
   assert.ok((await text('#agent-cards')).includes('Needs input'));
   assert.ok((await text('#agent-cards')).includes('—'), 'unreported provider quota is not zero');
@@ -557,4 +569,4 @@ startFixture().then(async fixture => {
   assert.deepEqual(errors, [], 'no renderer or loading errors');
   console.log('PASS native workspace: navigation, custom metrics, multiple accounts, focus, selection, preferences, credential boundaries, recovery, resizing and visibility.');
   app.quit();
-}).catch(error => { console.error(error.stack); for (const message of rendererErrors) console.error(message); cleanup?.(); app.exit(1); });
+}).catch(error => { console.error(error?.stack || error); for (const message of rendererErrors) console.error(message); cleanup?.(); app.exit(1); });

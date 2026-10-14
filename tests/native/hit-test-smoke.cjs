@@ -13,6 +13,9 @@ async function verify({ engineUrl, hitUrl, threeUrl, characters, defaultCharacte
   const [{ createVibeMonEngine }, { createCharacterHitTest }, THREE] = await Promise.all([
     import(engineUrl), import(hitUrl), import(threeUrl)
   ]);
+  // Settle the native window's first presentation before allocating its WebGL
+  // backing buffer. Windows can still configure the surface after showInactive.
+  await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
   const container = document.getElementById('companion');
   const engine = createVibeMonEngine(container, { THREE, characters, defaultCharacter, preserveDrawingBuffer: true });
   engine.init();
@@ -28,7 +31,9 @@ async function verify({ engineUrl, hitUrl, threeUrl, characters, defaultCharacte
   context.drawImage(canvas, 0, 0);
   const pixels = context.getImageData(0, 0, sample.width, sample.height).data;
   const points = [0, 255].map(alpha => {
-    const index = pixels.findIndex((value, i) => i % 4 === 3 && value === alpha) / 4;
+    const offset = pixels.findIndex((value, i) => i % 4 === 3 && value === alpha);
+    if (offset < 0) throw new Error(`Initial WebGL frame has no alpha=${alpha} reference pixel (${canvas.width}x${canvas.height})`);
+    const index = offset / 4;
     const pixel = Math.floor(index);
     return { x: pixel % canvas.width, y: Math.floor(pixel / canvas.width), opaque: alpha > 0 };
   });
@@ -74,7 +79,7 @@ async function run() {
       threeUrl: pathToFileURL(path.join(root, 'src/vendor/three.module.min.js')).href,
       characters: registry.characters, defaultCharacter: registry.default };
     const result = await win.webContents.executeJavaScript(`(${verify.toString()})(${JSON.stringify(args)})`);
-    assert.equal(result.samples, 120);
+    assert.equal(result.samples, 120, JSON.stringify(result));
     assert.equal(result.transparent, false);
     assert.deepEqual(result.transformed, [false, true]);
     assert.equal(result.cleared, false);
