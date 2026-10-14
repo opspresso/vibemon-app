@@ -35,8 +35,8 @@
 .vm-agent-card[data-agent-tone='warning']::before { opacity: .45; }
 .vm-agent-card[data-agent-tone='danger']::before { animation: vm-agent-breathe 2.4s ease-in-out infinite; }
 .vm-agent-card[data-agent-tone='good']::before { opacity: .35; }
-.vm-agent-card:hover,
-.vm-agent-card:focus-within {
+.vm-agent-card[data-agent-tone]:hover,
+.vm-agent-card[data-agent-tone]:focus-within {
   border-color: var(--vm-agent-edge);
   box-shadow: var(--vm-shadow), 0 0 0 3px color-mix(in srgb, var(--vm-agent-edge) 18%, transparent), 0 0 30px color-mix(in srgb, var(--vm-agent-edge) 28%, transparent);
 }
