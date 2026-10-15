@@ -25,7 +25,7 @@ const { WorkspaceSettings } = require('./workspace/settings.cjs');
 const { localActivity } = require('./workspace/activity.cjs');
 const { installWorkspaceMenu } = require('./workspace/menu.cjs');
 const { getUsageSnapshot } = require('./modules/usage-cache-reader.cjs');
-const { exec } = require('child_process');
+const { execFile } = require('child_process');
 
 // Modules
 const { StateManager } = require('./modules/state-manager.cjs');
@@ -44,7 +44,7 @@ const { interactionTarget } = require('./modules/window-interaction-target.cjs')
 const registryCache = require('./shared/registry-cache.cjs');
 const {
   CHARACTER_IMAGE_FETCH_TIMEOUT_MS, CHARACTER_IMAGE_MAX_BYTES, CHAR_SIZE,
-  HOOK_CHECK_INITIAL_DELAY_MS, HOOK_CHECK_INTERVAL_MS,
+  HOOK_CHECK_INITIAL_DELAY_MS, HOOK_CHECK_INTERVAL_MS, HTTP_PORT,
   UPDATE_CHECK_INITIAL_DELAY_MS, UPDATE_CHECK_INTERVAL_MS,
   USAGE_REFRESH_INITIAL_DELAY_MS, USAGE_REFRESH_INTERVAL_MS
 } = require('./shared/config.cjs');
@@ -275,6 +275,13 @@ ipcMain.on('window-drag-end', (event) => {
 });
 
 // Focus terminal (iTerm2 or Ghostty on macOS)
+// osascript receives the script as one argument, so no shell parses it.
+function runAppleScript(script) {
+  return new Promise(resolve => {
+    execFile('/usr/bin/osascript', ['-e', script], (error, stdout) => resolve({ error, stdout: String(stdout || '') }));
+  });
+}
+
 ipcMain.handle('focus-terminal', async (event) => {
   // Only supported on macOS
   if (process.platform !== 'darwin') {
@@ -332,16 +339,10 @@ ipcMain.handle('focus-terminal', async (event) => {
       end tell
     `;
 
-    return new Promise((resolve) => {
-      exec(`osascript -e '${script.replace(/'/g, "'\\''")}'`, (error, stdout) => {
-        if (error) {
-          resolve({ success: false, reason: 'applescript-error', error: error.message });
-        } else {
-          const result = stdout.trim();
-          resolve({ success: result === 'ok', reason: result });
-        }
-      });
-    });
+    const { error, stdout } = await runAppleScript(script);
+    if (error) return { success: false, reason: 'applescript-error', error: error.message };
+    const result = stdout.trim();
+    return { success: result === 'ok', reason: result };
   } else if (terminalType === 'ghostty') {
     // Extract PID from terminal ID (format: ghostty:PID)
     const pid = parts[1];
@@ -358,17 +359,10 @@ ipcMain.handle('focus-terminal', async (event) => {
       end tell
     `;
 
-    return new Promise((resolve) => {
-      exec(`osascript -e '${script.replace(/'/g, "'\\''")}'`, (error, _stdout) => {
-        if (error) {
-          resolve({ success: false, reason: 'applescript-error', error: error.message });
-        } else {
-          // Successfully activated Ghostty app
-          // Note: User will need to manually navigate to the correct tab
-          resolve({ success: true, reason: 'activated', note: 'app-activated-only' });
-        }
-      });
-    });
+    const { error } = await runAppleScript(script);
+    if (error) return { success: false, reason: 'applescript-error', error: error.message };
+    // The user still selects the tab: Ghostty exposes no session lookup.
+    return { success: true, reason: 'activated', note: 'app-activated-only' };
   } else {
     return { success: false, reason: 'unsupported-terminal-type' };
   }
@@ -424,7 +418,7 @@ app.whenReady().then(() => {
     if (err.code === 'EADDRINUSE') {
       dialog.showErrorBox(
         'VibeMon - Port Conflict',
-        'Port 19280 is already in use.\nAnother instance may be running.\n\nThe app will continue but HTTP API won\'t work.'
+        `Port ${HTTP_PORT} is already in use.\nAnother instance may be running.\n\nThe app will continue but HTTP API won't work.`
       );
     }
   };
