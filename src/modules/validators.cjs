@@ -37,46 +37,26 @@ function validateState(state) {
 }
 
 /**
- * Validate character value. Names outside CHARACTER_NAMES are accepted here
- * and normalized to DEFAULT_CHARACTER downstream (state-manager), so bridges
- * still sending a character that has been removed from the registry degrade
- * gracefully instead of having their whole status update rejected.
- * @param {string} character
- * @returns {{valid: boolean, error: string|null}}
+ * Build a validator for an optional single-line text field.
+ * @param {string} name - the field name used in error messages
+ * @param {number} maxLength
+ * @returns {(value: unknown) => {valid: boolean, error: string|null}}
  */
-function validateCharacter(character) {
-  if (character === undefined) {
+function optionalText(name, maxLength) {
+  return (value) => {
+    if (value === undefined || value === '') return { valid: true, error: null };
+    if (typeof value !== 'string') return { valid: false, error: `${name} must be a string` };
+    if (value.length > maxLength) return { valid: false, error: `${name} exceeds ${maxLength} characters` };
+    if (!validText(value, maxLength, true)) return { valid: false, error: `${name} must be single-line Unicode text` };
     return { valid: true, error: null };
-  }
-  if (typeof character !== 'string') {
-    return { valid: false, error: 'Character must be a string' };
-  }
-  if (character.length > CHARACTER_MAX_LENGTH) {
-    return { valid: false, error: `Character name exceeds ${CHARACTER_MAX_LENGTH} characters` };
-  }
-  if (!validText(character, CHARACTER_MAX_LENGTH, true)) return { valid: false, error: 'Character must be single-line Unicode text' };
-  return { valid: true, error: null };
+  };
 }
 
-/**
- * Validate project name
- * @param {string} project
- * @returns {{valid: boolean, error: string|null}}
- */
-function validateProject(project) {
-  if (project === undefined) {
-    return { valid: true, error: null };
-  }
-  if (typeof project !== 'string') {
-    return { valid: false, error: 'Project must be a string' };
-  }
-  if (project.length > PROJECT_MAX_LENGTH) {
-    return { valid: false, error: `Project name exceeds ${PROJECT_MAX_LENGTH} characters` };
-  }
-  if (!validText(project, PROJECT_MAX_LENGTH, true)) return { valid: false, error: 'Project must be single-line Unicode text' };
-  return { valid: true, error: null };
-}
-
+const validateCharacter = optionalText('Character name', CHARACTER_MAX_LENGTH);
+const validateProject = optionalText('Project name', PROJECT_MAX_LENGTH);
+const validateTool = optionalText('Tool name', TOOL_MAX_LENGTH);
+const validateModel = optionalText('Model name', MODEL_MAX_LENGTH);
+const validateUsageLabel = optionalText('usageWeekModelLabel', AGENT_TEXT_LIMITS.usageWeekModelLabel);
 /**
  * Validate memory value (number 0-100)
  * @param {number} memory
@@ -121,63 +101,6 @@ function validateResetMinutes(value, label) {
   if (!Number.isSafeInteger(value) || value < 0) {
     return { valid: false, error: `${label} must be a non-negative integer` };
   }
-  return { valid: true, error: null };
-}
-
-/**
- * Validate tool name
- * @param {string} tool
- * @returns {{valid: boolean, error: string|null}}
- */
-function validateTool(tool) {
-  if (tool === undefined || tool === '') {
-    return { valid: true, error: null };
-  }
-  if (typeof tool !== 'string') {
-    return { valid: false, error: 'Tool must be a string' };
-  }
-  if (tool.length > TOOL_MAX_LENGTH) {
-    return { valid: false, error: `Tool name exceeds ${TOOL_MAX_LENGTH} characters` };
-  }
-  if (!validText(tool, TOOL_MAX_LENGTH, true)) return { valid: false, error: 'Tool must be single-line Unicode text' };
-  return { valid: true, error: null };
-}
-
-/**
- * Validate model name
- * @param {string} model
- * @returns {{valid: boolean, error: string|null}}
- */
-function validateModel(model) {
-  if (model === undefined || model === '') {
-    return { valid: true, error: null };
-  }
-  if (typeof model !== 'string') {
-    return { valid: false, error: 'Model must be a string' };
-  }
-  if (model.length > MODEL_MAX_LENGTH) {
-    return { valid: false, error: `Model name exceeds ${MODEL_MAX_LENGTH} characters` };
-  }
-  if (!validText(model, MODEL_MAX_LENGTH, true)) return { valid: false, error: 'Model must be single-line Unicode text' };
-  return { valid: true, error: null };
-}
-
-/**
- * Validate a usage bucket label (e.g. "Fable" on usageWeekModelLabel)
- * @param {string} label
- * @returns {{valid: boolean, error: string|null}}
- */
-function validateUsageLabel(label) {
-  if (label === undefined || label === '') {
-    return { valid: true, error: null };
-  }
-  if (typeof label !== 'string') {
-    return { valid: false, error: 'usageWeekModelLabel must be a string' };
-  }
-  if (label.length > MODEL_MAX_LENGTH) {
-    return { valid: false, error: `usageWeekModelLabel exceeds ${MODEL_MAX_LENGTH} characters` };
-  }
-  if (!validText(label, AGENT_TEXT_LIMITS.usageWeekModelLabel, true)) return { valid: false, error: 'usageWeekModelLabel must be single-line Unicode text' };
   return { valid: true, error: null };
 }
 
