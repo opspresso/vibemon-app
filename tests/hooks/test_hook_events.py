@@ -377,3 +377,22 @@ def test_abandoned_sessions_are_dropped(tmp_path):
     run_session(tmp_path, [{"hook_event_name": "UserPromptSubmit", "session_id": "session-2"}], now=NOW + 86_400)
     cache = json.loads((tmp_path / "activity.json").read_text())
     assert list(cache["sessions"]) == ["session-2"]
+
+
+def test_kiro_locates_its_v3_session_record(tmp_path, monkeypatch):
+    locate = runpy.run_path(str(DOCS / "kiro" / "hooks" / "vibemon.py"))["locate_transcript"]
+    record = tmp_path / "sessions" / "6b22f016f3e45775" / "sess_7883db40-0d55" / "messages.jsonl"
+    record.parent.mkdir(parents=True)
+    record.write_text("")
+    monkeypatch.setenv("KIRO_HOME", str(tmp_path))
+    assert locate({"session_id": "sess_7883db40-0d55"}) == str(record)
+    # V2 and IDE sessions have no record; a crafted ID cannot leave the sessions tree.
+    assert locate({"session_id": "sess_missing"}) == ""
+    assert locate({"session_id": "../../etc"}) == ""
+    assert locate({}) == ""
+    # A KIRO_HOME given with ~ or as a relative path resolves as install.py resolves it.
+    # expanduser reads HOME on POSIX and USERPROFILE on Windows.
+    monkeypatch.setenv("HOME", str(tmp_path.parent))
+    monkeypatch.setenv("USERPROFILE", str(tmp_path.parent))
+    monkeypatch.setenv("KIRO_HOME", f"~/{tmp_path.name}")
+    assert locate({"session_id": "sess_7883db40-0d55"}) == str(record.resolve())

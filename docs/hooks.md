@@ -60,7 +60,7 @@ Codex uses the same `~/.vibemon/config.json` as Claude Code, Kiro, the OpenClaw 
 
 The VibeMon installer owns its shared scripts in `~/.vibemon`, per-tool VibeMon hooks/plugins, and Claude's VibeMon `statusline.py`. It refreshes only its own registrations in shared settings, preserving neighboring memory-sync, terminal, and user hooks. Machine configuration managers must likewise merge their own hook registrations rather than replace event arrays, and must leave VibeMon files out of their copy/prune lists. Installing, updating, or removing VibeMon does not manage machine scripts.
 
-Kiro IDE 1.x and CLI 3.x load VibeMon from the global v1 hook file at `~/.kiro/hooks/vibemon.json`, so no custom agent needs to be selected. During upgrades, the installer removes only VibeMon's legacy hooks from `~/.kiro/agents/default.json` and its old `.kiro.hook` files; neighboring user hooks are preserved.
+Kiro IDE 1.x and CLI 3.x load VibeMon from the global v1 hook files `~/.kiro/hooks/vibemon.json` and `~/.kiro/hooks/vibemon-session-end.json`, so no custom agent needs to be selected. During upgrades, the installer removes only VibeMon's legacy hooks from `~/.kiro/agents/default.json` and its old `.kiro.hook` files; neighboring user hooks are preserved.
 
 ### OpenClaw Configuration
 
@@ -238,6 +238,13 @@ A tool approved at a permission prompt runs without a new hook event. The sessio
 | PreToolUse | working |
 | PostToolUse | thinking |
 | Stop | done |
+| SessionEnd | done |
+
+`SessionEnd` is in its own file, `~/.kiro/hooks/vibemon-session-end.json`, because only Kiro CLI V3 has the `SessionEnd` trigger. If a Kiro surface rejects it, the main file still loads. `done` indicates that the session or turn ended; it does not assert task success.
+
+Kiro CLI V3 runs no hook when the user cancels a turn with Esc. The hook finds the session record `~/.kiro/sessions/<workspace>/<session_id>/messages.jsonl` and passes it to the watcher as the transcript. While the turn runs, the watcher repeats its state every 60 seconds. When the record shows `turn_end` without a later hook, the watcher reports `done`.
+
+Kiro CLI 2.x runs global hooks only in V3 mode (`kiro-cli --v3 chat`). Its default V2 engine runs hooks only from a selected custom agent, so VibeMon does not see default V2 sessions.
 
 ### OpenClaw
 

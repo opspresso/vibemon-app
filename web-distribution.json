@@ -11,6 +11,7 @@
     "public/install/index.html": "public/install/index.html",
     "public/install/install.ps1": "public/install/install.ps1",
     "public/install/install.py": "public/install/install.py",
+    "public/install/kiro/hooks/vibemon-session-end.json": "public/install/kiro/hooks/vibemon-session-end.json",
     "public/install/kiro/hooks/vibemon.json": "public/install/kiro/hooks/vibemon.json",
     "public/install/kiro/hooks/vibemon.py": "public/install/kiro/hooks/vibemon.py",
     "public/install/manifest.json": "public/install/manifest.json",

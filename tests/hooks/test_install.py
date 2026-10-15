@@ -24,6 +24,7 @@ DOCS_DIR = Path(__file__).parents[2] / "public" / "install"
 CLAUDE_SETTINGS = json.loads((DOCS_DIR / "claude" / "settings.json").read_text(encoding="utf-8"))
 CODEX_HOOKS = json.loads((DOCS_DIR / "codex" / "hooks.json").read_text(encoding="utf-8"))
 KIRO_HOOK_CONFIG = (DOCS_DIR / "kiro" / "hooks" / "vibemon.json").read_text(encoding="utf-8")
+KIRO_SESSION_END_CONFIG = (DOCS_DIR / "kiro" / "hooks" / "vibemon-session-end.json").read_text(encoding="utf-8")
 OPENCODE_PLUGIN = (DOCS_DIR / "opencode" / "plugin" / "vibemon.js").read_text(encoding="utf-8")
 # Windows has no POSIX permission bits — os.chmod there only toggles a
 # read-only attribute, so st_mode always reads back 0o666.
@@ -383,10 +384,13 @@ class LifecycleConfigTest(unittest.TestCase):
 
     def test_kiro_config_and_adapter_cover_the_same_lifecycle(self):
         event_map = adapter_event_map("kiro")
-        triggers = {
-            hook["trigger"] for hook in json.loads(KIRO_HOOK_CONFIG)["hooks"]
-        }
-        self.assertEqual(triggers, set(event_map))
+        main = [hook["trigger"] for hook in json.loads(KIRO_HOOK_CONFIG)["hooks"]]
+        session_end = [hook["trigger"] for hook in json.loads(KIRO_SESSION_END_CONFIG)["hooks"]]
+        # A surface without SessionEnd may reject its file; the main file must not carry it.
+        self.assertEqual(session_end, ["SessionEnd"])
+        self.assertNotIn("SessionEnd", main)
+        self.assertEqual(set(main + session_end), set(event_map))
+        self.assertEqual(event_map["SessionEnd"], "done")
         self.assertEqual(event_map["PostToolUse"], "thinking")
 
     def test_opencode_plugin_bridges_every_adapter_event(self):
@@ -808,6 +812,28 @@ class LegacyKiroCleanupTest(unittest.TestCase):
             ))
 
 
+class RemoveLegacyKiroAgentTest(unittest.TestCase):
+    def test_deletes_an_agent_file_left_with_no_user_content(self):
+        for leftover in (
+            {"hooks": {"stop": [{"command": "python3", "args": ["~/.kiro/hooks/vibemon.py", "agentStop"]}]}},
+            {"hooks": {}},
+        ):
+            with self.subTest(leftover=leftover), tempfile.TemporaryDirectory() as directory:
+                agent_file = Path(directory) / "agents" / "default.json"
+                agent_file.parent.mkdir()
+                agent_file.write_text(json.dumps(leftover))
+                install.remove_legacy_kiro_hooks(Path(directory))
+                self.assertFalse(agent_file.exists())
+
+    def test_keeps_an_agent_file_with_user_content(self):
+        with tempfile.TemporaryDirectory() as directory:
+            agent_file = Path(directory) / "agents" / "default.json"
+            agent_file.parent.mkdir()
+            agent_file.write_text(json.dumps({"name": "default", "hooks": {}}))
+            install.remove_legacy_kiro_hooks(Path(directory))
+            self.assertEqual(json.loads(agent_file.read_text()), {"name": "default", "hooks": {}})
+
+
 class InstallKiroV1Test(unittest.TestCase):
     def test_installs_global_config_and_migrates_legacy_agent(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -825,9 +851,25 @@ class InstallKiroV1Test(unittest.TestCase):
             config = json.loads((kiro_home / "hooks" / "vibemon.json").read_text())
             self.assertEqual(config["version"], "v1")
             self.assertEqual(
+                (kiro_home / "hooks" / "vibemon-session-end.json").read_text(),
+                KIRO_SESSION_END_CONFIG,
+            )
+            self.assertEqual(
                 json.loads(agent_file.read_text())["hooks"]["stop"],
                 [{"command": "python3", "args": ["~/my-hook.py"]}],
             )
+
+
+class UninstallKiroTest(unittest.TestCase):
+    def test_removes_every_hook_config_and_the_script(self):
+        with tempfile.TemporaryDirectory() as directory:
+            home = Path(directory)
+            (home / ".kiro").mkdir()
+            source = install.FileSource(DOCS_DIR)
+            with PosixInstall(home):
+                self.assertTrue(install.install_kiro(source))
+                self.assertTrue(install.uninstall_kiro(source))
+            self.assertEqual(sorted(p.name for p in (home / ".kiro" / "hooks").iterdir()), [])
 
 
 class InstallCodexOwnershipTest(unittest.TestCase):

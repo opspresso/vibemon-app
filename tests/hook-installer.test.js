@@ -1186,6 +1186,7 @@ describe('HookInstaller', () => {
       const kiro = TOOLS.find(t => t.flag === '--kiro');
       const configFile = kiro.files.find(f => f.remote === 'kiro/hooks/vibemon.json');
       expect(configFile.local).toBe(kiro.configPaths[0]);
+      expect(kiro.files.some(f => f.remote === 'kiro/hooks/vibemon-session-end.json')).toBe(true);
       mockToolInstalled(kiro);
       mockManifestResponse(manifestFor({
         'kiro/hooks/vibemon.py': sha256('local-bytes'),

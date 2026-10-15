@@ -13,8 +13,9 @@ This module keeps the turn visible until it really ends:
   and marks the turn open or closed.
 - While a turn is open, one detached watcher process per session (``watch``)
   repeats the turn's last state every ``HEARTBEAT_MS`` as a heartbeat. It ends
-  the turn when the agent process exits, or when Claude Code records a user
-  interrupt, because neither case runs a hook. A heartbeat asserts that the turn
+  the turn when the agent process exits, or when the transcript records a turn
+  that ended without a hook: a Claude Code user interrupt or a Kiro ``turn_end``
+  (a cancelled Kiro turn runs no Stop hook). A heartbeat asserts that the turn
   still runs, so the watcher sends none while the session's transcript does not
   exist: it could not see an interrupt, and the state then ages as displays do.
 
@@ -290,7 +291,7 @@ def tick(path: str, session: str, me: dict[str, Any]) -> Beat | None | bool:
         return False
     agent = entry.get("agent") or {}
     exited = not process_alive(agent.get("pid"), agent.get("name"))
-    interrupted = not exited and transcript_interrupted(entry.get("transcript"), entry.get("updatedMs", 0))
+    interrupted = not exited and transcript_ended(entry.get("transcript"), entry.get("updatedMs", 0))
     observable = exited or interrupted or interrupt_observable(entry.get("transcript"))
     outcome: dict[str, Any] = {"result": None}
 
@@ -391,8 +392,12 @@ def interrupt_observable(path: Any) -> bool:
     return not isinstance(path, str) or not path or os.path.exists(path)
 
 
-def transcript_interrupted(path: Any, since_ms: int) -> bool:
-    """Report whether the newest conversation record is a user interrupt newer than ``since_ms``."""
+def transcript_ended(path: Any, since_ms: int) -> bool:
+    """Report whether the newest conversation record ends the turn after ``since_ms``.
+
+    Claude Code records a user interrupt. Kiro CLI V3 records ``turn_end`` for
+    every turn and runs its Stop hook only for a completed one.
+    """
     if not isinstance(path, str) or not path:
         return False
     try:
@@ -410,12 +415,28 @@ def transcript_interrupted(path: Any, since_ms: int) -> bool:
             record_value = json.loads(line)
         except ValueError:
             continue
-        if not isinstance(record_value, dict) or record_value.get("type") not in ("user", "assistant"):
+        ended = _turn_end(record_value)
+        if ended is None:
             continue
-        if record_value["type"] != "user" or not _interrupt_text(record_value.get("message")):
-            return False
-        return _epoch_ms(record_value.get("timestamp")) > since_ms
+        return ended and _epoch_ms(record_value.get("timestamp")) > since_ms
     return False
+
+
+def _turn_end(record_value: Any) -> bool | None:
+    """Classify a transcript record: True ends the turn, False continues the conversation, None is neither."""
+    if not isinstance(record_value, dict):
+        return None
+    payload = record_value.get("payload")
+    if isinstance(payload, dict):
+        # Kiro CLI V3 messages.jsonl: {"timestamp", "payload": {"type", ...}}.
+        kind = payload.get("type")
+        if kind == "turn_end":
+            return True
+        return False if kind in ("user", "turn_start", "assistant") else None
+    kind = record_value.get("type")
+    if kind not in ("user", "assistant"):
+        return None
+    return kind == "user" and _interrupt_text(record_value.get("message"))
 
 
 def _interrupt_text(message: Any) -> bool:

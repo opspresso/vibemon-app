@@ -1,0 +1,16 @@
+{
+  "version": "v1",
+  "hooks": [
+    {
+      "name": "VibeMon - Session End",
+      "description": "Send the done state to VibeMon when a Kiro CLI V3 session ends",
+      "trigger": "SessionEnd",
+      "action": {
+        "type": "command",
+        "command": "python3 ~/.kiro/hooks/vibemon.py SessionEnd"
+      },
+      "timeout": 10,
+      "enabled": true
+    }
+  ]
+}

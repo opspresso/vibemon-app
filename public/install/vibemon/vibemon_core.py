@@ -1164,6 +1164,7 @@ def run(
     argv_event_fallback: bool = False,
     event_aliases: dict[str, str] | None = None,
     refine: Callable[[str, dict[str, Any], str], Transition | None] | None = None,
+    locate_transcript: Callable[[dict[str, Any]], str] | None = None,
 ) -> None:
     """Hook entry point, driven by a per-tool adapter.
 
@@ -1178,6 +1179,8 @@ def run(
     - event_aliases: normalize a tool's payload event names before mapping
     - refine(event, data, state): provider-specific transition, or None to
       skip the event before metadata or delivery
+    - locate_transcript(data): the session transcript path, for a tool whose
+      payload carries no transcript_path, or "" when there is none
     """
     argv_event = ""
     if len(sys.argv) > 1:
@@ -1211,6 +1214,9 @@ def run(
     tool_name = data.get("tool_name", "")
     cwd = data.get("cwd", "")
     transcript_path = data.get("transcript_path", "")
+    if not transcript_path and locate_transcript is not None:
+        transcript_path = locate_transcript(data)
+        data = {**data, "transcript_path": transcript_path}
     tool_name = tool_name if isinstance(tool_name, str) else ""
     cwd = cwd if isinstance(cwd, str) else ""
     transcript_path = transcript_path if isinstance(transcript_path, str) else ""

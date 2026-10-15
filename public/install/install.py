@@ -151,8 +151,10 @@ CONFIG_EXAMPLE_FILE = "vibemon/config.example.json"
 STATUSLINE_EXAMPLE_FILE = "vibemon/statusline.example.json"
 
 # Kiro IDE 0.x / CLI 2.x hook definitions removed during migration. Current
-# Kiro uses a single v1 config at ~/.kiro/hooks/vibemon.json.
-KIRO_HOOK_CONFIG_FILE = "kiro/hooks/vibemon.json"
+# Kiro loads v1 configs from ~/.kiro/hooks/*.json. SessionEnd exists only in
+# CLI V3, so it has its own file: a surface that rejects the trigger then
+# skips that file and keeps the main lifecycle hooks.
+KIRO_HOOK_CONFIG_FILES = ("kiro/hooks/vibemon.json", "kiro/hooks/vibemon-session-end.json")
 LEGACY_KIRO_HOOK_FILES = (
     "vibemon-prompt-submit.kiro.hook",
     "vibemon-agent-stop.kiro.hook",
@@ -1303,10 +1305,17 @@ def install_codex(source: FileSource, cli_token: str = None) -> bool:
 
 def remove_legacy_kiro_hooks(kiro_home: Path) -> None:
     """Remove only VibeMon's IDE 0.x / CLI 2.x hook registrations."""
-    _uninstall_hooks_from_json(
-        kiro_home / "agents" / "default.json", [],
-        display_path(kiro_home / "agents" / "default.json"),
-    )
+    agent_file = kiro_home / "agents" / "default.json"
+    _uninstall_hooks_from_json(agent_file, [], display_path(agent_file))
+    # Old installers created this agent with hooks only. Kiro rejects an agent
+    # without a name, so delete the file when no user content is left in it.
+    if agent_file.is_file():
+        try:
+            agent = json.loads(agent_file.read_text(encoding="utf-8"))
+        except ValueError:
+            agent = None
+        if agent in ({}, {"hooks": {}}):
+            remove_path(agent_file, display_path(agent_file))
     for hook_file in LEGACY_KIRO_HOOK_FILES:
         remove_path(
             kiro_home / "hooks" / hook_file,
@@ -1338,16 +1347,15 @@ def install_kiro(source: FileSource, cli_token: str = None) -> bool:
     )
 
     print("\nConfiguring global hooks:")
-    hook_config = adapt_kiro_hook_config(
-        source.get_file(KIRO_HOOK_CONFIG_FILE), kiro_home
-    )
     if IS_WINDOWS:
         print(f"  {colored('✓', 'green')} hooks pinned to {hook_python()}")
-    ok &= write_file_with_diff(
-        kiro_home / "hooks" / "vibemon.json",
-        hook_config,
-        display_path(kiro_home / "hooks" / "vibemon.json"),
-    )
+    for remote in KIRO_HOOK_CONFIG_FILES:
+        target = kiro_home / "hooks" / Path(remote).name
+        ok &= write_file_with_diff(
+            target,
+            adapt_kiro_hook_config(source.get_file(remote), kiro_home),
+            display_path(target),
+        )
 
     # Only retire working legacy registrations after the current v1 config is
     # safely in place. User hooks in the old agent file are preserved.
@@ -1744,10 +1752,9 @@ def uninstall_kiro(source: FileSource = None, cli_token: str = None) -> bool:
 
     print(f"\n{colored('Removing VibeMon from Kiro IDE...', 'cyan')}\n")
     remove_legacy_kiro_hooks(kiro_home)
-    remove_path(
-        kiro_home / "hooks" / "vibemon.json",
-        display_path(kiro_home / "hooks" / "vibemon.json"),
-    )
+    for remote in KIRO_HOOK_CONFIG_FILES:
+        target = kiro_home / "hooks" / Path(remote).name
+        remove_path(target, display_path(target))
     remove_path(
         kiro_home / "hooks" / "vibemon.py",
         display_path(kiro_home / "hooks" / "vibemon.py"),
