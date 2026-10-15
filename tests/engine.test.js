@@ -107,30 +107,7 @@ describe('engine state selection', () => {
 });
 
 describe('engine drawing', () => {
-  test('new companion expressions align with and fully replace its painted eyes', async () => {
-    const { createCanvas, loadImage } = require('canvas');
-    const canvas = createCanvas(128, 128);
-    const context = canvas.getContext('2d');
-    const renderer = new CharacterRenderer(context);
-    renderer.characterImages.vibemon = await loadImage(path.join(__dirname, '../src/assets/characters', charactersRegistry.characters.vibemon.image));
-    const character = makeEngine().characters.vibemon;
-    const pixel = (x, y) => Array.from(context.getImageData(x, y, 1, 1).data);
-    const ink = [36, 27, 58, 255], body = [139, 124, 246, 255];
-    renderer.drawCharacter('normal', 'none', 'vibemon', character, 0);
-    for (const x of [46, 82]) expect(pixel(x, 72)).toEqual(ink);
-    for (const expression of ['blink', 'happy']) {
-      renderer.drawCharacter(expression, 'none', 'vibemon', character, 0);
-      for (const x of [46, 82]) {
-        expect(pixel(x, 62)).toEqual(body);
-        expect(pixel(x, 82)).toEqual(body);
-      }
-      expect(pixel(46, 73)).toEqual(ink);
-      expect(pixel(expression === 'happy' ? 78 : 82, 73)).toEqual(ink);
-    }
-    renderer.drawCharacter('glasses', 'none', 'vibemon', character, 0);
-    for (const x of [46, 82]) expect(pixel(x, 72)).toEqual(ink);
-    expect(pixel(33, 56)).toEqual([17, 17, 17, 255]);
-  });
+  // Pixel alignment with the sprite is verified in Chromium by tests/native/hit-test-smoke.cjs.
   // Drive the real CharacterRenderer against a fake ctx and confirm each
   // registry eyeType/effect actually paints. 'normal' eyes and 'none' effects
   // intentionally paint nothing (no overlay).
