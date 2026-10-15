@@ -14,6 +14,14 @@ export function setupDetail({ getFrame, cloudTime, request, run }) {
     const selectedKeys = new Set(getFrame().cloud.selectedMetrics);
     return source.displayMetrics.filter((metric) => selectedKeys.has(metric.selectionKey));
   }
+  // Keep the chosen metric when it is still offered; otherwise choose the first.
+  function chooseMetric(options, choice) {
+    choices(
+      $('trend-metric'),
+      options.map((metric) => [metric.key, metric.unit ? `${metric.label} (${metric.unit})` : metric.label]),
+      options.some((metric) => metric.key === choice) ? choice : options[0]?.key || ''
+    );
+  }
   function draw() {
     const key = $('trend-metric').value;
     const metric = (historyMetrics || selected.displayMetrics).find((item) => item.key === key);
@@ -73,12 +81,7 @@ export function setupDetail({ getFrame, cloudTime, request, run }) {
       if (requestGeneration !== generation || !dialog.open) return;
       const choice = $('trend-metric').value;
       historyMetrics = result.displayMetrics;
-      const options = metrics({ displayMetrics: historyMetrics });
-      choices(
-        $('trend-metric'),
-        options.map((metric) => [metric.key, metric.unit ? `${metric.label} (${metric.unit})` : metric.label]),
-        options.some((metric) => metric.key === choice) ? choice : options[0]?.key || ''
-      );
+      chooseMetric(metrics({ displayMetrics: historyMetrics }), choice);
       points = result.points;
       $('trend-error').hidden = true;
       $('retry-trend').hidden = true;
@@ -146,12 +149,7 @@ export function setupDetail({ getFrame, cloudTime, request, run }) {
       }
     );
     const choice = $('trend-metric').value;
-    const options = historyMetrics ? metrics({ displayMetrics: historyMetrics }) : selectedMetrics;
-    choices(
-      $('trend-metric'),
-      options.map((metric) => [metric.key, metric.unit ? `${metric.label} (${metric.unit})` : metric.label]),
-      options.some((metric) => metric.key === choice) ? choice : options[0]?.key || ''
-    );
+    chooseMetric(historyMetrics ? metrics({ displayMetrics: historyMetrics }) : selectedMetrics, choice);
     $('detail-history').hidden = !source.displayMetrics.length;
     $('edit-resource').hidden = source.isAccount;
   }
