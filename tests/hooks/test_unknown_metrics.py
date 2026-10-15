@@ -33,7 +33,7 @@ def test_invalid_provider_percent_is_unknown(value):
     ({'context_window_size': 100, 'current_usage': {'input_tokens': 10**400}}, ''),
 ])
 def test_context_distinguishes_zero_from_missing(window, expected):
-    assert statusline.get_context_usage({'context_window': window}) == expected
+    assert statusline.format_percent(statusline.get_context_percent({'context_window': window})) == expected
 
 
 def test_zero_session_usage_is_not_invented_from_weekly_usage(tmp_path):
@@ -119,4 +119,4 @@ def test_statusline_caches_raw_context_instead_of_parsing_its_rounded_display():
          patch.object(statusline, 'load_usage_cache', return_value=None), patch.object(statusline, 'save_cache_background') as save:
         statusline.main()
     assert save.call_args.args[2] == 1.005
-    assert statusline.get_context_usage(data) == '1.01%'
+    assert statusline.format_percent(statusline.get_context_percent(data)) == '1.01%'

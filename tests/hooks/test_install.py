@@ -17,7 +17,6 @@ from unittest import mock
 sys.path.insert(0, str(Path(__file__).parents[2] / "public" / "install"))
 
 import install  # noqa: E402
-from install import remove_stale_vibemon_hooks  # noqa: E402
 
 
 # Windows has no POSIX permission bits — os.chmod there only toggles a
@@ -35,62 +34,47 @@ USER_ENTRY = {
 NEW_HOOKS = {"Stop": [VIBEMON_ENTRY]}
 
 
-class RemoveStaleVibemonHooksTest(unittest.TestCase):
+class ReplaceVibemonHooksPruningTest(unittest.TestCase):
+    """Reinstalling drops every VibeMon entry the packaged config no longer uses."""
+
+    def replace(self, existing, new_hooks):
+        return install.replace_vibemon_hooks(existing, new_hooks)[0]
+
     def test_vibemon_only_event_is_deleted(self):
-        existing = {"PostToolUse": [VIBEMON_ENTRY], "Stop": [VIBEMON_ENTRY]}
-        removed = remove_stale_vibemon_hooks(existing, NEW_HOOKS)
-        self.assertEqual(removed, ["PostToolUse"])
-        self.assertNotIn("PostToolUse", existing)
-        self.assertIn("Stop", existing)
+        merged = self.replace({"PostToolUse": [VIBEMON_ENTRY], "Stop": [VIBEMON_ENTRY]}, NEW_HOOKS)
+        self.assertEqual(merged, {"Stop": [VIBEMON_ENTRY]})
 
     def test_user_hooks_under_stale_event_are_preserved(self):
-        existing = {
-            "PostToolUse": [
-                {
-                    "hooks": [
-                        {"type": "command", "command": "python3 ~/.codex/hooks/vibemon.py"},
-                        {"type": "command", "command": "python3 ~/my-hook.py"},
-                    ]
-                }
-            ]
-        }
-        removed = remove_stale_vibemon_hooks(existing, NEW_HOOKS)
-        self.assertEqual(removed, ["PostToolUse"])
-        self.assertEqual(
-            existing["PostToolUse"],
-            [{"hooks": [{"type": "command", "command": "python3 ~/my-hook.py"}]}],
-        )
+        existing = {"PostToolUse": [{"hooks": [
+            {"type": "command", "command": "python3 ~/.codex/hooks/vibemon.py"},
+            {"type": "command", "command": "python3 ~/my-hook.py"},
+        ]}]}
+        merged = self.replace(existing, NEW_HOOKS)
+        self.assertEqual(merged["PostToolUse"], [{"hooks": [{"type": "command", "command": "python3 ~/my-hook.py"}]}])
+        self.assertEqual(merged["Stop"], [VIBEMON_ENTRY])
 
-    def test_events_in_new_hooks_are_untouched(self):
-        existing = {"Stop": [VIBEMON_ENTRY, USER_ENTRY]}
-        removed = remove_stale_vibemon_hooks(existing, NEW_HOOKS)
-        self.assertEqual(removed, [])
-        self.assertEqual(existing["Stop"], [VIBEMON_ENTRY, USER_ENTRY])
+    def test_user_hooks_keep_their_order_under_a_used_event(self):
+        merged = self.replace({"Stop": [VIBEMON_ENTRY, USER_ENTRY]}, NEW_HOOKS)
+        self.assertEqual(merged["Stop"], [USER_ENTRY, VIBEMON_ENTRY])
 
     def test_kiro_format_args_entry_is_removed(self):
-        existing = {
-            "postToolUse": [
-                {"command": "python3", "args": ["~/.kiro/hooks/vibemon.py", "postToolUse"]}
-            ],
-            "stop": [
-                {"command": "python3", "args": ["~/.kiro/hooks/vibemon.py", "agentStop"]}
-            ],
-        }
-        new_hooks = {"stop": existing["stop"]}
-        removed = remove_stale_vibemon_hooks(existing, new_hooks)
-        self.assertEqual(removed, ["postToolUse"])
-        self.assertNotIn("postToolUse", existing)
-        self.assertIn("stop", existing)
+        stop = {"command": "python3", "args": ["~/.kiro/hooks/vibemon.py", "agentStop"]}
+        existing = {"postToolUse": [{"command": "python3", "args": ["~/.kiro/hooks/vibemon.py", "postToolUse"]}], "stop": [stop]}
+        self.assertEqual(self.replace(existing, {"stop": [stop]}), {"stop": [stop]})
 
     def test_non_vibemon_stale_event_is_kept(self):
-        existing = {"PostToolUse": [USER_ENTRY]}
-        removed = remove_stale_vibemon_hooks(existing, NEW_HOOKS)
-        self.assertEqual(removed, [])
-        self.assertEqual(existing["PostToolUse"], [USER_ENTRY])
+        merged = self.replace({"PostToolUse": [USER_ENTRY]}, NEW_HOOKS)
+        self.assertEqual(merged["PostToolUse"], [USER_ENTRY])
 
+    def test_moved_command_replaces_the_old_registration(self):
+        moved = {"hooks": [{"type": "command", "command": "python3 ~/.vibemon/hooks/vibemon.py"}]}
+        merged = self.replace({"Stop": [VIBEMON_ENTRY, USER_ENTRY]}, {"Stop": [moved]})
+        self.assertEqual(merged["Stop"], [USER_ENTRY, moved])
 
-if __name__ == "__main__":
-    unittest.main()
+    def test_kiro_args_rename_replaces_the_old_registration(self):
+        renamed = {"command": "python3", "args": ["~/.kiro/hooks/vibemon.py", "onStop"]}
+        existing = {"stop": [{"command": "python3", "args": ["~/.kiro/hooks/vibemon.py", "agentStop"]}]}
+        self.assertEqual(self.replace(existing, {"stop": [renamed]}), {"stop": [renamed]})
 
 
 class StripAllVibemonHooksTest(unittest.TestCase):
@@ -139,34 +123,6 @@ class ReplaceVibemonHooksTest(unittest.TestCase):
         self.assertIn(USER_ENTRY, merged["Stop"])
         self.assertIn(new, merged["Stop"])
         self.assertNotIn(old, merged["Stop"])
-
-
-class RenamedVibemonCommandTest(unittest.TestCase):
-    """A hook whose command moved must not survive under a still-used event.
-
-    merge_hooks() dedupes by command, so the renamed entry is *added*; without
-    this cleanup the old one keeps invoking a script the installer removed.
-    """
-
-    def test_stale_command_under_active_event_is_removed(self):
-        moved = {
-            "hooks": [{"type": "command", "command": "python3 ~/.vibemon/hooks/vibemon.py"}]
-        }
-        existing = {"Stop": [VIBEMON_ENTRY, USER_ENTRY]}
-        removed = remove_stale_vibemon_hooks(existing, {"Stop": [moved]})
-        self.assertEqual(removed, ["Stop"])
-        self.assertEqual(existing["Stop"], [USER_ENTRY])
-
-    def test_matching_command_is_kept(self):
-        existing = {"Stop": [VIBEMON_ENTRY]}
-        self.assertEqual(remove_stale_vibemon_hooks(existing, NEW_HOOKS), [])
-        self.assertEqual(existing["Stop"], [VIBEMON_ENTRY])
-
-    def test_kiro_args_rename_is_removed(self):
-        existing = {"stop": [{"command": "python3", "args": ["~/.kiro/hooks/vibemon.py", "agentStop"]}]}
-        renamed = {"stop": [{"command": "python3", "args": ["~/.kiro/hooks/vibemon.py", "onStop"]}]}
-        self.assertEqual(remove_stale_vibemon_hooks(existing, renamed), ["stop"])
-        self.assertNotIn("stop", existing)
 
 
 class AskYesNoTest(unittest.TestCase):
@@ -1306,3 +1262,7 @@ class RemovalFailureTest(unittest.TestCase):
                  mock.patch("sys.stdout", new_callable=io.StringIO):
                 self.assertFalse(install.run_install("shared", install.uninstall_vibemon, None))
             self.assertTrue(script.exists())
+
+
+if __name__ == "__main__":
+    unittest.main()

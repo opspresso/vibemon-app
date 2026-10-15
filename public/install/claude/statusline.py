@@ -359,11 +359,6 @@ def get_context_percent(data: dict[str, Any]) -> float | None:
     return normalize_percent((sum(values) / size) * 100)
 
 
-def get_context_usage(data: dict[str, Any]) -> str:
-    """Return measured context utilization, or an empty display for unknown."""
-    return format_percent(get_context_percent(data))
-
-
 # ============================================================================
 # VibeMon Cache Functions
 # ============================================================================

@@ -677,44 +677,27 @@ def _hook_identity(hook: dict) -> str:
     return " ".join(parts).strip()
 
 
-def _packaged_identities(entries: list) -> set:
-    """Every hook identity the packaged config registers under one event."""
-    identities = set()
-    for entry in entries or []:
-        if "hooks" in entry:
-            identities.update(_hook_identity(h) for h in entry.get("hooks", []))
-        else:
-            identities.add(_hook_identity(entry))
-    return identities
+def strip_all_vibemon_hooks(existing: dict) -> list:
+    """Remove every VibeMon hook registration, preserving user hooks.
 
-
-def _prune_vibemon_hooks(existing: dict, keep_for_event) -> list:
-    """Drop VibeMon hook entries that `keep_for_event(event)` doesn't list.
-
-    `keep_for_event` returns the set of hook identities to preserve under an
-    event; everything else belonging to VibeMon is removed. Only VibeMon's own
-    entries are touched — user hooks under the same events are preserved.
-    Mutates `existing` and returns the list of changed event names.
+    Only VibeMon's own entries are touched — user hooks under the same events
+    are kept. Mutates `existing` and returns the list of changed event names.
     """
     changed_events = []
     for event in list(existing.keys()):
-        keep = keep_for_event(event)
         cleaned_entries = []
         changed = False
         for entry in existing[event]:
             if "hooks" in entry:
                 entry_hooks = entry.get("hooks") or []
-                kept = [
-                    h for h in entry_hooks
-                    if not _is_vibemon_hook(h) or _hook_identity(h) in keep
-                ]
+                kept = [h for h in entry_hooks if not _is_vibemon_hook(h)]
                 if len(kept) != len(entry_hooks):
                     changed = True
                     if kept:
                         cleaned_entries.append({**entry, "hooks": kept})
                 else:
                     cleaned_entries.append(entry)
-            elif _is_vibemon_hook(entry) and _hook_identity(entry) not in keep:
+            elif _is_vibemon_hook(entry):
                 changed = True
             else:
                 cleaned_entries.append(entry)
@@ -725,30 +708,6 @@ def _prune_vibemon_hooks(existing: dict, keep_for_event) -> list:
             else:
                 del existing[event]
     return changed_events
-
-
-def remove_stale_vibemon_hooks(existing: dict, new_hooks: dict) -> list:
-    """Drop VibeMon hook registrations the packaged config no longer uses.
-
-    Two kinds of staleness are cleaned:
-      * events the packaged config dropped entirely after a lifecycle change —
-        leaving them would keep invoking vibemon.py with events the script no
-        longer maps;
-      * VibeMon entries under a still-used event whose command no longer
-        matches the packaged one. merge_hooks() dedupes by command, so moving
-        the hook to a new path would otherwise *add* the new entry and leave
-        the old one pointing at a script the installer just removed.
-
-    Mutates `existing` and returns the list of cleaned event names.
-    """
-    return _prune_vibemon_hooks(
-        existing, lambda event: _packaged_identities(new_hooks.get(event))
-    )
-
-
-def strip_all_vibemon_hooks(existing: dict) -> list:
-    """Remove every VibeMon hook registration, preserving user hooks. Used by --uninstall."""
-    return _prune_vibemon_hooks(existing, lambda event: set())
 
 
 def replace_vibemon_hooks(existing: dict, new_hooks: dict) -> tuple[dict, list]:
