@@ -1033,7 +1033,7 @@ def is_tool_installed(commands: str | tuple[str, ...], home_dir: Path) -> bool:
 # --uninstall --vibemon. vibemon_core.py imports the others, so it comes last.
 SHARED_SCRIPTS = (
     "http_client.py", "cache_io.py", "account_context.py", "usage.py",
-    "usage_cache.py", "session_activity.py", "vibemon_core.py",
+    "usage_cache.py", "project_context.py", "session_activity.py", "vibemon_core.py",
 )
 
 VIBEMON_CONFIG_CACHE = {}

@@ -30,6 +30,7 @@ for helper_dir in (Path(__file__).resolve().parent.parent / "vibemon", VIBEMON_H
 
 # The helpers resolve only after the path setup above.
 from account_context import project_cache_key  # noqa: E402
+from project_context import get_project_name, parse_json, read_input  # noqa: E402
 from cache_io import update_json_cache  # noqa: E402
 from usage_cache import (  # noqa: E402
     CACHE_STALE_SECONDS,
@@ -163,28 +164,8 @@ def detach_stdio() -> None:
         pass
 
 
-def read_input() -> str:
-    """Read input from stdin.
-
-    Claude Code writes UTF-8, but Python decodes stdin with the locale
-    encoding — on a cp949/cp1252 Windows console a non-ASCII prompt or path
-    in the payload would raise UnicodeDecodeError here and the outer backstop
-    would swallow the whole statusline. Mirror the hook adapters' hardening.
-    """
-    try:
-        sys.stdin.reconfigure(encoding="utf-8", errors="replace")
-    except (AttributeError, OSError, ValueError):
-        pass
-    return sys.stdin.read()
 
 
-def parse_json(data: str) -> dict[str, Any]:
-    """Parse JSON string to dictionary (non-object JSON yields {})."""
-    try:
-        value = json.loads(data)
-    except (json.JSONDecodeError, TypeError):
-        return {}
-    return value if isinstance(value, dict) else {}
 
 
 # ============================================================================
@@ -235,39 +216,8 @@ def get_branch_emoji(branch: str) -> str:
     return "🌿"
 
 
-def get_git_root(directory: str) -> str | None:
-    """Get git repository root directory."""
-    if not directory:
-        return None
-    try:
-        result = subprocess.run(
-            ["git", "-C", directory, "rev-parse", "--show-toplevel"],
-            capture_output=True,
-            text=True,
-            timeout=2,
-            creationflags=NO_WINDOW_FLAGS,
-        )
-        if result.returncode == 0:
-            return result.stdout.strip()
-    except (subprocess.TimeoutExpired, FileNotFoundError, OSError):
-        pass
-    return None
 
 
-def get_project_name(directory: str) -> str:
-    """Get project name from git root or directory basename."""
-    if not directory:
-        return ""
-
-    # Try git root first (handles subdirectory cases)
-    git_root = get_git_root(directory)
-    if git_root:
-        name = os.path.basename(git_root)
-        if name:
-            return name
-
-    # Fallback to directory basename
-    return os.path.basename(directory)
 
 
 def get_git_info(directory: str) -> str:

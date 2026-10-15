@@ -1,5 +1,5 @@
 {
-  "installer": "a503aa972813c61f153de13e8fde27cfe56603c8fef43b40bf8ecb14c9deef1c",
+  "installer": "cdd5b993346d4488c1d0dbacca09d52ffa14a709677e3ff58dd646d687c1b642",
   "files": {
     "claude/settings.json": "16364280f11c2e94a7c70d01b0f019aaf736ea82c8b0d8a2a9936072d0cfe009",
     "codex/hooks.json": "b7e5e486400a0b289a789f4f6ecc9d04188192ef031b7e6c1dcbc60d3d8ad2f8",
@@ -10,9 +10,10 @@
     "vibemon/account_context.py": "f6babad43f88b5d3bf74f070fc1772d2e226f51559a3841adbb17b54fa9d2b6e",
     "vibemon/cache_io.py": "f99ddbcba818ac8cf5b84aa714cdec1ef4ff87f87680dd2868ef483deb208de7",
     "vibemon/http_client.py": "306f9804a3bffc221b7c68f7b1f100937311908912ffb50bca500d493464052a",
+    "vibemon/project_context.py": "8621372543a6864fd9fc06caad054a7d9b48eafb9fafdf6c55d59314f400c1c7",
     "vibemon/session_activity.py": "16ffc620f3c2018a64d67ed83c03e032e648d23558827a2cbf91857290d2fb37",
-    "vibemon/vibemon_core.py": "42b807a9d3f725238c4207780de61736d485d3138f26e005776f79710fe2e350",
-    "claude/statusline.py": "ab4d1ca1dc5390291bde4f78931523540f4438ae57906bf26c9a10a69f4d25a6",
+    "vibemon/vibemon_core.py": "f95b9c6772a5c1808f48c4f469bfb0e8a32632aea6195ae7f0013dc324ed78a5",
+    "claude/statusline.py": "caca464a4f99832348a98f47c0235380e4c270dae2c4a0c0c7e525098740746d",
     "claude/hooks/vibemon.py": "a592e7e8904b3dbd09f94b9b882906cb9dc470c27f6f68d77bc45fa508d41727",
     "codex/hooks/vibemon.py": "11d5f731598067d90872ea41ad99f31779b6926b064702e2af1480f521ffa952",
     "kiro/hooks/vibemon.py": "769357ffc457caf738fdf2299e338f696d8d7903c9a9cb75d4872996fdc58573",

@@ -23,6 +23,7 @@
     "public/install/vibemon/cache_io.py": "public/install/vibemon/cache_io.py",
     "public/install/vibemon/config.example.json": "public/install/vibemon/config.example.json",
     "public/install/vibemon/http_client.py": "public/install/vibemon/http_client.py",
+    "public/install/vibemon/project_context.py": "public/install/vibemon/project_context.py",
     "public/install/vibemon/session_activity.py": "public/install/vibemon/session_activity.py",
     "public/install/vibemon/statusline.example.json": "public/install/vibemon/statusline.example.json",
     "public/install/vibemon/usage.py": "public/install/vibemon/usage.py",
