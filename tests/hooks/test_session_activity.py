@@ -406,7 +406,9 @@ def test_a_turn_stays_active_from_prompt_to_its_end(tmp_path, display, ending):
         if ending == "Stop":
             hook("Stop")
         else:
+            # Reap it as its parent shell would; an unreaped zombie keeps its name on Linux.
             agent.kill()
+            agent.wait()
         # The hook (Stop) or the watcher (exit) reports done, and the watcher ends.
         wait_until(lambda: not activity.pid_exists(watcher), activity.WATCH_TICK_SECONDS + 10)
     finally:
