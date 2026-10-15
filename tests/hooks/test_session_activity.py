@@ -152,6 +152,22 @@ def test_a_recorded_interrupt_ends_the_turn(tmp_path, clock, alive):
     assert activity.tick(path, "s1", ME).payload["state"] == "done"
 
 
+def test_a_hook_during_the_check_outranks_an_older_interrupt(tmp_path, clock, alive, monkeypatch):
+    path = str(tmp_path / "activity.json")
+    open_turn(path)
+    assert activity.claim(path, "s1", ME)
+
+    def interrupted_then_resumed(_transcript, _since):
+        # A new prompt arrives while the watcher reads the transcript.
+        clock.ms += 1
+        activity.record(path, event("UserPromptSubmit"), Transition("thinking"))
+        return True
+
+    monkeypatch.setattr(activity, "transcript_interrupted", interrupted_then_resumed)
+    assert activity.tick(path, "s1", ME) is None
+    assert cache(path)["sessions"]["s1"]["open"] is True
+
+
 def test_a_second_watcher_cannot_claim_a_watched_session(tmp_path, clock, alive):
     path = str(tmp_path / "activity.json")
     open_turn(path)
@@ -218,6 +234,7 @@ def test_the_agent_is_the_nearest_ancestor_outside_wrappers(monkeypatch):
 
 
 def test_a_reused_process_id_is_not_the_agent(monkeypatch):
+    monkeypatch.setattr(activity, "pid_exists", lambda pid: pid == 4242)
     monkeypatch.setattr(activity, "_process_info", {4242: (1, "vim")}.get)
     assert activity.process_alive(4242, "vim")
     assert not activity.process_alive(4242, "claude")

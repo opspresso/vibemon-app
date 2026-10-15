@@ -175,7 +175,8 @@ def record(path: str, data: dict[str, Any], transition: Transition) -> Report | 
         requested = entry.get("watchRequestedMs")
         watch = (
             entry["open"]
-            and not (isinstance(watcher, dict) and process_alive(watcher.get("pid"), watcher.get("name")))
+            # A process-ID check only: it runs inside the lock on every hook.
+            and not (isinstance(watcher, dict) and pid_exists(watcher.get("pid")))
             and not (isinstance(requested, int) and now - requested < WATCH_REQUEST_MS)
         )
         if watch:
@@ -262,38 +263,64 @@ def tick(path: str, session: str, me: dict[str, Any]) -> Beat | None | bool:
 
     Returns a Beat to deliver, None when nothing is due, or False when the
     watcher must exit: the turn closed, the session is gone, or another
-    watcher owns it.
+    watcher owns it. Process and transcript checks run outside the cache
+    lock, so hooks never wait for them.
     """
+    entry = _owned_entry(_read_cache(path), session, me)
+    if entry is None:
+        return False
+    agent = entry.get("agent") or {}
+    exited = not process_alive(agent.get("pid"), agent.get("name"))
+    interrupted = not exited and transcript_interrupted(entry.get("transcript"), entry.get("updatedMs", 0))
     outcome: dict[str, Any] = {"result": None}
 
     def update(cache: dict[str, Any]) -> dict[str, Any]:
         sessions = dict(cache.get("sessions") or {})
-        entry = sessions.get(session)
-        watcher = entry.get("watcher") if isinstance(entry, dict) else None
-        if not isinstance(entry, dict) or not entry.get("open") or not isinstance(watcher, dict) or watcher.get("pid") != me["pid"]:
+        current = _owned_entry(cache, session, me)
+        if current is None:
             outcome["result"] = False
             return cache
-        payload = entry.get("payload")
-        agent = entry.get("agent") or {}
         now = _now_ms()
-        ended = not process_alive(agent.get("pid"), agent.get("name")) or transcript_interrupted(entry.get("transcript"), entry.get("updatedMs", now))
-        if not ended and now - entry.get("reportedMs", 0) < HEARTBEAT_MS:
+        # A hook may have reported since the check; its event outranks an
+        # interrupt the transcript recorded before it.
+        closing = exited or interrupted and current.get("updatedMs") == entry.get("updatedMs")
+        if not closing and now - current.get("reportedMs", 0) < HEARTBEAT_MS:
             return cache
+        payload = current.get("payload")
         stamp = _stamp(cache, now)
-        if ended:
-            entry = {**entry, "open": False, "state": "done", "tools": {}, "updatedMs": now, "reportedMs": now}
-            entry.pop("watcher", None)
-            outcome["result"] = False if not isinstance(payload, dict) else Beat({**payload, "state": "done", "tool": ""}, entry.get("cwd", ""), observation_time(stamp), False)
+        if closing:
+            current = {**current, "open": False, "state": "done", "tools": {}, "updatedMs": now, "reportedMs": now}
+            current.pop("watcher", None)
+            outcome["result"] = Beat({**payload, "state": "done", "tool": ""}, current.get("cwd", ""), observation_time(stamp), False) if isinstance(payload, dict) else False
         else:
-            entry = {**entry, "reportedMs": now}
+            current = {**current, "reportedMs": now}
             if isinstance(payload, dict):
-                outcome["result"] = Beat({**payload, "state": entry["state"]}, entry.get("cwd", ""), observation_time(stamp), True)
-        sessions[session] = entry
+                outcome["result"] = Beat({**payload, "state": current["state"]}, current.get("cwd", ""), observation_time(stamp), True)
+        sessions[session] = current
         return {**cache, "lastMs": stamp, "sessions": sessions}
 
     if not update_json_cache(path, update, timeout=2.0):
         return None
     return outcome["result"]
+
+
+def _read_cache(path: str) -> dict[str, Any]:
+    """Read the cache without the lock. Writers replace it atomically."""
+    try:
+        with open(path, encoding="utf-8") as source:
+            value = json.load(source)
+    except (OSError, ValueError):
+        return {}
+    return value if isinstance(value, dict) else {}
+
+
+def _owned_entry(cache: dict[str, Any], session: str, me: dict[str, Any]) -> dict[str, Any] | None:
+    """The session's entry while its turn is open and this watcher owns it."""
+    entry = (cache.get("sessions") or {}).get(session)
+    if not isinstance(entry, dict) or not entry.get("open"):
+        return None
+    watcher = entry.get("watcher")
+    return entry if isinstance(watcher, dict) and watcher.get("pid") == me["pid"] else None
 
 
 def watch(path: str, session: str, deliver: Callable[[Beat], None], sleep: Callable[[float], None] = time.sleep) -> None:
@@ -396,10 +423,29 @@ def process_alive(pid: Any, name: Any) -> bool:
 
     The name check keeps a reused process ID from passing for the agent.
     """
+    if not pid_exists(pid):
+        return False
+    if not name:
+        return True
+    info = _process_info(pid)
+    return info is not None and info[1] == name
+
+
+def pid_exists(pid: Any) -> bool:
+    """Report whether a process ID is in use, without starting a process."""
     if not isinstance(pid, int) or pid <= 1:
         return False
-    info = _process_info(pid)
-    return info is not None and (not name or info[1] == name)
+    if os.name == "nt":
+        return pid in _windows_processes()
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+    except OSError:
+        return False
+    return True
 
 
 def _base_name(name: str) -> str:
