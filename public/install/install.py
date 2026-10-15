@@ -1029,6 +1029,13 @@ def is_tool_installed(commands: str | tuple[str, ...], home_dir: Path) -> bool:
 
 
 # Caches the resolved token so ~/.vibemon/config.json is only configured once per run
+# Shared ~/.vibemon scripts, installed for every platform and removed by
+# --uninstall --vibemon. vibemon_core.py imports the others, so it comes last.
+SHARED_SCRIPTS = (
+    "http_client.py", "cache_io.py", "account_context.py", "usage.py",
+    "usage_cache.py", "session_activity.py", "vibemon_core.py",
+)
+
 VIBEMON_CONFIG_CACHE = {}
 
 
@@ -1086,31 +1093,10 @@ def install_vibemon_shared(source: FileSource) -> bool:
     if "shared_installed" in VIBEMON_CONFIG_CACHE:
         return VIBEMON_CONFIG_CACHE["shared_installed"]
 
-    content = source.get_file("vibemon/http_client.py")
-    ok = write_file_with_diff(Path.home() / ".vibemon" / "http_client.py", content, "~/.vibemon/http_client.py")
-
-    content = source.get_file("vibemon/cache_io.py")
-    ok = write_file_with_diff(Path.home() / ".vibemon" / "cache_io.py", content, "~/.vibemon/cache_io.py") and ok
-
-    content = source.get_file("vibemon/account_context.py")
-    ok = write_file_with_diff(Path.home() / ".vibemon" / "account_context.py", content, "~/.vibemon/account_context.py") and ok
-
-    # Install the refresher only after its account-identity dependency.
-    content = source.get_file("vibemon/usage.py")
-    ok = write_file_with_diff(Path.home() / ".vibemon" / "usage.py", content, "~/.vibemon/usage.py", executable=True) and ok
-
-    # usage_cache.py -> ~/.vibemon/usage_cache.py
-    content = source.get_file("vibemon/usage_cache.py")
-    ok = write_file_with_diff(Path.home() / ".vibemon" / "usage_cache.py", content, "~/.vibemon/usage_cache.py") and ok
-
-    # session_activity.py -> ~/.vibemon/session_activity.py (imported by vibemon_core.py)
-    content = source.get_file("vibemon/session_activity.py")
-    ok = write_file_with_diff(Path.home() / ".vibemon" / "session_activity.py", content, "~/.vibemon/session_activity.py") and ok
-
-    # vibemon_core.py -> ~/.vibemon/vibemon_core.py
-    content = source.get_file("vibemon/vibemon_core.py")
-    ok = write_file_with_diff(Path.home() / ".vibemon" / "vibemon_core.py", content, "~/.vibemon/vibemon_core.py") and ok
-
+    ok = True
+    for name in SHARED_SCRIPTS:
+        content = source.get_file(f"vibemon/{name}")
+        ok = write_file_with_diff(Path.home() / ".vibemon" / name, content, f"~/.vibemon/{name}", executable=name == "usage.py") and ok
     VIBEMON_CONFIG_CACHE["shared_installed"] = ok
     return ok
 
@@ -1844,7 +1830,7 @@ def uninstall_vibemon(source: FileSource = None, cli_token: str = None) -> bool:
         return SKIPPED
 
     print(f"\n{colored('Removing VibeMon shared scripts...', 'cyan')}\n")
-    for name in ("usage.py", "usage_cache.py", "http_client.py", "cache_io.py", "account_context.py", "session_activity.py", "vibemon_core.py"):
+    for name in SHARED_SCRIPTS:
         remove_path(vibemon_home / name, f"~/.vibemon/{name}")
     # config.json holds the user's token and statusline.json their display
     # preferences; deleting either would make a reinstall lose real settings.
