@@ -78,6 +78,7 @@ curl -X POST http://127.0.0.1:19280/status \
 | `sourceId` | string | Optional stable source identity, using the Web source-ID rules |
 | `account` | object | Optional `{ provider, id, displayName }`, with the same identity rules as Web |
 | `observedAt` | string | Optional UTC event time; at most 120 seconds old or 30 seconds ahead |
+| `heartbeat` | boolean | Optional. `true` repeats a running turn's current state. It refreshes the state timeout but does not take focus from another project. |
 | `model` | string | Model name (e.g., `opus`, `sonnet`) |
 | `memory` | number | Context-window usage (0-100) |
 | `usage5h` | number | 5-hour plan-usage window (0-100) |

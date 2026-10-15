@@ -61,6 +61,30 @@
         ]
       }
     ],
+    "Elicitation": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 ~/.claude/hooks/vibemon.py",
+            "async": true,
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "ElicitationResult": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 ~/.claude/hooks/vibemon.py",
+            "async": true,
+            "timeout": 10
+          }
+        ]
+      }
+    ],
     "PreCompact": [
       {
         "hooks": [
@@ -87,7 +111,7 @@
     ],
     "Notification": [
       {
-        "matcher": "^(permission_prompt|elicitation_dialog|elicitation_url_dialog|agent_needs_input)$",
+        "matcher": "^(permission_prompt|elicitation_dialog|elicitation_url_dialog|agent_needs_input|idle_prompt)$",
         "hooks": [
           {
             "type": "command",

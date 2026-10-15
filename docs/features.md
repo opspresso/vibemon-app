@@ -127,6 +127,8 @@ The `working` state's speech bubble shows fixed text based on the active tool:
 | `planning`, `thinking`, `working`, `packing`, `notification`, `alert` | 5 minutes | `idle` |
 | `idle` | 5 minutes | `sleep` |
 
+The timeout counts from the last report. While an agent turn runs, hooks repeat its state every 60 seconds (see [turn lifecycle](hooks.md#turn-lifecycle)), so a long tool call or response stays active until the turn ends. An active state reaches `idle` only when its reports stop, for example when the hooks cannot identify the agent process.
+
 After 10 minutes in sleep state, the window automatically closes. It reappears on the next status update — or on demand via the tray menu's **Show companion** action, which reopens the character (and its speech bubble) immediately.
 
 ## Animations

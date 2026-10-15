@@ -7,8 +7,8 @@ const attention = Object.keys(states).filter(state => states[state].attentionRan
 const needsAttention = state => attention.includes(state);
 const dominantState = (states, fallback = 'unknown') => attention.find(state => states.includes(state)) ?? fallback;
 // Collectors report resources periodically, so silence means lost data. Coding
-// hooks report events only: a long tool call or response is silent while work
-// continues, so agent liveness comes from the event clock instead.
+// hooks report events plus a heartbeat while a turn runs, so agent liveness
+// comes from the event clock: a turn that stops reporting ages to idle.
 const sourceStale = (source, now = Date.now()) => source.kind !== 'agent' && (Boolean(source.stale) || now - Date.parse(source.receivedAt) >= constants.CLOUD_STALE_MS);
 
 function agentTransition(state) {

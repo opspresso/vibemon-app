@@ -223,6 +223,9 @@ function validateStatusPayload(data) {
       return { valid: false, error: 'Invalid account identity' };
     }
   }
+  if (data.heartbeat !== undefined && typeof data.heartbeat !== 'boolean') {
+    return { valid: false, error: 'heartbeat must be a boolean' };
+  }
   if (data.observedAt !== undefined) {
     const now = Date.now();
     const time = typeof data.observedAt === 'string' ? Date.parse(data.observedAt) : NaN;

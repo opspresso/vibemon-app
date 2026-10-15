@@ -41,12 +41,8 @@ INPUT_NOTIFICATION_TYPES = frozenset({
     "permission_prompt", "elicitation_dialog", "elicitation_url_dialog", "agent_needs_input",
 })
 
-
-def should_report(event: str, data: dict[str, Any]) -> bool:
-    if event != "Notification":
-        return True
-    kind = data.get("notification_type")
-    return isinstance(kind, str) and kind in INPUT_NOTIFICATION_TYPES
+# Background task statuses that mean work continues after Stop.
+RUNNING_TASK_STATUSES = frozenset({"running", "pending", "in_progress"})
 
 # Event to state mapping (immutable)
 EVENT_STATE_MAP: dict[str, str] = {
@@ -60,10 +56,30 @@ EVENT_STATE_MAP: dict[str, str] = {
     "PostCompact": "thinking",
     "Notification": "notification",
     "PermissionRequest": "notification",
+    "Elicitation": "notification",
+    "ElicitationResult": "thinking",
     "SessionEnd": "done",
     "Stop": "done",
     "StopFailure": "done",
 }
+
+
+def refine(event: str, data: dict[str, Any], state: str) -> core.Transition | None:
+    """Apply Claude Code's notification and background-task contract."""
+    if event == "Notification":
+        kind = data.get("notification_type")
+        if kind == "idle_prompt":
+            # Claude Code finished responding about 60 seconds ago. Stop does
+            # not run after a user interrupt, so this ends a turn left open.
+            return core.Transition("done", settles=True)
+        return core.Transition(state) if isinstance(kind, str) and kind in INPUT_NOTIFICATION_TYPES else None
+    if event == "Stop" and any(
+        isinstance(task, dict) and task.get("status") in RUNNING_TASK_STATUSES
+        for task in data.get("background_tasks") or []
+    ):
+        # Background shells or subagents still run and wake the session later.
+        return core.Transition("working")
+    return core.Transition(state)
 
 
 def build_payload(
@@ -90,6 +106,6 @@ if __name__ == "__main__":
         event_state_map=EVENT_STATE_MAP,
         build_payload=build_payload,
         start_event="SessionStart",
-        should_report=should_report,
+        refine=refine,
     )
     sys.exit(0)

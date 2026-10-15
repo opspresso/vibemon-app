@@ -293,3 +293,16 @@ test("a burst across distinct sessions remains bounded", async () => {
   assert.equal(h.children.length, 33);
   assert.equal(h.payloads().at(-1).session_id, "session-59");
 });
+
+test("tool call IDs reach the adapter and queued tool events are never replaced", async () => {
+  const h = await opencode({ autoClose: false });
+  await h.one.tool("execute.before", { sessionID: "s", tool: "read", id: "call-1" });
+  await h.one.tool("execute.before", { sessionID: "s", tool: "shell", id: "call-2" });
+  await h.one.tool("execute.after", { sessionID: "s", tool: "read", id: "call-1" });
+  await h.event("session.compaction.failed", { sessionID: "s" });
+  for (let i = 0; i < h.children.length; i++) h.children[i].child.emit("close", 0);
+  const sent = h.payloads().map((payload) => [payload.hook_event_name, payload.tool_use_id]);
+  assert.deepEqual(sent, [
+    ["PreToolUse", "call-1"], ["PreToolUse", "call-2"], ["PostToolUse", "call-1"], ["PostCompact", ""],
+  ]);
+});

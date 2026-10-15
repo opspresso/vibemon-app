@@ -147,11 +147,32 @@ Hooks deliver coding activity to the [Status API](https://vibemon.io/docs/api/st
 
 ## State Mapping
 
-State reporting is edge-driven: a new state start replaces the previous state. Completion hooks are retained only where no later start event reliably restores the state (`PostToolUse`/`PostCompact`) or an explicit turn/session ending must be reported (`Stop`/`SessionEnd`). Claude and Codex subagent `Agent` calls already pass through the matcher-free tool hooks, so separate subagent hooks would only duplicate those transitions.
+Hooks report edges: a prompt starts a turn, a tool starts or ends, and a turn stops. The time between two edges is silent. A long tool call, a long model response, or a background subagent sends no event. Every display ages a silent active state to `idle` after 5 minutes (see [state timeouts](features.md#state-timeout)). Hooks therefore keep a running turn visible with heartbeats.
 
-Python hooks capture the observation time after mapping the event, before Git discovery or usage-cache reads. Local and Web delivery share that timestamp, so delayed metadata collection cannot make an older event appear newer.
+### Turn lifecycle
 
-When an event carries `session_id`, the hook records the session's running tools (`tool_use_id` from `PreToolUse`, released by `PostToolUse`, `PostToolUseFailure` or `PermissionDenied`; `start` and `done` clear them) in `~/.vibemon/cache/activity.json` under one cross-process lock. A finished tool reports `working` instead of `thinking` while a parallel tool still runs, and plan mode keeps `planning`. The same lock issues strictly increasing timestamps, so hooks that start out of order cannot place an older tool set after a newer one. If the lock stays busy for 0.5 seconds, the hook reports its mapped state with the current time.
+1. An event with an active state (`thinking`, `planning`, `working`, `packing`, or `notification`) opens the session's turn.
+2. The hook that opens the turn starts one detached watcher process for the session. The watcher runs `python3 ~/.vibemon/vibemon_core.py --watch-session <session_id>`.
+3. While the turn is open, the watcher repeats the last state every 60 seconds without another event. The report has `heartbeat: true`. A heartbeat refreshes the state clock, but it does not take display focus and does not add a Web activity sample. It counts the payload's reset countdowns down by the time since the hook built it, so they stay correct against the new observation time.
+4. The turn closes when the agent reports `done` (`Stop`, `StopFailure`, `Interrupt`, or `SessionEnd`) or `start` (a new session).
+5. The watcher also closes the turn and reports `done` within 5 seconds when:
+   - the agent process exits without a `SessionEnd` hook, or
+   - Claude Code records a user interrupt or a rejected tool (`[Request interrupted by user…]`) in its transcript. Claude Code runs no `Stop` hook for an interrupt.
+
+The watcher identifies the agent process as the nearest ancestor of the hook that is not a shell, launcher, or Python interpreter. If it cannot identify that process, no watcher starts, and the session ages by the state timeouts as before.
+
+### Session activity cache
+
+When an event carries `session_id`, the hook records the session in `~/.vibemon/cache/activity.json` under one cross-process lock:
+
+- **Running tools.** `PreToolUse` adds its `tool_use_id`. `PostToolUse`, `PostToolUseFailure`, and `PermissionDenied` remove it. A new prompt and every turn end clear the set. When a tool ends while another tool still runs, the session reports `working` instead of `thinking`. Plan mode keeps `planning`.
+- **Pending questions.** A tool that asks the user (`AskUserQuestion`, `request_user_input`) and a tool with a `PermissionRequest` wait for the user. While one is unanswered, the session reports `notification`, even after a parallel tool ends.
+- **Ordering.** The same lock issues strictly increasing timestamps, so hooks that start out of order cannot place an older state after a newer one.
+- **Heartbeat payload.** The last display payload and the agent process ID let the watcher repeat the state. The cache holds no prompts, tool inputs, or responses.
+
+Python hooks capture the observation time after mapping the event, before Git discovery or usage-cache reads. Local and Web delivery share that timestamp, so delayed metadata collection cannot make an older event appear newer. If the lock stays busy for 0.5 seconds, the hook reports its mapped state with the current time and starts no watcher.
+
+Claude and Codex subagent `Agent` calls pass through the matcher-free tool hooks. The running `Agent` tool keeps the parent session `working` until the subagent returns, so separate subagent hooks would only duplicate those transitions.
 
 ### Claude Code
 
@@ -167,13 +188,21 @@ When an event carries `session_id`, the hook records the session's running tools
 | PostCompact | thinking |
 | Notification | notification |
 | PermissionRequest | notification |
+| Elicitation | notification |
+| ElicitationResult | thinking |
 | SessionEnd | done |
 | Stop | done |
 | StopFailure | done |
 
 **Plan Mode**: When Claude Code is in plan mode, `thinking` and `working` states automatically become `planning`.
 
-Claude `Notification` reports **Needs input** only for `permission_prompt`, `elicitation_dialog`, `elicitation_url_dialog`, and `agent_needs_input`. Idle reminders, login-success messages, completed-task notices, and other informational notifications do not change activity or refresh its timestamp. The installer filters these events before launching Python; the adapter also checks them for older hook registrations. See the [Claude notification contract](https://code.claude.com/docs/en/hooks#notification).
+`PreToolUse` for `AskUserQuestion` reports `notification`, because the turn waits for the user's answer.
+
+`Stop` reports `working` and keeps the turn open when its `background_tasks` list has a `running`, `pending`, or `in_progress` task. Claude Code starts a new turn when that work finishes.
+
+Claude `Notification` reports **Needs input** only for `permission_prompt`, `elicitation_dialog`, `elicitation_url_dialog`, and `agent_needs_input`. `idle_prompt` reports `done` only when a turn is still open; it ends a turn whose `Stop` hook did not run, for example after an interrupt that the transcript check did not see. Other informational notifications do not change activity or refresh its timestamp. The installer filters these events before launching Python; the adapter also checks them for older hook registrations. See the [Claude notification contract](https://code.claude.com/docs/en/hooks#notification).
+
+A tool approved at a permission prompt runs without a new hook event. The session shows `notification` until that tool's `PostToolUse`.
 
 ### Codex CLI
 
@@ -190,7 +219,7 @@ Claude `Notification` reports **Needs input** only for `permission_prompt`, `eli
 | Interrupt | done |
 | SessionEnd | done |
 
-`SessionStart` covers startup, resume, and clear. `PreToolUse`, `PostToolUse`, and `PermissionRequest` are registered without a matcher, so every supported local tool call (`Bash`, `apply_patch`/`Edit`/`Write`, MCP tools, and other local function tools) is observed. Informational hooks run in the background, while `SessionEnd` and `Interrupt` run synchronously with Codex's three-second maximum timeout. `done` indicates that activity ended, including cancellation or failure; it does not assert task success.
+`SessionStart` covers startup, resume, and clear. `PreToolUse` for `request_user_input` reports `notification`. `PreToolUse`, `PostToolUse`, and `PermissionRequest` are registered without a matcher, so every supported local tool call (`Bash`, `apply_patch`/`Edit`/`Write`, MCP tools, and other local function tools) is observed. Informational hooks run in the background, while `SessionEnd` and `Interrupt` run synchronously with Codex's three-second maximum timeout. `done` indicates that activity ended, including cancellation or failure; it does not assert task success.
 
 ### Kiro IDE
 
@@ -216,7 +245,7 @@ Claude `Notification` reports **Needs input** only for `permission_prompt`, `eli
 | message_sent | done fallback (only with no active run) |
 | session_end / gateway_stop | done |
 
-OpenClaw reads the active model and context usage from `llm_output`, resets them per run, and tracks parallel runs and tools. Local HTTP targets serialize updates, keep the newest pending state, and have a 2.5-second request deadline. USB and cloud delivery use the shared Python transport with a five-second process limit. Cloud reports use the gateway's `VIBEMON_OPENCLAW_ACCOUNT_ID` / `VIBEMON_OPENCLAW_ACCOUNT_NAME` (or common account variables), instance identity, and working directory. Changing the displayed character does not change the OpenClaw account provider.
+OpenClaw reads the active model and context usage from `llm_output`, resets them per run, and tracks parallel runs and tools. The plugin runs inside the gateway, so it needs no watcher process: while a run is active, it repeats the newest active state with `heartbeat: true` 60 seconds after the last report. Local HTTP targets serialize updates, keep the newest pending state, and have a 2.5-second request deadline. USB and cloud delivery use the shared Python transport with a five-second process limit. Cloud reports use the gateway's `VIBEMON_OPENCLAW_ACCOUNT_ID` / `VIBEMON_OPENCLAW_ACCOUNT_NAME` (or common account variables), instance identity, and working directory. Changing the displayed character does not change the OpenClaw account provider.
 
 ### opencode
 
@@ -236,15 +265,15 @@ The plugin default-exports the opencode 2.x definition `{ id, setup }`. `setup` 
 
 - `session.created` → SessionStart
 - `session.execution.started` or `session.retry.scheduled` → UserPromptSubmit
-- tool hook `execute.before` → PreToolUse
-- tool hook `execute.after` → PostToolUse
+- tool hook `execute.before` → PreToolUse, with the tool call `id` as `tool_use_id`
+- tool hook `execute.after` → PostToolUse, with the same `tool_use_id`
 - `permission.asked` → PermissionRequest
 - `session.compaction.started` → PreCompact
-- `session.compaction.ended` → PostCompact
+- `session.compaction.ended` or `session.compaction.failed` → PostCompact
 - `session.execution.succeeded`, `session.execution.failed`, or `session.execution.interrupted` → Stop
 - `session.deleted` → SessionEnd
 
-The plugin ignores streaming events (`session.text.*`, `session.reasoning.*`, `session.tool.*`) because they add no state. It sends `Stop` once per completed turn.
+The plugin ignores streaming events (`session.text.*`, `session.reasoning.*`, `session.tool.*`) because they add no state. It sends `Stop` once per completed turn. The adapter queue replaces a pending state of the same session with a newer one, but it never replaces a tool event, because the hook tracks running tool calls by their IDs.
 
 opencode loads the plugin once per project instance (one directory). The event bus delivers the events of every instance, so each plugin instance sends only the sessions whose `location.directory` equals its own directory. That directory is the payload `cwd`.
 

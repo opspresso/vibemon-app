@@ -18,6 +18,11 @@ const source = now => ({ sourceId: 'spark', kind: 'host', displayName: 'Spark', 
 test.each(['First\nSecond', 'First\u007fSecond', '\ud800'])('source names use the same display-text contract: %p', displayName => {
   expect(() => validateSources([{ ...source(1000), displayName }])).toThrow();
 });
+test('sources keep the heartbeat flag and reject a non-boolean one', () => {
+  expect(validateSources([{ ...source(1000), heartbeat: true }])[0].heartbeat).toBe(true);
+  expect(validateSources([source(1000)])[0].heartbeat).toBe(false);
+  expect(() => validateSources([{ ...source(1000), heartbeat: 'yes' }])).toThrow();
+});
 function fixture(now = 1000000) {
   const preferences = store({ url: 'https://web.example' });
   const secrets = store();

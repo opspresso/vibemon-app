@@ -28,7 +28,9 @@ class StatusIngress {
       this.forget(`cloud:${state.sourceId}`);
     }
 
-    const routed = preserveFocus
+    // A heartbeat repeats a running turn's state: it refreshes the lifecycle
+    // timer like any report but is not new activity, so it never takes focus.
+    const routed = preserveFocus || data.heartbeat === true
       ? this.windowManager.routeStatusUpdate(projectId, state, { preserveFocus: true })
       : this.windowManager.routeStatusUpdate(projectId, state);
     if (routed.switchedProject) this.onProjectSwitched(routed.switchedProject);
