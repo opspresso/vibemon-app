@@ -137,7 +137,7 @@ test('each notice lights the badge and names its page in the tooltip', async () 
   expect(manager.hasAttentionBadge()).toBe(false);
 });
 
-test('menu items that open an affected page carry a dot and the reason', async () => {
+test('macOS menu items that open an affected page carry a dot and the reason', async () => onPlatform('darwin', async () => {
   manager.createTray(); await flush();
   manager.setAttention({ ...quiet, dashboard: notices.dashboard, integrations: notices.integrations });
   const items = Object.fromEntries(manager.buildMenuTemplate().filter(item => item.label).map(item => [item.label, item]));
@@ -147,11 +147,20 @@ test('menu items that open an affected page carry a dot and the reason', async (
     expect(items[label].sublabel).toBeUndefined();
     expect(items[label].icon).toBeUndefined();
   }
+}));
+
+test.each(['win32', 'linux'])('%s menus name the reason in the label, which they draw', async platform => {
+  await onPlatform(platform, async () => {
+    manager.setAttention({ ...quiet, integrations: notices.integrations });
+    const item = manager.buildMenuTemplate().find(entry => entry.label?.startsWith('Integrations…'));
+    expect(item).toMatchObject({ label: `Integrations… — ${notices.integrations}`, icon: { image: true } });
+    expect(item.sublabel).toBeUndefined();
+  });
 });
 
 test('a connection issue sends Settings to Connections', () => {
   manager.setAttention({ ...quiet, connection: notices.connection });
-  manager.buildMenuTemplate().find(item => item.label === 'Settings…').click();
+  manager.buildMenuTemplate().find(item => item.label?.startsWith('Settings…')).click();
   manager.setAttention(quiet);
   manager.buildMenuTemplate().find(item => item.label === 'Settings…').click();
   expect(manager.openSettings.mock.calls).toEqual([['connections'], ['companion']]);

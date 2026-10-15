@@ -227,7 +227,10 @@ class TrayManager {
   buildMenuTemplate() {
     const { dashboard, connection, integrations, update } = this.notices;
     // An item that opens an affected page carries a red dot and the reason.
-    const flagged = (item, notice) => notice ? { ...item, icon: attentionDot(), sublabel: notice } : item;
+    // Only macOS draws a sublabel, so other platforms put the reason in the label.
+    const flagged = (item, notice) => !notice ? item : process.platform === 'darwin'
+      ? { ...item, icon: attentionDot(), sublabel: notice }
+      : { ...item, icon: attentionDot(), label: `${item.label} — ${notice}` };
     // Groups: identity, what you watch, how it is set up, the app itself.
     // Shortcut hints match the workspace menu; a tray menu registers none.
     return [
