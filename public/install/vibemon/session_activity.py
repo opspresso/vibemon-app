@@ -42,6 +42,10 @@ ACTIVE_STATES = frozenset({"thinking", "planning", "working", "packing", "notifi
 # Tools that stop the turn for a user answer rather than run work.
 INPUT_TOOLS = frozenset({"askuserquestion", "requestuserinput"})
 
+# Events that report a finished tool call. Hooks can run asynchronously, so one
+# can arrive after the turn ended; it then must not reopen the turn.
+TOOL_FINISHED_EVENTS = frozenset({"PostToolUse", "PostToolUseFailure", "PermissionDenied"})
+
 # A heartbeat repeats the turn's state after this much silence. Displays age an
 # active state to idle after SLEEP_TIMEOUT_MS (5 minutes), so four heartbeats
 # can be lost before a running turn looks idle.
@@ -126,16 +130,16 @@ def _tools(entry: dict[str, Any]) -> dict[str, str]:
     return {key: value for key, value in tools.items() if isinstance(key, str) and value in ("working", "notification")} if isinstance(tools, dict) else {}
 
 
-def _resolve(state: str, tools: dict[str, str], event: str) -> str:
-    """Let still-running tools outrank the state of an event that finished one.
+def _resolve(state: str, tools: dict[str, str], elicitations: int, event: str) -> str:
+    """Let still-running tools and open requests outrank the state of an event that finished one.
 
-    A fast tool's PostToolUse cannot see that a sibling tool still runs or that
-    a question is still unanswered. A new prompt starts a new turn, so its own
-    state stands.
+    A fast tool's PostToolUse cannot see that a sibling tool still runs, or
+    that a question or an MCP elicitation is still unanswered. A new prompt
+    starts a new turn, so its own state stands.
     """
     if event == "UserPromptSubmit" or state not in ACTIVE_STATES:
         return state
-    if "notification" in tools.values():
+    if "notification" in tools.values() or elicitations > 0:
         return "notification"
     if tools and state in ("thinking", "planning"):
         return "planning" if state == "planning" else "working"
@@ -145,8 +149,9 @@ def _resolve(state: str, tools: dict[str, str], event: str) -> str:
 def record(path: str, data: dict[str, Any], transition: Transition) -> Report | None:
     """Record one hook event and return the state and time to report.
 
-    Returns None for a settling event when the turn is already closed. Without
-    a session ID there is nothing to track, and the event reports as mapped.
+    Returns None for a settling or tool-finished event when the turn is already
+    closed. Without a session ID there is nothing to track, and the event
+    reports as mapped.
     """
     session = data.get("session_id")
     if not isinstance(session, str) or not session:
@@ -159,22 +164,29 @@ def record(path: str, data: dict[str, Any], transition: Transition) -> Report | 
         now = _now_ms()
         sessions = _live_sessions(cache, now)
         entry = dict(sessions.get(session) or {})
-        if transition.settles and not entry.get("open"):
+        if (transition.settles or event in TOOL_FINISHED_EVENTS) and not entry.get("open"):
             result["skip"] = True
             return cache
         stamp = _stamp(cache, now)
         tools = _tools(entry)
+        elicitations = entry.get("elicitations") if isinstance(entry.get("elicitations"), int) else 0
         if isinstance(tool, str) and tool and event in ("PreToolUse", "PermissionRequest"):
             # A permission prompt or question waits on the user until the tool resolves.
             tools[tool] = "notification" if transition.state == "notification" else tools.get(tool, "working")
         elif isinstance(tool, str) and tool:
             tools.pop(tool, None)
         if transition.state not in ACTIVE_STATES or event == "UserPromptSubmit" or event == "Stop":
-            # A new or ended turn has no running tools. A Stop that keeps the
-            # turn open waits for background work, not for a tool call.
+            # A new or ended turn has no running tools or open elicitations.
+            # A Stop that keeps the turn open waits for background work, not
+            # for a tool call.
             tools.clear()
-        state = _resolve(transition.state, tools, event if isinstance(event, str) else "")
-        entry.update(tools=tools, updatedMs=now, reportedMs=now, state=state, open=state in ACTIVE_STATES)
+            elicitations = 0
+        if event == "Elicitation":
+            elicitations += 1
+        elif event == "ElicitationResult":
+            elicitations = max(0, elicitations - 1)
+        state = _resolve(transition.state, tools, elicitations, event if isinstance(event, str) else "")
+        entry.update(tools=tools, elicitations=elicitations, updatedMs=now, reportedMs=now, state=state, open=state in ACTIVE_STATES)
         transcript = data.get("transcript_path")
         if isinstance(transcript, str) and transcript:
             entry["transcript"] = transcript

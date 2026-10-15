@@ -173,7 +173,8 @@ To verify this lifecycle against an installed agent, run `python3 scripts/verify
 When an event carries `session_id`, the hook records the session in `~/.vibemon/cache/activity.json` under one cross-process lock:
 
 - **Running tools.** `PreToolUse` adds its `tool_use_id`. `PostToolUse`, `PostToolUseFailure`, and `PermissionDenied` remove it. A new prompt and every turn end clear the set. When a tool ends while another tool still runs, the session reports `working` instead of `thinking`. Plan mode keeps `planning`.
-- **Pending questions.** A tool that asks the user (`AskUserQuestion`, `request_user_input`) and a tool with a `PermissionRequest` wait for the user. While one is unanswered, the session reports `notification`, even after a parallel tool ends.
+- **Pending questions.** A tool that asks the user (`AskUserQuestion`, `request_user_input`), a tool with a `PermissionRequest`, and an MCP `Elicitation` without its `ElicitationResult` wait for the user. While one is unanswered, the session reports `notification`, even after a parallel tool ends.
+- **Late tool results.** Hooks can run asynchronously. A `PostToolUse`, `PostToolUseFailure`, or `PermissionDenied` that arrives after the turn ended is ignored, so it cannot reopen the turn.
 - **Ordering.** The same lock issues strictly increasing timestamps, so hooks that start out of order cannot place an older state after a newer one.
 - **Heartbeat payload.** The last display payload and the agent process ID let the watcher repeat the state. The cache holds no prompts, tool inputs, or responses.
 
