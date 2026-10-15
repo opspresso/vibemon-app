@@ -313,8 +313,9 @@ def test_heartbeats_are_marked_for_every_display():
 # ============================================================================
 
 
-def test_a_real_watcher_reports_done_when_its_agent_exits(tmp_path, serve):
-    """Spawn the installed-layout watcher against a real agent process and a local display."""
+@pytest.fixture
+def display(tmp_path, serve):
+    """A local display and a home whose config sends only to it. Returns (home, environment, received reports)."""
     received = []
 
     class Display(BaseHTTPRequestHandler):
@@ -331,19 +332,30 @@ def test_a_real_watcher_reports_done_when_its_agent_exits(tmp_path, serve):
         "http_urls": [f"http://127.0.0.1:{server.server_address[1]}"], "auto_launch": False,
         "cache_path": str(home / ".vibemon" / "cache" / "projects.json"), "vibemon_token": "",
     }))
+    # Only the test config may choose targets: no inherited token or URL.
+    environment = {key: value for key, value in os.environ.items() if not key.startswith("VIBEMON_")}
+    environment.update(HOME=str(home), USERPROFILE=str(home), VIBEMON_SUPPRESS_HOOKS="0")
+    return home, environment, received
+
+
+def wait_until(condition, seconds):
+    deadline = time.monotonic() + seconds
+    while not condition():
+        assert time.monotonic() < deadline, "condition not met in time"
+        time.sleep(0.05)
+
+
+def test_a_real_watcher_reports_done_when_its_agent_exits(tmp_path, display):
+    """Spawn the installed-layout watcher against a real agent process and a local display."""
+    home, environment, received = display
     agent = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(60)"])
     path = str(home / ".vibemon" / "cache" / "activity.json")
     try:
         activity.record(path, event("UserPromptSubmit"), Transition("thinking"))
         activity.remember_payload(path, "s1", {"state": "thinking", "project": "real", "character": "clawd"}, str(tmp_path),
                                   {"pid": agent.pid, "name": activity.process_name(agent.pid)})
-        # Only the test config may choose targets: no inherited token or URL.
-        environment = {key: value for key, value in os.environ.items() if not key.startswith("VIBEMON_")}
-        environment.update(HOME=str(home), USERPROFILE=str(home))
         watcher = subprocess.Popen([sys.executable, str(DOCS / "vibemon" / "vibemon_core.py"), "--watch-session", "s1"], env=environment)
-        deadline = time.monotonic() + 5
-        while "watcher" not in cache(path)["sessions"]["s1"] and time.monotonic() < deadline:
-            time.sleep(0.05)
+        wait_until(lambda: "watcher" in cache(path)["sessions"]["s1"], 5)
         agent.kill()
         agent.wait()
         assert watcher.wait(timeout=activity.WATCH_TICK_SECONDS + 10) == 0
@@ -351,6 +363,59 @@ def test_a_real_watcher_reports_done_when_its_agent_exits(tmp_path, serve):
         agent.kill()
     assert [report["state"] for report in received] == ["done"]
     assert received[0]["project"] == "real" and "heartbeat" not in received[0]
+    assert cache(path)["sessions"]["s1"]["open"] is False
+
+
+# The agent: a process outside WRAPPER_PROCESSES that runs one hook per stdin
+# line, as a coding agent does, and acknowledges each finished hook.
+AGENT_SCRIPT = """
+import os, subprocess, sys
+for line in sys.stdin:
+    subprocess.run([os.environ["HOOK_PYTHON"], os.environ["HOOK"]], input=line, text=True, check=True)
+    print("ok", flush=True)
+"""
+
+
+@pytest.mark.skipif(os.name == "nt", reason="names the agent process with a symlink")
+@pytest.mark.parametrize("ending", ["Stop", "exit"])
+def test_a_turn_stays_active_from_prompt_to_its_end(tmp_path, display, ending):
+    """Real hooks under a real agent process: the turn stays open between tool hooks until it ends."""
+    home, environment, received = display
+    executable = tmp_path / "agent"
+    executable.symlink_to(os.path.realpath(sys.executable))
+    environment.update(HOOK_PYTHON=sys.executable, HOOK=str(DOCS / "claude" / "hooks" / "vibemon.py"))
+    agent = subprocess.Popen([str(executable), "-c", AGENT_SCRIPT], stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True,
+                             env=environment, cwd=tmp_path)
+    path = str(home / ".vibemon" / "cache" / "activity.json")
+
+    def hook(name, **fields):
+        agent.stdin.write(json.dumps({"session_id": "s1", "cwd": str(tmp_path), "hook_event_name": name, **fields}) + "\n")
+        agent.stdin.flush()
+        assert agent.stdout.readline() == "ok\n"
+
+    try:
+        hook("UserPromptSubmit")
+        hook("PreToolUse", tool_name="Bash", tool_use_id="t1")
+        hook("PostToolUse", tool_name="Bash", tool_use_id="t1")
+        entry = cache(path)["sessions"]["s1"]
+        assert entry["open"] is True and entry["agent"]["pid"] == agent.pid
+        wait_until(lambda: "watcher" in cache(path)["sessions"]["s1"], 10)
+        watcher = cache(path)["sessions"]["s1"]["watcher"]["pid"]
+        # A finished tool does not end the turn: the watcher keeps it visible.
+        assert activity.pid_exists(watcher)
+        if ending == "Stop":
+            hook("Stop")
+        else:
+            # Reap it as its parent shell would; an unreaped zombie keeps its name on Linux.
+            agent.kill()
+            agent.wait()
+        # The hook (Stop) or the watcher (exit) reports done, and the watcher ends.
+        wait_until(lambda: not activity.pid_exists(watcher), activity.WATCH_TICK_SECONDS + 10)
+    finally:
+        agent.kill()
+        agent.wait()
+    assert [report["state"] for report in received] == ["thinking", "working", "thinking", "done"]
+    assert not any(report.get("heartbeat") for report in received)
     assert cache(path)["sessions"]["s1"]["open"] is False
 
 
