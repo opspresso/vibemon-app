@@ -51,7 +51,6 @@
     "url": "https://github.com/opspresso/vibemon-app/issues"
   },
   "dependencies": {
-    "canvas": "^3.2.3",
     "electron-store": "^8.2.0",
     "electron-updater": "^6.8.9"
   },

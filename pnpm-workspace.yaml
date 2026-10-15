@@ -1,6 +1,5 @@
 allowBuilds:
   electron: true
-  canvas: true
   electron-winstaller: true
 
 overrides:

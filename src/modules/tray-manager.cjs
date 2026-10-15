@@ -3,10 +3,10 @@
  */
 
 const { Tray, Menu, nativeImage, BrowserWindow } = require('electron');
-const { createCanvas, loadImage } = require('canvas');
 const fs = require('fs');
 const path = require('path');
 const { STATE_COLORS, CHARACTER_CONFIG, DEFAULT_CHARACTER, TRAY_ICON_SIZE } = require('../shared/config.cjs');
+const { trayIconBitmap, dotBitmap } = require('./tray-icon.cjs');
 
 // The tray badge and menu dots share one attention color.
 const ATTENTION_COLOR = '#FF6633';
@@ -14,10 +14,10 @@ const ATTENTION_COLOR = '#FF6633';
 // Tray icon cache for performance
 const trayIconCache = new Map();
 
-// Character sprite PNGs (128x128), loaded once and downscaled onto the tray
+// Character sprite PNGs (128x128), decoded once and downscaled onto the tray
 // icon — the icon is derived from the same registry image as the character
 // window, so new characters need no tray-specific artwork.
-const characterImageCache = new Map(); // name -> Promise<Image|null>
+const characterImageCache = new Map(); // name -> Promise<{width, height, data}|null>
 
 function getCharacterImage(name) {
   if (!characterImageCache.has(name)) {
@@ -25,11 +25,13 @@ function getCharacterImage(name) {
     const imagePath = path.join(__dirname, '..', 'assets', 'characters', config.image);
     characterImageCache.set(
       name,
-      // Read through Electron's asar-aware fs and hand loadImage a Buffer:
-      // node-canvas reads path arguments with its own native I/O, which
-      // cannot see inside app.asar in packaged builds.
+      // Electron's fs reads inside app.asar in packaged builds.
       fs.promises.readFile(imagePath)
-        .then((buffer) => loadImage(buffer))
+        .then((buffer) => {
+          const image = nativeImage.createFromBuffer(buffer);
+          if (image.isEmpty()) throw new Error('not a decodable PNG');
+          return { ...image.getSize(), data: image.toBitmap() };
+        })
         .catch((err) => {
           console.warn(`Failed to load tray character image ${config.image}:`, err.message);
           return null;
@@ -40,46 +42,27 @@ function getCharacterImage(name) {
 }
 
 /**
- * Draw the tray icon canvas: state-colored rounded background, optionally
- * the character sprite (nearest-neighbor downscale), and the attention badge
- * (update available or installed hook scripts drifted).
+ * Draw the tray icon: state-colored rounded background, optionally the
+ * character sprite, and the attention badge.
  * @param {string} state
- * @param {import('canvas').Image|null} characterImage
+ * @param {{width: number, height: number, data: Buffer}|null} sprite
  * @param {boolean} showBadge
  * @returns {Electron.NativeImage}
  */
-function drawTrayIcon(state, characterImage, showBadge) {
+function drawTrayIcon(state, sprite, showBadge) {
   const size = TRAY_ICON_SIZE;
-  const canvas = createCanvas(size, size);
-  const ctx = canvas.getContext('2d');
+  const pixels = trayIconBitmap(size, STATE_COLORS[state] || STATE_COLORS.idle, sprite, showBadge ? ATTENTION_COLOR : null);
+  return nativeImage.createFromBitmap(pixels, { width: size, height: size });
+}
 
-  const bgColor = STATE_COLORS[state] || STATE_COLORS.idle;
-
-  // Clear canvas (transparent)
-  ctx.clearRect(0, 0, size, size);
-
-  // Draw rounded background
-  const radius = 4;
-  ctx.fillStyle = bgColor;
-  ctx.beginPath();
-  ctx.roundRect(0, 0, size, size, radius);
-  ctx.fill();
-
-  if (characterImage) {
-    // Nearest-neighbor keeps the pixel-art look at tray size.
-    ctx.imageSmoothingEnabled = false;
-    ctx.drawImage(characterImage, 1, 1, size - 2, size - 2);
-  }
-
-  if (showBadge) {
-    // Small badge in the top-right corner signaling attention is needed.
-    ctx.fillStyle = ATTENTION_COLOR;
-    ctx.beginPath();
-    ctx.arc(size - 5, 5, 3, 0, Math.PI * 2);
-    ctx.fill();
-  }
-
-  return nativeImage.createFromBuffer(canvas.toBuffer('image/png'));
+let attentionDotImage = null;
+/**
+ * The red dot beside a menu item whose page has an issue: the same color as
+ * the tray icon's badge, drawn at 2x for Retina menus.
+ */
+function attentionDot() {
+  attentionDotImage ??= nativeImage.createFromBitmap(dotBitmap(32, ATTENTION_COLOR), { width: 32, height: 32, scaleFactor: 2 });
+  return attentionDotImage;
 }
 
 /**
@@ -87,24 +70,6 @@ function drawTrayIcon(state, characterImage, showBadge) {
  * registry sprite.
  * @returns {Promise<Electron.NativeImage>}
  */
-let attentionDotImage = null;
-/**
- * The red dot beside a menu item whose page has an issue: the same color as
- * the tray icon's badge, drawn at 2x for Retina menus.
- */
-function attentionDot() {
-  if (!attentionDotImage) {
-    const canvas = createCanvas(32, 32);
-    const ctx = canvas.getContext('2d');
-    ctx.fillStyle = ATTENTION_COLOR;
-    ctx.beginPath();
-    ctx.arc(16, 16, 8, 0, Math.PI * 2);
-    ctx.fill();
-    attentionDotImage = nativeImage.createFromBuffer(canvas.toBuffer('image/png'), { scaleFactor: 2 });
-  }
-  return attentionDotImage;
-}
-
 async function createTrayIcon(state, character = DEFAULT_CHARACTER, showBadge = false) {
   const name = Object.hasOwn(CHARACTER_CONFIG, character) ? character : DEFAULT_CHARACTER;
   const cacheKey = `${state}-${name}-${showBadge}`;
@@ -114,8 +79,7 @@ async function createTrayIcon(state, character = DEFAULT_CHARACTER, showBadge = 
     return trayIconCache.get(cacheKey);
   }
 
-  const characterImage = await getCharacterImage(name);
-  const icon = drawTrayIcon(state, characterImage, showBadge);
+  const icon = drawTrayIcon(state, await getCharacterImage(name), showBadge);
 
   trayIconCache.set(cacheKey, icon);
   return icon;
