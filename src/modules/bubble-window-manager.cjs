@@ -110,6 +110,10 @@ function buildFieldPayload(state, speechBubbleFields, { observedAt = state?.obse
  * @param {Object|null} state
  * @returns {string} hex color
  */
+function resolveBgColor(state) {
+  return (state && STATE_COLORS[state.state]) || STATE_COLORS.idle;
+}
+
 // The renderer call that draws a bubble. Without a placement it measures the
 // content with a bottom tail and leaves the current scale unchanged.
 function bubbleContent(fields, bgColor, placement = null) {
@@ -117,10 +121,6 @@ function bubbleContent(fields, bgColor, placement = null) {
     ? [fields, placement.tailOffset, placement.tailSide, bgColor, placement.scale || 1]
     : [fields, 0, 'bottom', bgColor];
   return `window.__setBubbleContent(${args.map(value => JSON.stringify(value)).join(', ')})`;
-}
-
-function resolveBgColor(state) {
-  return (state && STATE_COLORS[state.state]) || STATE_COLORS.idle;
 }
 
 class BubbleWindowManager {

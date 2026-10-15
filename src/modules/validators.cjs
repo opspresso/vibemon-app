@@ -52,6 +52,8 @@ function optionalText(name, maxLength) {
   };
 }
 
+// Names outside CHARACTER_NAMES pass here; state-manager normalizes them to
+// DEFAULT_CHARACTER, so a bridge that sends a removed character still reports.
 const validateCharacter = optionalText('Character name', CHARACTER_MAX_LENGTH);
 const validateProject = optionalText('Project name', PROJECT_MAX_LENGTH);
 const validateTool = optionalText('Tool name', TOOL_MAX_LENGTH);
