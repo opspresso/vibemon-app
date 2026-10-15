@@ -812,6 +812,28 @@ class LegacyKiroCleanupTest(unittest.TestCase):
             ))
 
 
+class RemoveLegacyKiroAgentTest(unittest.TestCase):
+    def test_deletes_an_agent_file_left_with_no_user_content(self):
+        for leftover in (
+            {"hooks": {"stop": [{"command": "python3", "args": ["~/.kiro/hooks/vibemon.py", "agentStop"]}]}},
+            {"hooks": {}},
+        ):
+            with self.subTest(leftover=leftover), tempfile.TemporaryDirectory() as directory:
+                agent_file = Path(directory) / "agents" / "default.json"
+                agent_file.parent.mkdir()
+                agent_file.write_text(json.dumps(leftover))
+                install.remove_legacy_kiro_hooks(Path(directory))
+                self.assertFalse(agent_file.exists())
+
+    def test_keeps_an_agent_file_with_user_content(self):
+        with tempfile.TemporaryDirectory() as directory:
+            agent_file = Path(directory) / "agents" / "default.json"
+            agent_file.parent.mkdir()
+            agent_file.write_text(json.dumps({"name": "default", "hooks": {}}))
+            install.remove_legacy_kiro_hooks(Path(directory))
+            self.assertEqual(json.loads(agent_file.read_text()), {"name": "default", "hooks": {}})
+
+
 class InstallKiroV1Test(unittest.TestCase):
     def test_installs_global_config_and_migrates_legacy_agent(self):
         with tempfile.TemporaryDirectory() as directory:

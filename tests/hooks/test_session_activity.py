@@ -202,7 +202,7 @@ def test_a_hook_during_the_check_outranks_an_older_interrupt(path, clock, alive,
         activity.record(path, event("UserPromptSubmit"), Transition("thinking"))
         return True
 
-    monkeypatch.setattr(activity, "transcript_interrupted", interrupted_then_resumed)
+    monkeypatch.setattr(activity, "transcript_ended", interrupted_then_resumed)
     assert activity.tick(path, "s1", ME) is None
     assert cache(path)["sessions"]["s1"]["open"] is True
 
@@ -256,7 +256,25 @@ def test_transcript_interrupts_count_only_as_the_newest_conversation_record(tmp_
         for kind, text, offset in records
     ))
     os.utime(transcript, (since / 1000 + 10, since / 1000 + 10))
-    assert activity.transcript_interrupted(str(transcript), since) is expected
+    assert activity.transcript_ended(str(transcript), since) is expected
+
+
+@pytest.mark.parametrize("records,expected", [
+    ([("user", 1_500), ("turn_start", 1_600), ("assistant", 1_900), ("turn_end", 2_000)], True),
+    ([("turn_end", 500)], False),
+    ([("turn_end", 2_000), ("user", 2_500), ("turn_start", 2_600)], False),
+    ([("turn_start", 2_000), ("assistant", 2_100), ("session_metadata", 2_200)], False),
+    ([("turn_end", 2_000), ("session_event", 2_100)], True),
+])
+def test_kiro_turn_end_closes_a_turn_that_ran_no_stop_hook(tmp_path, records, expected):
+    since = START_MS + 1_000
+    transcript = tmp_path / "messages.jsonl"
+    transcript.write_text("".join(
+        json.dumps({"id": str(offset), "timestamp": activity.observation_time(START_MS + offset), "payload": {"type": kind, "stopReason": "cancelled"}}) + "\n"
+        for kind, offset in records
+    ))
+    os.utime(transcript, (since / 1000 + 10, since / 1000 + 10))
+    assert activity.transcript_ended(str(transcript), since) is expected
 
 
 @pytest.mark.process_tree

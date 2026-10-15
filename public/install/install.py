@@ -1305,10 +1305,17 @@ def install_codex(source: FileSource, cli_token: str = None) -> bool:
 
 def remove_legacy_kiro_hooks(kiro_home: Path) -> None:
     """Remove only VibeMon's IDE 0.x / CLI 2.x hook registrations."""
-    _uninstall_hooks_from_json(
-        kiro_home / "agents" / "default.json", [],
-        display_path(kiro_home / "agents" / "default.json"),
-    )
+    agent_file = kiro_home / "agents" / "default.json"
+    _uninstall_hooks_from_json(agent_file, [], display_path(agent_file))
+    # Old installers created this agent with hooks only. Kiro rejects an agent
+    # without a name, so delete the file when no user content is left in it.
+    if agent_file.is_file():
+        try:
+            agent = json.loads(agent_file.read_text(encoding="utf-8"))
+        except ValueError:
+            agent = None
+        if agent in ({}, {"hooks": {}}):
+            remove_path(agent_file, display_path(agent_file))
     for hook_file in LEGACY_KIRO_HOOK_FILES:
         remove_path(
             kiro_home / "hooks" / hook_file,

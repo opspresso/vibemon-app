@@ -24,7 +24,7 @@ VibeMon normalizes multiple agent ecosystems into one display model. The renderi
 |------|-------------------|--------------------|-----------------------|----------------------|
 | Claude Code | Native hooks | Session, turn, and tool hooks | High | None significant for basic monitoring |
 | Codex | Native hooks and non-interactive JSON output | Interactive lifecycle and local tool hooks, `codex exec --json` for automation | High | Hosted tools such as WebSearch do not pass through local tool hooks |
-| Kiro | Native hooks | Prompt, tool, and stop hooks | Medium to high | Kiro documents no cancel event. A cancelled turn can stay active until its next event. When a CLI V3 session ends, `SessionEnd` reports `done` |
+| Kiro | Native hooks | Prompt, tool, and stop hooks | Medium to high | A cancelled CLI V3 turn runs no Stop hook. The watcher reads `turn_end` from the V3 session record and reports `done`; `SessionEnd` reports `done` when the session ends. The default CLI 2.x V2 engine runs no global hooks |
 | OpenClaw | Plugin bridge | Plugin SDK hooks | Medium to high | Internal hooks are not enough by themselves for full tool-loop visibility |
 | OpenCode | Plugin + Python adapter | Session, chat, tool, permission, and compaction events | High | No context or plan-usage metrics; uses the default character until registered in this repository |
 
