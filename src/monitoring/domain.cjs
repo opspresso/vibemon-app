@@ -55,13 +55,13 @@ function validateTrend(value, definitions = METRICS) {
     return { timestamp: point.timestamp, samples: point.samples, expiresAt: point.expiresAt, average, maximum };
   });
 }
-module.exports = { METRICS, validId, webOrigin, validateSources, validateTrend, validateDefinitions, validateOrder, displayMetrics, metricCatalog };
 
 function validAccountId(value) {
   if (typeof value !== 'string') return false;
   const separator = value.indexOf(':');
   return separator > 0 && /^[a-z][a-z0-9_-]{0,31}$/.test(value.slice(0, separator)) && validId(value.slice(separator + 1));
 }
-module.exports.accountId = accountId;
-module.exports.validAccountId = validAccountId;
-module.exports.groupAccounts = groupAccounts;
+module.exports = {
+  METRICS, validId, validAccountId, accountId, groupAccounts, webOrigin,
+  validateSources, validateTrend, validateDefinitions, validateOrder, displayMetrics, metricCatalog
+};
