@@ -17,7 +17,8 @@
  *   tool hook execute.after            -> PostToolUse        -> thinking
  *   permission.asked                   -> PermissionRequest  -> notification
  *   session.compaction.started         -> PreCompact         -> packing
- *   session.compaction.ended           -> PostCompact        -> thinking
+ *   session.compaction.ended,
+ *     .failed                          -> PostCompact        -> thinking
  *   session.execution.succeeded,
  *     .failed, .interrupted            -> Stop               -> done
  *   session.deleted                    -> SessionEnd         -> done
@@ -45,8 +46,10 @@ const payloadQueue = [];
 let draining = false;
 
 function dispatch(payload) {
+  // A newer state replaces a pending one of the same session. A tool event
+  // is never replaced: the hook tracks which tool calls are still running.
   const pending = payloadQueue.findIndex((entry) =>
-    entry.session_id === payload.session_id && entry.cwd === payload.cwd);
+    entry.session_id === payload.session_id && entry.cwd === payload.cwd && !entry.tool_use_id);
   if (pending !== -1) payloadQueue.splice(pending, 1);
   payloadQueue.push(payload);
   if (payloadQueue.length > MAX_QUEUED_PAYLOADS) {
@@ -161,7 +164,7 @@ function setup(ctx) {
     lookups.get(sessionID).then(run);
   }
 
-  function sendStatus(state, eventName, sessionID, tool = "") {
+  function sendStatus(state, eventName, sessionID, tool = "", toolUseID = "") {
     if (!state.owned) return;
     // The parent's subagent tool already represents child work. A child's
     // completion must not mark the still-running parent as done.
@@ -172,6 +175,7 @@ function setup(ctx) {
       hook_event_name: eventName,
       session_id: sessionID,
       tool_name: text(tool),
+      tool_use_id: text(toolUseID),
       cwd: directory,
       transcript_path: "",
       permission_mode: state.agent === "plan" ? "plan" : "default",
@@ -185,6 +189,7 @@ function setup(ctx) {
     "permission.asked": "PermissionRequest",
     "session.compaction.started": "PreCompact",
     "session.compaction.ended": "PostCompact",
+    "session.compaction.failed": "PostCompact",
     "session.execution.succeeded": "Stop",
     "session.execution.failed": "Stop",
     "session.execution.interrupted": "Stop",
@@ -209,7 +214,8 @@ function setup(ctx) {
     } else if (STATUS_EVENTS[event.type]) {
       const eventName = STATUS_EVENTS[event.type];
       withSession(sessionID, (state) => {
-        sendStatus(state, eventName, sessionID, event.type === "permission.asked" ? data.action : "");
+        sendStatus(state, eventName, sessionID, event.type === "permission.asked" ? data.action : "",
+          event.type === "permission.asked" ? data.tool?.callID : "");
         if (eventName === "SessionEnd") sessions.delete(sessionID);
       });
     }
@@ -223,7 +229,8 @@ function setup(ctx) {
     withSession(sessionID, (state) => {
       state.owned = true;
       state.agent = text(event.agent) || state.agent;
-      sendStatus(state, eventName, sessionID, event.tool);
+      // `id` is the tool call ID, so parallel calls are tracked separately.
+      sendStatus(state, eventName, sessionID, event.tool, event.id);
     });
   };
   ctx.tool.hook("execute.before", toolHook("PreToolUse"));

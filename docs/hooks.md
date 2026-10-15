@@ -265,15 +265,15 @@ The plugin default-exports the opencode 2.x definition `{ id, setup }`. `setup` 
 
 - `session.created` → SessionStart
 - `session.execution.started` or `session.retry.scheduled` → UserPromptSubmit
-- tool hook `execute.before` → PreToolUse
-- tool hook `execute.after` → PostToolUse
+- tool hook `execute.before` → PreToolUse, with the tool call `id` as `tool_use_id`
+- tool hook `execute.after` → PostToolUse, with the same `tool_use_id`
 - `permission.asked` → PermissionRequest
 - `session.compaction.started` → PreCompact
-- `session.compaction.ended` → PostCompact
+- `session.compaction.ended` or `session.compaction.failed` → PostCompact
 - `session.execution.succeeded`, `session.execution.failed`, or `session.execution.interrupted` → Stop
 - `session.deleted` → SessionEnd
 
-The plugin ignores streaming events (`session.text.*`, `session.reasoning.*`, `session.tool.*`) because they add no state. It sends `Stop` once per completed turn.
+The plugin ignores streaming events (`session.text.*`, `session.reasoning.*`, `session.tool.*`) because they add no state. It sends `Stop` once per completed turn. The adapter queue replaces a pending state of the same session with a newer one, but it never replaces a tool event, because the hook tracks running tool calls by their IDs.
 
 opencode loads the plugin once per project instance (one directory). The event bus delivers the events of every instance, so each plugin instance sends only the sessions whose `location.directory` equals its own directory. That directory is the payload `cwd`.
 
