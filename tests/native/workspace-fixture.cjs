@@ -92,7 +92,7 @@ async function startFixture() {
   await client.configure({ url: 'https://vibemon.io', token: TOKEN });
   installWorkspaceMenu({ open: page => view.open(page), showCompanion: ports.showCompanion });
   // Selecting the native menu action creates the workspace; the tray alone does not.
-  const selectDashboard = () => Menu.buildFromTemplate(trayManager.buildMenuTemplate()).items.find(item => item.label === 'Dashboard').click();
+  const selectDashboard = () => Menu.buildFromTemplate(trayManager.buildMenuTemplate()).items.find(item => item.label.startsWith('Dashboard')).click();
   assert.equal(view.window, null, 'creating the tray does not open the workspace');
   selectDashboard();
   view.window.webContents.on('console-message', details => {
