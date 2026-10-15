@@ -250,7 +250,8 @@ startFixture().then(async fixture => {
   assert.equal(client.snapshot().attentionCount, 0);
   assert.equal(trayManager.notices.dashboard, null, 'inactive agents do not mark the Dashboard menu item');
   assert.equal(trayManager.notices.integrations, 'Codex CLI has an update', 'the fixture update stays assigned to Integrations');
-  assert.equal(Menu.buildFromTemplate(trayManager.buildMenuTemplate()).items.find(item => item.label === 'Integrations…').sublabel, 'Codex CLI has an update', 'the native menu item names the issue');
+  const integrationsItem = Menu.buildFromTemplate(trayManager.buildMenuTemplate()).items.find(item => item.label.startsWith('Integrations…'));
+  assert.ok((process.platform === 'darwin' ? integrationsItem.sublabel : integrationsItem.label).includes('Codex CLI has an update'), 'the native menu item names the issue');
   await navigate('overview');
   assert.equal(await text('#summary-attention'), '0');
   await click('#overview-attention');
