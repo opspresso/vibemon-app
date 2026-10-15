@@ -2,7 +2,7 @@
 import math
 from concurrent.futures import ThreadPoolExecutor
 from urllib.parse import urlencode
-from .domain import Sample
+from .domain import Sample, cluster_health
 
 QUERIES = {
     "cpuPercent": '100 * (1 - avg(rate(node_cpu_seconds_total{mode="idle"}[2m])))',
@@ -56,7 +56,4 @@ class PrometheusSampler:
             for key, value, error in executor.map(query, self.metrics):
                 values[key] = value
                 failed |= error
-        missing = any(value is None for value in values.values())
-        unhealthy = (values.get("podsUnhealthy") or 0) > 0 or (values.get("nodesReady") is not None and values.get("nodesTotal") is not None and values["nodesReady"] < values["nodesTotal"])
-        health = "error" if failed else "unknown" if missing else "warning" if unhealthy else "ok"
-        return Sample(values, health)
+        return Sample(values, cluster_health(values, failed))
