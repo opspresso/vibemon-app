@@ -9,24 +9,13 @@
  * sandbox instead of require()d.
  */
 
-const fs = require('fs');
-const path = require('path');
-const vm = require('vm');
+const { loadBrowserModule } = require('./helpers/browser-module.cjs');
 const { VALID_STATES } = require('../src/shared/states.cjs');
 const { CHARACTER_NAMES, CHARACTER_CONFIG } = require('../src/shared/characters.cjs');
 
 function loadMonsterStates() {
-  const src = fs.readFileSync(
-    path.join(__dirname, '..', 'src', 'engine', 'monster-states.js'),
-    'utf8'
-  )
-    .replace(/^export /gm, '')
-    + '\nmodule.exports = { JOINTS, MOVES, EYE_MODES, STATE_ANIMATIONS, ' +
-      'DEFAULT_THEME, getCharacterTheme, getStateAnimation, lerp, dampFactor };';
-
-  const mod = { exports: {} };
-  vm.runInNewContext(src, { module: mod, exports: mod.exports, console });
-  return mod.exports;
+  return loadBrowserModule('src/engine/monster-states.js', ['JOINTS', 'MOVES', 'EYE_MODES', 'STATE_ANIMATIONS',
+    'DEFAULT_THEME', 'getCharacterTheme', 'getStateAnimation', 'lerp', 'dampFactor']);
 }
 
 const {

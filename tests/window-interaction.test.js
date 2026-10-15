@@ -1,6 +1,4 @@
-const fs = require('fs');
-const path = require('path');
-const vm = require('vm');
+const { loadBrowserModule } = require('./helpers/browser-module.cjs');
 
 function loadInteraction() {
   const events = new Map();
@@ -16,13 +14,11 @@ function loadInteraction() {
     createElement: () => ({ getContext: () => context }),
     documentElement: { setPointerCapture: jest.fn(), hasPointerCapture: () => true, releasePointerCapture: jest.fn() }
   };
-  const sandbox = {
-    document, window: { ...target, electronAPI: api }, console,
+  const module = loadBrowserModule('src/shared/window-interaction.js', ['createCharacterHitTest', 'hitTestBubble', 'installWindowInteraction'], {
+    document, window: { ...target, electronAPI: api },
     requestAnimationFrame: jest.fn(), cancelAnimationFrame: jest.fn()
-  };
-  const code = fs.readFileSync(path.join(__dirname, '../src/shared/window-interaction.js'), 'utf8').replaceAll('export function ', 'function ');
-  vm.runInNewContext(code + '\nthis.result = { createCharacterHitTest, hitTestBubble, installWindowInteraction };', sandbox);
-  return { ...sandbox.result, context, api, events, document };
+  });
+  return { ...module, context, api, events, document };
 }
 
 describe('createCharacterHitTest', () => {
