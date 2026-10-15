@@ -28,8 +28,9 @@ for helper_dir in (Path(__file__).resolve().parent.parent / "vibemon", VIBEMON_H
         sys.path.insert(0, str(helper_dir))
         break
 
-from cache_io import update_json_cache
-
+# The helpers resolve only after the path setup above.
+from account_context import project_cache_key  # noqa: E402
+from cache_io import update_json_cache  # noqa: E402
 from usage_cache import (  # noqa: E402
     CACHE_STALE_SECONDS,
     get_fresh_provider,
@@ -366,9 +367,6 @@ def get_context_usage(data: dict[str, Any]) -> str:
 # ============================================================================
 # VibeMon Cache Functions
 # ============================================================================
-
-
-from account_context import project_cache_key
 
 
 def get_cache_path() -> str:

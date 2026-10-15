@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from account_context import cache_key
-
 import json
 import math
 import os
@@ -13,6 +11,7 @@ from datetime import datetime
 from decimal import Decimal, ROUND_HALF_UP
 from typing import Any
 
+from account_context import cache_key
 from cache_io import update_json_cache
 
 MAX_CLOCK_SKEW_SECONDS = 30
@@ -53,7 +52,6 @@ def reverse_jsonl(path: str):
                     yield value
     except OSError:
         return
-
 
 
 def parse_epoch(value: Any) -> float | None:
@@ -229,7 +227,7 @@ def load_usage_cache(cache_path: str) -> dict[str, Any] | None:
         with open(cache_path, encoding="utf-8") as f:
             data = json.load(f)
         return data if isinstance(data, dict) else None
-    except (FileNotFoundError, json.JSONDecodeError, IOError):
+    except (OSError, json.JSONDecodeError):
         return None
 
 
