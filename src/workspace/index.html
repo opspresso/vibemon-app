@@ -27,11 +27,11 @@
           </button>
           <button data-page-link="resources">
             <span data-icon="resources"></span><span>Resources</span
-            ><span id="nav-resources" class="nav-count">0</span>
+            ><span class="attention-dot" data-attention="resources" role="img" hidden></span><span id="nav-resources" class="nav-count">0</span>
           </button>
           <button data-page-link="agents">
             <span data-icon="agents"></span><span>Coding agents</span
-            ><span id="nav-agents" class="nav-count">0</span>
+            ><span class="attention-dot" data-attention="agents" role="img" hidden></span><span id="nav-agents" class="nav-count">0</span>
           </button>
         </nav>
         <div class="sidebar-bottom">
@@ -43,7 +43,7 @@
           <nav aria-label="Application navigation">
             <button data-page-link="companion" data-settings-nav>
               <span data-icon="settings"></span><span>Settings</span
-              ><span id="settings-attention" class="attention-dot" hidden></span>
+              ><span class="attention-dot" data-attention="settings" role="img" hidden></span>
             </button>
           </nav>
           <button class="workspace-connection" data-page-link="connections">
@@ -213,10 +213,10 @@
           </div>
         </section>
         <nav id="settings-tabs" class="settings-tabs" aria-label="Settings categories" hidden>
-          <button data-page-link="connections">Connections</button
+          <button data-page-link="connections">Connections<span class="attention-dot" data-attention="connections" role="img" hidden></span></button
           ><button data-page-link="companion">Companion</button
-          ><button data-page-link="integrations">Integrations</button
-          ><button data-page-link="about">About</button>
+          ><button data-page-link="integrations">Integrations<span class="attention-dot" data-attention="integrations" role="img" hidden></span></button
+          ><button data-page-link="about">About<span class="attention-dot" data-attention="about" role="img" hidden></span></button>
         </nav>
         <section data-page="connections" hidden>
           <div class="settings-intro">
