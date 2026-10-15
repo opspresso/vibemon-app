@@ -40,7 +40,7 @@ After installation, edit `~/.vibemon/config.json` to configure your targets:
 | `cache_path` | Cache file path for project metadata | `~/.vibemon/cache/projects.json` |
 | `auto_launch` | Auto-launch Desktop App on session start | `true` |
 | `http_urls` | Local status-push targets (Desktop App or legacy ESP32-C6 firmware) | `["http://127.0.0.1:19280"]` |
-| `serial_port` | Legacy ESP32-C6 USB serial port (wildcard supported; POSIX only, ignored on Windows) | `"/dev/cu.usbmodem*"` |
+| `serial_port` | Legacy ESP32-C6 USB serial port (`~` and `*` wildcard supported; POSIX only, ignored on Windows) | `"/dev/cu.usbmodem*"` |
 | `vibemon_url` | VibeMon cloud API URL | `https://vibemon.io` |
 | `vibemon_token` | Generated write token (from /account) | |
 
@@ -83,6 +83,8 @@ The OpenClaw plugin reads transmission settings (`http_urls`, `serial_port`, `vi
 ```
 
 To override the shared settings for OpenClaw only, add a `config` object to the entry (`projectName`, `character`, `httpEnabled`, `httpUrls`, `serialEnabled`, `vibemonUrl`, `vibemonToken`, `autoLaunch`, `debug`) — plugin config always wins over `~/.vibemon/config.json`.
+
+Serial output from OpenClaw needs a port setting: `serialPort` in the plugin config or `serial_port` in `~/.vibemon/config.json`. The plugin does not search for devices. `vibemon_core.py` resolves the setting the same way for every tool.
 
 After installing or updating the plugin, rebuild OpenClaw's persisted plugin registry and restart the gateway (`openclaw plugins registry --refresh && openclaw gateway restart`) — the gateway boots from a registry snapshot and won't pick up the plugin's hooks otherwise. The installer runs the refresh automatically. A missing CLI or failed refresh returns a failing installation/removal result; resolve that error and retry before restarting the gateway.
 

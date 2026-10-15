@@ -13,7 +13,7 @@
  * - gateway_start -> start
  *
  * Output:
- * - Serial: /dev/ttyACM* (Linux) or /dev/cu.usbmodem* (macOS)
+ * - Serial: the configured port, resolved and written by vibemon_core.py
  * - HTTP: POST to multiple URLs (array in config)
  */
 
@@ -29,7 +29,6 @@ const CHARACTER = "claw";
 // State management
 let currentState = "idle";
 let doneTimer = null;
-let ttyPath = null;
 let lastSendTime = 0;
 let lastPayload = "";
 // The newest state and its fields, which a heartbeat repeats.
@@ -207,9 +206,7 @@ function resolveConfig() {
  */
 function refreshConfig() {
   if (loadSharedConfig()) {
-    const previousPort = config.serialPort;
     config = resolveConfig();
-    if (previousPort !== config.serialPort) ttyPath = null;
     lastPayload = "";
     debug(`Shared config reloaded (HTTP: ${config.httpEnabled}, ${config.httpUrls.length} URLs)`);
   }
@@ -276,106 +273,13 @@ function readModelFromConfig() {
 }
 
 /**
- * Find available TTY device for ESP32
- */
-function findTtyDevice() {
-  const platform = process.platform;
-
-  // macOS: /dev/cu.usbmodem*
-  if (platform === "darwin") {
-    try {
-      const devices = fs.readdirSync("/dev").filter((f) => f.startsWith("cu.usbmodem"));
-      if (devices.length > 0) {
-        const device = `/dev/${devices[0]}`;
-        if (fs.existsSync(device)) {
-          try {
-            fs.accessSync(device, fs.constants.W_OK);
-            return device;
-          } catch {
-            debug(`Found ${device} but not writable`);
-          }
-        }
-      }
-    } catch {
-      // ignore
-    }
-  }
-
-  // Linux: /dev/ttyACM*
-  if (platform === "linux") {
-    try {
-      const devices = fs.readdirSync("/dev").filter((f) => f.startsWith("ttyACM"));
-      if (devices.length > 0) {
-        const device = `/dev/${devices[0]}`;
-        if (fs.existsSync(device)) {
-          try {
-            fs.accessSync(device, fs.constants.W_OK);
-            return device;
-          } catch {
-            debug(`Found ${device} but not writable (check dialout group)`);
-          }
-        }
-      }
-    } catch {
-      // ignore
-    }
-  }
-
-  return null;
-}
-
-/**
- * Resolve a configured serial_port: expand `~`, and expand a single `*`
- * wildcard against the device directory (mirroring vibemon_core's
- * resolve_serial_port). Returns null when nothing matches.
- */
-function resolveSerialPort(pattern) {
-  if (typeof pattern !== "string" || !pattern) return null;
-
-  let resolved = pattern.trim();
-  if (resolved.startsWith("~")) {
-    resolved = path.join(os.homedir(), resolved.slice(1));
-  }
-  if (!resolved.includes("*")) {
-    return fs.existsSync(resolved) ? resolved : null;
-  }
-
-  const dir = path.dirname(resolved);
-  const base = path.basename(resolved);
-  const regex = new RegExp(
-    "^" + base.split("*").map((part) => part.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join(".*") + "$",
-  );
-  try {
-    const matches = fs.readdirSync(dir).filter((name) => regex.test(name)).sort();
-    return matches.length > 0 ? path.join(dir, matches[0]) : null;
-  } catch {
-    return null;
-  }
-}
-
-/**
- * Send status to ESP32 via serial
+ * Send status to the ESP32 via serial. vibemon_core.py resolves the port
+ * setting (`~`, `*` wildcard) exactly as the hooks resolve `serial_port`.
  */
 function sendSerial(payload) {
-  if (!config.serialEnabled) return;
-
-  // Resolve the configured port first; fall back to auto-detection when no
-  // explicit serial_port is set.
-  if (!ttyPath) {
-    ttyPath = config.serialPort
-      ? resolveSerialPort(config.serialPort)
-      : findTtyDevice();
-    if (ttyPath) {
-      debug(`Using TTY: ${ttyPath}`);
-    }
-  }
-
-  if (!ttyPath) return;
-
-  const port = ttyPath;
-  enqueueSend(`serial:${port}`, async () => {
-    if (!await sendCorePayload(["--send-serial", port], payload)) ttyPath = null;
-  });
+  const port = config.serialPort;
+  if (!config.serialEnabled || !port) return;
+  enqueueSend(`serial:${port}`, () => sendCorePayload(["--send-serial", port], payload));
 }
 
 // Shared transport owns serial locking and cloud account/credential boundaries.
@@ -495,7 +399,7 @@ async function sendHttpToUrl(url, payload) {
 async function sendVibeMonApi(payload, target = config) {
   // Check if VibeMon API is configured
   if (!target.vibemonUrl || !target.vibemonToken) {
-    debug(`VibeMon API skipped: url=${config.vibemonUrl ? "set" : "empty"}, token=${config.vibemonToken ? "set" : "empty"}`);
+    debug(`VibeMon API skipped: url=${target.vibemonUrl ? "set" : "empty"}, token=${target.vibemonToken ? "set" : "empty"}`);
     return false;
   }
 
@@ -667,14 +571,8 @@ const plugin = {
       api.logger.info(`[vibemon] VibeMon API: disabled (url: ${config.vibemonUrl ? targetLabel(config.vibemonUrl) : "not set"}, token: ${config.vibemonToken ? "set" : "not set"})`);
     }
 
-    // Find TTY device at startup
-    if (config.serialEnabled) {
-      ttyPath = config.serialPort ? resolveSerialPort(config.serialPort) : findTtyDevice();
-      if (ttyPath) {
-        api.logger.info(`[vibemon] TTY device: ${ttyPath}`);
-      } else {
-        api.logger.warn(`[vibemon] No TTY device found (ESP32 not connected?)`);
-      }
+    if (config.serialEnabled && !config.serialPort) {
+      api.logger.warn("[vibemon] Serial output needs serialPort or serial_port in ~/.vibemon/config.json");
     }
 
     function runKey(event, ctx) {
@@ -737,9 +635,9 @@ const plugin = {
     api.on("before_agent_run", onAgentTurnStart);
     api.on("before_agent_start", onAgentTurnStart);
 
-    api.on("subagent_spawned", () => {
+    api.on("subagent_spawned", (event, ctx) => {
       cancelDoneTimer();
-      sendStatus("working");
+      sendStatus("working", { ...metadata(runs.get(runKey(event, ctx))), tool: "subagent" });
     });
 
     api.on("before_tool_call", (event, ctx) => {
