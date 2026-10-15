@@ -4,7 +4,7 @@ const { memoryStore, sources } = require('./fixtures/workspace.cjs');
 const now = Date.parse('2026-10-13T08:00:00Z');
 const agent = { ...sources(now).find(source => source.kind === 'agent') };
 
-// Hooks report events only: a long tool call or response is silent while the agent works.
+// Agent sources age on their report clock, never on receipt silence: a state stays live until it times out.
 test.each(['working', 'thinking', 'planning', 'packing', 'notification', 'alert'])('a silent %s hook stays live until its event clock expires', state => {
   const source = { ...agent, agent: { ...agent.agent, state } };
   expect(sourceStale(source, now + 600000)).toBe(false);
