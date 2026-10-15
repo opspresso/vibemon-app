@@ -1156,6 +1156,8 @@ def send_cloud_status(provider: str) -> bool:
             # Keep the event time common to local and cloud delivery. The API
             # validates timestamp freshness and rejects out-of-order events.
             context["observedAt"] = payload.get("observedAt")
+        if payload.get("heartbeat") is True:
+            context["heartbeat"] = True
         return send_vibemon_api(config.vibemon_url, config.vibemon_token, payload, context)
     except ValueError:
         print("[vibemon] Invalid cloud account configuration", file=sys.stderr)

@@ -32,6 +32,9 @@ let doneTimer = null;
 let ttyPath = null;
 let lastSendTime = 0;
 let lastPayload = "";
+// The newest state and its fields, which a heartbeat repeats.
+let lastStatus = null;
+let heartbeatTimer = null;
 let hostConfig = {};
 const runs = new Map();
 const sendLanes = new Map();
@@ -73,6 +76,11 @@ const DONE_DELAY_MS = 3000;
 
 // Minimum interval between sends (debounce)
 const MIN_SEND_INTERVAL_MS = 100;
+
+// While a run is active, repeat its state after this much silence. Displays
+// age an active state to idle after 5 minutes without a report.
+const HEARTBEAT_MS = 60000;
+const ACTIVE_STATES = new Set(["thinking", "planning", "working", "packing", "notification"]);
 
 /**
  * Debug logging helper
@@ -547,6 +555,9 @@ function sendStatus(state, extra = {}) {
   lastSendTime = now;
   lastPayload = signature;
   currentState = state;
+  const { heartbeat, ...fields } = extra;
+  if (!heartbeat) lastStatus = { state, fields };
+  updateHeartbeat();
   payload.observedAt = new Date(now).toISOString();
 
   // Queue serial output through the shared Python transport
@@ -579,6 +590,22 @@ function enqueueSend(key, send) {
     sendLanes.delete(key);
   })();
   return lane.done;
+}
+
+/**
+ * Keep an active run visible: a long tool call or model response sends no
+ * event, so repeat the newest active state HEARTBEAT_MS after the last report
+ * while runs remain. Every report restarts the countdown.
+ */
+function updateHeartbeat() {
+  if (heartbeatTimer) clearTimeout(heartbeatTimer);
+  heartbeatTimer = null;
+  if (!runs.size || !lastStatus || !ACTIVE_STATES.has(lastStatus.state)) return;
+  heartbeatTimer = setTimeout(() => {
+    heartbeatTimer = null;
+    if (runs.size) sendStatus(lastStatus.state, { ...lastStatus.fields, heartbeat: true });
+  }, HEARTBEAT_MS);
+  heartbeatTimer.unref?.();
 }
 
 /**

@@ -122,6 +122,26 @@ test("parallel runs and tools remain active until the last one finishes", async 
   assert.equal(h.states().at(-1), "done");
 });
 
+test("a silent active run repeats its state as a heartbeat until it ends", async () => {
+  const h = await openclaw();
+  await h.emit("before_agent_run", {}, ctx);
+  await h.emit("before_tool_call", { toolName: "exec", toolCallId: "long" }, ctx);
+  await h.advance(59999);
+  assert.deepEqual(h.states(), ["thinking", "working"]);
+  await h.advance(1);
+  await h.advance(60000);
+  assert.deepEqual(h.states(), ["thinking", "working", "working", "working"]);
+  const beat = h.requests.at(-1).payload;
+  assert.equal(beat.heartbeat, true);
+  assert.equal(beat.tool, "exec");
+  await h.emit("after_tool_call", { toolName: "exec", toolCallId: "long" }, ctx);
+  assert.equal(h.requests.at(-1).payload.heartbeat, undefined);
+  await h.emit("agent_end", { success: true }, ctx);
+  await h.advance(3000);
+  await h.advance(600000);
+  assert.deepEqual(h.states().slice(-2), ["thinking", "done"]);
+});
+
 test("usage and active model follow official llm_output fields and reset per run", async () => {
   const h = await openclaw({ config: { agents: { defaults: { model: "provider/default" } } } });
   await h.emit("before_agent_run", {}, ctx);

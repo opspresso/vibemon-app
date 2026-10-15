@@ -343,3 +343,15 @@ def test_a_real_watcher_reports_done_when_its_agent_exits(tmp_path):
     assert [report["state"] for report in received] == ["done"]
     assert received[0]["project"] == "real" and "heartbeat" not in received[0]
     assert cache(path)["sessions"]["s1"]["open"] is False
+
+
+def test_plugin_heartbeats_reach_the_cloud_marked():
+    config = SimpleNamespace(vibemon_url="https://cloud.example", vibemon_token="fixture-write")
+    payload = {"state": "working", "project": "p", "observedAt": "2026-10-15T00:00:00.000Z", "heartbeat": True}
+    with (
+        patch.object(core, "get_config", return_value=config),
+        patch.object(core, "read_input", return_value=json.dumps(payload)),
+        patch.object(core, "send_vibemon_api", return_value=True) as send,
+    ):
+        assert core.send_cloud_status("openclaw")
+    assert send.call_args.args[3]["heartbeat"] is True
