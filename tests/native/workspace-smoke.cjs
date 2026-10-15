@@ -200,6 +200,18 @@ startFixture().then(async fixture => {
 
   await navigate('agents');
   assert.equal(await ui('document.querySelectorAll("#agent-cards .card").length'), 4);
+  state.sources = () => originalSources().map(source => source.sourceId === 'codex-personal'
+    ? { ...source, observedAt: new Date(Date.now() - 600000).toISOString() }
+    : source);
+  await client.poll(true); await published();
+  assert.deepEqual(await ui('[...document.querySelectorAll("#agent-cards h3")].map(node => node.textContent)'), ['experiments', 'web-console', 'web-console', 'api-gateway'], 'inactive accounts follow all reporting accounts');
+  await screenshot('agent-inactive-last');
+  await navigate('overview');
+  assert.deepEqual(await ui('[...document.querySelectorAll("#overview-accounts h3")].map(node => node.textContent)'), ['experiments', 'web-console', 'web-console'], 'overview applies activity ordering before its three-card limit');
+  state.sources = originalSources;
+  await client.poll(true); await published();
+  await navigate('agents');
+  assert.deepEqual(await ui('[...document.querySelectorAll("#agent-cards h3")].map(node => node.textContent)'), ['experiments', 'api-gateway', 'web-console', 'web-console'], 'resumed accounts regain their position while idle stays ahead of inactive');
   for (const [name, states] of [['agent-active-states', ['working', 'planning', 'thinking', 'packing']], ['agent-response-states', ['done', 'idle', 'alert', 'notification']]]) {
     state.sources = () => {
       let index = 0;
