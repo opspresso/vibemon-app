@@ -860,6 +860,18 @@ class InstallKiroV1Test(unittest.TestCase):
             )
 
 
+class UninstallKiroTest(unittest.TestCase):
+    def test_removes_every_hook_config_and_the_script(self):
+        with tempfile.TemporaryDirectory() as directory:
+            home = Path(directory)
+            (home / ".kiro").mkdir()
+            source = install.FileSource(DOCS_DIR)
+            with PosixInstall(home):
+                self.assertTrue(install.install_kiro(source))
+                self.assertTrue(install.uninstall_kiro(source))
+            self.assertEqual(sorted(p.name for p in (home / ".kiro" / "hooks").iterdir()), [])
+
+
 class InstallCodexOwnershipTest(unittest.TestCase):
     def test_does_not_create_machine_config(self):
         with tempfile.TemporaryDirectory() as directory:

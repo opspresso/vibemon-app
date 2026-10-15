@@ -390,3 +390,7 @@ def test_kiro_locates_its_v3_session_record(tmp_path, monkeypatch):
     assert locate({"session_id": "sess_missing"}) == ""
     assert locate({"session_id": "../../etc"}) == ""
     assert locate({}) == ""
+    # A KIRO_HOME given with ~ or as a relative path resolves as install.py resolves it.
+    monkeypatch.setenv("HOME", str(tmp_path.parent))
+    monkeypatch.setenv("KIRO_HOME", f"~/{tmp_path.name}")
+    assert locate({"session_id": "sess_7883db40-0d55"}) == str(record.resolve())

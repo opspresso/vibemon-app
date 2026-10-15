@@ -1752,10 +1752,9 @@ def uninstall_kiro(source: FileSource = None, cli_token: str = None) -> bool:
 
     print(f"\n{colored('Removing VibeMon from Kiro IDE...', 'cyan')}\n")
     remove_legacy_kiro_hooks(kiro_home)
-    remove_path(
-        kiro_home / "hooks" / "vibemon.json",
-        display_path(kiro_home / "hooks" / "vibemon.json"),
-    )
+    for remote in KIRO_HOOK_CONFIG_FILES:
+        target = kiro_home / "hooks" / Path(remote).name
+        remove_path(target, display_path(target))
     remove_path(
         kiro_home / "hooks" / "vibemon.py",
         display_path(kiro_home / "hooks" / "vibemon.py"),

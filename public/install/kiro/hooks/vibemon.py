@@ -70,7 +70,9 @@ def locate_transcript(data: dict[str, Any]) -> str:
     session = data.get("session_id")
     if not isinstance(session, str) or not re.fullmatch(r"sess_[0-9A-Za-z-]+", session):
         return ""
-    home = Path(os.environ.get("KIRO_HOME") or Path.home() / ".kiro")
+    # Resolve KIRO_HOME as install.py's tool_home() does.
+    configured = os.environ.get("KIRO_HOME", "").strip()
+    home = Path(configured).expanduser().resolve() if configured else Path.home() / ".kiro"
     matches = sorted((home / "sessions").glob(f"*/{session}/messages.jsonl"))
     return str(matches[0]) if matches else ""
 
