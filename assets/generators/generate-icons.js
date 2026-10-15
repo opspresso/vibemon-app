@@ -1,6 +1,7 @@
 // Generate the mark, companion sprite, and platform icons from shared geometry.
-// macOS iconutil creates the ICNS container; node-canvas renders PNG frames.
-const { createCanvas, loadImage } = require('canvas');
+// Run on macOS: `pnpm exec electron assets/generators/generate-icons.js`.
+// Chromium's canvas renders the PNG frames; macOS iconutil creates the ICNS container.
+const { app, BrowserWindow } = require('electron');
 const fs = require('node:fs');
 const path = require('node:path');
 const os = require('node:os');
@@ -15,23 +16,40 @@ function token(name) {
   if (!value) throw new Error(`Expected a fixed product color: ${name}`);
   return value;
 }
-async function draw(size, mark) {
-  const canvas = createCanvas(size, size);
-  const ctx = canvas.getContext('2d');
-  const padding = size >= 128 ? size / 16 : 0;
-  const background = ctx.createLinearGradient(0, 0, size, size);
-  background.addColorStop(0, token('--vm-sidebar-hover'));
-  background.addColorStop(1, token('--vm-sidebar'));
-  ctx.fillStyle = background;
-  ctx.beginPath();
-  ctx.roundRect(padding, padding, size - 2 * padding, size - 2 * padding, size * .2);
-  ctx.fill();
+// Runs in the page. Each job draws an optional gradient tile, then an SVG image.
+function renderInPage(jobs) {
+  return Promise.all(jobs.map(async job => {
+    const canvas = document.createElement('canvas');
+    canvas.width = canvas.height = job.size;
+    const ctx = canvas.getContext('2d');
+    if (job.tile) {
+      const { padding, radius, from, to } = job.tile;
+      const background = ctx.createLinearGradient(0, 0, job.size, job.size);
+      background.addColorStop(0, from);
+      background.addColorStop(1, to);
+      ctx.fillStyle = background;
+      ctx.beginPath();
+      ctx.roundRect(padding, padding, job.size - 2 * padding, job.size - 2 * padding, radius);
+      ctx.fill();
+    }
+    const image = new Image();
+    image.src = `data:image/svg+xml;base64,${btoa(job.svg)}`;
+    await image.decode();
+    ctx.drawImage(image, job.offset, job.offset, job.box, job.box);
+    return canvas.toDataURL('image/png').split(',')[1];
+  }));
+}
+async function render(window, jobs) {
+  const encoded = await window.webContents.executeJavaScript(`(${renderInPage})(${JSON.stringify(jobs)})`);
+  return encoded.map(data => Buffer.from(data, 'base64'));
+}
+function tileJob(size, mark) {
   const box = size * (size < 64 ? .9 : .78);
-  const source = mark.replace('<svg ', `<svg width="${size}" height="${size}" `)
-    .replaceAll('currentColor', token('--vm-sidebar-accent'));
-  const image = await loadImage(Buffer.from(source));
-  ctx.drawImage(image, (size - box) / 2, (size - box) / 2, box, box);
-  return canvas.toBuffer('image/png');
+  return {
+    size, box, offset: (size - box) / 2,
+    svg: mark.replace('<svg ', `<svg width="${size}" height="${size}" `).replaceAll('currentColor', token('--vm-sidebar-accent')),
+    tile: { padding: size >= 128 ? size / 16 : 0, radius: size * .2, from: token('--vm-sidebar-hover'), to: token('--vm-sidebar') }
+  };
 }
 function ico(frames) {
   const header = Buffer.alloc(6 + frames.length * 16);
@@ -49,7 +67,7 @@ function ico(frames) {
   });
   return Buffer.concat([header, ...frames.map(([, bytes]) => bytes)]);
 }
-async function main() {
+async function generate(window) {
   if (process.platform !== 'darwin') throw new Error('Regenerate the complete icon set on macOS with iconutil');
   const { COMPANION_SIZE, COMPANION_EYES, companionBodyPath, companionEyePath } = await import('../../src/engine/vibemon-companion.mjs');
   const svg = content => `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${COMPANION_SIZE} ${COMPANION_SIZE}">\n  ${content}\n</svg>\n`;
@@ -62,12 +80,16 @@ async function main() {
     assert.equal(character.eyes.w, eye.w * scale);
     assert.equal(character.eyes.h, eye.h * scale);
   }
-  const sprite = await loadImage(Buffer.from(svg(`<path fill="${character.color}" d="${body}"/><path fill="${character.eyeColor}" d="${eyes}"/>`).replace('<svg ', '<svg width="128" height="128" ')));
-  const spriteCanvas = createCanvas(128, 128);
-  spriteCanvas.getContext('2d').drawImage(sprite, 0, 0);
+  const spriteSvg = svg(`<path fill="${character.color}" d="${body}"/><path fill="${character.eyeColor}" d="${eyes}"/>`)
+    .replace('<svg ', '<svg width="128" height="128" ');
+  const sizes = [16, 24, 32, 48, 64, 128, 256, 512, 1024];
+  const [sprite, ...rendered] = await render(window, [
+    { size: 128, box: 128, offset: 0, svg: spriteSvg },
+    ...sizes.map(size => tileJob(size, mark))
+  ]);
+  const frames = new Map(sizes.map((size, index) => [size, rendered[index]]));
   fs.writeFileSync(path.join(design, 'brand-mark.svg'), mark);
-  fs.writeFileSync(path.join(root, 'src/assets/characters', character.image), spriteCanvas.toBuffer('image/png'));
-  const frames = new Map(await Promise.all([16, 24, 32, 48, 64, 128, 256, 512, 1024].map(async size => [size, await draw(size, mark)])));
+  fs.writeFileSync(path.join(root, 'src/assets/characters', character.image), sprite);
   const temporary = fs.mkdtempSync(path.join(os.tmpdir(), 'vibemon-icons-'));
   try {
     const iconset = path.join(temporary, 'VibeMon.iconset');
@@ -88,4 +110,16 @@ async function main() {
     console.log('Generated the logo, aligned companion sprite, App PNG/ICO/ICNS and Web favicons');
   } finally { fs.rmSync(temporary, { recursive: true, force: true }); }
 }
-main().catch(error => { console.error(error.message); process.exitCode = 1; });
+app.dock?.hide();
+app.whenReady().then(async () => {
+  const window = new BrowserWindow({ show: false, webPreferences: { sandbox: true } });
+  try {
+    await window.loadURL('about:blank');
+    await generate(window);
+  } catch (error) {
+    console.error(error.message);
+    process.exitCode = 1;
+  } finally {
+    app.quit();
+  }
+});
