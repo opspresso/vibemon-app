@@ -13,6 +13,11 @@ const { TOKEN, memoryStore, sources, createPorts, trend } = require('../fixtures
 const directory = process.env.VIBEMON_TEST_USER_DATA;
 if (!directory) throw new Error('Launch this fixture with pnpm test:workspace or pnpm preview:workspace');
 app.setPath('userData', directory);
+// The smoke test waits for animation frames and captures the window. Chromium
+// stops painting a window that other windows hide, so keep it rendering.
+for (const name of ['disable-renderer-backgrounding', 'disable-backgrounding-occluded-windows', 'disable-background-timer-throttling']) {
+  app.commandLine.appendSwitch(name);
+}
 // The only credential the fixture accepts for cloud write checks.
 const WRITE_TOKEN = 'vm_' + 'a'.repeat(60);
 
