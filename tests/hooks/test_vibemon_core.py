@@ -377,11 +377,12 @@ if __name__ == "__main__":
 
 
 class SerialPortTest(unittest.TestCase):
+    @unittest.skipIf(os.name == "nt", "serial output is POSIX-only")
     def test_port_setting_expands_home_and_wildcard(self):
         with tempfile.TemporaryDirectory() as home:
             for name in ("cu.usbserial-2", "cu.usbserial-1"):
                 Path(home, name).touch()
-            with patch.dict(os.environ, {"HOME": home, "USERPROFILE": home}):
+            with patch.dict(os.environ, {"HOME": home}):
                 self.assertEqual(vibemon_core.resolve_serial_port("~/cu.usbserial-*"), str(Path(home, "cu.usbserial-1")))
                 self.assertEqual(vibemon_core.resolve_serial_port(" ~/fixed "), str(Path(home, "fixed")))
                 self.assertIsNone(vibemon_core.resolve_serial_port("~/missing-*"))
