@@ -30,7 +30,9 @@ class CloudActivity {
       const inactive = state === 'sleep';
       if (inactive && !previous) continue;
       if (previous?.observedAt === source.observedAt && previous.state === state) continue;
-      const activity = !inactive && previous?.observedAt !== source.observedAt;
+      // A heartbeat repeats a running turn; it refreshes the clock but is not
+      // new activity, so it does not compete for the companion.
+      const activity = !inactive && !source.heartbeat && previous?.observedAt !== source.observedAt;
       this.seen.set(source.sourceId, { observedAt: source.observedAt, state });
       const data = { ...source.agent, state };
       for (const [metric, field] of [['contextPercent', 'memory'], ['usageSessionPercent', 'usage5h'], ['usageWeekPercent', 'usageWeek']]) {

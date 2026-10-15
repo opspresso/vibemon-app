@@ -64,3 +64,18 @@ test('cloud characters and cards share current errors and event age', () => {
   expect(companionState({ ...source, observedAt: new Date(start - 600000).toISOString() }, start)).toBe('sleep');
   expect(companionState({ ...source, agent: { ...source.agent, state: 'constructor' } }, start)).toBe('constructor');
 });
+
+test('a cloud heartbeat keeps the project active without competing for the companion', () => {
+  let now = start;
+  const update = jest.fn();
+  const tracker = new CloudActivity(update, jest.fn(), () => now);
+  tracker.accept([source]);
+  now += 240000;
+  const beat = { ...source, heartbeat: true, observedAt: new Date(now).toISOString(), receivedAt: new Date(now).toISOString() };
+  tracker.accept([beat]);
+  expect(update).toHaveBeenLastCalledWith(expect.objectContaining({ state: 'working' }), source.sourceId, { activity: false });
+  now += 240000;
+  tracker.accept([beat]);
+  expect(update).toHaveBeenCalledTimes(2);
+  expect(companionState(beat, now)).toBe('working');
+});

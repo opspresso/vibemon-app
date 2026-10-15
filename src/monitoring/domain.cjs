@@ -14,7 +14,7 @@ function validateSources(value) {
   if (!Array.isArray(value) || value.length > 1000) throw new Error('Invalid source response');
   const ids = new Set();
   return value.map(source => {
-    if (!source || !validId(source.sourceId) || ids.has(source.sourceId) || !['agent', 'host', 'cluster', 'resource'].includes(source.kind) || !validText(source.displayName, 128) || !validTime(source.receivedAt) || !validTime(source.observedAt) || !['ok', 'warning', 'error', 'unknown'].includes(source.health) || typeof source.stale !== 'boolean' || (source.memoryType != null && !['ram', 'unified'].includes(source.memoryType))) throw new Error('Invalid source response');
+    if (!source || !validId(source.sourceId) || ids.has(source.sourceId) || !['agent', 'host', 'cluster', 'resource'].includes(source.kind) || !validText(source.displayName, 128) || !validTime(source.receivedAt) || !validTime(source.observedAt) || !['ok', 'warning', 'error', 'unknown'].includes(source.health) || typeof source.stale !== 'boolean' || (source.heartbeat !== undefined && typeof source.heartbeat !== 'boolean') || (source.memoryType != null && !['ram', 'unified'].includes(source.memoryType))) throw new Error('Invalid source response');
     ids.add(source.sourceId);
     let resource = {};
     if (source.kind === 'resource' || source.metricDefinitions !== undefined) {
@@ -40,7 +40,7 @@ function validateSources(value) {
       }
       account = { id: source.account.id, provider: source.account.provider, displayName: source.account.displayName };
     }
-    return { sourceId: source.sourceId, kind: source.kind, displayName: source.displayName, receivedAt: source.receivedAt, observedAt: source.observedAt, health: source.health, stale: source.stale, memoryType: source.memoryType ?? null, metrics: metrics(source.metrics, resource.metricDefinitions), agent, account, ...resource };
+    return { sourceId: source.sourceId, kind: source.kind, displayName: source.displayName, receivedAt: source.receivedAt, observedAt: source.observedAt, health: source.health, stale: source.stale, heartbeat: source.heartbeat === true, memoryType: source.memoryType ?? null, metrics: metrics(source.metrics, resource.metricDefinitions), agent, account, ...resource };
   });
 }
 function validateTrend(value, definitions = METRICS) {
