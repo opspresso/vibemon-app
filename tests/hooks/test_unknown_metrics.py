@@ -5,10 +5,11 @@ from unittest.mock import patch, MagicMock
 
 import pytest
 
-ROOT = Path(__file__).parents[2] / 'public' / 'install'
 import statusline
 import usage_cache
 import vibemon_core
+
+ROOT = Path(__file__).parents[2] / 'public' / 'install'
 
 
 @pytest.mark.parametrize('value', [None, 'invalid', True, -1, 101, float('inf'), float('nan')])

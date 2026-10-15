@@ -8,11 +8,12 @@ from pathlib import Path, PurePosixPath
 from types import SimpleNamespace
 from unittest.mock import patch
 
-ROOT = Path(__file__).parents[2] / 'public' / 'install'
 import account_context
 import usage_cache
 import vibemon_core
 import statusline
+
+ROOT = Path(__file__).parents[2] / 'public' / 'install'
 
 
 class AccountIsolationTest(unittest.TestCase):
