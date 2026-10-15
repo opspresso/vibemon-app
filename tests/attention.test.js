@@ -23,7 +23,7 @@ test('each issue is assigned to the page that resolves it', () => {
     hooks: [
       { name: 'Claude Code', present: true, broken: true, changed: false },
       { name: 'Codex CLI', present: true, broken: false, changed: true },
-      { name: 'Kiro IDE', present: false, broken: true, changed: true }
+      { name: 'Kiro', present: false, broken: true, changed: true }
     ],
     vibemonConfig: { status: { error: 'Invalid field types' } },
     cloudDelivery: { status: 'error' },

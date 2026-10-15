@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-VibeMon Hook for Kiro IDE
+VibeMon Hook for Kiro IDE and Kiro CLI
 Desktop App + ESP32 (USB Serial / HTTP)
 Shared transport lives in vibemon_core.py (~/.vibemon/vibemon_core.py).
 """

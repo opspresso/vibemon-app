@@ -217,11 +217,11 @@ class ReportAndExitTest(unittest.TestCase):
 
     def test_skipped_tool_does_not_fail_the_run(self):
         self.assertEqual(
-            self._exit_code([("Claude Code", True), ("Kiro IDE", install.SKIPPED)]), 0
+            self._exit_code([("Claude Code", True), ("Kiro", install.SKIPPED)]), 0
         )
 
     def test_everything_skipped_exits_nonzero(self):
-        self.assertEqual(self._exit_code([("Kiro IDE", install.SKIPPED)]), 1)
+        self.assertEqual(self._exit_code([("Kiro", install.SKIPPED)]), 1)
 
     def test_uninstall_prints_uninstalled_not_trailing_ed(self):
         out = io.StringIO()
@@ -229,7 +229,7 @@ class ReportAndExitTest(unittest.TestCase):
             mock.patch.object(sys, "stdout", out),
             self.assertRaises(SystemExit),
         ):
-            install.report_and_exit([("Kiro IDE", install.SKIPPED)], "Uninstall")
+            install.report_and_exit([("Kiro", install.SKIPPED)], "Uninstall")
 
         message = out.getvalue()
         self.assertIn("Nothing was uninstalled.", message)
@@ -339,7 +339,7 @@ class VerifyContentTest(unittest.TestCase):
 
 
 class LifecycleConfigTest(unittest.TestCase):
-    DOCUMENT_HEADINGS = {"Claude Code": "claude", "Codex CLI": "codex", "Kiro IDE": "kiro", "opencode": "opencode"}
+    DOCUMENT_HEADINGS = {"Claude Code": "claude", "Codex CLI": "codex", "Kiro": "kiro", "opencode": "opencode"}
 
     @staticmethod
     def _markdown_section(readme, heading):

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 VibeMon Installation Script
-Installs hooks and configuration for Claude Code, Codex, Kiro IDE, OpenClaw, or
+Installs hooks and configuration for Claude Code, Codex, Kiro (IDE and CLI), OpenClaw, or
 opencode.
 
 Usage (Interactive):
@@ -1324,13 +1324,13 @@ def remove_legacy_kiro_hooks(kiro_home: Path) -> None:
 
 
 def install_kiro(source: FileSource, cli_token: str = None) -> bool:
-    """Install VibeMon for Kiro IDE."""
+    """Install VibeMon for Kiro IDE and Kiro CLI."""
     kiro_home = tool_home("KIRO_HOME", ".kiro")
     if not is_tool_installed(("kiro", "kiro-cli"), kiro_home):
-        print(f"\n{colored('!', 'yellow')} Kiro IDE not detected. Skipping installation.")
+        print(f"\n{colored('!', 'yellow')} Kiro not detected. Skipping installation.")
         return SKIPPED
 
-    print(f"\n{colored('Installing VibeMon for Kiro IDE...', 'cyan')}\n")
+    print(f"\n{colored('Installing VibeMon for Kiro...', 'cyan')}\n")
 
     kiro_home.mkdir(parents=True, exist_ok=True)
     (kiro_home / "hooks").mkdir(parents=True, exist_ok=True)
@@ -1366,10 +1366,10 @@ def install_kiro(source: FileSource, cli_token: str = None) -> bool:
     ok &= install_vibemon_shared(source)
 
     if not ok:
-        print(f"\n{colored('✗ Kiro IDE installation finished with errors — some files were not written.', 'red')}")
+        print(f"\n{colored('✗ Kiro installation finished with errors — some files were not written.', 'red')}")
         return False
 
-    print(f"\n{colored('Kiro IDE installation complete!', 'green')}")
+    print(f"\n{colored('Kiro installation complete!', 'green')}")
     print("  • Global hooks apply to every local Kiro IDE and CLI project")
     return True
 
@@ -1744,13 +1744,13 @@ def uninstall_codex(source: FileSource = None, cli_token: str = None) -> bool:
 
 
 def uninstall_kiro(source: FileSource = None, cli_token: str = None) -> bool:
-    """Remove VibeMon's hooks and scripts from Kiro IDE."""
+    """Remove VibeMon's hooks and scripts from Kiro IDE and Kiro CLI."""
     kiro_home = tool_home("KIRO_HOME", ".kiro")
     if not kiro_home.exists():
-        print(f"\n{colored('!', 'yellow')} Kiro IDE not detected. Nothing to remove.")
+        print(f"\n{colored('!', 'yellow')} Kiro not detected. Nothing to remove.")
         return SKIPPED
 
-    print(f"\n{colored('Removing VibeMon from Kiro IDE...', 'cyan')}\n")
+    print(f"\n{colored('Removing VibeMon from Kiro...', 'cyan')}\n")
     remove_legacy_kiro_hooks(kiro_home)
     for remote in KIRO_HOOK_CONFIG_FILES:
         target = kiro_home / "hooks" / Path(remote).name
@@ -1759,7 +1759,7 @@ def uninstall_kiro(source: FileSource = None, cli_token: str = None) -> bool:
         kiro_home / "hooks" / "vibemon.py",
         display_path(kiro_home / "hooks" / "vibemon.py"),
     )
-    print(f"\n{colored('Kiro IDE cleanup complete!', 'green')}")
+    print(f"\n{colored('Kiro cleanup complete!', 'green')}")
     return True
 
 
@@ -1851,7 +1851,7 @@ def uninstall_vibemon(source: FileSource = None, cli_token: str = None) -> bool:
 UNINSTALLERS = {
     "claude": ("Claude Code", uninstall_claude),
     "codex": ("Codex CLI", uninstall_codex),
-    "kiro": ("Kiro IDE", uninstall_kiro),
+    "kiro": ("Kiro", uninstall_kiro),
     "openclaw": ("OpenClaw", uninstall_openclaw),
     "opencode": ("opencode", uninstall_opencode),
     "vibemon": ("VibeMon Scripts", uninstall_vibemon),
@@ -1902,7 +1902,7 @@ another selected platform succeeded; a run in which nothing succeeded exits 1.
     parser.add_argument("--codex", action="store_true",
                         help="Install for Codex CLI")
     parser.add_argument("--kiro", action="store_true",
-                        help="Install for Kiro IDE")
+                        help="Install for Kiro IDE and Kiro CLI")
     parser.add_argument("--openclaw", action="store_true",
                         help="Install for OpenClaw")
     parser.add_argument("--opencode", action="store_true",
@@ -1947,7 +1947,7 @@ def run_install(platform_name: str, install_fn, source: FileSource, cli_token: s
 INSTALLERS = {
     "claude": ("Claude Code", install_claude),
     "codex": ("Codex CLI", install_codex),
-    "kiro": ("Kiro IDE", install_kiro),
+    "kiro": ("Kiro", install_kiro),
     "openclaw": ("OpenClaw", install_openclaw),
     "opencode": ("opencode", install_opencode),
     "vibemon": ("VibeMon Scripts", install_vibemon),
@@ -1960,7 +1960,7 @@ ALL_PLATFORMS = ("claude", "codex", "kiro", "openclaw", "opencode")
 MENU_CHOICES = [
     ("1", "claude", "Claude Code"),
     ("2", "codex", "Codex CLI"),
-    ("3", "kiro", "Kiro IDE"),
+    ("3", "kiro", "Kiro"),
     ("4", "openclaw", "OpenClaw"),
     ("5", "opencode", "opencode"),
     ("6", "all", "All"),

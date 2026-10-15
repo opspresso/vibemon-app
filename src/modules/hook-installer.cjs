@@ -2,7 +2,7 @@ const { describeFailure } = require('../shared/install-result.cjs');
 /**
  * AI tool hook installer for Vibe Monitor
  *
- * Detects locally installed AI CLI tools (Claude Code, Codex CLI, Kiro IDE,
+ * Detects locally installed AI CLI tools (Claude Code, Codex CLI, Kiro,
  * OpenClaw, OpenCode) that are missing the VibeMon hook files, and — after explicit
  * user confirmation — runs the official vibemon.io/install/install.py installer
  * to set them up. The script is downloaded over HTTPS and piped to
@@ -333,7 +333,7 @@ const TOOLS = [
     ]
   },
   {
-    name: 'Kiro IDE',
+    name: 'Kiro',
     flag: '--kiro',
     command: 'kiro',
     commandAliases: ['kiro-cli'],
