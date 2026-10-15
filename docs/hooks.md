@@ -163,6 +163,10 @@ Hooks report edges: a prompt starts a turn, a tool starts or ends, and a turn st
 
 The watcher identifies the agent process as the nearest ancestor of the hook that is not a shell, launcher, or Python interpreter. If it cannot identify that process, no watcher starts, and the session ages by the state timeouts as before.
 
+Interactive Codex runs turns in its app-server process, and the TUI is only a client. The hook's agent process is therefore the app-server. A turn continues after its TUI exits and closes with `Stop`.
+
+To verify this lifecycle against an installed agent, run `python3 scripts/verify_agent_continuity.py claude` or `codex` from the repository. The agent runs one 75-second command and uses the signed-in account. The check passes when the turn stays active through a heartbeat and ends with `done`.
+
 ### Session activity cache
 
 When an event carries `session_id`, the hook records the session in `~/.vibemon/cache/activity.json` under one cross-process lock:
