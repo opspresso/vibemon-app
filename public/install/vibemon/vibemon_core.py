@@ -29,7 +29,8 @@ from urllib.parse import urlsplit
 from urllib.request import Request, urlopen
 
 from account_context import cloud_context, observation_time, project_cache_key
-from cache_io import update_json_cache
+import session_activity
+from session_activity import Transition
 from http_client import open_credential_request
 from usage_cache import CACHE_STALE_SECONDS, get_fresh_provider, is_finite_number, is_fresh_observation, load_usage_cache, model_week_bucket, valid_percent, reverse_jsonl
 
@@ -273,72 +274,28 @@ def get_project_name(cwd: str, transcript_path: str) -> str:
     return name if name else "default"
 
 
-def get_state(
-    event_name: str, permission_mode: str, event_state_map: dict[str, str]
-) -> str | None:
-    """Map event name to state, considering permission mode.
+def get_transition(
+    event_name: str,
+    data: dict[str, Any],
+    event_state_map: dict[str, str],
+    refine: Callable[[str, dict[str, Any], str], Transition | None] | None = None,
+) -> Transition | None:
+    """Map a hook event to the transition it reports.
 
-    Returns None for events outside the tool's map — e.g. a hook registration
-    left behind by an older install — so the caller can skip reporting
-    instead of guessing a state.
+    Returns None for events outside the tool's map (e.g. a hook registration
+    left behind by an older install) or events the adapter filters out, so
+    the caller skips reporting instead of guessing a state.
     """
     state = event_state_map.get(event_name)
     if state is None:
         return None
-
-    if permission_mode == "plan" and state in ("thinking", "working"):
-        return "planning"
-
-    return state
-
-
-# Sessions without a hook for a day are abandoned; their entries are dropped.
-ACTIVITY_SESSION_MAX_AGE_MS = 86_400_000
-
-
-def sequence_activity(data: dict[str, Any], state: str) -> tuple[str, str]:
-    """Derive a session's state and observation time in delivery order.
-
-    Hooks run as concurrent processes whose startup time varies by tens of
-    milliseconds, so near-simultaneous events (parallel tool calls) can stamp
-    their times out of order. A fast tool's PostToolUse also cannot see that a
-    sibling tool is still running. Under one cross-process lock, this records
-    the session's in-flight tools and issues strictly increasing timestamps,
-    so the newest timestamp always carries the state of the newest tool set.
-    """
-    session = data.get("session_id")
-    tool = data.get("tool_use_id")
-    if not isinstance(session, str) or not session:
-        return state, observation_time()
-    result = {"state": state, "observedAt": ""}
-
-    def update(cache: dict[str, Any]) -> dict[str, Any]:
-        now = int(time.time() * 1000)
-        stamp = max(now, cache.get("lastMs", 0) + 1) if isinstance(cache.get("lastMs"), int) else now
-        sessions = {
-            key: value for key, value in (cache.get("sessions") or {}).items()
-            if isinstance(value, dict) and isinstance(value.get("updatedMs"), int) and now - value["updatedMs"] < ACTIVITY_SESSION_MAX_AGE_MS
-        }
-        tools = set(sessions.get(session, {}).get("tools") or [])
-        if isinstance(tool, str) and tool:
-            if data.get("hook_event_name") == "PreToolUse":
-                tools.add(tool)
-            else:
-                tools.discard(tool)
-        elif state in ("start", "done"):
-            tools.clear()
-        if state in ("thinking", "planning") and tools and data.get("hook_event_name") != "UserPromptSubmit":
-            result["state"] = "planning" if state == "planning" else "working"
-        sessions[session] = {"tools": sorted(tools), "updatedMs": now}
-        result["observedAt"] = observation_time(stamp)
-        return {"lastMs": stamp, "sessions": sessions}
-
-    path = os.path.join(os.path.dirname(get_config().cache_path), "activity.json")
-    if not update_json_cache(path, update):
-        # Display delivery must not wait on a busy or unwritable cache.
-        debug_log("Activity cache unavailable; reporting the mapped state")
-        return state, observation_time()
-    return result["state"], result["observedAt"]
+    if event_name == "PreToolUse" and session_activity.is_input_tool(data.get("tool_name")):
+        # The tool asks the user a question: the turn waits for an answer.
+        state = "notification"
+    transition = refine(event_name, data, state) if refine else Transition(state)
+    if transition is not None and data.get("permission_mode") == "plan" and transition.state in ("thinking", "working"):
+        return Transition("planning", transition.settles)
+    return transition
 
 
 def get_project_metadata(project: str, cwd: str | None = None) -> dict[str, Any]:
@@ -1216,6 +1173,7 @@ COMMAND_HANDLERS: dict[str, Any] = {
     "--status": lambda args: get_status(),
     "--lock-mode": lambda args: set_lock_mode(args[0]) if args else get_lock_mode(),
     "--reboot": lambda args: send_reboot(),
+    "--watch-session": lambda args: watch_session(args),
 }
 
 
@@ -1232,13 +1190,43 @@ def handle_command(cmd: str, args: list[str]) -> bool | None:
 # ============================================================================
 
 
+def activity_path() -> str:
+    """The session activity cache shared by hooks and watchers."""
+    return os.path.join(os.path.dirname(get_config().cache_path), "activity.json")
+
+
+def deliver_report(payload: dict[str, Any], cwd: str, observed_at: str, *, is_start: bool = False, heartbeat: bool = False) -> None:
+    """Send one report to every display with its cloud identity."""
+    try:
+        context: dict | bool = cloud_context(str(payload.get("character", "vibemon")), str(payload.get("project", "")), cwd, observed_at=observed_at)
+        if heartbeat:
+            # A heartbeat repeats the current state: it refreshes liveness but
+            # is not new activity and does not compete for display focus.
+            context["heartbeat"] = True
+    except ValueError:
+        print("[vibemon] Invalid account configuration; cloud reporting disabled for this event", file=sys.stderr)
+        context = False
+    send_to_all(payload, is_start, context)
+
+
+def watch_session(args: list[str]) -> bool:
+    """Watcher entry point: keep one session's open turn visible until it ends."""
+    if len(args) != 1 or not args[0]:
+        return False
+    session_activity.watch(
+        activity_path(), args[0],
+        lambda beat: deliver_report(beat.payload, beat.cwd, beat.observed_at, heartbeat=beat.heartbeat),
+    )
+    return True
+
+
 def run(
     event_state_map: dict[str, str],
     build_payload: Callable[[str, str, str, dict[str, Any]], dict[str, Any]],
     start_event: str,
     argv_event_fallback: bool = False,
     event_aliases: dict[str, str] | None = None,
-    should_report: Callable[[str, dict[str, Any]], bool] | None = None,
+    refine: Callable[[str, dict[str, Any], str], Transition | None] | None = None,
 ) -> None:
     """Hook entry point, driven by a per-tool adapter.
 
@@ -1251,7 +1239,8 @@ def run(
       when stdin carries no hook_event_name (Kiro hook registrations pass the
       event name as the first argument, e.g. `vibemon.py promptSubmit`)
     - event_aliases: normalize a tool's payload event names before mapping
-    - should_report: provider-specific event filter, before metadata or delivery
+    - refine(event, data, state): provider-specific transition, or None to
+      skip the event before metadata or delivery
     """
     argv_event = ""
     if len(sys.argv) > 1:
@@ -1281,12 +1270,10 @@ def run(
         return
     if event_aliases:
         event_name = event_aliases.get(event_name, event_name)
-    if should_report is not None and not should_report(event_name, data):
-        return
+    data = {**data, "hook_event_name": event_name}
     tool_name = data.get("tool_name", "")
     cwd = data.get("cwd", "")
     transcript_path = data.get("transcript_path", "")
-    permission_mode = data.get("permission_mode", "default")
     tool_name = tool_name if isinstance(tool_name, str) else ""
     cwd = cwd if isinstance(cwd, str) else ""
     transcript_path = transcript_path if isinstance(transcript_path, str) else ""
@@ -1301,25 +1288,30 @@ def run(
         debug_log("Hook skipped (cwd is the VibeMon home dir)")
         return
 
-    state = get_state(event_name, permission_mode, event_state_map)
-    if state is None:
+    transition = get_transition(event_name, data, event_state_map, refine)
+    if transition is None:
         debug_log(f"Event not mapped, skipping: {event_name}")
         return
     # Stamp before git discovery and usage metadata, which can finish after a
     # newer hook; late delivery then cannot replace newer activity.
-    state, observed_at = sequence_activity(data, state)
+    path = activity_path()
+    report = session_activity.record(path, data, transition)
+    if report is None:
+        debug_log(f"Event settles no open turn, skipping: {event_name}")
+        return
     project_name = get_project_name(cwd, transcript_path)
 
     debug_log(f"Event: {event_name}, Tool: {tool_name}, Project: {project_name}")
 
-    payload = build_payload(state, tool_name, project_name, data)
+    payload = build_payload(report.state, tool_name, project_name, data)
+    session = data.get("session_id")
+    if isinstance(session, str) and session:
+        agent = session_activity.agent_process() if report.watch else None
+        session_activity.remember_payload(path, session, payload, cwd, agent)
+        if agent is not None:
+            session_activity.start_watcher(os.path.abspath(__file__), session)
 
-    try:
-        context = cloud_context(str(payload.get("character", "vibemon")), project_name, cwd, observed_at=observed_at)
-    except ValueError:
-        print("[vibemon] Invalid account configuration; cloud reporting disabled for this event", file=sys.stderr)
-        context = False
-    send_to_all(payload, event_name == start_event, context)
+    deliver_report(payload, cwd, report.observed_at, is_start=event_name == start_event)
 
 
 if __name__ == "__main__":

@@ -32,6 +32,7 @@ MANIFEST_FILES = [
     "vibemon/account_context.py",
     "vibemon/cache_io.py",
     "vibemon/http_client.py",
+    "vibemon/session_activity.py",
     "vibemon/vibemon_core.py",
     "claude/statusline.py",
     "claude/hooks/vibemon.py",

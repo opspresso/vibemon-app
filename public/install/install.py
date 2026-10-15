@@ -1121,7 +1121,8 @@ def install_vibemon_shared(source: FileSource) -> bool:
 
     usage.py is the standalone plan-usage cache refresher run by the Desktop
     app on startup or on a schedule; usage_cache.py owns the shared parsing
-    and provider-freshness cache contract; vibemon_core.py is the shared
+    and provider-freshness cache contract; session_activity.py keeps each
+    session's turn and its heartbeat watcher; vibemon_core.py is the shared
     transport module imported by every per-tool hook. All belong to every
     installation, not just Claude Code's.
     """
@@ -1144,6 +1145,10 @@ def install_vibemon_shared(source: FileSource) -> bool:
     # usage_cache.py -> ~/.vibemon/usage_cache.py
     content = source.get_file("vibemon/usage_cache.py")
     ok = write_file_with_diff(Path.home() / ".vibemon" / "usage_cache.py", content, "~/.vibemon/usage_cache.py") and ok
+
+    # session_activity.py -> ~/.vibemon/session_activity.py (imported by vibemon_core.py)
+    content = source.get_file("vibemon/session_activity.py")
+    ok = write_file_with_diff(Path.home() / ".vibemon" / "session_activity.py", content, "~/.vibemon/session_activity.py") and ok
 
     # vibemon_core.py -> ~/.vibemon/vibemon_core.py
     content = source.get_file("vibemon/vibemon_core.py")
@@ -1895,7 +1900,7 @@ def uninstall_vibemon(source: FileSource = None, cli_token: str = None) -> bool:
         return SKIPPED
 
     print(f"\n{colored('Removing VibeMon shared scripts...', 'cyan')}\n")
-    for name in ("usage.py", "usage_cache.py", "http_client.py", "cache_io.py", "account_context.py", "vibemon_core.py"):
+    for name in ("usage.py", "usage_cache.py", "http_client.py", "cache_io.py", "account_context.py", "session_activity.py", "vibemon_core.py"):
         remove_path(vibemon_home / name, f"~/.vibemon/{name}")
     # config.json holds the user's token and statusline.json their display
     # preferences; deleting either would make a reinstall lose real settings.

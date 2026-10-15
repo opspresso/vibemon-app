@@ -94,7 +94,7 @@ Use [Connect coding account](https://vibemon.io/coding-accounts/new) to generate
 
 The installer honors `CLAUDE_CONFIG_DIR`, `CODEX_HOME`, `KIRO_HOME`, and `OPENCODE_CONFIG_DIR`. OpenCode otherwise uses `$XDG_CONFIG_HOME/opencode` or `~/.config/opencode`. Re-run installation after moving a profile or Python interpreter so generated commands match the new paths.
 
-The shared directory contains six required helpers: `vibemon_core.py`, `usage.py`, `usage_cache.py`, `account_context.py`, `cache_io.py`, and `http_client.py`. Use `--vibemon` to repair them together. Installing only one helper can leave imports unresolved.
+The shared directory contains seven required helpers: `vibemon_core.py`, `session_activity.py`, `usage.py`, `usage_cache.py`, `account_context.py`, `cache_io.py`, and `http_client.py`. Use `--vibemon` to repair them together. Installing only one helper can leave imports unresolved.
 
 ## 4. Activate and verify
 
