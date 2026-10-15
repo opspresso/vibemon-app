@@ -328,8 +328,8 @@ async function verifyReducedMotion(win, mode, character = 'clawd') {
     await delay(350);
     assert(still.equals((await win.webContents.capturePage()).toBitmap()), `${mode} remains still with reduced motion`);
     win.webContents.send('state-update', { state: 'sleep', character, project: 'test' });
-    await delay(150);
-    assert(!still.equals((await win.webContents.capturePage()).toBitmap()), `${mode} still updates its status pose`);
+    // The next rendered frame shows the new pose; a slow runner can take longer than one frame.
+    await until(async () => !still.equals((await win.webContents.capturePage()).toBitmap()), `${mode} still updates its status pose`);
     fs.writeFileSync(path.join(output, `${mode}-${character}-sleep-still.png`), (await win.webContents.capturePage()).toPNG());
     await win.webContents.debugger.sendCommand('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value: 'no-preference' }] });
     win.webContents.send('state-update', { state: 'working', character, project: 'test' });
