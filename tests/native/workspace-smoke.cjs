@@ -3,7 +3,7 @@ const { app, nativeTheme } = require('electron');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
-const { startFixture, TOKEN } = require('./workspace-fixture.cjs');
+const { startFixture, TOKEN, WRITE_TOKEN } = require('./workspace-fixture.cjs');
 const { AGENT_TEXT_LIMITS } = require('../../src/shared/resource-schema.cjs');
 const output = process.env.VIBEMON_TEST_ARTIFACTS || path.join(__dirname, '../../out/workspace-tests');
 fs.mkdirSync(output, { recursive: true });
@@ -30,6 +30,7 @@ startFixture().then(async fixture => {
   const value = selector => ui(`document.querySelector(${JSON.stringify(selector)}).value`);
   const text = selector => ui(`document.querySelector(${JSON.stringify(selector)}).textContent`);
   const input = (selector, value, event = 'input') => ui(`(() => { const input = document.querySelector(${JSON.stringify(selector)}); input.value = ${JSON.stringify(value)}; input.dispatchEvent(new Event(${JSON.stringify(event)}, { bubbles: true })); })()`);
+  const nextFrames = () => ui('new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))');
   const visible = selector => ui(`Boolean(document.querySelector(${JSON.stringify(selector)})?.checkVisibility())`);
   const verifyContrast = async () => {
     const ratios = await ui(`(() => {
@@ -65,13 +66,13 @@ startFixture().then(async fixture => {
       // Hover/focus transitions can be superseded by the next state update.
       if (error.name !== 'AbortError') throw error;
     })))`);
-    await ui('new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))');
+    await nextFrames();
     fs.writeFileSync(path.join(output, `${name}.png`), (await web.capturePage()).toPNG());
   };
   await until(() => ui('document.querySelectorAll("#overview-resources .card").length === 3'), 'populated overview');
   await until(() => view.window.isVisible(), 'workspace shown');
   await until(() => ui('document.hasFocus()'), 'workspace accepts keyboard input');
-  await ui('new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))');
+  await nextFrames();
   assert.equal(client.getStatus(), 'connected');
   assert.ok(!JSON.stringify(view.snapshot()).includes(TOKEN), 'snapshots omit read credentials');
   assert.ok(!JSON.stringify(view.snapshot()).includes(ports.config.vibemon_token), 'snapshots omit collector credentials');
@@ -143,8 +144,7 @@ startFixture().then(async fixture => {
   const loadingEditTop = await ui('document.getElementById("edit-resource").getBoundingClientRect().top');
   await until(() => ui('document.querySelectorAll("#chart circle").length > 0'), 'custom resource history');
   const loadedEditTop = await ui('document.getElementById("edit-resource").getBoundingClientRect().top');
-  console.log('History loading action shift:', loadedEditTop - loadingEditTop);
-  assert.ok(Math.abs(loadedEditTop - loadingEditTop) < 1, 'loading history does not move the edit action');
+  assert.ok(Math.abs(loadedEditTop - loadingEditTop) < 1, `loading history does not move the edit action: ${loadedEditTop - loadingEditTop}px`);
   state.trendDelayMs = 0;
   assert.ok((await text('#detail-message')).includes('Latency is above'));
   assert.equal(await ui('document.activeElement.getAttribute("aria-label")'), 'Close source details');
@@ -392,13 +392,12 @@ startFixture().then(async fixture => {
   assert.ok((await text('#cloud-delivery-error')).includes('write permission'));
   assert.equal(await visible('#error'), false, 'delivery errors appear once, inside their form');
   assert.equal(ports.config.vibemon_token, 'fixture-secret-must-not-cross-IPC', 'failed check preserves saved configuration');
-  const writeToken = 'vm_' + 'a'.repeat(60);
-  await input('#cloud-write-token', writeToken);
+  await input('#cloud-write-token', WRITE_TOKEN);
   await click('#save-cloud-delivery');
   await until(async () => (await text('#cloud-delivery-status')) === 'Write access verified', 'cloud write access verified');
-  assert.equal(ports.config.vibemon_token, writeToken);
+  assert.equal(ports.config.vibemon_token, WRITE_TOKEN);
   assert.equal(await value('#cloud-write-token'), '');
-  assert.ok(!JSON.stringify(view.snapshot()).includes(writeToken), 'write credential never returns over IPC');
+  assert.ok(!JSON.stringify(view.snapshot()).includes(WRITE_TOKEN), 'write credential never returns over IPC');
   await screenshot('cloud-delivery');
   await click('#disconnect-cloud-delivery');
   await until(async () => (await text('#cloud-delivery-status')) === 'No saved write token', 'shared cloud credential removed');
@@ -511,7 +510,7 @@ startFixture().then(async fixture => {
   selectDashboard();
   await until(() => view.window.isVisible() && visible('section[data-page="overview"]'), 'Dashboard menu selection restores the overview');
   await until(async () => (await text('#summary-resources')) === '3', 'hidden window receives latest state with the saved selection');
-  await ui('new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))');
+  await nextFrames();
   const compactBounds = await ui('({ bottom: document.querySelector("#overview-accounts .card").getBoundingClientRect().bottom, viewport: innerHeight })');
   await screenshot('compact-overview');
   assert.ok(compactBounds.bottom < compactBounds.viewport, `both categories fit the minimum window: ${JSON.stringify(compactBounds)}`);
@@ -537,7 +536,7 @@ startFixture().then(async fixture => {
   await input('#resource-search', '');
   const overflow = [];
   const checkFit = async (label, selector) => {
-    await ui('new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))');
+    await nextFrames();
     const invalid = await ui(`[...document.querySelectorAll(${JSON.stringify(selector)})].filter(node => node.checkVisibility() && node.scrollWidth > node.clientWidth + 1).map(node => ({ tag: node.tagName, id: node.id, className: node.className, width: node.clientWidth, content: node.scrollWidth }))`);
     if (invalid.length) overflow.push({ label, invalid });
   };
