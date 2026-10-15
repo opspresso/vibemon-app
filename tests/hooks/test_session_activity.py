@@ -88,6 +88,30 @@ def test_an_unanswered_question_outranks_a_finished_parallel_tool(path, clock):
     assert activity.record(path, event("PostToolUse", tool_use_id="ask"), Transition("thinking")).state == "thinking"
 
 
+@pytest.mark.parametrize("finished", ["PostToolUse", "PostToolUseFailure", "PermissionDenied"])
+def test_a_late_tool_result_does_not_reopen_an_ended_turn(path, clock, finished):
+    open_turn(path)
+    activity.record(path, event("PreToolUse", tool_use_id="t"), Transition("working"))
+    activity.record(path, event("Interrupt"), Transition("done"))
+    # An asynchronous hook for the aborted tool arrives after the turn ended.
+    assert activity.record(path, event(finished, tool_use_id="t"), Transition("thinking")) is None
+    entry = cache(path)["sessions"]["s1"]
+    assert entry["open"] is False and entry["state"] == "done"
+
+
+def test_an_open_elicitation_outranks_a_finished_parallel_tool(path, clock):
+    open_turn(path)
+    activity.record(path, event("PreToolUse", tool_use_id="mcp"), Transition("working"))
+    activity.record(path, event("PreToolUse", tool_use_id="bash"), Transition("working"))
+    assert activity.record(path, event("Elicitation"), Transition("notification")).state == "notification"
+    assert activity.record(path, event("PostToolUse", tool_use_id="bash"), Transition("thinking")).state == "notification"
+    # The answer returns the turn to the MCP tool that asked.
+    assert activity.record(path, event("ElicitationResult"), Transition("thinking")).state == "working"
+    activity.record(path, event("Elicitation"), Transition("notification"))
+    activity.record(path, event("UserPromptSubmit"), Transition("thinking"))
+    assert cache(path)["sessions"]["s1"]["elicitations"] == 0
+
+
 def test_a_permission_request_marks_its_running_tool_as_waiting(path, clock):
     open_turn(path)
     activity.record(path, event("PreToolUse", tool_use_id="a"), Transition("working"))
