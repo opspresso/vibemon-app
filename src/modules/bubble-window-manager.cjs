@@ -110,6 +110,15 @@ function buildFieldPayload(state, speechBubbleFields, { observedAt = state?.obse
  * @param {Object|null} state
  * @returns {string} hex color
  */
+// The renderer call that draws a bubble. Without a placement it measures the
+// content with a bottom tail and leaves the current scale unchanged.
+function bubbleContent(fields, bgColor, placement = null) {
+  const args = placement
+    ? [fields, placement.tailOffset, placement.tailSide, bgColor, placement.scale || 1]
+    : [fields, 0, 'bottom', bgColor];
+  return `window.__setBubbleContent(${args.map(value => JSON.stringify(value)).join(', ')})`;
+}
+
 function resolveBgColor(state) {
   return (state && STATE_COLORS[state.state]) || STATE_COLORS.idle;
 }
@@ -280,8 +289,7 @@ class BubbleWindowManager {
     // First pass: render content with a neutral tail position, just to
     // measure the bubble's natural size (varies with which fields/text show).
     const size = await this.execInBubble(
-      win,
-      `window.__setBubbleContent(${JSON.stringify(fields)}, 0, 'bottom', ${JSON.stringify(bgColor)})`
+      win, bubbleContent(fields, bgColor)
     );
     if (!isCurrent()) return;
     if (!size || !this.isWindowValid(win) || !this.isWindowValid(this.getCharacterWindow(projectId))) {
@@ -301,8 +309,7 @@ class BubbleWindowManager {
       return;
     }
 
-    await this.execInBubble(win,
-      `window.__setBubbleContent(${JSON.stringify(fields)}, ${placement.tailOffset}, ${JSON.stringify(placement.tailSide)}, ${JSON.stringify(bgColor)}, ${placement.scale || 1})`);
+    await this.execInBubble(win, bubbleContent(fields, bgColor, placement));
     if (!isCurrent() || !this.isWindowValid(win) || !this.isWindowValid(this.getCharacterWindow(projectId))) return;
     this.applyPlacement(win, placement, size);
     this.syncAlwaysOnTop(projectId);
@@ -346,10 +353,7 @@ class BubbleWindowManager {
       if (!isCurrent()) return;
       if (!placement || !this.isWindowValid(win) || !this.isWindowValid(this.getCharacterWindow(projectId))) return;
 
-      await this.execInBubble(
-        win,
-        `window.__setBubbleContent(${JSON.stringify(fields)}, ${placement.tailOffset}, ${JSON.stringify(placement.tailSide)}, ${JSON.stringify(bgColor)}, ${placement.scale || 1})`
-      );
+      await this.execInBubble(win, bubbleContent(fields, bgColor, placement));
       if (!this.isWindowValid(win) || !this.isWindowValid(this.getCharacterWindow(projectId))) return;
 
       if (!isCurrent()) return;
