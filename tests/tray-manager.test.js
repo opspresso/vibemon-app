@@ -1,4 +1,3 @@
-const { EventEmitter } = require('node:events');
 const { setImmediate } = require('node:timers');
 
 jest.mock('electron', () => ({
@@ -24,7 +23,7 @@ beforeEach(() => {
   jest.clearAllMocks();
   focused = { project: 'one', state: 'working', character: 'codex' };
   companion = { getProjectIds: () => focused ? ['one'] : [], getState: () => focused };
-  app = { quit: jest.fn() };
+  app = { quit: jest.fn(), getVersion: () => '9.8.7' };
   events = new Map();
   native = { on: jest.fn((name, callback) => events.set(name, callback)), setImage: jest.fn(), setToolTip: jest.fn(), setContextMenu: jest.fn(), popUpContextMenu: jest.fn(), destroy: jest.fn() };
   Tray.mockImplementation(() => native);
@@ -82,8 +81,10 @@ test('tray creation requires the dashboard action to be wired', () => {
 
 test('the menu exposes navigation and companion visibility without duplicating preferences', () => {
   const show = jest.fn(); manager.setShowCharacterHandler(show);
-  const menu = manager.buildMenuTemplate().filter(item => item.type !== 'separator');
-  expect(menu.map(item => item.label)).toEqual(['Dashboard', 'Settings…', 'Show companion', 'Integrations…', 'About VibeMon', 'Quit VibeMon']);
+  const template = manager.buildMenuTemplate();
+  expect(template.map(item => item.label ?? '—')).toEqual(['VibeMon 9.8.7', '—', 'Dashboard', 'Show companion', '—', 'Settings…', 'Integrations…', '—', 'About VibeMon', 'Quit VibeMon']);
+  expect(template[0].enabled).toBe(false);
+  const menu = template.filter(item => item.click);
   for (const item of menu) item.click();
   expect(manager.openDashboard).toHaveBeenCalledTimes(1);
   expect(manager.openSettings.mock.calls).toEqual([['companion'], ['integrations'], ['about']]);
@@ -114,43 +115,68 @@ test('focus defaults to the registry character when no project exists', () => {
   expect(manager.getFocusedState()).toEqual({ state: 'idle', character: DEFAULT_CHARACTER, project: null });
 });
 
-test.each([
-  ['connected', 0, false], ['connecting', 0, false], ['not-configured', 0, false],
-  ['connection-error', 0, true], ['token-expired', 0, true],
-  ['connected', 1, true], ['connected', 2, true]
-])('cloud attention: %s %p → %s', (status, attentionCount, attention) => {
-  const client = Object.assign(new EventEmitter(), { snapshot: jest.fn(() => ({ status, attentionCount })) });
-  manager.setMonitoringClient(client);
-  expect(manager.hasAttentionBadge()).toBe(attention);
-  manager.updateIcon(); manager.updateIcon();
-  expect(client.snapshot).toHaveBeenCalledTimes(1);
-  manager.setMonitoringClient(null);
-  expect(client.listenerCount('change')).toBe(0);
+const quiet = { dashboard: null, connection: null, integrations: null, update: null };
+const notices = {
+  dashboard: '1 resource · 2 coding accounts need attention',
+  connection: 'Read token rejected',
+  integrations: 'Claude Code needs repair',
+  update: 'Version 9.9.9 is available'
+};
+
+test('each notice lights the badge and names its page in the tooltip', async () => {
+  manager.createTray(); await flush();
+  expect(manager.hasAttentionBadge()).toBe(false);
+  for (const [area, text] of Object.entries(notices)) {
+    manager.setAttention({ ...quiet, [area]: text });
+    expect(manager.hasAttentionBadge()).toBe(true);
+    expect(native.setToolTip.mock.calls.at(-1)[0]).toContain(text);
+  }
+  manager.setAttention(notices);
+  expect(native.setToolTip).toHaveBeenLastCalledWith('VibeMon\nRead token rejected — open Settings\n1 resource · 2 coding accounts need attention — open Dashboard\nClaude Code needs repair — open Integrations\nVersion 9.9.9 is available — open About VibeMon');
+  manager.setAttention(quiet);
   expect(manager.hasAttentionBadge()).toBe(false);
 });
 
-test('integration repair and actionable updates produce attention badges', () => {
-  manager.setHookInstaller({ hasChanges: () => true }); expect(manager.hasAttentionBadge()).toBe(true);
-  manager.setHookInstaller(null);
-  for (const status of [null, 'checking', 'downloading', 'available', 'downloaded']) {
-    manager.setUpdateChecker({ getState: () => ({ status }) });
-    expect(manager.hasAttentionBadge()).toBe(['available', 'downloaded'].includes(status));
+test('menu items that open an affected page carry a dot and the reason', async () => {
+  manager.createTray(); await flush();
+  manager.setAttention({ ...quiet, dashboard: notices.dashboard, integrations: notices.integrations });
+  const items = Object.fromEntries(manager.buildMenuTemplate().filter(item => item.label).map(item => [item.label, item]));
+  expect(items.Dashboard).toMatchObject({ sublabel: notices.dashboard, icon: { image: true } });
+  expect(items['Integrations…']).toMatchObject({ sublabel: notices.integrations });
+  for (const label of ['Settings…', 'Show companion', 'About VibeMon', 'Quit VibeMon']) {
+    expect(items[label].sublabel).toBeUndefined();
+    expect(items[label].icon).toBeUndefined();
   }
 });
 
-test('the badge tooltip explains each cause and changes even while the badge stays on', async () => {
-  const client = Object.assign(new EventEmitter(), { snapshot: () => ({ status: 'connected', attentionCount: 1 }) });
-  manager.setMonitoringClient(client);
-  manager.setHookInstaller({ hasChanges: () => true });
-  manager.setUpdateChecker({ getState: () => ({ status: 'downloaded' }) });
+test('a connection issue sends Settings to Connections', () => {
+  manager.setAttention({ ...quiet, connection: notices.connection });
+  manager.buildMenuTemplate().find(item => item.label === 'Settings…').click();
+  manager.setAttention(quiet);
+  manager.buildMenuTemplate().find(item => item.label === 'Settings…').click();
+  expect(manager.openSettings.mock.calls).toEqual([['connections'], ['companion']]);
+});
+
+test('the native menu is rebuilt only when its notices change', async () => {
+  await onPlatform('darwin', async () => {
+    manager.createTray(); await flush();
+    for (let i = 0; i < 50; i++) manager.setAttention(quiet);
+    expect(Menu.buildFromTemplate).toHaveBeenCalledTimes(1);
+    manager.setAttention({ ...quiet, update: notices.update });
+    for (let i = 0; i < 50; i++) manager.setAttention({ ...quiet, update: notices.update });
+    expect(Menu.buildFromTemplate).toHaveBeenCalledTimes(2);
+    expect(native.setContextMenu).toHaveBeenCalledTimes(2);
+  });
+});
+
+test('250 unchanged notices do not redraw the icon or tooltip', async () => {
+  manager.setAttention(notices);
   manager.createTray(); await flush();
-  expect(native.setToolTip).toHaveBeenLastCalledWith('VibeMon\n1 monitored item needs attention — open Dashboard\nIntegrations need repair — open Integrations\nApp update available — open About VibeMon');
   native.setToolTip.mockClear(); native.setImage.mockClear();
-  for (let i = 0; i < 250; i++) manager.updateIcon();
+  for (let i = 0; i < 250; i++) { manager.updateIcon(); manager.setAttention(notices); }
+  await flush();
   expect(native.setToolTip).not.toHaveBeenCalled();
-  client.emit('change', { status: 'token-expired', attentionCount: 0 });
-  expect(native.setToolTip).toHaveBeenLastCalledWith('VibeMon\nRead token rejected — check Connections\nIntegrations need repair — open Integrations\nApp update available — open About VibeMon');
-  await flush(); expect(native.setImage).not.toHaveBeenCalled();
+  expect(native.setImage).not.toHaveBeenCalled();
 });
 
 test('the companion context menu binds to its sender window when available', () => {
@@ -164,10 +190,9 @@ test('the companion context menu binds to its sender window when available', () 
   expect(Menu.buildFromTemplate.mock.results[1].value.popup).toHaveBeenCalledWith();
 });
 
-test('cleanup detaches monitoring and prevents delayed icon work from touching a destroyed tray', async () => {
-  const client = Object.assign(new EventEmitter(), { snapshot: () => ({ status: 'connected', sources: [] }) });
-  manager.setMonitoringClient(client); manager.createTray(); manager.cleanup(); await flush();
-  expect(client.listenerCount('change')).toBe(0);
+test('cleanup prevents delayed icon work from touching a destroyed tray', async () => {
+  manager.createTray(); manager.cleanup(); await flush();
+  manager.setAttention(notices);
   expect(native.destroy).toHaveBeenCalledTimes(1);
   expect(native.setImage).not.toHaveBeenCalled();
 });

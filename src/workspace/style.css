@@ -279,12 +279,22 @@ h3 {
 .status-dot.warning {
   background: var(--vm-sidebar-warning);
 }
+/* Marks the navigation item whose page holds an issue; see shared/attention.cjs. */
 .attention-dot {
-  width: 5px;
-  height: 5px;
+  flex: none;
+  width: 7px;
+  height: 7px;
   border-radius: 50%;
-  background: var(--vm-sidebar-warning);
+  background: var(--vm-danger);
   margin-left: auto;
+}
+.attention-dot:not([hidden]) + .nav-count {
+  margin-left: 8px;
+}
+.settings-tabs .attention-dot {
+  display: inline-block;
+  margin-left: 6px;
+  vertical-align: 2px;
 }
 .main {
   overflow-y: auto;

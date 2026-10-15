@@ -1,5 +1,5 @@
 // Native contract tests use disposable data, the real preload, and a loopback HTTP API.
-const { app, nativeTheme } = require('electron');
+const { app, Menu, nativeTheme } = require('electron');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
@@ -248,7 +248,9 @@ startFixture().then(async fixture => {
   await until(() => ui('[...document.querySelectorAll("#agent-cards .chip")].every(chip => chip.textContent === "Inactive")'), 'stopped coding hooks are neutral in every card');
   assert.equal(await ui('[...document.querySelectorAll("#agent-cards .card")].every(card => card.dataset.agentTone === "neutral" && getComputedStyle(card.querySelector(".vm-agent-edge"), "::before").animationName === "none")'), true);
   assert.equal(client.snapshot().attentionCount, 0);
-  assert.equal(trayManager.hasAttentionBadge(), false, 'inactive agents do not light the menu badge');
+  assert.equal(trayManager.notices.dashboard, null, 'inactive agents do not mark the Dashboard menu item');
+  assert.equal(trayManager.notices.integrations, 'Codex CLI has an update', 'the fixture update stays assigned to Integrations');
+  assert.equal(Menu.buildFromTemplate(trayManager.buildMenuTemplate()).items.find(item => item.label === 'Integrations…').sublabel, 'Codex CLI has an update', 'the native menu item names the issue');
   await navigate('overview');
   assert.equal(await text('#summary-attention'), '0');
   await click('#overview-attention');
@@ -452,7 +454,10 @@ startFixture().then(async fixture => {
   view.notify('settings');
   await until(() => visible('#routing-error'), 'invalid integration config explained');
   assert.ok((await text('#routing-error')).includes('http_urls'));
-  assert.equal(await ui('document.getElementById("settings-attention").hidden'), false);
+  for (const area of ['settings', 'integrations']) {
+    assert.equal(await ui(`document.querySelector('[data-attention="${area}"]').getAttribute('aria-label')`), 'Local delivery settings need repair', `${area} names the integration issue`);
+  }
+  assert.equal(await ui('document.querySelector(\'[data-attention="about"]\').hidden'), true, 'quiet tabs stay unmarked');
   ports.vibemonConfigManager.getStatus = getConfigStatus;
   view.notify('settings');
   await input('#new-http-url', 'http://127.0.0.1:19999');

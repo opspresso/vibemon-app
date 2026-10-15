@@ -23,6 +23,7 @@ const { CredentialStore } = require('./monitoring/credential-store.cjs');
 const { WorkspaceWindow } = require('./workspace/window.cjs');
 const { WorkspaceSettings } = require('./workspace/settings.cjs');
 const { localActivity } = require('./workspace/activity.cjs');
+const { attentionAreas, attentionNotices } = require('./shared/attention.cjs');
 const { installWorkspaceMenu } = require('./workspace/menu.cjs');
 const { getUsageSnapshot } = require('./modules/usage-cache-reader.cjs');
 const { execFile } = require('child_process');
@@ -390,9 +391,11 @@ app.whenReady().then(() => {
     showCompanion: showCharacterAgain,
     reportError: error => dialog.showErrorBox('VibeMon workspace could not open', error.message)
   });
+  // Every source of an issue lands here: cloud polls, settings, hooks, updates.
+  const refreshAttention = () => trayManager.setAttention(attentionNotices(attentionAreas(monitoringClient.snapshot(), workspaceSettings.getSnapshot())));
   workspaceSettings.onSettingsChanged = () => {
     workspaceWindow.notify('settings');
-    trayManager.updateIcon();
+    refreshAttention();
   };
   cloudDelivery.onChange = () => workspaceSettings.notifyChanged();
   trayManager.openDashboard = () => workspaceWindow.open('overview');
@@ -403,6 +406,7 @@ app.whenReady().then(() => {
   const cloudActivity = statusIngress.cloudActivity(() => monitoringClient.currentTime());
   monitoringClient.on('change', snapshot => {
     cloudActivity.accept(snapshot.sources);
+    refreshAttention();
     for (const projectId of windowManager.getProjectIds()) {
       bubbleWindowManager.refresh(projectId, getBubbleOptions(projectId))
         .catch(err => console.error('Bubble countdown refresh failed:', err));
@@ -424,18 +428,15 @@ app.whenReady().then(() => {
   };
   httpServer.start();
 
-  trayManager.setMonitoringClient(monitoringClient);
-  trayManager.setHookInstaller(hookInstaller);
-  trayManager.setUpdateChecker(updateChecker);
-  hookInstaller.onStateChanged = () => workspaceWindow?.notify('settings');
-
-  updateChecker.onStateChanged = () => {
-    if (trayManager) {
-      trayManager.updateIcon();
-      trayManager.updateMenu();
-    }
+  hookInstaller.onStateChanged = () => {
     workspaceWindow?.notify('settings');
+    refreshAttention();
   };
+  updateChecker.onStateChanged = () => {
+    workspaceWindow?.notify('settings');
+    refreshAttention();
+  };
+  refreshAttention();
 
   // Detect AI tools missing VibeMon hooks: once shortly after startup, then
   // periodically so tools installed later are picked up too. Also keeps
@@ -450,11 +451,8 @@ app.whenReady().then(() => {
       .catch((err) => console.error('Hook check failed:', err));
     hookInstaller.updateChanged()
       .then(() => {
-        if (trayManager) {
-          trayManager.updateIcon();
-          trayManager.updateMenu();
-        }
         workspaceWindow?.notify('settings');
+        refreshAttention();
       })
       .catch((err) => console.error('Hook change check failed:', err));
   };

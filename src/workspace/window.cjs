@@ -4,6 +4,7 @@ const { URL } = require('node:url');
 const { centerOnCursorDisplay } = require('../modules/window-position.cjs');
 const { webOrigin, validId } = require('../monitoring/domain.cjs');
 const { WORKSPACE_UPDATE_MS } = require('../shared/constants.cjs');
+const { attentionAreas, attentionNotices } = require('../shared/attention.cjs');
 
 const ROUTES = ['overview', 'resources', 'agents', 'connections', 'companion', 'integrations', 'about'];
 const CHANNEL = 'workspace:request';
@@ -42,7 +43,8 @@ class WorkspaceWindow {
       if (section === 'usage') this.cache.usage = this.getUsage();
     }
     this.dirty.clear();
-    return { ...this.cache, route: this.route, platform: process.platform };
+    const areas = attentionAreas(this.cache.cloud, this.cache.settings);
+    return { ...this.cache, attention: { ...areas, notices: attentionNotices(areas) }, route: this.route, platform: process.platform };
   }
 
   notify(section) {

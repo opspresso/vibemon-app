@@ -35,12 +35,12 @@ beforeEach(() => {
   });
   BrowserWindow.mockImplementation(() => native);
   const monitoring = Object.assign(new EventEmitter(), {
-    snapshot: jest.fn(() => ({ url: 'https://vibemon.io', status: 'connected', sources: [] })),
+    snapshot: jest.fn(() => ({ url: 'https://vibemon.io', status: 'connected', sources: [], accounts: [] })),
     configure: jest.fn(), disconnect: jest.fn(), poll: jest.fn(), select: jest.fn(), trend: jest.fn()
   });
   ports = {
     monitoring,
-    settings: { getSnapshot: jest.fn(() => ({ version: 'test' })), invoke: jest.fn() },
+    settings: { getSnapshot: jest.fn(() => ({ version: 'test', hooks: [], vibemonConfig: { status: {} }, cloudDelivery: { status: 'verified' }, update: { status: 'current', version: null } })), invoke: jest.fn() },
     getActivity: jest.fn(() => [{ id: 'local' }]), getUsage: jest.fn(() => ({ codex: {} })),
     showCompanion: jest.fn(), reportError: jest.fn(), openExternal: jest.fn()
   };
@@ -131,7 +131,7 @@ test('hidden windows suspend rendering and receive the newest state when reopene
   expect(close.preventDefault).toHaveBeenCalled();
   expect(native.isVisible()).toBe(false);
   native.webContents.send.mockClear(); ports.getActivity.mockClear(); ports.getUsage.mockClear();
-  const cloud = { url: 'https://example.com', status: 'not-configured', sources: [] };
+  const cloud = { url: 'https://example.com', status: 'not-configured', sources: [], accounts: [] };
   ports.monitoring.emit('change', cloud);
   view.notify('settings');
   jest.advanceTimersByTime(WORKSPACE_UPDATE_MS * 2);

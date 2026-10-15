@@ -148,6 +148,24 @@ function focusPage() {
 }
 window.addEventListener('focus', focusPage);
 
+// Each dot names its issue, so a reader knows which page resolves it.
+function markAttention({ notices }) {
+  const reasons = {
+    resources: notices.resources,
+    agents: notices.accounts,
+    connections: notices.connection,
+    integrations: notices.integrations,
+    about: notices.update
+  };
+  reasons.settings = [reasons.connections, reasons.integrations, reasons.about].filter(Boolean).join(' · ') || null;
+  for (const dot of document.querySelectorAll('[data-attention]')) {
+    const reason = reasons[dot.dataset.attention];
+    dot.hidden = !reason;
+    dot.title = reason || '';
+    if (reason) dot.setAttribute('aria-label', reason);
+    else dot.removeAttribute('aria-label');
+  }
+}
 function render(value) {
   const { cloud, settings, activity, usage } = value;
   const route = pages[value.route] ? value.route : 'overview';
@@ -209,14 +227,11 @@ function render(value) {
       : 'Connect an account to get started'
   );
   text($('summary-local-note'), `${active.length} active on this device`);
-  text($('summary-attention-note'), overviewAttention ? 'Showing sources to review' : attention ? 'Review highlighted sources' : 'No reported issues');
+  // The tile already says "Need attention"; its note names where.
+  text($('summary-attention-note'), overviewAttention ? 'Showing sources to review' : value.attention.notices.where || 'No reported issues');
   $('overview-attention').setAttribute('aria-pressed', String(overviewAttention));
   document.documentElement.dataset.overviewFilter = overviewAttention ? 'attention' : 'all';
-  $('settings-attention').hidden =
-    !settings.vibemonConfig.status.error &&
-    settings.cloudDelivery.status !== 'error' &&
-    !settings.hooks.some((tool) => tool.present && (tool.broken || tool.changed)) &&
-    !['available', 'downloaded'].includes(settings.update.status);
+  markAttention(value.attention);
   text(
     $('last-sync'),
     cloud.lastSyncedAt

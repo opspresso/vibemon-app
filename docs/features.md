@@ -4,7 +4,16 @@
 
 Select **Dashboard** from the tray menu to open the workspace and select custom resources, host/cluster presets, and multiple accounts per provider. The App polls summaries with an OS-encrypted read token. Web resource edits control labels, display ranges, and metric order; local hook activity still works independently. See [cloud monitoring](monitoring.md) for setup, selection, trends, and failure states.
 
-The tray's orange-red dot marks a monitored item needing attention, a failed cloud connection, an integration needing repair, or an available app update. Hover over the icon to see each cause and where to resolve it. Inactive coding agents do not turn on the dot.
+The tray's orange-red dot shows that something needs you. The same dot marks where to resolve it:
+
+| Issue | Tray menu item | Workspace mark |
+|-------|----------------|----------------|
+| A selected resource or coding account needs attention | **Dashboard** | **Resources** or **Coding agents** in the sidebar |
+| The read connection failed | **Settings…** (opens Connections) | **Settings** and the **Connections** tab |
+| An integration needs repair or an update, local delivery settings are invalid, or the cloud delivery check failed | **Integrations…** | **Settings** and the **Integrations** tab |
+| An app update is available or ready to install | **About VibeMon** | **Settings** and the **About** tab |
+
+A marked menu item shows the cause below its name, and the icon tooltip lists every cause. In the workspace, hover over a dot to read its cause; screen readers announce it. **Need attention** in Overview counts the affected resources and accounts. Inactive coding agents do not turn on a dot. `src/shared/attention.cjs` assigns each issue to its location for the tray and the workspace.
 
 
 ## Agent Support
@@ -221,7 +230,7 @@ A small, transparent window with input only on its visible body and tail that di
 
 ### Workspace and settings
 
-The tray icon opens a menu. Select **Dashboard** to open the workspace with Overview, Resources, Coding agents, and Settings. Connections, Companion, Integrations, and About share its navigation and connection state. Preference changes apply immediately; connection and display-selection forms require Save. Search fields and unsaved choices survive automatic polling.
+The tray icon opens a menu. Its first line shows the installed version, for example **VibeMon 3.8.5**. Below it are **Dashboard** and **Show companion**, then **Settings…** and **Integrations…**, then **About VibeMon** and **Quit VibeMon**. Select **Dashboard** to open the workspace with Overview, Resources, Coding agents, and Settings. Connections, Companion, Integrations, and About share its navigation and connection state. Preference changes apply immediately; connection and display-selection forms require Save. Search fields and unsaved choices survive automatic polling.
 
 The tray menu provides Dashboard, Settings, Show companion, Integrations, About VibeMon, and Quit VibeMon. Usage and preference controls live in the workspace instead of submenus. **Show companion** restores the last shown character and speech bubble after they close, without waiting for another status event.
 
