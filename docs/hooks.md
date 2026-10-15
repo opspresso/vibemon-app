@@ -244,7 +244,19 @@ A tool approved at a permission prompt runs without a new hook event. The sessio
 
 Kiro CLI V3 runs no hook when the user cancels a turn with Esc. The hook finds the session record `~/.kiro/sessions/<workspace>/<session_id>/messages.jsonl` and passes it to the watcher as the transcript. While the turn runs, the watcher repeats its state every 60 seconds. When the record shows `turn_end` without a later hook, the watcher reports `done`.
 
-Kiro CLI 2.x runs global hooks only in V3 mode (`kiro-cli --v3 chat`). Its default V2 engine runs hooks only from a selected custom agent, so VibeMon does not see default V2 sessions.
+Kiro CLI 2.x runs global hooks only in V3 mode (`kiro-cli --v3 chat`). Its default V2 engine runs hooks only from a selected custom agent, so VibeMon does not see default V2 sessions. To report V2 sessions, add these hooks to the custom agent you use, for example `~/.kiro/agents/my-agent.json`:
+
+```json
+"hooks": {
+  "agentSpawn": [{"command": "python3 ~/.kiro/hooks/vibemon.py agentSpawn"}],
+  "userPromptSubmit": [{"command": "python3 ~/.kiro/hooks/vibemon.py userPromptSubmit"}],
+  "preToolUse": [{"command": "python3 ~/.kiro/hooks/vibemon.py preToolUse"}],
+  "postToolUse": [{"command": "python3 ~/.kiro/hooks/vibemon.py postToolUse"}],
+  "stop": [{"command": "python3 ~/.kiro/hooks/vibemon.py stop"}]
+}
+```
+
+Then start V2 with `kiro-cli --v2 chat --agent my-agent`, or make it the default with `kiro-cli settings chat.defaultAgent my-agent`. The agent file must have a `name`. V2 writes no session record, so a cancelled V2 turn stays active until the next event.
 
 ### OpenClaw
 
