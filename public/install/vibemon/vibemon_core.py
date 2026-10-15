@@ -175,9 +175,10 @@ def debug_log(msg: str) -> None:
 
 
 def resolve_serial_port(port_pattern: str | None) -> str | None:
-    """Resolve serial port pattern with wildcard support."""
+    """Resolve a serial port setting: `~` expands and `*` picks the first match."""
     if not port_pattern:
         return None
+    port_pattern = os.path.expanduser(port_pattern.strip())
 
     if "*" in port_pattern:
         matches = sorted(glob.glob(port_pattern))
@@ -1132,9 +1133,13 @@ def send_to_all(payload: dict[str, Any], is_start: bool = False, context: dict |
 
 # Command handler mapping
 def send_serial_input(args: list[str]) -> bool:
-    """Internal serial transport entry point for the OpenClaw plugin."""
+    """Internal serial transport entry point for the OpenClaw plugin.
+
+    `args[0]` is the configured port setting, resolved like `serial_port`.
+    """
     data = parse_json(read_input())
-    return bool(args and data) and send_serial(args[0], json.dumps(data))
+    port = resolve_serial_port(args[0]) if args else None
+    return bool(port and data) and send_serial(port, json.dumps(data))
 
 
 def send_cloud_status(provider: str) -> bool:

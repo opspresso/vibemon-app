@@ -166,13 +166,16 @@ class AdapterTests(unittest.TestCase):
         self.assertEqual(sample.health, "error")
 
     def test_spark_reports_unified_memory_and_unsupported_gpu_as_null(self):
-        sampler = HostSampler.__new__(HostSampler)
-        sampler.metrics = ["memoryPercent", "gpuPercent", "gpuTemperatureC"]
-        sampler.gpu_command = "/usr/bin/nvidia-smi"
-        sampler.gpu_name = "NVIDIA GB10"
-        sampler.memory_type = "auto"
-        sampler.metric_definitions = None
-        with patch("vibemon_collector.host.psutil.virtual_memory") as memory, patch("vibemon_collector.host.subprocess.run") as command:
+        with (
+            patch("vibemon_collector.host.shutil.which", return_value="/usr/bin/nvidia-smi"),
+            patch("vibemon_collector.host.Path.read_text", side_effect=OSError),
+            patch("vibemon_collector.host.psutil.cpu_percent"),
+            patch("vibemon_collector.host.psutil.virtual_memory") as memory,
+            patch("vibemon_collector.host.subprocess.run") as command,
+        ):
+            # Construction reads the GPU name; each sample reads utilization.
+            command.return_value.stdout = "NVIDIA GB10\n"
+            sampler = HostSampler(["memoryPercent", "gpuPercent", "gpuTemperatureC"])
             memory.return_value.percent = 42
             command.return_value.stdout = "[N/A], 48\n"
             sample = sampler.sample()

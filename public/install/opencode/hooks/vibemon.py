@@ -2,8 +2,8 @@
 """
 VibeMon Hook for opencode
 Desktop App + ESP32 (USB Serial / HTTP)
-The opencode 2.x plugin (~/.config/opencode/plugins/vibemon.js) maps
-opencode tool hooks and bus events to these hook events. Context and plan
+The opencode plugin (~/.config/opencode/plugins/vibemon.js) maps
+opencode 1.x and 2.x hooks and events to these hook events. Context and plan
 usage are not available and are omitted.
 Shared transport lives in vibemon_core.py (~/.vibemon/vibemon_core.py).
 """

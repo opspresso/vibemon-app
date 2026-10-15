@@ -40,7 +40,7 @@ After installation, edit `~/.vibemon/config.json` to configure your targets:
 | `cache_path` | Cache file path for project metadata | `~/.vibemon/cache/projects.json` |
 | `auto_launch` | Auto-launch Desktop App on session start | `true` |
 | `http_urls` | Local status-push targets (Desktop App or legacy ESP32-C6 firmware) | `["http://127.0.0.1:19280"]` |
-| `serial_port` | Legacy ESP32-C6 USB serial port (wildcard supported; POSIX only, ignored on Windows) | `"/dev/cu.usbmodem*"` |
+| `serial_port` | Legacy ESP32-C6 USB serial port (`~` and `*` wildcard supported; POSIX only, ignored on Windows) | `"/dev/cu.usbmodem*"` |
 | `vibemon_url` | VibeMon cloud API URL | `https://vibemon.io` |
 | `vibemon_token` | Generated write token (from /account) | |
 
@@ -84,11 +84,13 @@ The OpenClaw plugin reads transmission settings (`http_urls`, `serial_port`, `vi
 
 To override the shared settings for OpenClaw only, add a `config` object to the entry (`projectName`, `character`, `httpEnabled`, `httpUrls`, `serialEnabled`, `vibemonUrl`, `vibemonToken`, `autoLaunch`, `debug`) — plugin config always wins over `~/.vibemon/config.json`.
 
+Serial output from OpenClaw needs a port setting: `serialPort` in the plugin config or `serial_port` in `~/.vibemon/config.json`. The plugin does not search for devices. `vibemon_core.py` resolves the setting the same way for every tool.
+
 After installing or updating the plugin, rebuild OpenClaw's persisted plugin registry and restart the gateway (`openclaw plugins registry --refresh && openclaw gateway restart`) — the gateway boots from a registry snapshot and won't pick up the plugin's hooks otherwise. The installer runs the refresh automatically. A missing CLI or failed refresh returns a failing installation/removal result; resolve that error and retry before restarting the gateway.
 
 ### opencode Configuration
 
-The opencode integration requires opencode 2.0 or later. opencode 1.x cannot load the plugin.
+The opencode integration requires opencode 1.18.29 or later. One plugin file serves opencode 1.x and 2.x.
 
 The opencode plugin reads transmission settings (`http_urls`, `serial_port`, `vibemon_url`, `vibemon_token`) from the same `~/.vibemon/config.json` as the other tools. The plugin at `~/.config/opencode/plugins/vibemon.js` maps opencode events to VibeMon hook events: it spawns the adapter at `~/.config/opencode/hooks/vibemon.py`, which feeds `vibemon_core.py`. opencode auto-discovers plugins in `~/.config/opencode/plugins/` at startup, so no config registration is needed — install the plugin file and restart opencode.
 
@@ -261,7 +263,9 @@ OpenClaw reads the active model and context usage from `llm_output`, resets them
 | Stop | done |
 | SessionEnd | done |
 
-The plugin default-exports the opencode 2.x definition `{ id, setup }`. `setup` registers two tool hooks and reads the event bus (`ctx.event.subscribe()`):
+The plugin default-exports `{ id, setup, server }`. opencode 2.x calls `setup`, and opencode 1.18.29 or later calls `server`.
+
+In opencode 2.x, `setup` registers two tool hooks and reads the event bus (`ctx.event.subscribe()`):
 
 - `session.created` → SessionStart
 - `session.execution.started` or `session.retry.scheduled` → UserPromptSubmit
@@ -280,6 +284,20 @@ opencode loads the plugin once per project instance (one directory). The event b
 The event bus does not replay events sent before the plugin subscribes. For a session without a `session.created` event (the session that starts the project instance, or a resumed session), the plugin reads the session metadata once with `ctx.session.get()`. That session starts at UserPromptSubmit instead of SessionStart.
 
 The model and agent come from the session metadata and `session.step.started`; the `plan` agent sets `permission_mode` to `plan`. Child sessions (metadata with `parentID`) do not publish status, because the parent's `subagent` tool represents them. Each adapter process has a 10-second deadline so a stalled child cannot stop the queue.
+
+In opencode 1.x, `server` returns these hooks:
+
+- event `session.created` → SessionStart
+- hook `chat.message` → UserPromptSubmit, with the message model and agent
+- hook `tool.execute.before` → PreToolUse, with the tool `callID` as `tool_use_id`
+- hook `tool.execute.after` → PostToolUse, with the same `tool_use_id`
+- event `permission.asked` or `permission.updated` → PermissionRequest
+- hook `experimental.session.compacting` → PreCompact
+- event `session.compacted` → PostCompact
+- event `session.idle` or `session.error` → Stop
+- event `session.deleted` → SessionEnd
+
+opencode 1.x sends `session.idle` after every completed, failed, or aborted prompt, so each turn ends in `done`. A failure sends `session.error` before `session.idle`; the plugin sends one `Stop` for both. opencode 1.x delivers only the events of the plugin's own project instance, so the instance directory is the payload `cwd`. Child sessions announced by `session.created` with `parentID` do not publish status.
 
 ## Related Projects
 

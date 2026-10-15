@@ -295,3 +295,25 @@ test("an optional run id can appear after the start hook without leaking activit
   await h.advance(3000);
   assert.equal(h.states().at(-1), "done");
 });
+
+test("serial output needs a port setting and passes it to the shared transport", async () => {
+  const h = await openclaw({ pluginConfig: { serialEnabled: true, httpEnabled: false } });
+  await h.emit("before_agent_run", {}, ctx);
+  assert.equal(h.children.length, 0);
+  assert.ok(h.logs.some((message) => message.includes("Serial output needs serialPort")));
+  const wildcard = await openclaw({ pluginConfig: { serialPort: "~/dev/cu.usbserial-*", httpEnabled: false } });
+  await wildcard.emit("before_agent_run", {}, ctx);
+  assert.equal(wildcard.children[0].args.slice(-2).join(" "), "--send-serial ~/dev/cu.usbserial-*");
+});
+
+test("a spawned subagent keeps the run's model on the working state", async () => {
+  const h = await openclaw();
+  await h.emit("model_call_started", { model: "fixture-model" }, ctx);
+  await h.emit("before_agent_run", {}, ctx);
+  await h.emit("model_call_started", { model: "fixture-model" }, ctx);
+  await h.emit("subagent_spawned", {}, ctx);
+  const last = h.requests.filter((r) => r.payload).at(-1).payload;
+  assert.equal(last.state, "working");
+  assert.equal(last.model, "fixture-model");
+  assert.equal(last.tool, "subagent");
+});

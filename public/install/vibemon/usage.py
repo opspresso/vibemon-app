@@ -67,7 +67,7 @@ NO_WINDOW_FLAGS = getattr(subprocess, "CREATE_NO_WINDOW", 0)
 
 CLAUDE_TIMEOUT_SECONDS = 30
 CLAUDE_TOKEN_TIMEOUT_SECONDS = 3
-CLAUDE_API_TIMEOUT_SECONDS = 8
+USAGE_API_TIMEOUT_SECONDS = 8
 CLAUDE_USAGE_API_URL = "https://api.anthropic.com/api/oauth/usage"
 CLAUDE_CREDENTIALS_FILE = os.path.join(os.path.expanduser(os.environ.get("CLAUDE_CONFIG_DIR") or "~/.claude"), ".credentials.json")
 
@@ -165,7 +165,7 @@ def read_claude_token() -> str | None:
 def _usage_response(request) -> dict[str, Any] | None:
     """Read a bounded provider summary without exposing response or credential data."""
     try:
-        with open_credential_request(request, timeout=CLAUDE_API_TIMEOUT_SECONDS) as response:
+        with open_credential_request(request, timeout=USAGE_API_TIMEOUT_SECONDS) as response:
             raw = response.read(64 * 1024 + 1)
         if len(raw) > 64 * 1024:
             return None

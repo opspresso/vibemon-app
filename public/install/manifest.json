@@ -1,25 +1,25 @@
 {
-  "installer": "17a8bf63cf893e892fac10d0d3a8967e58a78fce13a8d227ec6f6a9c8b080d13",
+  "installer": "4809021c1d97a10cf1f0892c57b202a64c64eb0eed7caaf1a368a8f1cf02cc57",
   "files": {
     "claude/settings.json": "16364280f11c2e94a7c70d01b0f019aaf736ea82c8b0d8a2a9936072d0cfe009",
     "codex/hooks.json": "b7e5e486400a0b289a789f4f6ecc9d04188192ef031b7e6c1dcbc60d3d8ad2f8",
     "vibemon/config.example.json": "d6cb3a66527ec2254163e05d676b145d8a00f68662789fd55cb212dbdcf2fbc5",
     "vibemon/statusline.example.json": "c4b370200330578bdc76707e6d20b729aeee8304d0b05906c804deafd09bec4f",
-    "vibemon/usage.py": "72b017917a14162e36bec00a01ad7a78c27e5d21b0ad2e7512fcc693fdbfdf41",
-    "vibemon/usage_cache.py": "291c0463b170ff1b914dc6a7ecc6fb0f44c6af2ede8b1908af4b6fd80ec758d3",
+    "vibemon/usage.py": "c98e9ff38e763c891428db7d8417ccc8bbb3a80e028931cb7ec6cb244f57be41",
+    "vibemon/usage_cache.py": "17d138b0a18151365d3f5d174013ad68576d78447283c7ccc45eb65a00485c8b",
     "vibemon/account_context.py": "f6babad43f88b5d3bf74f070fc1772d2e226f51559a3841adbb17b54fa9d2b6e",
     "vibemon/cache_io.py": "f99ddbcba818ac8cf5b84aa714cdec1ef4ff87f87680dd2868ef483deb208de7",
     "vibemon/http_client.py": "306f9804a3bffc221b7c68f7b1f100937311908912ffb50bca500d493464052a",
     "vibemon/session_activity.py": "f02c280f7a00748254359f0cda678be37cc429bfd75dcf4d1959b243d2c4684e",
-    "vibemon/vibemon_core.py": "ff51dcf6dc1a0b99972ab9941393d7ef592bc174bafabdad72a1ee53061687d1",
-    "claude/statusline.py": "eb841fa51278be66ca7b2c647c6447e878ab974bbf7031321f2588d6ab8a02cb",
+    "vibemon/vibemon_core.py": "42b807a9d3f725238c4207780de61736d485d3138f26e005776f79710fe2e350",
+    "claude/statusline.py": "8743c6bbf632f4eadf8550a622b70db8a3a1cd7e95e1f6c5aaac7d13954405ee",
     "claude/hooks/vibemon.py": "a592e7e8904b3dbd09f94b9b882906cb9dc470c27f6f68d77bc45fa508d41727",
     "codex/hooks/vibemon.py": "11d5f731598067d90872ea41ad99f31779b6926b064702e2af1480f521ffa952",
     "kiro/hooks/vibemon.py": "769357ffc457caf738fdf2299e338f696d8d7903c9a9cb75d4872996fdc58573",
     "kiro/hooks/vibemon.json": "b4f43d0d1f3ae7f9884a2379ecc8d3f9ff62ac7b166f4b0b5e1f6a2c959cb2b9",
-    "openclaw/extensions/index.mjs": "f5621f516f86eec757b74db8fbe065fe3503e7d37d7ff8b5856797eade83a667",
+    "openclaw/extensions/index.mjs": "ee7a02da47c9577ba8d32943cc9170241247ba62f4958c5f1cae8beb21d219ea",
     "openclaw/extensions/openclaw.plugin.json": "128a5d1b57649575b25764614e5d8a8e93f68ab2b63d69ae759f244f125d49b0",
-    "opencode/plugin/vibemon.js": "2896c170c06a217b3fc4d9aba2854a2d7952d2d04b2e062c15dc776f77d45b31",
-    "opencode/hooks/vibemon.py": "802d9dfa27cf370bf76a120bb1c36049e4fa570662ba4778a6947cac7aded7a7"
+    "opencode/plugin/vibemon.js": "94e77897400629555448d5d5ba438d0d04716ee84c79d6bc33adc63ee9582e5b",
+    "opencode/hooks/vibemon.py": "da432f78fc9f31d75dcfb9d1bbb5bfe6542de80583314cd574d265c501fb837c"
   }
 }

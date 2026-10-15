@@ -69,7 +69,5 @@ class HostSampler:
                     values[key] = max(valid) if valid else None
             except (OSError, subprocess.SubprocessError):
                 failed = True
-        unified = any(name in self.gpu_name.lower() for name in ("spark", "gb10"))
-        memory_type = ("unified" if unified else "ram") if self.memory_type == "auto" else self.memory_type
         health = "error" if failed else "ok" if any(value is not None for value in values.values()) else "unknown"
-        return Sample(values, health, memory_type, self.metric_definitions)
+        return Sample(values, health, self.memory_type, self.metric_definitions)

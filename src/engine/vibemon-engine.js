@@ -430,16 +430,21 @@ export class VibeMonEngine {
     }
 
     this.lastFrameTime = timestamp;
-    this.animFrame++;
-    this._updateFloatingPosition();
+    // Reduced motion holds every frame-driven motion (floating, blinking, and
+    // effect animation) still, like the 3D engine. setState() and render()
+    // still show each status change.
+    if (!this.reducedMotion) {
+      this.animFrame++;
+      this._updateFloatingPosition();
 
-    if (this.currentState === 'idle') {
-      this.blinkFrame++;
-      if (this.blinkFrame > CONSTANTS.BLINK_END_FRAME) this.blinkFrame = 0;
-    }
+      if (this.currentState === 'idle') {
+        this.blinkFrame++;
+        if (this.blinkFrame > CONSTANTS.BLINK_END_FRAME) this.blinkFrame = 0;
+      }
 
-    if (needsAnimationRedraw(this.currentState, this.states[this.currentState], this.blinkFrame)) {
-      this.render();
+      if (needsAnimationRedraw(this.currentState, this.states[this.currentState], this.blinkFrame)) {
+        this.render();
+      }
     }
 
     this.animationFrameId = requestAnimationFrame(this.boundAnimationLoop);

@@ -455,15 +455,13 @@ class LifecycleConfigTest(unittest.TestCase):
         self.assertEqual(event_map["Stop"], "done")
         self.assertEqual(event_map["SessionEnd"], "done")
 
-    def test_opencode_plugin_uses_the_v2_definition(self):
-        """opencode 2.x loads only a default `{ id, setup }` export. It has no
-        `@opencode-ai/plugin` package, so the plugin must not import one."""
+    def test_opencode_plugin_imports_no_opencode_package(self):
+        """opencode 2.x has no `@opencode-ai/plugin` package, so the plugin
+        must not import one. tests/hooks/opencode.test.mjs checks the export."""
         plugin = (DOCS_DIR / "opencode" / "plugin" / "vibemon.js").read_text(
             encoding="utf-8"
         )
-        self.assertIn('export default { id: "vibemon", setup };', plugin)
         self.assertNotIn("@opencode", plugin.split("*/", 1)[1])
-        self.assertIn('"permission.asked": "PermissionRequest"', plugin)
 
     def test_canonical_document_tables_match_hook_adapters(self):
         readme = (DOCS_DIR.parents[1] / "docs" / "hooks.md").read_text(encoding="utf-8")

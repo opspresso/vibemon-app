@@ -63,6 +63,23 @@ describe('engine state selection', () => {
     expect(engine.animFrame).toBe(0); expect(engine.blinkFrame).toBe(0);
     expect(engine.characterRenderer.drawCharacter.mock.calls[0].slice(0, 2)).toEqual([STATE_CONFIG.working.eyeType, STATE_CONFIG.working.effect]);
   });
+  test('reduced motion stops effect animation and blinking in the frame loop', () => {
+    const frames = [];
+    const { VibeMonEngine: Engine } = loadEngine({ requestAnimationFrame: (callback) => frames.push(callback) });
+    const engine = new Engine(null, { characters: charactersRegistry.characters, defaultCharacter: charactersRegistry.default, states: STATE_CONFIG });
+    engine.canvas = { style: {} };
+    engine.characterRenderer = { drawCharacter: jest.fn() };
+    engine.setReducedMotion(true);
+    engine.setState({ state: 'sleep' });
+    engine.startAnimation();
+    for (let i = 1; i <= 40; i++) frames.shift()(i * CONSTANTS.FRAME_INTERVAL);
+    expect(engine.animFrame).toBe(0);
+    expect(engine.characterRenderer.drawCharacter).not.toHaveBeenCalled();
+    engine.setReducedMotion(false);
+    frames.shift()(41 * CONSTANTS.FRAME_INTERVAL);
+    expect(engine.animFrame).toBe(1);
+    expect(engine.characterRenderer.drawCharacter).toHaveBeenCalledTimes(1);
+  });
   test('idle injects the blink eyeType on the blink frame only', () => {
     const engine = makeEngine();
     engine.characterRenderer = { drawCharacter: jest.fn() };

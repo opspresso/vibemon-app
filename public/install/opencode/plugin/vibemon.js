@@ -1,15 +1,15 @@
 /**
- * VibeMon Plugin for opencode 2.x
+ * VibeMon Plugin for opencode
  *
  * This plugin sends opencode session state to VibeMon. It spawns the adapter
  * (~/.config/opencode/hooks/vibemon.py), which feeds the shared transport
  * (~/.vibemon/vibemon_core.py) like the Claude Code, Codex, Kiro, and
  * OpenClaw integrations.
  *
- * opencode 2.x loads the default export `{ id, setup }`. opencode 1.x cannot
- * load this file.
+ * One default export serves both plugin APIs: opencode 2.x calls `setup()`,
+ * and opencode 1.18.29 and later call `server()`.
  *
- * Source (tool hook or bus event)         Hook event          State
+ * opencode 2.x source (tool hook or bus event) Hook event     State
  *   session.created                    -> SessionStart       -> start
  *   session.execution.started          -> UserPromptSubmit   -> thinking
  *   session.retry.scheduled            -> UserPromptSubmit   -> thinking
@@ -21,6 +21,17 @@
  *     .failed                          -> PostCompact        -> thinking
  *   session.execution.succeeded,
  *     .failed, .interrupted            -> Stop               -> done
+ *   session.deleted                    -> SessionEnd         -> done
+ *
+ * opencode 1.x source (hook or event)      Hook event          State
+ *   session.created                    -> SessionStart       -> start
+ *   chat.message                       -> UserPromptSubmit   -> thinking
+ *   tool.execute.before                -> PreToolUse         -> working
+ *   tool.execute.after                 -> PostToolUse        -> thinking
+ *   permission.asked, .updated         -> PermissionRequest  -> notification
+ *   experimental.session.compacting    -> PreCompact         -> packing
+ *   session.compacted                  -> PostCompact        -> thinking
+ *   session.idle, session.error        -> Stop               -> done
  *   session.deleted                    -> SessionEnd         -> done
  *
  * opencode auto-discovers plugins in ~/.config/opencode/plugins/ at startup,
@@ -105,26 +116,22 @@ function text(value) {
   return typeof value === "string" ? value : "";
 }
 
-// opencode 2.x sends `{ id, providerID }` model references.
+// opencode 2.x sends `{ id, providerID }` model references and opencode 1.x
+// sends `{ providerID, modelID }`.
 function modelName(model) {
-  return text(model) || text(model?.id);
+  return text(model) || text(model?.id) || text(model?.modelID);
 }
 
-// opencode calls setup once per project instance (one directory) in one
-// server. The event bus delivers the events of every instance, but tool hooks
-// fire only in the instance that runs the session. A session belongs to this
-// instance when its `location.directory` equals the instance directory, so
-// each session is sent once and with its own project directory.
-function setup(ctx) {
-  const directory = text(ctx.location?.directory) || process.cwd();
+// The session state of one project instance (one directory). It sends each
+// owned top-level session with the instance directory.
+function sessionBridge(directory) {
   const sessions = new Map();
-  const lookups = new Map();
 
-  // `info` is session metadata: a session.created payload or the
-  // ctx.session.get() result. Both use the same field names.
+  // `info` is session metadata: a 2.x session.created payload, a
+  // ctx.session.get() result, or a 1.x session `info`.
   function remember(sessionID, info) {
     const state = sessions.get(sessionID) || { owned: false, agent: "", model: "" };
-    const location = text(info?.location?.directory);
+    const location = text(info?.location?.directory) || text(info?.directory);
     if (location) state.owned = location === directory;
     state.parentID = text(info?.parentID) || state.parentID;
     state.model = modelName(info?.model) || state.model;
@@ -132,6 +139,38 @@ function setup(ctx) {
     sessions.set(sessionID, state);
     return state;
   }
+
+  function sendStatus(state, eventName, sessionID, tool = "", toolUseID = "") {
+    if (!state.owned) return;
+    // The parent's subagent tool already represents child work. A child's
+    // completion must not mark the still-running parent as done.
+    if (state.parentID) return;
+    if (eventName === "Stop" && state.lastEvent === "Stop") return;
+    state.lastEvent = eventName;
+    dispatch({
+      hook_event_name: eventName,
+      session_id: sessionID,
+      tool_name: text(tool),
+      tool_use_id: text(toolUseID),
+      cwd: directory,
+      transcript_path: "",
+      permission_mode: state.agent === "plan" ? "plan" : "default",
+      model: state.model,
+    });
+  }
+
+  return { sessions, remember, sendStatus };
+}
+
+// opencode 2.x calls setup once per project instance in one server. The event
+// bus delivers the events of every instance, but tool hooks fire only in the
+// instance that runs the session. A session belongs to this instance when its
+// `location.directory` equals the instance directory, so each session is sent
+// once and with its own project directory.
+function setup(ctx) {
+  const directory = text(ctx.location?.directory) || process.cwd();
+  const { sessions, remember, sendStatus } = sessionBridge(directory);
+  const lookups = new Map();
 
   // The event stream does not replay events sent before setup subscribes.
   // The session that boots a project instance, a resumed session, and a
@@ -162,25 +201,6 @@ function setup(ctx) {
         }));
     }
     lookups.get(sessionID).then(run);
-  }
-
-  function sendStatus(state, eventName, sessionID, tool = "", toolUseID = "") {
-    if (!state.owned) return;
-    // The parent's subagent tool already represents child work. A child's
-    // completion must not mark the still-running parent as done.
-    if (state.parentID) return;
-    if (eventName === "Stop" && state.lastEvent === "Stop") return;
-    state.lastEvent = eventName;
-    dispatch({
-      hook_event_name: eventName,
-      session_id: sessionID,
-      tool_name: text(tool),
-      tool_use_id: text(toolUseID),
-      cwd: directory,
-      transcript_path: "",
-      permission_mode: state.agent === "plan" ? "plan" : "default",
-      model: state.model,
-    });
   }
 
   const STATUS_EVENTS = {
@@ -252,4 +272,60 @@ function setup(ctx) {
   return () => abort.abort();
 }
 
-export default { id: "vibemon", setup };
+// opencode 1.x calls server once per project instance and delivers only that
+// instance's events and hooks, so every session it reports is owned.
+async function server(input) {
+  const directory = text(input?.directory) || process.cwd();
+  const { sessions, remember, sendStatus } = sessionBridge(directory);
+
+  function status(sessionID, eventName, info, tool = "", toolUseID = "") {
+    if (!sessionID) return;
+    try {
+      const state = remember(sessionID, info);
+      state.owned = true;
+      sendStatus(state, eventName, sessionID, tool, toolUseID);
+      if (eventName === "SessionEnd") sessions.delete(sessionID);
+    } catch {
+      // Never let a bridge failure affect opencode.
+    }
+  }
+
+  // `session.idle` follows every finished, failed, or aborted prompt.
+  // `session.error` comes first on a failure; sendStatus sends one Stop.
+  const EVENTS = {
+    "session.idle": "Stop",
+    "session.error": "Stop",
+    "session.compacted": "PostCompact",
+  };
+
+  return {
+    event: async ({ event } = {}) => {
+      const properties = event?.properties || {};
+      if (event?.type === "session.created") {
+        status(text(properties.info?.id), "SessionStart", properties.info);
+      } else if (event?.type === "session.deleted") {
+        status(text(properties.info?.id), "SessionEnd", properties.info);
+      } else if (event?.type === "permission.asked" || event?.type === "permission.updated") {
+        status(text(properties.sessionID), "PermissionRequest", undefined, text(properties.type),
+          text(properties.callID) || text(properties.tool?.callID));
+      } else if (EVENTS[event?.type]) {
+        status(text(properties.sessionID), EVENTS[event.type]);
+      }
+    },
+    "chat.message": async (message) => {
+      status(text(message?.sessionID), "UserPromptSubmit", { model: message?.model, agent: message?.agent });
+    },
+    // `callID` is the tool call ID, so parallel calls are tracked separately.
+    "tool.execute.before": async (call) => {
+      status(text(call?.sessionID), "PreToolUse", undefined, call?.tool, call?.callID);
+    },
+    "tool.execute.after": async (call) => {
+      status(text(call?.sessionID), "PostToolUse", undefined, call?.tool, call?.callID);
+    },
+    "experimental.session.compacting": async (compaction) => {
+      status(text(compaction?.sessionID), "PreCompact");
+    },
+  };
+}
+
+export default { id: "vibemon", setup, server };

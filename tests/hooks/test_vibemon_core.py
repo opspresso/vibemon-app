@@ -374,3 +374,27 @@ class DesktopLaunchTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class SerialPortTest(unittest.TestCase):
+    @unittest.skipIf(os.name == "nt", "serial output is POSIX-only")
+    def test_port_setting_expands_home_and_wildcard(self):
+        with tempfile.TemporaryDirectory() as home:
+            for name in ("cu.usbserial-2", "cu.usbserial-1"):
+                Path(home, name).touch()
+            with patch.dict(os.environ, {"HOME": home}):
+                self.assertEqual(vibemon_core.resolve_serial_port("~/cu.usbserial-*"), str(Path(home, "cu.usbserial-1")))
+                self.assertEqual(vibemon_core.resolve_serial_port(" ~/fixed "), str(Path(home, "fixed")))
+                self.assertIsNone(vibemon_core.resolve_serial_port("~/missing-*"))
+
+    def test_plugin_serial_entry_resolves_the_port_setting(self):
+        sent = []
+        with (
+            patch.object(sys, "stdin", io.StringIO('{"state": "working"}')),
+            patch.object(vibemon_core, "resolve_serial_port", return_value="/dev/cu.usbmodem1"),
+            patch.object(vibemon_core, "send_serial", lambda port, data: sent.append((port, json.loads(data))) or True),
+        ):
+            self.assertTrue(vibemon_core.send_serial_input(["/dev/cu.usbmodem*"]))
+        self.assertEqual(sent, [("/dev/cu.usbmodem1", {"state": "working"})])
+        with patch.object(sys, "stdin", io.StringIO('{"state": "working"}')), patch.object(vibemon_core, "resolve_serial_port", return_value=None):
+            self.assertFalse(vibemon_core.send_serial_input(["/dev/none*"]))

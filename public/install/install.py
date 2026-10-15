@@ -300,38 +300,36 @@ def configure_token(config: dict, cli_token: str = None) -> dict:
     return config
 
 
-def load_or_create_config(config_path: Path, example_content: str, fallback: dict = None) -> dict:
-    """Load existing config or create from example.
+def read_json_object(path: Path) -> dict | None:
+    """Return the JSON object stored at path, or None when it holds anything else.
 
-    `fallback` is used if `example_content` itself fails to parse (e.g. a
-    corrupted download); defaults to the vibemon config.json shape for
-    backward compatibility with existing callers.
+    Every config the installer edits is a JSON object. Invalid JSON and a
+    top-level value of another type are both reported and ignored.
+    """
+    try:
+        config = json.loads(path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError:
+        config = None
+    if isinstance(config, dict):
+        return config
+    print(f"  {colored('!', 'yellow')} {path.name} is not a valid JSON object — ignoring its content")
+    return None
+
+
+def load_or_create_config(config_path: Path, example_content: str) -> dict:
+    """Load the existing config object, or start from the packaged example.
+
+    The example is integrity-checked before it gets here, so a parse failure
+    is a packaging defect and raises.
     """
     if config_path.exists():
         # Copy it aside before the defaults below get saved over it — it may
         # hold a hand-edited vibemon_token.
         backup_file(config_path)
-        try:
-            with open(config_path, encoding="utf-8") as f:
-                return json.load(f)
-        except json.JSONDecodeError:
-            print(f"  {colored('!', 'yellow')} {config_path.name} had invalid JSON — falling back to defaults")
-
-    # Parse example content
-    try:
-        return json.loads(example_content)
-    except json.JSONDecodeError:
-        if fallback is not None:
-            return fallback
-        return {
-            "debug": False,
-            "cache_path": "~/.vibemon/cache/projects.json",
-            "auto_launch": True,
-            "http_urls": [],
-            "serial_port": None,
-            "vibemon_url": "https://vibemon.io",
-            "vibemon_token": ""
-        }
+        config = read_json_object(config_path)
+        if config is not None:
+            return config
+    return json.loads(example_content)
 
 
 def write_text_atomic(path: Path, content: str, mode: int = None) -> None:
@@ -396,13 +394,13 @@ def save_config(config_path: Path, config: dict, mode: int = None) -> bool:
 
 
 def load_json_or_backup(path: Path) -> dict:
-    """Load JSON from path, copying it to .bak before it gets overwritten."""
+    """Load a JSON object from path, copying it to .bak before it gets overwritten.
+
+    Content that is not a JSON object gives an empty object, so callers can
+    read keys without a shape check.
+    """
     backup_file(path)
-    try:
-        return json.loads(path.read_text(encoding="utf-8"))
-    except json.JSONDecodeError:
-        print(f"  {colored('!', 'yellow')} {path.name} had invalid JSON — starting from an empty config")
-        return {}
+    return read_json_object(path) or {}
 
 
 def download_file(url: str) -> str:
@@ -1171,18 +1169,12 @@ def configure_statusline_config(source: FileSource) -> bool:
 
     print("\nConfiguring statusline display settings:")
     statusline_content = source.get_file(STATUSLINE_EXAMPLE_FILE)
-    # fallback={}: statusline.json has no config.json-shaped default worth
-    # falling back to; an empty dict just leaves every show_*/usage_* toggle
-    # at statusline.py's own coded-in defaults, which is the safest state.
-    statusline_config = load_or_create_config(statusline_path, statusline_content, fallback={})
+    statusline_config = load_or_create_config(statusline_path, statusline_content)
 
     if is_new:
         print("  Creating new config at ~/.vibemon/statusline.json")
         if config_path.exists():
-            try:
-                legacy = json.loads(config_path.read_text(encoding="utf-8"))
-            except json.JSONDecodeError:
-                legacy = {}
+            legacy = read_json_object(config_path) or {}
             migrated = {k: legacy[k] for k in STATUSLINE_KEYS if k in legacy}
             if migrated:
                 statusline_config.update(migrated)
@@ -1240,8 +1232,6 @@ def install_claude(source: FileSource, cli_token: str = None) -> bool:
 
     if settings_file.exists():
         existing_settings = load_json_or_backup(settings_file)
-        if not isinstance(existing_settings, dict):
-            existing_settings = {}
 
         if "hooks" in existing_settings:
             # Strip and re-merge VibeMon's own entries: command identity alone
@@ -1339,8 +1329,6 @@ def install_codex(source: FileSource, cli_token: str = None) -> bool:
 
     if hooks_file.exists():
         existing_hooks = load_json_or_backup(hooks_file)
-        if not isinstance(existing_hooks, dict):
-            existing_hooks = {}
 
         existing_map = existing_hooks.get("hooks", {})
         new_map = new_hooks.get("hooks", {})
@@ -1549,18 +1537,16 @@ def install_openclaw(source: FileSource, cli_token: str = None) -> bool:
     if config_file.exists():
         existing_config = load_json_or_backup(config_file)
 
-        # Ensure plugins.entries structure exists
-        if "plugins" not in existing_config:
-            existing_config["plugins"] = {}
-        if "entries" not in existing_config["plugins"]:
-            existing_config["plugins"]["entries"] = {}
-
+        # Also makes `plugins` an object, so `entries` can be read below.
         if ensure_plugin_path_registered(existing_config, str(plugin_dir)):
             print(f"  {colored('✓', 'green')} plugin path registered in plugins.load.paths")
+        entries = existing_config["plugins"].get("entries")
+        if not isinstance(entries, dict):
+            entries = existing_config["plugins"]["entries"] = {}
 
         # Merge vibemon-bridge plugin (preserve existing config if present)
-        if "vibemon-bridge" in existing_config["plugins"]["entries"]:
-            existing_plugin = existing_config["plugins"]["entries"]["vibemon-bridge"]
+        existing_plugin = entries.get("vibemon-bridge")
+        if isinstance(existing_plugin, dict):
             plugin_cfg = existing_plugin.get("config")
             if isinstance(plugin_cfg, dict):
                 removed = [
@@ -1573,13 +1559,15 @@ def install_openclaw(source: FileSource, cli_token: str = None) -> bool:
                     print(f"  {colored('✓', 'green')} moved to ~/.vibemon/config.json: {', '.join(removed)}")
                 if not plugin_cfg:
                     del existing_plugin["config"]
-            hooks_cfg = existing_plugin.setdefault("hooks", {})
-            if isinstance(hooks_cfg, dict) and hooks_cfg.get("allowConversationAccess") is not True:
+            hooks_cfg = existing_plugin.get("hooks")
+            if not isinstance(hooks_cfg, dict):
+                hooks_cfg = existing_plugin["hooks"] = {}
+            if hooks_cfg.get("allowConversationAccess") is not True:
                 hooks_cfg["allowConversationAccess"] = True
                 print(f"  {colored('✓', 'green')} hooks.allowConversationAccess enabled")
             print(f"  {colored('✓', 'green')} vibemon-bridge plugin already configured")
         else:
-            existing_config["plugins"]["entries"]["vibemon-bridge"] = vibemon_plugin_config
+            entries["vibemon-bridge"] = vibemon_plugin_config
             print(f"  {colored('✓', 'green')} vibemon-bridge plugin added")
 
         write_text_atomic(config_file, json.dumps(existing_config, indent=2) + "\n")
@@ -1710,8 +1698,6 @@ def _uninstall_hooks_from_json(config_file: Path, hooks_key_path: list, label: s
     if not config_file.exists():
         return
     config = load_json_or_backup(config_file)
-    if not isinstance(config, dict):
-        return
     container = config
     for key in hooks_key_path:
         container = container.get(key)
@@ -1785,9 +1771,8 @@ def uninstall_codex(source: FileSource = None, cli_token: str = None) -> bool:
         return SKIPPED
 
     print(f"\n{colored('Removing VibeMon from Codex CLI...', 'cyan')}\n")
-    # [] , not ["hooks"]: hooks.json *is* {"hooks": {...events...}}, so descending
-    # into "hooks" first and then looking for "hooks" again found nothing and
-    # left every VibeMon registration behind.
+    # [], not ["hooks"]: hooks.json *is* {"hooks": {...events...}}, so the
+    # event map sits at the top level.
     _uninstall_hooks_from_json(
         codex_home / "hooks.json", [], display_path(codex_home / "hooks.json")
     )
@@ -2042,9 +2027,8 @@ def selected_platforms(args) -> list:
 def report_and_exit(results: list, action: str) -> None:
     """Summarize per-platform outcomes and exit with a status that reflects them.
 
-    Exit 0 requires every selected platform to have succeeded. A partial
-    failure used to exit 0 because any() ignored the failures, which hid broken
-    installs from CI and from the Desktop app.
+    Exit 0 requires every selected platform to have succeeded, so CI and the
+    Desktop app can see a partial failure.
     """
     done = [name for name, result in results if result is True]
     failed = [name for name, result in results if result is False]
@@ -2123,8 +2107,7 @@ def main():
                 break
             print("Please enter 1, 2, 3, 4, 5, 6, 7, or q")
 
-    # args.token is honored in both modes; it used to be dropped whenever the
-    # menu was shown, which then reported "No token configured (use --token)".
+    # args.token applies to menu and flag selections alike.
     results = [
         (registry[key][0], run_install(registry[key][0], registry[key][1], source, args.token))
         for key in platforms

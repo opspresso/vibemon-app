@@ -89,10 +89,11 @@ const created = (sessionID, directory = "/projects/one", extra = {}) => ({
   sessionID, projectID: "prj", location: { directory }, subpath: "", ...extra,
 });
 
-test("default export is the opencode 2.x plugin definition", async () => {
+test("default export serves the opencode 2.x and 1.x plugin APIs", async () => {
   const h = await opencode();
   assert.equal(h.exports.default.id, "vibemon");
   assert.equal(typeof h.exports.default.setup, "function");
+  assert.equal(typeof h.exports.default.server, "function");
   assert.deepEqual([...h.one.hooks.keys()], ["execute.before", "execute.after"]);
 });
 
@@ -305,4 +306,79 @@ test("tool call IDs reach the adapter and queued tool events are never replaced"
   assert.deepEqual(sent, [
     ["PreToolUse", "call-1"], ["PreToolUse", "call-2"], ["PostToolUse", "call-1"], ["PostCompact", ""],
   ]);
+});
+
+// One opencode 1.x project instance, shaped after opencode 1.18.29: server()
+// returns hooks, and `event` receives only this instance's bus events.
+async function opencodeV1(directory = "/projects/one") {
+  const h = await loadPlugin("../../public/install/opencode/plugin/vibemon.js");
+  const hooks = await h.exports.default.server({ directory, worktree: directory });
+  return {
+    ...h,
+    hooks,
+    async call(name, input) {
+      await hooks[name](input, {});
+      await h.flush();
+    },
+    async event(type, properties) {
+      await hooks.event({ event: { type, properties } });
+      await h.flush();
+    },
+    names: () => h.payloads().map((p) => p.hook_event_name),
+  };
+}
+
+test("opencode 1.x: a prompt with a tool call maps to the full state sequence", async () => {
+  const h = await opencodeV1();
+  const s = "ses_1";
+  await h.event("session.created", { info: { id: s, directory: "/projects/one", projectID: "prj" } });
+  await h.call("chat.message", { sessionID: s, agent: "plan", model: { providerID: "opencode", modelID: "model-a" } });
+  await h.call("tool.execute.before", { sessionID: s, tool: "bash", callID: "call-1" });
+  await h.event("permission.asked", { id: "per_1", sessionID: s, type: "bash", callID: "call-1" });
+  await h.call("tool.execute.after", { sessionID: s, tool: "bash", callID: "call-1", args: {} });
+  await h.call("experimental.session.compacting", { sessionID: s });
+  await h.event("session.compacted", { sessionID: s });
+  await h.event("session.idle", { sessionID: s });
+  await h.event("session.deleted", { info: { id: s, directory: "/projects/one" } });
+
+  assert.deepEqual(h.names(), [
+    "SessionStart", "UserPromptSubmit", "PreToolUse", "PermissionRequest", "PostToolUse",
+    "PreCompact", "PostCompact", "Stop", "SessionEnd",
+  ]);
+  const payloads = h.payloads();
+  assert.ok(payloads.every((p) => p.session_id === s && p.cwd === "/projects/one"));
+  assert.deepEqual(payloads.map((p) => p.tool_use_id), ["", "", "call-1", "call-1", "call-1", "", "", "", ""]);
+  assert.equal(payloads[2].model, "model-a");
+  assert.equal(payloads[2].permission_mode, "plan");
+});
+
+test("opencode 1.x: a failure or abort ends the turn with one Stop", async () => {
+  const h = await opencodeV1();
+  await h.call("chat.message", { sessionID: "s" });
+  await h.event("session.error", { sessionID: "s", error: { name: "MessageAbortedError" } });
+  await h.event("session.idle", { sessionID: "s" });
+  await h.call("chat.message", { sessionID: "s" });
+  await h.event("session.idle", { sessionID: "s" });
+  assert.deepEqual(h.names(), ["UserPromptSubmit", "Stop", "UserPromptSubmit", "Stop"]);
+});
+
+test("opencode 1.x: a subagent cannot override its parent's state", async () => {
+  const h = await opencodeV1();
+  await h.call("chat.message", { sessionID: "parent" });
+  await h.call("tool.execute.before", { sessionID: "parent", tool: "task", callID: "call-1" });
+  await h.event("session.created", { info: { id: "child", parentID: "parent", directory: "/projects/one" } });
+  await h.call("chat.message", { sessionID: "child" });
+  await h.call("tool.execute.before", { sessionID: "child", tool: "read", callID: "call-2" });
+  await h.event("session.idle", { sessionID: "child" });
+  assert.deepEqual(h.names(), ["UserPromptSubmit", "PreToolUse"]);
+});
+
+test("opencode 1.x: malformed input sends nothing and never throws", async () => {
+  const h = await opencodeV1();
+  await h.hooks.event({});
+  await h.hooks.event({ event: { type: "session.idle" } });
+  await h.hooks["chat.message"](undefined);
+  await h.hooks["tool.execute.before"]({ tool: "read" });
+  await h.flush();
+  assert.deepEqual(h.payloads(), []);
 });
