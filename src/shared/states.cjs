@@ -8,7 +8,7 @@
  * (active), loading-dot animation (loading), and engine rendering
  * (eyeType/effect) — the lists and maps below are derived from it, and the
  * engine receives the same registry via IPC (main → preload → renderer).
- * To add or change a state, edit the the public App distribution registry.
+ * To add or change a state, edit the public App distribution registry.
  */
 
 const registry = require('./registry-cache.cjs').statesRegistry;

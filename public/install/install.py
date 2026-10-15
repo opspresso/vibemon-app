@@ -285,7 +285,7 @@ def configure_token(config: dict, cli_token: str = None) -> dict:
         else:
             print(f"  {colored('✓', 'green')} Token unchanged")
     else:
-        print(f"  No token configured.")
+        print("  No token configured.")
         try:
             token = getpass.getpass("  Enter token (or press Enter to skip): ").strip()
             if token:
@@ -416,7 +416,7 @@ def download_file(url: str) -> str:
     except (URLError, OSError) as e:
         # URLError is an OSError subclass, but a stalled read raises the bare
         # OSError/TimeoutError. Both must reach the integrity failure path.
-        raise RuntimeError(f"Failed to download {url}: {e}")
+        raise RuntimeError(f"Failed to download {url}: {e}") from e
 
 
 MANIFEST_PATH = "manifest.json"
@@ -1906,7 +1906,7 @@ def uninstall_vibemon(source: FileSource = None, cli_token: str = None) -> bool:
     # preferences; deleting either would make a reinstall lose real settings.
     print(f"  {colored('!', 'yellow')} kept ~/.vibemon/config.json and statusline.json "
           "(your token and display settings)")
-    print(f"    Remove them yourself with: rm -rf ~/.vibemon")
+    print("    Remove them yourself with: rm -rf ~/.vibemon")
     print(f"\n{colored('Shared scripts cleanup complete!', 'green')}")
     return True
 

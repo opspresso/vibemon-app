@@ -43,7 +43,7 @@ def analyze(path: Path):
     w, h = img.size
     px = img.load()
     content = [[not is_bg(px[x, y]) for x in range(0, w, 2)] for y in range(0, h, 2)]
-    ch, cw = len(content), len(content[0])
+    cw = len(content[0])
 
     yprof = [sum(row) / cw for row in content]
     rows = bands(yprof, min_size=20)

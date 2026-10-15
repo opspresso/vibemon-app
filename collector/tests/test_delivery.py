@@ -29,7 +29,8 @@ class DeliveryTests(unittest.TestCase):
                 now = [0]
                 sampler = Mock(sample=lambda: Sample({'cpuPercent': 20}))
                 with self.assertRaises(DeliveryFailure) as failure:
-                    run(sampler, lambda payload: client.request('https://web.example/api/v1/ingest', payload), 'host', 'host', 'Host', ['cpuPercent'], lambda: now[0], lambda: now[0], lambda seconds: now.__setitem__(0, now[0] + seconds), once=True)
+                    # Bind this iteration's client and clock explicitly.
+                    run(sampler, lambda payload, client=client: client.request('https://web.example/api/v1/ingest', payload), 'host', 'host', 'Host', ['cpuPercent'], lambda now=now: now[0], lambda now=now: now[0], lambda seconds, now=now: now.__setitem__(0, now[0] + seconds), once=True)
                 self.assertFalse(failure.exception.retryable)
                 self.assertIn(str(status), str(failure.exception))
                 self.assertNotIn(secret, str(failure.exception))
