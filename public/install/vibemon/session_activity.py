@@ -71,6 +71,8 @@ SESSION_MAX_AGE_MS = 86_400_000
 # Claude Code writes this user record when the user interrupts a turn or
 # rejects a tool. The Stop hook does not run for an interrupt.
 INTERRUPT_MARKER = "[Request interrupted by user"
+# Kiro CLI V2 records these texts when the user cancels a response or a tool.
+KIRO_V2_CANCEL_MARKERS = ("Response was interrupted by the user", "Tool use was cancelled by the user")
 
 # The transcript tail read for the newest conversation record.
 TRANSCRIPT_TAIL_BYTES = 65_536
@@ -396,12 +398,15 @@ def transcript_ended(path: Any, since_ms: int) -> bool:
     """Report whether the newest conversation record ends the turn after ``since_ms``.
 
     Claude Code records a user interrupt. Kiro CLI V3 records ``turn_end`` for
-    every turn and runs its Stop hook only for a completed one.
+    every turn and runs its Stop hook only for a completed one. Kiro CLI V2
+    records a cancellation message; its records carry no time, so the file's
+    modification time dates them.
     """
     if not isinstance(path, str) or not path:
         return False
     try:
-        if os.stat(path).st_mtime * 1000 <= since_ms:
+        modified_ms = os.stat(path).st_mtime * 1000
+        if modified_ms <= since_ms:
             return False
         with open(path, "rb") as source:
             source.seek(0, os.SEEK_END)
@@ -418,7 +423,8 @@ def transcript_ended(path: Any, since_ms: int) -> bool:
         ended = _turn_end(record_value)
         if ended is None:
             continue
-        return ended and _epoch_ms(record_value.get("timestamp")) > since_ms
+        recorded = _epoch_ms(record_value["timestamp"]) if "timestamp" in record_value else modified_ms
+        return ended and recorded > since_ms
     return False
 
 
@@ -426,6 +432,9 @@ def _turn_end(record_value: Any) -> bool | None:
     """Classify a transcript record: True ends the turn, False continues the conversation, None is neither."""
     if not isinstance(record_value, dict):
         return None
+    if isinstance(record_value.get("kind"), str) and "data" in record_value:
+        # Kiro CLI V2 sessions/cli/<session_id>.jsonl: {"version", "kind", "data"}.
+        return record_value["kind"] != "Prompt" and _has_cancel_marker(record_value["data"], 4)
     payload = record_value.get("payload")
     if isinstance(payload, dict):
         # Kiro CLI V3 messages.jsonl: {"timestamp", "payload": {"type", ...}}.
@@ -437,6 +446,15 @@ def _turn_end(record_value: Any) -> bool | None:
     if kind not in ("user", "assistant"):
         return None
     return kind == "user" and _interrupt_text(record_value.get("message"))
+
+
+def _has_cancel_marker(value: Any, depth: int) -> bool:
+    if isinstance(value, str):
+        return value.startswith(KIRO_V2_CANCEL_MARKERS)
+    if depth <= 0:
+        return False
+    children = value.values() if isinstance(value, dict) else value if isinstance(value, list) else ()
+    return any(_has_cancel_marker(child, depth - 1) for child in children)
 
 
 def _interrupt_text(message: Any) -> bool:
