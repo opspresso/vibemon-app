@@ -1,4 +1,6 @@
 import sys
+import threading
+from http.server import ThreadingHTTPServer
 from pathlib import Path
 
 import pytest
@@ -22,3 +24,23 @@ def no_real_watcher(request, monkeypatch):
     monkeypatch.setattr(session_activity, "start_watcher", lambda *_: False)
     if not request.node.get_closest_marker("process_tree"):
         monkeypatch.setattr(session_activity, "agent_process", lambda: None)
+
+
+@pytest.fixture
+def serve():
+    """Start loopback HTTP servers for `handler` classes; stop them after the test."""
+    running = []
+
+    def start(handler):
+        handler.log_message = lambda *_: None
+        server = ThreadingHTTPServer(("127.0.0.1", 0), handler)
+        thread = threading.Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        running.append((server, thread))
+        return server
+
+    yield start
+    for server, thread in running:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=5)

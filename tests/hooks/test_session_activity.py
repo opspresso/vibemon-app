@@ -4,9 +4,8 @@ import os
 import runpy
 import subprocess
 import sys
-import threading
 import time
-from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from http.server import BaseHTTPRequestHandler
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -314,7 +313,7 @@ def test_heartbeats_are_marked_for_every_display():
 # ============================================================================
 
 
-def test_a_real_watcher_reports_done_when_its_agent_exits(tmp_path):
+def test_a_real_watcher_reports_done_when_its_agent_exits(tmp_path, serve):
     """Spawn the installed-layout watcher against a real agent process and a local display."""
     received = []
 
@@ -325,11 +324,7 @@ def test_a_real_watcher_reports_done_when_its_agent_exits(tmp_path):
             self.end_headers()
             self.wfile.write(b"{}")
 
-        def log_message(self, *_):
-            pass
-
-    server = ThreadingHTTPServer(("127.0.0.1", 0), Display)
-    threading.Thread(target=server.serve_forever, daemon=True).start()
+    server = serve(Display)
     home = tmp_path / "home"
     (home / ".vibemon" / "cache").mkdir(parents=True)
     (home / ".vibemon" / "config.json").write_text(json.dumps({
@@ -354,8 +349,6 @@ def test_a_real_watcher_reports_done_when_its_agent_exits(tmp_path):
         assert watcher.wait(timeout=activity.WATCH_TICK_SECONDS + 10) == 0
     finally:
         agent.kill()
-        server.shutdown()
-        server.server_close()
     assert [report["state"] for report in received] == ["done"]
     assert received[0]["project"] == "real" and "heartbeat" not in received[0]
     assert cache(path)["sessions"]["s1"]["open"] is False

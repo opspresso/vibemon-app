@@ -1,41 +1,50 @@
 import io
-from contextlib import ExitStack
 import json
 import os
 import runpy
 import subprocess
 import sys
-import threading
-from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from pathlib import Path
+from contextlib import ExitStack
 from datetime import datetime, timedelta, timezone
+from http.server import BaseHTTPRequestHandler
+from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
 
 import pytest
 
-DOCS = Path(__file__).parents[2] / "public" / "install"
-
+import account_context
 import install
 import vibemon_core as core
-import account_context
+
+DOCS = Path(__file__).parents[2] / "public" / "install"
+NOW = 1_760_000_000.0
 
 
-def invoke(tool, payload, argv=()):
-    sent = []
+def run_hook_script(tool, payload, argv=()):
+    """Run a provider hook script in this process; return its exit code."""
     with (
         patch.dict(os.environ, {"VIBEMON_SUPPRESS_HOOKS": "0"}),
         patch.object(sys, "argv", ["vibemon.py", *argv]),
         patch.object(sys, "stdin", io.StringIO(json.dumps(payload))),
         patch.object(core, "get_project_name", return_value="project"),
-        patch.object(core, "get_project_metadata", return_value={"model": "claude-model", "memory": 42}),
         patch.object(core, "get_usage_metadata", return_value={}),
-        patch.object(core, "get_codex_usage_metadata", return_value={}),
-        patch.object(core, "get_codex_context_usage", return_value=0),
-        patch.object(core, "send_to_all", side_effect=lambda p, start, context=None: sent.append((p, start))),
         pytest.raises(SystemExit) as result,
     ):
         runpy.run_path(str(DOCS / tool / "hooks" / "vibemon.py"), run_name="__main__")
-    assert result.value.code == 0
+    return result.value.code
+
+
+def invoke(tool, payload, argv=()):
+    """Return the (payload, start) reports one hook event delivers."""
+    sent = []
+    with (
+        patch.object(core, "get_project_metadata", return_value={"model": "claude-model", "memory": 42}),
+        patch.object(core, "get_codex_usage_metadata", return_value={}),
+        patch.object(core, "get_codex_context_usage", return_value=0),
+        patch.object(core, "send_to_all", side_effect=lambda p, start, context=None: sent.append((p, start))),
+    ):
+        assert run_hook_script(tool, payload, argv) == 0
     return sent
 
 
@@ -177,7 +186,7 @@ def test_shared_serial_command_uses_locked_transport():
         assert json.loads(send.call_args.args[1]) == {"state": "done"}
 
 
-def test_cloud_bridge_process_preserves_accounts_and_machine_identity(tmp_path):
+def test_cloud_bridge_process_preserves_accounts_and_machine_identity(tmp_path, serve):
     received = []
 
     class Cloud(BaseHTTPRequestHandler):
@@ -186,45 +195,35 @@ def test_cloud_bridge_process_preserves_accounts_and_machine_identity(tmp_path):
             self.send_response(200)
             self.end_headers()
 
-        def log_message(self, *_):
-            pass
-
-    server = ThreadingHTTPServer(('127.0.0.1', 0), Cloud)
-    thread = threading.Thread(target=server.serve_forever, daemon=True)
-    thread.start()
+    server = serve(Cloud)
     payload = {'state': 'working', 'character': 'codex', 'project': 'Same gateway', 'memory': 0}
     env = {
         **os.environ, 'HOME': str(tmp_path), 'USERPROFILE': str(tmp_path),
         'VIBEMON_URL': f'http://127.0.0.1:{server.server_port}', 'VIBEMON_TOKEN': 'fixture-write',
         'VIBEMON_ALLOW_HTTP_LOCAL': '1', 'VIBEMON_HTTP_URLS': '', 'VIBEMON_SERIAL_PORT': '', 'DEBUG': '0',
     }
-    try:
-        for identity in ['work', 'personal']:
-            for instance in ['one', 'two']:
-                for state in ['working', 'done']:
-                    result = subprocess.run(
-                        [sys.executable, str(DOCS / 'vibemon/vibemon_core.py'), '--send-cloud', 'openclaw'],
-                        input=json.dumps({**payload, 'state': state}), capture_output=True, text=True, timeout=10, cwd=tmp_path,
-                        env={**env, 'VIBEMON_OPENCLAW_ACCOUNT_ID': identity, 'VIBEMON_OPENCLAW_ACCOUNT_NAME': identity.title(), 'VIBEMON_INSTANCE_ID': instance},
-                    )
-                    assert result.returncode == 0, result.stderr
-                    assert 'fixture-write' not in result.stdout + result.stderr
-                assert received[-1][2]['sourceId'] == received[-2][2]['sourceId']
-        assert len(received) == 8
-        assert len({body['sourceId'] for _, _, body in received}) == 4
-        assert {body['account']['id'] for _, _, body in received} == {'work', 'personal'}
-        for endpoint, auth, body in received:
-            assert endpoint == '/api/status'
-            assert auth == 'Bearer fixture-write'
-            assert body['account']['provider'] == 'openclaw', 'character appearance does not select the provider'
-            assert body['account']['displayName'] == body['account']['id'].title()
-            assert body['observedAt'].endswith('Z')
-            assert body['character'] == 'codex'
-            assert body['memory'] == 0
-    finally:
-        server.shutdown()
-        server.server_close()
-        thread.join(timeout=2)
+    for identity in ['work', 'personal']:
+        for instance in ['one', 'two']:
+            for state in ['working', 'done']:
+                result = subprocess.run(
+                    [sys.executable, str(DOCS / 'vibemon/vibemon_core.py'), '--send-cloud', 'openclaw'],
+                    input=json.dumps({**payload, 'state': state}), capture_output=True, text=True, timeout=10, cwd=tmp_path,
+                    env={**env, 'VIBEMON_OPENCLAW_ACCOUNT_ID': identity, 'VIBEMON_OPENCLAW_ACCOUNT_NAME': identity.title(), 'VIBEMON_INSTANCE_ID': instance},
+                )
+                assert result.returncode == 0, result.stderr
+                assert 'fixture-write' not in result.stdout + result.stderr
+            assert received[-1][2]['sourceId'] == received[-2][2]['sourceId']
+    assert len(received) == 8
+    assert len({body['sourceId'] for _, _, body in received}) == 4
+    assert {body['account']['id'] for _, _, body in received} == {'work', 'personal'}
+    for endpoint, auth, body in received:
+        assert endpoint == '/api/status'
+        assert auth == 'Bearer fixture-write'
+        assert body['account']['provider'] == 'openclaw', 'character appearance does not select the provider'
+        assert body['account']['displayName'] == body['account']['id'].title()
+        assert body['observedAt'].endswith('Z')
+        assert body['character'] == 'codex'
+        assert body['memory'] == 0
 
 
 def test_invalid_cloud_account_never_sends_credentials():
@@ -270,7 +269,7 @@ def test_custom_hook_paths_survive_real_shell_expansion(tmp_path):
 @pytest.mark.parametrize("tool,character", [
     ("claude", "clawd"), ("codex", "codex"), ("kiro", "kiro"), ("opencode", "opencode"),
 ])
-def test_real_hook_process_posts_to_local_monitor(tmp_path, tool, character):
+def test_real_hook_process_posts_to_local_monitor(tmp_path, serve, tool, character):
     received = []
 
     class Monitor(BaseHTTPRequestHandler):
@@ -280,12 +279,7 @@ def test_real_hook_process_posts_to_local_monitor(tmp_path, tool, character):
             self.end_headers()
             self.wfile.write(b"ok")
 
-        def log_message(self, *_args):
-            pass
-
-    server = ThreadingHTTPServer(("127.0.0.1", 0), Monitor)
-    thread = threading.Thread(target=server.serve_forever, daemon=True)
-    thread.start()
+    server = serve(Monitor)
     env = {
         **os.environ, "HOME": str(tmp_path), "USERPROFILE": str(tmp_path),
         "CODEX_HOME": str(tmp_path / ".codex"),
@@ -294,22 +288,17 @@ def test_real_hook_process_posts_to_local_monitor(tmp_path, tool, character):
         "VIBEMON_URL": "", "VIBEMON_TOKEN": "", "VIBEMON_SERIAL_PORT": "",
         "VIBEMON_CACHE_PATH": str(tmp_path / "cache" / "projects.json"), "DEBUG": "0",
     }
-    try:
-        for event in ["PreToolUse", "PostToolUse", "Stop"]:
-            result = subprocess.run(
-                [sys.executable, str(DOCS / tool / "hooks" / "vibemon.py")],
-                input=json.dumps({"hook_event_name": event, "cwd": str(tmp_path), "tool_name": "read"}),
-                capture_output=True, text=True, timeout=10, env=env, cwd=tmp_path,
-            )
-            assert result.returncode == 0, result.stderr
-            assert result.stdout == ""
-        assert [p[1]["state"] for p in received] == ["working", "thinking", "done"]
-        assert all(endpoint == "/status" and p["character"] == character for endpoint, p in received)
-        assert all(p["project"] == tmp_path.name for _, p in received)
-    finally:
-        server.shutdown()
-        thread.join(timeout=5)
-        server.server_close()
+    for event in ["PreToolUse", "PostToolUse", "Stop"]:
+        result = subprocess.run(
+            [sys.executable, str(DOCS / tool / "hooks" / "vibemon.py")],
+            input=json.dumps({"hook_event_name": event, "cwd": str(tmp_path), "tool_name": "read"}),
+            capture_output=True, text=True, timeout=10, env=env, cwd=tmp_path,
+        )
+        assert result.returncode == 0, result.stderr
+        assert result.stdout == ""
+    assert [p[1]["state"] for p in received] == ["working", "thinking", "done"]
+    assert all(endpoint == "/status" and p["character"] == character for endpoint, p in received)
+    assert all(p["project"] == tmp_path.name for _, p in received)
 
 
 @pytest.mark.parametrize("url,expected", [
@@ -331,7 +320,6 @@ def test_replacing_non_object_hooks_installs_current_definitions(existing):
 
 def run_session(tmp_path, events, now=None):
     """Run Claude hook events of one session in delivery order; return (state, observedAt) per event."""
-    from types import SimpleNamespace
     config = SimpleNamespace(cache_path=str(tmp_path / "projects.json"), debug=False, http_urls=(), serial_port=None,
                              vibemon_url=None, vibemon_token=None, auto_launch=False)
     reports = []
@@ -339,24 +327,12 @@ def run_session(tmp_path, events, now=None):
         payload = {"session_id": "session-1", "cwd": str(tmp_path), **event}
         with ExitStack() as stack:
             stack.enter_context(patch.object(core, "get_config", return_value=config))
+            stack.enter_context(patch.object(core, "get_project_metadata", return_value={}))
             stack.enter_context(patch.object(core, "send_to_all", side_effect=lambda p, start, context=None: reports.append((p["state"], context["observedAt"]))))
             if now is not None:
                 stack.enter_context(patch.object(core.time, "time", return_value=now))
-            invoke_raw("claude", payload)
+            run_hook_script("claude", payload)
     return reports
-
-
-def invoke_raw(tool, payload):
-    with (
-        patch.dict(os.environ, {"VIBEMON_SUPPRESS_HOOKS": "0"}),
-        patch.object(sys, "argv", ["vibemon.py"]),
-        patch.object(sys, "stdin", io.StringIO(json.dumps(payload))),
-        patch.object(core, "get_project_name", return_value="project"),
-        patch.object(core, "get_project_metadata", return_value={}),
-        patch.object(core, "get_usage_metadata", return_value={}),
-        pytest.raises(SystemExit),
-    ):
-        runpy.run_path(str(DOCS / tool / "hooks" / "vibemon.py"), run_name="__main__")
 
 
 def pre(tool_id):
@@ -378,7 +354,7 @@ def test_a_finished_parallel_tool_keeps_the_session_working(tmp_path):
 ])
 def test_delivery_order_cannot_hide_a_running_tool(tmp_path, order):
     # Startup jitter can swap near-simultaneous hooks; the newest stamp still carries the running tool.
-    reports = run_session(tmp_path, order, now=1_760_000_000.000)
+    reports = run_session(tmp_path, order, now=NOW)
     stamps = [stamp for _, stamp in reports]
     assert stamps == sorted(set(stamps))
     assert reports[-1][0] == "working"
@@ -397,7 +373,7 @@ def test_plan_mode_keeps_planning_while_tools_run(tmp_path):
 
 
 def test_abandoned_sessions_are_dropped(tmp_path):
-    run_session(tmp_path, [pre("left-running")], now=1_760_000_000.0)
-    run_session(tmp_path, [{"hook_event_name": "UserPromptSubmit", "session_id": "session-2"}], now=1_760_000_000.0 + 86_400)
+    run_session(tmp_path, [pre("left-running")], now=NOW)
+    run_session(tmp_path, [{"hook_event_name": "UserPromptSubmit", "session_id": "session-2"}], now=NOW + 86_400)
     cache = json.loads((tmp_path / "activity.json").read_text())
     assert list(cache["sessions"]) == ["session-2"]
