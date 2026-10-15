@@ -62,19 +62,25 @@ EVENT_ALIASES: dict[str, str] = {
 
 
 def locate_transcript(data: dict[str, Any]) -> str:
-    """Return the Kiro CLI V3 session record, or "" when none exists.
+    """Return the Kiro CLI session record, or "" when none exists.
 
-    V3 writes ~/.kiro/sessions/<workspace>/<session_id>/messages.jsonl and
-    records turn_end there when the user cancels a turn, which runs no hook.
+    A cancelled turn runs no hook, but both engines record it:
+    - V3 writes ~/.kiro/sessions/<workspace>/<session_id>/messages.jsonl with turn_end.
+    - V2 writes ~/.kiro/sessions/cli/<session_id>.jsonl with a cancellation message.
     """
     session = data.get("session_id")
-    if not isinstance(session, str) or not re.fullmatch(r"sess_[0-9A-Za-z-]+", session):
+    if not isinstance(session, str):
         return ""
     # Resolve KIRO_HOME as install.py's tool_home() does.
     configured = os.environ.get("KIRO_HOME", "").strip()
-    home = Path(configured).expanduser().resolve() if configured else Path.home() / ".kiro"
-    matches = sorted((home / "sessions").glob(f"*/{session}/messages.jsonl"))
-    return str(matches[0]) if matches else ""
+    sessions = (Path(configured).expanduser().resolve() if configured else Path.home() / ".kiro") / "sessions"
+    if re.fullmatch(r"sess_[0-9A-Za-z-]+", session):
+        matches = sorted(sessions.glob(f"*/{session}/messages.jsonl"))
+        return str(matches[0]) if matches else ""
+    if re.fullmatch(r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}", session):
+        record = sessions / "cli" / f"{session}.jsonl"
+        return str(record) if record.is_file() else ""
+    return ""
 
 
 def build_payload(

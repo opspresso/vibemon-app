@@ -256,7 +256,7 @@ Kiro CLI 2.x runs global hooks only in V3 mode (`kiro-cli --v3 chat`). Its defau
 }
 ```
 
-Then start V2 with `kiro-cli --v2 chat --agent my-agent`, or make it the default with `kiro-cli settings chat.defaultAgent my-agent`. The agent file must have a `name`. V2 writes no session record, so a cancelled V2 turn stays active until the next event.
+Then start V2 with `kiro-cli --v2 chat --agent my-agent`, or make it the default with `kiro-cli settings chat.defaultAgent my-agent`. The agent file must have a `name`. V2 runs no hook when the user cancels a turn with Ctrl+C either. The hook passes the V2 session record `~/.kiro/sessions/cli/<session_id>.jsonl` to the watcher, which reports `done` when the record shows the cancellation.
 
 ### OpenClaw
 

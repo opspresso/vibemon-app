@@ -386,7 +386,11 @@ def test_kiro_locates_its_v3_session_record(tmp_path, monkeypatch):
     record.write_text("")
     monkeypatch.setenv("KIRO_HOME", str(tmp_path))
     assert locate({"session_id": "sess_7883db40-0d55"}) == str(record)
-    # V2 and IDE sessions have no record; a crafted ID cannot leave the sessions tree.
+    v2 = tmp_path / "sessions" / "cli" / "55d89a2c-0911-4a4d-aa3f-831a0cb0c432.jsonl"
+    v2.parent.mkdir(parents=True)
+    v2.write_text("")
+    assert locate({"session_id": "55d89a2c-0911-4a4d-aa3f-831a0cb0c432"}) == str(v2)
+    # IDE sessions have no record; a crafted ID cannot leave the sessions tree.
     assert locate({"session_id": "sess_missing"}) == ""
     assert locate({"session_id": "../../etc"}) == ""
     assert locate({}) == ""

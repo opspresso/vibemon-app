@@ -277,6 +277,26 @@ def test_kiro_turn_end_closes_a_turn_that_ran_no_stop_hook(tmp_path, records, ex
     assert activity.transcript_ended(str(transcript), since) is expected
 
 
+@pytest.mark.parametrize("records,expected", [
+    ([("Prompt", "Write an essay"), ("AssistantMessage", "Response was interrupted by the user")], True),
+    ([("Prompt", "Run it"), ("ToolResults", "Tool use was cancelled by the user")], True),
+    ([("AssistantMessage", "Response was interrupted by the user"), ("Prompt", "Next request")], False),
+    ([("Prompt", "Reply"), ("AssistantMessage", "ok")], False),
+])
+def test_kiro_v2_cancellation_closes_a_turn_that_ran_no_stop_hook(tmp_path, records, expected):
+    since = START_MS + 1_000
+    transcript = tmp_path / "session.jsonl"
+    transcript.write_text("".join(
+        json.dumps({"version": "v1", "kind": kind, "data": {"message_id": "m", "content": [{"kind": "text", "data": text}]}}) + "\n"
+        for kind, text in records
+    ))
+    os.utime(transcript, (since / 1000 + 10, since / 1000 + 10))
+    assert activity.transcript_ended(str(transcript), since) is expected
+    # V2 records carry no time; a record written before the last hook is old.
+    os.utime(transcript, (since / 1000 - 10, since / 1000 - 10))
+    assert activity.transcript_ended(str(transcript), since) is False
+
+
 @pytest.mark.process_tree
 def test_the_agent_is_the_nearest_ancestor_outside_wrappers(monkeypatch):
     tree = {100: (90, "/bin/sh"), 90: (80, "/usr/local/bin/python3.12"), 80: (70, "/opt/homebrew/bin/claude"), 70: (1, "zsh")}
