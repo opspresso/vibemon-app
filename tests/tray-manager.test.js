@@ -23,7 +23,7 @@ beforeEach(() => {
   jest.clearAllMocks();
   focused = { project: 'one', state: 'working', character: 'codex' };
   companion = { getProjectIds: () => focused ? ['one'] : [], getState: () => focused };
-  app = { quit: jest.fn() };
+  app = { quit: jest.fn(), getVersion: () => '9.8.7' };
   events = new Map();
   native = { on: jest.fn((name, callback) => events.set(name, callback)), setImage: jest.fn(), setToolTip: jest.fn(), setContextMenu: jest.fn(), popUpContextMenu: jest.fn(), destroy: jest.fn() };
   Tray.mockImplementation(() => native);
@@ -81,8 +81,10 @@ test('tray creation requires the dashboard action to be wired', () => {
 
 test('the menu exposes navigation and companion visibility without duplicating preferences', () => {
   const show = jest.fn(); manager.setShowCharacterHandler(show);
-  const menu = manager.buildMenuTemplate().filter(item => item.type !== 'separator');
-  expect(menu.map(item => item.label)).toEqual(['Dashboard', 'Settings…', 'Show companion', 'Integrations…', 'About VibeMon', 'Quit VibeMon']);
+  const template = manager.buildMenuTemplate();
+  expect(template.map(item => item.label ?? '—')).toEqual(['VibeMon 9.8.7', '—', 'Dashboard', 'Show companion', '—', 'Settings…', 'Integrations…', '—', 'About VibeMon', 'Quit VibeMon']);
+  expect(template[0].enabled).toBe(false);
+  const menu = template.filter(item => item.click);
   for (const item of menu) item.click();
   expect(manager.openDashboard).toHaveBeenCalledTimes(1);
   expect(manager.openSettings.mock.calls).toEqual([['companion'], ['integrations'], ['about']]);

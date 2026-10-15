@@ -230,7 +230,7 @@ A small, transparent window with input only on its visible body and tail that di
 
 ### Workspace and settings
 
-The tray icon opens a menu. Select **Dashboard** to open the workspace with Overview, Resources, Coding agents, and Settings. Connections, Companion, Integrations, and About share its navigation and connection state. Preference changes apply immediately; connection and display-selection forms require Save. Search fields and unsaved choices survive automatic polling.
+The tray icon opens a menu. Its first line shows the installed version, for example **VibeMon 3.8.5**. Below it are **Dashboard** and **Show companion**, then **Settings…** and **Integrations…**, then **About VibeMon** and **Quit VibeMon**. Select **Dashboard** to open the workspace with Overview, Resources, Coding agents, and Settings. Connections, Companion, Integrations, and About share its navigation and connection state. Preference changes apply immediately; connection and display-selection forms require Save. Search fields and unsaved choices survive automatic polling.
 
 The tray menu provides Dashboard, Settings, Show companion, Integrations, About VibeMon, and Quit VibeMon. Usage and preference controls live in the workspace instead of submenus. **Show companion** restores the last shown character and speech bubble after they close, without waiting for another status event.
 

@@ -228,15 +228,19 @@ class TrayManager {
     const { dashboard, connection, integrations, update } = this.notices;
     // An item that opens an affected page carries a red dot and the reason.
     const flagged = (item, notice) => notice ? { ...item, icon: attentionDot(), sublabel: notice } : item;
+    // Groups: identity, what you watch, how it is set up, the app itself.
+    // Shortcut hints match the workspace menu; a tray menu registers none.
     return [
-      flagged({ label: 'Dashboard', click: () => this.openDashboard?.() }, dashboard),
-      flagged({ label: 'Settings…', click: () => this.openSettings?.(connection ? 'connections' : 'companion') }, connection),
+      { label: `VibeMon ${this.app.getVersion()}`, enabled: false },
       { type: 'separator' },
+      flagged({ label: 'Dashboard', click: () => this.openDashboard?.() }, dashboard),
       { label: 'Show companion', click: () => this.showCharacterHandler?.() },
+      { type: 'separator' },
+      flagged({ label: 'Settings…', accelerator: 'CmdOrCtrl+,', registerAccelerator: false, click: () => this.openSettings?.(connection ? 'connections' : 'companion') }, connection),
       flagged({ label: 'Integrations…', click: () => this.openSettings?.('integrations') }, integrations),
       { type: 'separator' },
       flagged({ label: 'About VibeMon', click: () => this.openSettings?.('about') }, update),
-      { label: 'Quit VibeMon', click: () => this.app.quit() }
+      { label: 'Quit VibeMon', accelerator: 'CmdOrCtrl+Q', registerAccelerator: false, click: () => this.app.quit() }
     ];
   }
 
