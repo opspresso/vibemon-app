@@ -31,6 +31,12 @@ startFixture().then(async fixture => {
   const text = selector => ui(`document.querySelector(${JSON.stringify(selector)}).textContent`);
   const input = (selector, value, event = 'input') => ui(`(() => { const input = document.querySelector(${JSON.stringify(selector)}); input.value = ${JSON.stringify(value)}; input.dispatchEvent(new Event(${JSON.stringify(event)}, { bubbles: true })); })()`);
   const nextFrames = () => ui('new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))');
+  // Main-process changes reach the renderer in one debounced frame. Wait until
+  // that frame is sent and the renderer has drawn it.
+  const published = async () => {
+    await until(() => view.timer === null, 'workspace frame published');
+    await nextFrames();
+  };
   const visible = selector => ui(`Boolean(document.querySelector(${JSON.stringify(selector)})?.checkVisibility())`);
   const verifyContrast = async () => {
     const ratios = await ui(`(() => {
@@ -86,7 +92,7 @@ startFixture().then(async fixture => {
   try {
     for (const offset of [-86400000, 86400000]) {
       client.now = () => Date.now() + offset;
-      await client.poll(true); await delay(150);
+      await client.poll(true); await published();
       assert.equal(await text('#summary-attention'), '3', 'wall-clock skew does not add stale warnings');
       assert.equal(await ui('[...document.querySelectorAll("#overview-accounts time")].every(node => node.textContent === "Just now")'), true, 'report age uses server time');
     }
@@ -100,7 +106,7 @@ startFixture().then(async fixture => {
   assert.equal(await ui('[...document.querySelectorAll("#overview-resources .card, #overview-accounts .card")].some(card => card.classList.contains("compact-card"))'), false, 'attention view expands every reused card');
   assert.deepEqual(await ui('[...document.querySelectorAll("#overview-resources .card h3")].map(node => node.textContent)'), ['Build runner', 'Cache service']);
   assert.deepEqual(await ui('[...document.querySelectorAll("#overview-accounts .card h3")].map(node => node.textContent)'), ['experiments']);
-  await client.poll(true); await delay(150);
+  await client.poll(true); await published();
   assert.equal(await ui('document.querySelectorAll("#overview-accounts .card").length'), 1, 'background refresh preserves the attention filter');
   await click('#overview-attention');
   assert.equal(await ui('document.querySelectorAll("#overview-accounts .card").length'), 3);
@@ -116,14 +122,14 @@ startFixture().then(async fixture => {
   state.sources = () => uneditedSources().map(source => source.sourceId === 'gpu-workstation' ? {
     ...source, resourceType: 'DGX Spark', metricDefinitions: { memoryPercent: { label: 'Shared memory ratio', unit: 'ratio', display: 'number' } }, metricOrder: ['memoryPercent'], metrics: { memoryPercent: 0.123456 }
   } : source);
-  await client.poll(true); await delay(150);
+  await client.poll(true); await published();
   assert.ok((await text('#resource-cards')).includes('Shared memory ratio'), 'saved labels override preset labels');
   assert.ok((await text('#resource-cards')).includes('0.123456'), 'edited presets retain custom precision');
   state.sources = uneditedSources; await client.poll(true);
   const orderingSources = state.sources;
   await ui('document.querySelector(\'[aria-label="View Production cluster details"]\').focus()');
   state.sources = () => orderingSources().map(source => source.sourceId === 'production' ? { ...source, health: 'error' } : source);
-  await client.poll(true); await delay(150);
+  await client.poll(true); await published();
   assert.equal(await ui('document.activeElement.getAttribute("aria-label")'), 'View Production cluster details', 'attention reordering preserves keyboard focus');
   state.sources = orderingSources; await client.poll(true);
 
@@ -131,7 +137,7 @@ startFixture().then(async fixture => {
   await input('#resource-search', 'Cache');
   await ui('document.getElementById("resource-search").setSelectionRange(1, 3)');
   assert.equal(await ui('document.activeElement.id'), 'resource-search', 'the search field has focus before polling');
-  await client.poll(true); await delay(150);
+  await client.poll(true); await published();
   if (await ui('document.activeElement.id') !== 'resource-search') console.log('Focus diagnostic:', await ui('({ page: document.documentElement.dataset.page, active: document.activeElement.tagName, visible: document.visibilityState, focused: document.hasFocus(), events: window.focusTrace })'));
   assert.deepEqual(await ui('({ same: window.originalCard === document.querySelector("#resource-cards .card"), focused: document.activeElement.id, start: document.activeElement.selectionStart, end: document.activeElement.selectionEnd })'), { same: true, focused: 'resource-search', start: 1, end: 3 });
   await input('#resource-search', 'no matching resource');
@@ -153,13 +159,13 @@ startFixture().then(async fixture => {
   await until(() => ui('document.querySelectorAll("#chart circle").length > 0'), 'reopening details before the queued close event preserves the new history');
   assert.equal(await ui('document.querySelectorAll("#chart path.average, #chart path.maximum").length'), 2, 'history renders averages and maxima');
   await ui('window.chartMutations = 0; window.chartObserver = new MutationObserver(() => window.chartMutations++); window.chartObserver.observe(document.getElementById("chart"), { childList: true, subtree: true });');
-  for (let index = 0; index < 3; index++) { view.notify('activity'); await delay(150); }
+  for (let index = 0; index < 3; index++) { view.notify('activity'); await published(); }
   assert.equal(await ui('window.chartMutations'), 0, 'local activity does not redraw unchanged cloud history');
   await ui('window.chartObserver.disconnect()');
   state.trendStatus = 503;
   await ui('document.dispatchEvent(new Event("visibilitychange"))');
   await until(() => visible('#trend-error'), 'history failure remains separate from retained chart data');
-  await client.poll(true); await delay(150);
+  await client.poll(true); await published();
   assert.equal(await visible('#trend-error'), true, 'latest-state polling cannot hide history failures');
   state.trendStatus = 200;
   await click('#retry-trend');
@@ -186,7 +192,7 @@ startFixture().then(async fixture => {
   state.trend = item => ({ ...originalTrend(item), metricDefinitions: { latency: { label: 'Temperature', unit: '°C', display: 'gauge', min: -40, max: 20 } }, metricOrder: ['latency'], points: [{ timestamp: new Date(Math.floor(Date.now() / 60000) * 60000).toISOString(), average: { latency: -12 }, maximum: { latency: -12 }, samples: 1, expiresAt: Date.now() / 1000 + 86400 }] });
   await click('[aria-label="View Cache service details"]');
   await until(async () => (await text('#chart')).includes('-40') && (await text('#trend-metric')).includes('Temperature (°C)'), 'history uses its returned signed metric schema');
-  await client.poll(true); await delay(150);
+  await client.poll(true); await published();
   assert.ok((await text('#chart')).includes('-40') && (await text('#trend-metric')).includes('Temperature (°C)'), 'a latest-state poll cannot relabel historical values');
   assert.ok(Math.abs(await ui('Number(document.querySelector("#chart circle").getAttribute("cy"))') - 115.333333) < 0.000001);
   await click('[data-close-dialog="detail-dialog"]');
@@ -266,7 +272,7 @@ startFixture().then(async fixture => {
   await input('#agent-filter', 'all');
   const beforeMetricSelection = client.snapshot();
   await client.select({ sources: beforeMetricSelection.selectedSources, accounts: beforeMetricSelection.selectedAccounts, metrics: [] });
-  await delay(150);
+  await published();
   const historyRequests = state.requests.filter(url => url.includes('/trend?')).length;
   await click('#agent-cards [aria-label="View web-console · Codex · team details"]');
   await delay(150);
@@ -274,6 +280,7 @@ startFixture().then(async fixture => {
   assert.ok((await text('#trend-state')).includes('Choose a visible metric'));
   await click('[data-close-dialog="detail-dialog"]');
   await client.select({ sources: beforeMetricSelection.selectedSources, accounts: beforeMetricSelection.selectedAccounts, metrics: beforeMetricSelection.selectedMetrics });
+  await published();
   await screenshot('coding-accounts');
   await verifyContrast();
   await click('[data-page="agents"] [data-selection]');
@@ -331,7 +338,7 @@ startFixture().then(async fixture => {
   assert.equal(await ui('document.querySelectorAll("#source-choices input:checked, #account-choices input:checked").length'), 2, 'previous save preserves the new unsaved choices');
   await click('#select-all');
   await click('#source-choices input[value="production"]');
-  await client.poll(true); await delay(150);
+  await client.poll(true); await published();
   assert.equal(await ui('document.querySelector("#source-choices input[value=production]").checked'), false, 'polling preserves selection drafts');
   state.status = 503;
   await click('#discover');
@@ -474,7 +481,7 @@ startFixture().then(async fixture => {
 
   await navigate('connections');
   await input('#web-url', 'https://edited.example');
-  await client.poll(true); await delay(150);
+  await client.poll(true); await published();
   assert.equal(await value('#web-url'), 'https://edited.example', 'polling preserves unsaved connection edits');
   await input('#web-url', 'https://vibemon.io');
   await input('#read-token', 'vm_' + '0'.repeat(60));
