@@ -2,7 +2,7 @@
 """
 VibeMon Hook Core
 Shared transport and helpers for the per-tool hooks (Claude Code, Codex CLI,
-Kiro IDE). Each tool's vibemon.py is a thin adapter that defines its
+Kiro IDE and CLI, OpenCode). Each tool's vibemon.py is a thin adapter that defines its
 EVENT_STATE_MAP / CHARACTER / payload builder and calls run().
 
 Installed to ~/.vibemon/vibemon_core.py by install.py.

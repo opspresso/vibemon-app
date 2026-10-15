@@ -10,7 +10,7 @@ Desktop auto-launch opens the installed macOS App or a Windows installer locatio
 |----------|-----------|-------------|
 | **Claude Code** | clawd | Anthropic's CLI for Claude |
 | **Codex CLI** | codex | OpenAI's CLI for Codex |
-| **Kiro IDE** | kiro | Amazon's AI coding assistant |
+| **Kiro** | kiro | Kiro IDE and Kiro CLI, Amazon's AI coding assistants |
 | **OpenClaw** | claw | Open source AI gateway |
 | **opencode** | vibemon | Sends `opencode`; the current registry renders the default character |
 
@@ -229,7 +229,7 @@ A tool approved at a permission prompt runs without a new hook event. The sessio
 
 `SessionStart` covers startup, resume, and clear. `PreToolUse` for `request_user_input` reports `notification`. `PreToolUse`, `PostToolUse`, and `PermissionRequest` are registered without a matcher, so every supported local tool call (`Bash`, `apply_patch`/`Edit`/`Write`, MCP tools, and other local function tools) is observed. Informational hooks run in the background, while `SessionEnd` and `Interrupt` run synchronously with Codex's three-second maximum timeout. `done` indicates that activity ended, including cancellation or failure; it does not assert task success.
 
-### Kiro IDE
+### Kiro
 
 | Event | State |
 |-------|-------|
