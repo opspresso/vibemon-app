@@ -24,6 +24,7 @@ DOCS_DIR = Path(__file__).parents[2] / "public" / "install"
 CLAUDE_SETTINGS = json.loads((DOCS_DIR / "claude" / "settings.json").read_text(encoding="utf-8"))
 CODEX_HOOKS = json.loads((DOCS_DIR / "codex" / "hooks.json").read_text(encoding="utf-8"))
 KIRO_HOOK_CONFIG = (DOCS_DIR / "kiro" / "hooks" / "vibemon.json").read_text(encoding="utf-8")
+KIRO_SESSION_END_CONFIG = (DOCS_DIR / "kiro" / "hooks" / "vibemon-session-end.json").read_text(encoding="utf-8")
 OPENCODE_PLUGIN = (DOCS_DIR / "opencode" / "plugin" / "vibemon.js").read_text(encoding="utf-8")
 # Windows has no POSIX permission bits — os.chmod there only toggles a
 # read-only attribute, so st_mode always reads back 0o666.
@@ -383,10 +384,13 @@ class LifecycleConfigTest(unittest.TestCase):
 
     def test_kiro_config_and_adapter_cover_the_same_lifecycle(self):
         event_map = adapter_event_map("kiro")
-        triggers = {
-            hook["trigger"] for hook in json.loads(KIRO_HOOK_CONFIG)["hooks"]
-        }
-        self.assertEqual(triggers, set(event_map))
+        main = [hook["trigger"] for hook in json.loads(KIRO_HOOK_CONFIG)["hooks"]]
+        session_end = [hook["trigger"] for hook in json.loads(KIRO_SESSION_END_CONFIG)["hooks"]]
+        # A surface without SessionEnd may reject its file; the main file must not carry it.
+        self.assertEqual(session_end, ["SessionEnd"])
+        self.assertNotIn("SessionEnd", main)
+        self.assertEqual(set(main + session_end), set(event_map))
+        self.assertEqual(event_map["SessionEnd"], "done")
         self.assertEqual(event_map["PostToolUse"], "thinking")
 
     def test_opencode_plugin_bridges_every_adapter_event(self):
@@ -824,6 +828,10 @@ class InstallKiroV1Test(unittest.TestCase):
             self.assertTrue(result)
             config = json.loads((kiro_home / "hooks" / "vibemon.json").read_text())
             self.assertEqual(config["version"], "v1")
+            self.assertEqual(
+                (kiro_home / "hooks" / "vibemon-session-end.json").read_text(),
+                KIRO_SESSION_END_CONFIG,
+            )
             self.assertEqual(
                 json.loads(agent_file.read_text())["hooks"]["stop"],
                 [{"command": "python3", "args": ["~/my-hook.py"]}],

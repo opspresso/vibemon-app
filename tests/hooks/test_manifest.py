@@ -21,6 +21,8 @@ def downloaded_paths() -> set:
         paths.add(getattr(install, name))
     # The shared scripts are fetched in one loop over SHARED_SCRIPTS.
     paths.update(f"vibemon/{name}" for name in install.SHARED_SCRIPTS)
+    # Kiro's hook configs are fetched in one loop over KIRO_HOOK_CONFIG_FILES.
+    paths.update(install.KIRO_HOOK_CONFIG_FILES)
     return paths
 
 

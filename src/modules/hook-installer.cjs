@@ -298,7 +298,8 @@ function normalizeOpenCodePlugin(source) {
 // script file says nothing on its own — the registration lives here, and it
 // is what rots when a user prunes it or a Windows Python upgrade invalidates
 // the absolute interpreter path baked into the command.
-const KIRO_HOOK_CONFIG = 'vibemon.json';
+// Kiro's main lifecycle config, then the CLI V3-only SessionEnd config.
+const KIRO_HOOK_CONFIGS = ['vibemon.json', 'vibemon-session-end.json'];
 const CLAUDE_HOME = resolveToolHome('CLAUDE_CONFIG_DIR', '.claude');
 const CODEX_HOME = resolveToolHome('CODEX_HOME', '.codex');
 const KIRO_HOME = resolveToolHome('KIRO_HOME', '.kiro');
@@ -338,17 +339,17 @@ const TOOLS = [
     commandAliases: ['kiro-cli'],
     homeDir: KIRO_HOME,
     hookFile: path.join(KIRO_HOME, 'hooks', 'vibemon.py'),
-    configPaths: [path.join(KIRO_HOME, 'hooks', KIRO_HOOK_CONFIG)],
+    configPaths: [path.join(KIRO_HOME, 'hooks', KIRO_HOOK_CONFIGS[0])],
     files: [
       { local: path.join(KIRO_HOME, 'hooks', 'vibemon.py'), remote: 'kiro/hooks/vibemon.py' },
       // The Kiro v1 global hook config holds a shell command string, which
       // install.py rewrites with an absolute script path on Windows and when
       // KIRO_HOME overrides ~/.kiro. Adapted files cannot match the published
       // default-home hash, so only a default POSIX install tracks this file.
-      ...(KIRO_CONFIG_IS_ADAPTED ? [] : [{
-        local: path.join(KIRO_HOME, 'hooks', KIRO_HOOK_CONFIG),
-        remote: `kiro/hooks/${KIRO_HOOK_CONFIG}`
-      }])
+      ...(KIRO_CONFIG_IS_ADAPTED ? [] : KIRO_HOOK_CONFIGS.map(name => ({
+        local: path.join(KIRO_HOME, 'hooks', name),
+        remote: `kiro/hooks/${name}`
+      })))
     ]
   },
   {

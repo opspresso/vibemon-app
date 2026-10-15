@@ -41,6 +41,7 @@ EVENT_STATE_MAP: dict[str, str] = {
     "PreToolUse": "working",
     "PostToolUse": "thinking",
     "Stop": "done",
+    "SessionEnd": "done",
 }
 
 # Kiro's v1 config uses PascalCase trigger names while hook payloads currently
@@ -54,6 +55,7 @@ EVENT_ALIASES: dict[str, str] = {
     "postToolUse": "PostToolUse",
     "stop": "Stop",
     "agentStop": "Stop",
+    "sessionEnd": "SessionEnd",
 }
 
 

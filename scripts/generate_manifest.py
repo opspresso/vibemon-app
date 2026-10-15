@@ -40,6 +40,7 @@ MANIFEST_FILES = [
     "codex/hooks/vibemon.py",
     "kiro/hooks/vibemon.py",
     "kiro/hooks/vibemon.json",
+    "kiro/hooks/vibemon-session-end.json",
     "openclaw/extensions/index.mjs",
     "openclaw/extensions/openclaw.plugin.json",
     "opencode/plugin/vibemon.js",

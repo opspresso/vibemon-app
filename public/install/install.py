@@ -151,8 +151,10 @@ CONFIG_EXAMPLE_FILE = "vibemon/config.example.json"
 STATUSLINE_EXAMPLE_FILE = "vibemon/statusline.example.json"
 
 # Kiro IDE 0.x / CLI 2.x hook definitions removed during migration. Current
-# Kiro uses a single v1 config at ~/.kiro/hooks/vibemon.json.
-KIRO_HOOK_CONFIG_FILE = "kiro/hooks/vibemon.json"
+# Kiro loads v1 configs from ~/.kiro/hooks/*.json. SessionEnd exists only in
+# CLI V3, so it has its own file: a surface that rejects the trigger then
+# skips that file and keeps the main lifecycle hooks.
+KIRO_HOOK_CONFIG_FILES = ("kiro/hooks/vibemon.json", "kiro/hooks/vibemon-session-end.json")
 LEGACY_KIRO_HOOK_FILES = (
     "vibemon-prompt-submit.kiro.hook",
     "vibemon-agent-stop.kiro.hook",
@@ -1338,16 +1340,15 @@ def install_kiro(source: FileSource, cli_token: str = None) -> bool:
     )
 
     print("\nConfiguring global hooks:")
-    hook_config = adapt_kiro_hook_config(
-        source.get_file(KIRO_HOOK_CONFIG_FILE), kiro_home
-    )
     if IS_WINDOWS:
         print(f"  {colored('✓', 'green')} hooks pinned to {hook_python()}")
-    ok &= write_file_with_diff(
-        kiro_home / "hooks" / "vibemon.json",
-        hook_config,
-        display_path(kiro_home / "hooks" / "vibemon.json"),
-    )
+    for remote in KIRO_HOOK_CONFIG_FILES:
+        target = kiro_home / "hooks" / Path(remote).name
+        ok &= write_file_with_diff(
+            target,
+            adapt_kiro_hook_config(source.get_file(remote), kiro_home),
+            display_path(target),
+        )
 
     # Only retire working legacy registrations after the current v1 config is
     # safely in place. User hooks in the old agent file are preserved.
