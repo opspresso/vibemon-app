@@ -2,7 +2,6 @@ import io
 import json
 import os
 import runpy
-import socket
 import subprocess
 import sys
 import threading
