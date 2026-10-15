@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { openclaw } from "./plugin_harness.mjs";
+import { okResponse, openclaw } from "./plugin_harness.mjs";
 
 const ctx = { runId: "r", sessionId: "s", sessionKey: "agent:main:s" };
 
@@ -43,9 +43,9 @@ test("cloud delivery uses shared account identity without putting credentials in
   assert.equal(cloud.options.env.VIBEMON_TOKEN, "fixture-write");
   assert.equal(cloud.options.env.VIBEMON_OPENCLAW_ACCOUNT_ID, "work");
   assert.equal(JSON.stringify(cloud.args).includes("fixture-write"), false);
-  assert.equal(JSON.parse(cloud.child.raw).state, "thinking");
-  const local = h.requests.find(request => request.payload?.state === "thinking").payload;
   const sent = JSON.parse(cloud.child.raw);
+  assert.equal(sent.state, "thinking");
+  const local = h.requests.find(request => request.payload?.state === "thinking").payload;
   assert.deepEqual(sent.account, local.account);
   assert.equal(sent.sourceId, "agent:84718e3543c37148d811992cd3a6f77d4fdae75b02dff7d410b6b43c30dd536b");
   assert.equal(sent.sourceId, local.sourceId);
@@ -185,7 +185,7 @@ test("HTTP lanes serialize states and retain only the latest pending update", as
     pluginConfig: { httpUrls: ["http://slow/", "http://fast"] },
     fetch: async (url) => {
       if (url.startsWith("http://slow")) await new Promise((resolve) => { release = resolve; });
-      return { ok: true, status: 200, text: async () => "ok" };
+      return okResponse();
     },
   });
   await h.emit("before_agent_run", {}, ctx);
@@ -257,7 +257,7 @@ test("gateway shutdown drains its final status", async () => {
   let release;
   const h = await openclaw({ fetch: async () => {
     await new Promise((resolve) => { release = resolve; });
-    return { ok: true, status: 200, text: async () => "ok" };
+    return okResponse();
   } });
   let stopped = false;
   const stop = h.emit("gateway_stop").then(() => { stopped = true; });
@@ -277,7 +277,7 @@ test("a rejected HTTP request releases the pending latest state", async () => {
       first = false;
       await new Promise((_resolve, rejectPromise) => { reject = rejectPromise; });
     }
-    return { ok: true, status: 200, text: async () => "ok" };
+    return okResponse();
   } });
   await h.emit("before_agent_run", {}, ctx);
   await h.emit("agent_end", { success: true }, ctx);

@@ -4,6 +4,9 @@ import vm from "node:vm";
 import { EventEmitter } from "node:events";
 import { createHash } from "node:crypto";
 
+// The minimal successful fetch() response the plugins read.
+export const okResponse = () => ({ ok: true, status: 200, text: async () => "ok" });
+
 // Load the actual plugin with isolated filesystem, process and transport
 // boundaries. No test accesses the user's config, devices or network.
 export async function loadPlugin(relativePath, options = {}) {
@@ -58,7 +61,7 @@ export async function loadPlugin(relativePath, options = {}) {
     fetch: async (url, request) => {
       requests.push({ url, ...request, payload: request.body ? JSON.parse(request.body) : null });
       if (options.fetch) return options.fetch(url, request);
-      return { ok: true, status: 200, text: async () => "ok" };
+      return okResponse();
     },
   });
   const modules = {
@@ -82,6 +85,10 @@ export async function loadPlugin(relativePath, options = {}) {
   return {
     exports: module.namespace, children, requests, timeouts, flush,
     setFile(p, content) { files.set(p, content); mtime += 1; },
+    // Exit every queued child in turn; each exit can start the next one.
+    closeChildren() {
+      for (let i = 0; i < children.length; i++) children[i].child.emit("close", 0);
+    },
     async advance(ms) {
       now += ms;
       for (const [id, timer] of timers) {

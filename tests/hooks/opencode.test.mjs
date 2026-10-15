@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { loadPlugin } from "./plugin_harness.mjs";
 
+const PLUGIN = "../../public/install/opencode/plugin/vibemon.js";
+
 // A push-based stand-in for opencode 2.x `ctx.event.subscribe()`. It ends
 // when the subscriber's AbortSignal fires, like the real stream.
 function eventStream() {
@@ -37,7 +39,7 @@ function eventStream() {
 // every instance; tool hooks reach only the instance that runs them.
 // `sessions` holds the ctx.session.get() results; values may be promises.
 async function opencode(options = {}) {
-  const h = await loadPlugin("../../public/install/opencode/plugin/vibemon.js", options);
+  const h = await loadPlugin(PLUGIN, options);
   const sessions = options.sessions || {};
   const instances = [];
   const lookups = [];
@@ -280,7 +282,7 @@ test("bursts keep the latest terminal event within the bounded queue", async () 
     await h.one.tool("execute.before", { sessionID: "s", tool: `tool-${i}` });
   }
   await h.event("session.execution.succeeded", { sessionID: "s" });
-  for (let i = 0; i < h.children.length; i++) h.children[i].child.emit("close", 0);
+  h.closeChildren();
   assert.equal(h.children.length, 2);
   assert.equal(h.payloads().at(-1).hook_event_name, "Stop");
 });
@@ -290,7 +292,7 @@ test("a burst across distinct sessions remains bounded", async () => {
   for (let i = 0; i < 60; i++) {
     await h.one.tool("execute.before", { sessionID: `session-${i}`, tool: "read" });
   }
-  for (let i = 0; i < h.children.length; i++) h.children[i].child.emit("close", 0);
+  h.closeChildren();
   assert.equal(h.children.length, 33);
   assert.equal(h.payloads().at(-1).session_id, "session-59");
 });
@@ -301,7 +303,7 @@ test("tool call IDs reach the adapter and queued tool events are never replaced"
   await h.one.tool("execute.before", { sessionID: "s", tool: "shell", id: "call-2" });
   await h.one.tool("execute.after", { sessionID: "s", tool: "read", id: "call-1" });
   await h.event("session.compaction.failed", { sessionID: "s" });
-  for (let i = 0; i < h.children.length; i++) h.children[i].child.emit("close", 0);
+  h.closeChildren();
   const sent = h.payloads().map((payload) => [payload.hook_event_name, payload.tool_use_id]);
   assert.deepEqual(sent, [
     ["PreToolUse", "call-1"], ["PreToolUse", "call-2"], ["PostToolUse", "call-1"], ["PostCompact", ""],
@@ -311,7 +313,7 @@ test("tool call IDs reach the adapter and queued tool events are never replaced"
 // One opencode 1.x project instance, shaped after opencode 1.18.29: server()
 // returns hooks, and `event` receives only this instance's bus events.
 async function opencodeV1(directory = "/projects/one") {
-  const h = await loadPlugin("../../public/install/opencode/plugin/vibemon.js");
+  const h = await loadPlugin(PLUGIN);
   const hooks = await h.exports.default.server({ directory, worktree: directory });
   return {
     ...h,
