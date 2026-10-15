@@ -27,7 +27,7 @@ pnpm check:distribution
 pnpm build:distribution
 ```
 
-The export writes only `dist/web/`. The public-distribution CI checks installer integrity and hook/collector behavior on Linux and Windows, validates Prometheus queries, and uploads the generated payload. It does not need a Web token or checkout.
+The export writes only `dist/web/`. The public-distribution CI runs before each release and by hand. It checks installer integrity and hook/collector behavior on Linux and Windows, validates Prometheus queries, and uploads the generated payload. It does not need a Web token or checkout.
 
 Web's `app-assets.json` pins a full App commit. Its sync command fetches that public revision, validates the source/destination paths, compares every byte, and preserves unrelated files. A network or content mismatch fails the check; a stale bundled snapshot is not silently accepted. Web deploys the already-verified files without fetching at request time.
 

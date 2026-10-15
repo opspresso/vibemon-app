@@ -1,19 +1,15 @@
 name: Overlay Verification
 
+# Runs before every release (called by build-release.yml with the release commit) and on demand.
+# Pull requests and pushes do not start it.
 on:
-  pull_request:
-    paths:
-      - 'src/**'
-      - 'tests/**'
-      - 'jest.config.js'
-      - 'eslint.config.js'
-      - '.nvmrc'
-      - 'pnpm-workspace.yaml'
-      - 'package.json'
-      - 'pnpm-lock.yaml'
-      - '.github/workflows/overlay-verification.yml'
+  workflow_call:
+    inputs:
+      ref:
+        description: Commit to verify; defaults to the triggering commit.
+        type: string
+        required: false
   workflow_dispatch:
-
 permissions:
   contents: read
 
@@ -27,6 +23,8 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v6
+        with:
+          ref: ${{ inputs.ref || github.sha }}
       - uses: actions/setup-node@v6
         with:
           node-version-file: '.nvmrc'
