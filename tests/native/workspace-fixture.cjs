@@ -13,6 +13,8 @@ const { TOKEN, memoryStore, sources, createPorts, trend } = require('../fixtures
 const directory = process.env.VIBEMON_TEST_USER_DATA;
 if (!directory) throw new Error('Launch this fixture with pnpm test:workspace or pnpm preview:workspace');
 app.setPath('userData', directory);
+// The only credential the fixture accepts for cloud write checks.
+const WRITE_TOKEN = 'vm_' + 'a'.repeat(60);
 
 async function startFixture() {
   await app.whenReady();
@@ -22,7 +24,7 @@ async function startFixture() {
     response.setHeader('Content-Type', 'application/json');
     state.requests.push(request.url);
     if (request.url === '/api/v1/connection?scope=write') {
-      const accepted = request.headers.authorization === `Bearer ${'vm_' + 'a'.repeat(60)}`;
+      const accepted = request.headers.authorization === `Bearer ${WRITE_TOKEN}`;
       response.writeHead(accepted ? 200 : 403);
       response.end(JSON.stringify(accepted ? { connected: true, scope: 'write' } : { error: 'Write permission required' }));
       return;
@@ -90,4 +92,4 @@ async function startFixture() {
   view.window.webContents.on('did-fail-load', (_event, code, description) => errors.push(`${code}: ${description}`));
   return { ports, state, client, settings, view, trayManager, selectDashboard, preferences, errors, cleanup, corruptCredential() { corrupt = true; } };
 }
-module.exports = { startFixture, TOKEN };
+module.exports = { startFixture, TOKEN, WRITE_TOKEN };

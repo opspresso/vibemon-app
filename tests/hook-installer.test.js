@@ -152,33 +152,46 @@ function mockToolInstalled(tool, { fileContents = 'local-bytes', config, missing
   });
 }
 
-// Configures https.get + spawn to simulate a successful install.py run:
-// serves manifest.json (whose installer hash matches the script) and
-// install.py by URL. Events fire via setTimeout(..., 0) so this works
-// regardless of how many microtask boundaries (dialog awaits, etc.) sit
-// between the mock setup and the actual https.get()/spawn() calls.
-function mockSuccessfulInstall(script = 'script-source') {
+function createChild() {
+  const child = new EventEmitter();
+  child.stdin = Object.assign(new EventEmitter(), { write: jest.fn(), end: jest.fn() });
+  child.stdout = new EventEmitter();
+  child.stderr = new EventEmitter();
+  return child;
+}
+
+function createResponse(statusCode = 200) {
+  const res = new EventEmitter();
+  res.statusCode = statusCode;
+  res.setEncoding = jest.fn();
+  return res;
+}
+
+// Serves manifest.json and install.py by URL. Events fire via
+// setTimeout(..., 0) so this works regardless of how many microtask
+// boundaries (dialog awaits, etc.) sit between the mock setup and the
+// actual https.get() call.
+function serveDownloads(manifest, script) {
   https.get.mockImplementation((url, opts, cb) => {
-    const fakeRes = new EventEmitter();
-    fakeRes.statusCode = 200;
-    fakeRes.setEncoding = jest.fn();
-    cb(fakeRes);
-    const body = url.endsWith('/manifest.json')
-      ? JSON.stringify({ installer: sha256(script), files: {} })
-      : script;
+    const res = createResponse();
+    cb(res);
+    const body = url.endsWith('/manifest.json') ? JSON.stringify(manifest) : script;
     setTimeout(() => {
-      fakeRes.emit('data', body);
-      fakeRes.emit('end');
+      res.emit('data', body);
+      res.emit('end');
     }, 0);
     return new EventEmitter();
   });
+}
+
+// Simulates a successful install.py run: the manifest's installer hash
+// matches the script, and every spawned child exits 0 on the next tick.
+function mockSuccessfulInstall(script = 'script-source') {
+  serveDownloads({ installer: sha256(script), files: {} }, script);
 
   const spawnedChildren = [];
   spawn.mockImplementation(() => {
-    const child = new EventEmitter();
-    child.stdin = Object.assign(new EventEmitter(), { write: jest.fn(), end: jest.fn() });
-    child.stdout = new EventEmitter();
-    child.stderr = new EventEmitter();
+    const child = createChild();
     spawnedChildren.push(child);
     setTimeout(() => child.emit('close', 0), 0);
     return child;
@@ -740,7 +753,7 @@ describe('HookInstaller', () => {
     });
 
     test('rejects an interrupted response before executing a partial script', async () => {
-      const res = new EventEmitter(); res.statusCode = 200; res.setEncoding = jest.fn();
+      const res = createResponse();
       https.get.mockImplementation((_url, _options, ready) => { ready(res); return new EventEmitter(); });
       const pending = hookInstaller.downloadScript(sha256('print(1)'));
       res.emit('data', 'print('); res.emit('aborted');
@@ -748,9 +761,7 @@ describe('HookInstaller', () => {
     });
 
     test('resolves the script body on a 200 response', async () => {
-      const fakeRes = new EventEmitter();
-      fakeRes.statusCode = 200;
-      fakeRes.setEncoding = jest.fn();
+      const fakeRes = createResponse();
       https.get.mockImplementation((url, opts, cb) => {
         expect(url).toBe('https://docs.example.test/install.py');
         cb(fakeRes);
@@ -765,8 +776,7 @@ describe('HookInstaller', () => {
     });
 
     test('rejects with download-failed on a non-200 response', async () => {
-      const fakeRes = new EventEmitter();
-      fakeRes.statusCode = 500;
+      const fakeRes = createResponse(500);
       fakeRes.resume = jest.fn();
       https.get.mockImplementation((url, opts, cb) => {
         cb(fakeRes);
@@ -787,9 +797,7 @@ describe('HookInstaller', () => {
     });
 
     test('rejects with download-too-large when the response exceeds the size cap', async () => {
-      const fakeRes = new EventEmitter();
-      fakeRes.statusCode = 200;
-      fakeRes.setEncoding = jest.fn();
+      const fakeRes = createResponse();
       fakeRes.destroy = jest.fn();
       https.get.mockImplementation((url, opts, cb) => {
         cb(fakeRes);
@@ -806,9 +814,7 @@ describe('HookInstaller', () => {
 
   describe('runScript', () => {
     test.each([0, 1])('handles a closed input pipe and reports a failed result for exit %s', async code => {
-      const child = new EventEmitter();
-      child.stdin = Object.assign(new EventEmitter(), { write: jest.fn(), end: jest.fn() });
-      child.stdout = new EventEmitter(); child.stderr = new EventEmitter();
+      const child = createChild();
       spawn.mockReturnValue(child);
       const pending = hookInstaller.runScript('source', PYTHON, ['--claude']);
       expect(() => child.stdin.emit('error', new Error('write EPIPE'))).not.toThrow();
@@ -818,10 +824,7 @@ describe('HookInstaller', () => {
     });
 
     test('spawns python3 without exposing the token in process arguments', async () => {
-      const fakeChild = new EventEmitter();
-      fakeChild.stdin = Object.assign(new EventEmitter(), { write: jest.fn(), end: jest.fn() });
-      fakeChild.stdout = new EventEmitter();
-      fakeChild.stderr = new EventEmitter();
+      const fakeChild = createChild();
       spawn.mockReturnValue(fakeChild);
 
       const resultPromise = hookInstaller.runScript('print(1)', PYTHON, ['--claude'], 'my_token123');
@@ -844,10 +847,7 @@ describe('HookInstaller', () => {
     // settings I own" (--yes). Passing --yes would silently overwrite a
     // statusLine the user configured themselves.
     test('does not pass --yes, so user-owned settings survive an install', async () => {
-      const fakeChild = new EventEmitter();
-      fakeChild.stdin = Object.assign(new EventEmitter(), { write: jest.fn(), end: jest.fn() });
-      fakeChild.stdout = new EventEmitter();
-      fakeChild.stderr = new EventEmitter();
+      const fakeChild = createChild();
       spawn.mockReturnValue(fakeChild);
 
       const resultPromise = hookInstaller.runScript('print(1)', PYTHON, ['--claude']);
@@ -859,10 +859,7 @@ describe('HookInstaller', () => {
     });
 
     test('resolves ok:false with exit code when the script fails', async () => {
-      const fakeChild = new EventEmitter();
-      fakeChild.stdin = Object.assign(new EventEmitter(), { write: jest.fn(), end: jest.fn() });
-      fakeChild.stdout = new EventEmitter();
-      fakeChild.stderr = new EventEmitter();
+      const fakeChild = createChild();
       spawn.mockReturnValue(fakeChild);
 
       const resultPromise = hookInstaller.runScript('script', PYTHON, ['--codex'], null);
@@ -878,10 +875,7 @@ describe('HookInstaller', () => {
     // A piped stream nobody reads blocks the child once the OS pipe buffer
     // fills, and install.py prints its failures to stdout, not stderr.
     test('drains stdout and keeps it on the result', async () => {
-      const fakeChild = new EventEmitter();
-      fakeChild.stdin = Object.assign(new EventEmitter(), { write: jest.fn(), end: jest.fn() });
-      fakeChild.stdout = new EventEmitter();
-      fakeChild.stderr = new EventEmitter();
+      const fakeChild = createChild();
       spawn.mockReturnValue(fakeChild);
 
       const resultPromise = hookInstaller.runScript('script', PYTHON, ['--claude']);
@@ -894,10 +888,7 @@ describe('HookInstaller', () => {
     });
 
     test('caps captured output so a runaway script cannot grow it without bound', async () => {
-      const fakeChild = new EventEmitter();
-      fakeChild.stdin = Object.assign(new EventEmitter(), { write: jest.fn(), end: jest.fn() });
-      fakeChild.stdout = new EventEmitter();
-      fakeChild.stderr = new EventEmitter();
+      const fakeChild = createChild();
       spawn.mockReturnValue(fakeChild);
 
       const resultPromise = hookInstaller.runScript('script', PYTHON, ['--claude']);
@@ -1012,20 +1003,7 @@ describe('HookInstaller', () => {
     });
 
     test('fails the batch with integrity-check-failed when install.py does not match the manifest installer hash', async () => {
-      https.get.mockImplementation((url, opts, cb) => {
-        const fakeRes = new EventEmitter();
-        fakeRes.statusCode = 200;
-        fakeRes.setEncoding = jest.fn();
-        cb(fakeRes);
-        const body = url.endsWith('/manifest.json')
-          ? JSON.stringify({ installer: sha256('published-script'), files: {} })
-          : 'tampered-script';
-        setTimeout(() => {
-          fakeRes.emit('data', body);
-          fakeRes.emit('end');
-        }, 0);
-        return new EventEmitter();
-      });
+      serveDownloads({ installer: sha256('published-script'), files: {} }, 'tampered-script');
 
       const results = await hookInstaller.installTools([TOOLS[0]], null);
 
@@ -1034,17 +1012,7 @@ describe('HookInstaller', () => {
     });
 
     test('fails the batch with integrity-reference-missing when the manifest has no installer hash', async () => {
-      https.get.mockImplementation((url, opts, cb) => {
-        const fakeRes = new EventEmitter();
-        fakeRes.statusCode = 200;
-        fakeRes.setEncoding = jest.fn();
-        cb(fakeRes);
-        setTimeout(() => {
-          fakeRes.emit('data', JSON.stringify({ files: {} }));
-          fakeRes.emit('end');
-        }, 0);
-        return new EventEmitter();
-      });
+      serveDownloads({ files: {} }, 'script-source');
 
       const results = await hookInstaller.installTools([TOOLS[0]], null);
 
@@ -1054,29 +1022,13 @@ describe('HookInstaller', () => {
 
     test('a previously fetched manifest verifies the install when the fresh fetch fails', async () => {
       hookInstaller.manifest = { installer: sha256('script-source'), files: {} };
+      mockSuccessfulInstall('script-source');
+      const serve = https.get.getMockImplementation();
       https.get.mockImplementation((url, opts, cb) => {
-        if (url.endsWith('/manifest.json')) {
-          const fakeReq = new EventEmitter();
-          setTimeout(() => fakeReq.emit('error', new Error('offline')), 0);
-          return fakeReq;
-        }
-        const fakeRes = new EventEmitter();
-        fakeRes.statusCode = 200;
-        fakeRes.setEncoding = jest.fn();
-        cb(fakeRes);
-        setTimeout(() => {
-          fakeRes.emit('data', 'script-source');
-          fakeRes.emit('end');
-        }, 0);
-        return new EventEmitter();
-      });
-      spawn.mockImplementation(() => {
-        const child = new EventEmitter();
-        child.stdin = Object.assign(new EventEmitter(), { write: jest.fn(), end: jest.fn() });
-        child.stdout = new EventEmitter();
-        child.stderr = new EventEmitter();
-        setTimeout(() => child.emit('close', 0), 0);
-        return child;
+        if (!url.endsWith('/manifest.json')) return serve(url, opts, cb);
+        const fakeReq = new EventEmitter();
+        setTimeout(() => fakeReq.emit('error', new Error('offline')), 0);
+        return fakeReq;
       });
 
       const results = await hookInstaller.installTools([TOOLS[0]], null);
@@ -1120,10 +1072,7 @@ describe('HookInstaller', () => {
       mockSuccessfulInstall();
       let call = 0;
       spawn.mockImplementation(() => {
-        const child = new EventEmitter();
-        child.stdin = Object.assign(new EventEmitter(), { write: jest.fn(), end: jest.fn() });
-        child.stdout = new EventEmitter();
-        child.stderr = new EventEmitter();
+        const child = createChild();
         const code = call++ === 0 ? 0 : 1;
         setTimeout(() => child.emit('close', code), 0);
         return child;
@@ -1178,9 +1127,7 @@ describe('HookInstaller', () => {
 
     // Serves a manifest.json body from the mocked https.get.
     function mockManifestResponse(body) {
-      const fakeRes = new EventEmitter();
-      fakeRes.statusCode = 200;
-      fakeRes.setEncoding = jest.fn();
+      const fakeRes = createResponse();
       https.get.mockImplementation((url, opts, cb) => {
         expect(url).toBe('https://docs.example.test/manifest.json');
         cb(fakeRes);

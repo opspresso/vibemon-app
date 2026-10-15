@@ -9,33 +9,20 @@
  * fake rig, without a WebGL context.
  */
 
-const fs = require('fs');
-const path = require('path');
-const vm = require('vm');
+const { loadBrowserModule } = require('./helpers/browser-module.cjs');
 const charactersRegistry = require('../src/shared/data/characters.json');
 
-function loadModule(relPath, sandbox, exportNames) {
-  const src = fs.readFileSync(path.join(__dirname, '..', relPath), 'utf8')
-    .replace(/import[^;]*;/g, '')
-    .replace(/^export /gm, '')
-    + `\nmodule.exports = { ${exportNames.join(', ')} };`;
-
-  const mod = { exports: {} };
-  vm.runInNewContext(src, { module: mod, exports: mod.exports, console, ...sandbox });
-  return mod.exports;
-}
-
-const monsterStates = loadModule('src/engine/monster-states.js', {}, [
+const monsterStates = loadBrowserModule('src/engine/monster-states.js', [
   'JOINTS', 'MOVES', 'STATE_ANIMATIONS', 'getStateAnimation', 'getCharacterTheme', 'lerp', 'dampFactor'
 ]);
-const companion = loadModule('src/engine/vibemon-companion.mjs', {}, [
+const companion = loadBrowserModule('src/engine/vibemon-companion.mjs', [
   'COMPANION_SIZE', 'COMPANION_OUTLINE', 'COMPANION_EYES'
 ]);
 
-const { VibeMonEngine3D, createVibeMonEngine, CONSTANTS, REST_POSE, MOVE_FNS, buildMonster } = loadModule(
+const { VibeMonEngine3D, createVibeMonEngine, CONSTANTS, REST_POSE, MOVE_FNS, buildMonster } = loadBrowserModule(
   'src/engine/vibemon-engine-3d.js',
-  { THREE: {}, ...monsterStates, ...companion },
-  ['VibeMonEngine3D', 'createVibeMonEngine', 'CONSTANTS', 'REST_POSE', 'MOVE_FNS', 'buildMonster']
+  ['VibeMonEngine3D', 'createVibeMonEngine', 'CONSTANTS', 'REST_POSE', 'MOVE_FNS', 'buildMonster'],
+  { THREE: {}, ...monsterStates, ...companion }
 );
 
 // container=null: the constructor doesn't touch the DOM; init() (which does)

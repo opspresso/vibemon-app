@@ -33,8 +33,7 @@ async function verify({ engineUrl, hitUrl, threeUrl, characters, defaultCharacte
   const points = [0, 255].map(alpha => {
     const offset = pixels.findIndex((value, i) => i % 4 === 3 && value === alpha);
     if (offset < 0) throw new Error(`Initial WebGL frame has no alpha=${alpha} reference pixel (${canvas.width}x${canvas.height})`);
-    const index = offset / 4;
-    const pixel = Math.floor(index);
+    const pixel = Math.floor(offset / 4);
     return { x: pixel % canvas.width, y: Math.floor(pixel / canvas.width), opaque: alpha > 0 };
   });
   const hit = createCharacterHitTest(engine);

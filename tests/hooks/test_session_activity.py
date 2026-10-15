@@ -4,28 +4,26 @@ import os
 import runpy
 import subprocess
 import sys
-import threading
 import time
-from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from http.server import BaseHTTPRequestHandler
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
 import pytest
 
-DOCS = Path(__file__).parents[2] / "public" / "install"
-sys.path.insert(0, str(DOCS / "vibemon"))
-
 import session_activity as activity
 import vibemon_core as core
 from session_activity import Beat, Transition
 
+DOCS = Path(__file__).parents[2] / "public" / "install"
+START_MS = 1_760_000_000_000
 AGENT = {"pid": 4242, "name": "claude"}
 ME = {"pid": 5151, "name": "python3"}
 
 
 class Clock:
-    def __init__(self, ms=1_760_000_000_000):
+    def __init__(self, ms=START_MS):
         self.ms = ms
 
     def __call__(self):
@@ -47,6 +45,11 @@ def alive(monkeypatch):
     return running
 
 
+@pytest.fixture
+def path(tmp_path):
+    return str(tmp_path / "activity.json")
+
+
 def event(name, **fields):
     return {"session_id": "s1", "hook_event_name": name, **fields}
 
@@ -61,8 +64,7 @@ def open_turn(path, payload=None, **fields):
     return report
 
 
-def test_an_active_event_opens_the_turn_and_requests_one_watcher(tmp_path, clock, alive):
-    path = str(tmp_path / "activity.json")
+def test_an_active_event_opens_the_turn_and_requests_one_watcher(path, clock, alive):
     assert open_turn(path).watch is True
     clock.ms += 100
     assert activity.record(path, event("PreToolUse", tool_use_id="t1"), Transition("working")).watch is False
@@ -70,8 +72,7 @@ def test_an_active_event_opens_the_turn_and_requests_one_watcher(tmp_path, clock
     assert entry["open"] is True and entry["state"] == "working" and entry["agent"] == AGENT
 
 
-def test_a_closed_turn_ignores_settling_events(tmp_path, clock):
-    path = str(tmp_path / "activity.json")
+def test_a_closed_turn_ignores_settling_events(path, clock):
     activity.record(path, event("Stop"), Transition("done"))
     assert activity.record(path, event("Notification"), Transition("done", settles=True)) is None
     open_turn(path)
@@ -79,8 +80,7 @@ def test_a_closed_turn_ignores_settling_events(tmp_path, clock):
     assert cache(path)["sessions"]["s1"]["open"] is False
 
 
-def test_an_unanswered_question_outranks_a_finished_parallel_tool(tmp_path, clock):
-    path = str(tmp_path / "activity.json")
+def test_an_unanswered_question_outranks_a_finished_parallel_tool(path, clock):
     open_turn(path)
     activity.record(path, event("PreToolUse", tool_use_id="ask"), Transition("notification"))
     activity.record(path, event("PreToolUse", tool_use_id="bash"), Transition("working"))
@@ -88,8 +88,7 @@ def test_an_unanswered_question_outranks_a_finished_parallel_tool(tmp_path, cloc
     assert activity.record(path, event("PostToolUse", tool_use_id="ask"), Transition("thinking")).state == "thinking"
 
 
-def test_a_permission_request_marks_its_running_tool_as_waiting(tmp_path, clock):
-    path = str(tmp_path / "activity.json")
+def test_a_permission_request_marks_its_running_tool_as_waiting(path, clock):
     open_turn(path)
     activity.record(path, event("PreToolUse", tool_use_id="a"), Transition("working"))
     activity.record(path, event("PreToolUse", tool_use_id="b"), Transition("working"))
@@ -97,8 +96,7 @@ def test_a_permission_request_marks_its_running_tool_as_waiting(tmp_path, clock)
     assert activity.record(path, event("PostToolUse", tool_use_id="b"), Transition("thinking")).state == "notification"
 
 
-def test_a_stop_that_waits_for_background_work_keeps_the_turn_open(tmp_path, clock):
-    path = str(tmp_path / "activity.json")
+def test_a_stop_that_waits_for_background_work_keeps_the_turn_open(path, clock):
     open_turn(path)
     activity.record(path, event("PreToolUse", tool_use_id="a"), Transition("working"))
     assert activity.record(path, event("Stop"), Transition("working")).state == "working"
@@ -106,15 +104,13 @@ def test_a_stop_that_waits_for_background_work_keeps_the_turn_open(tmp_path, clo
     assert entry["open"] is True and entry["tools"] == {}
 
 
-def test_a_session_without_an_id_reports_as_mapped(tmp_path):
-    path = str(tmp_path / "activity.json")
+def test_a_session_without_an_id_reports_as_mapped(path):
     assert activity.record(path, {"hook_event_name": "PreToolUse"}, Transition("working")).watch is False
     assert activity.record(path, {"hook_event_name": "Notification"}, Transition("done", settles=True)) is None
     assert not Path(path).exists()
 
 
-def test_silence_is_filled_with_heartbeats_of_the_current_state(tmp_path, clock, alive):
-    path = str(tmp_path / "activity.json")
+def test_silence_is_filled_with_heartbeats_of_the_current_state(path, clock, alive):
     open_turn(path)
     activity.record(path, event("PreToolUse", tool_use_id="build"), Transition("working"))
     assert activity.claim(path, "s1", ME)
@@ -127,8 +123,7 @@ def test_silence_is_filled_with_heartbeats_of_the_current_state(tmp_path, clock,
     assert beat.observed_at > activity.observation_time(clock.ms - activity.HEARTBEAT_MS)
 
 
-def test_heartbeats_count_reset_countdowns_down(tmp_path, clock, alive):
-    path = str(tmp_path / "activity.json")
+def test_heartbeats_count_reset_countdowns_down(path, clock, alive):
     open_turn(path, payload={"state": "thinking", "project": "p", "character": "clawd", "usage5hResetsIn": 100, "usageWeekResetsIn": 2, "usage5h": 40})
     assert activity.claim(path, "s1", ME)
     clock.ms += 3 * activity.HEARTBEAT_MS + 30_000
@@ -136,8 +131,7 @@ def test_heartbeats_count_reset_countdowns_down(tmp_path, clock, alive):
     assert beat.payload["usage5hResetsIn"] == 97 and beat.payload["usageWeekResetsIn"] == 0 and beat.payload["usage5h"] == 40
 
 
-def test_an_exited_agent_ends_the_turn(tmp_path, clock, alive):
-    path = str(tmp_path / "activity.json")
+def test_an_exited_agent_ends_the_turn(path, clock, alive):
     open_turn(path)
     assert activity.claim(path, "s1", ME)
     del alive[AGENT["pid"]]
@@ -148,8 +142,7 @@ def test_an_exited_agent_ends_the_turn(tmp_path, clock, alive):
     assert activity.tick(path, "s1", ME) is False
 
 
-def test_a_recorded_interrupt_ends_the_turn(tmp_path, clock, alive):
-    path = str(tmp_path / "activity.json")
+def test_a_recorded_interrupt_ends_the_turn(tmp_path, path, clock, alive):
     transcript = tmp_path / "session.jsonl"
     transcript.write_text("")
     open_turn(path, transcript_path=str(transcript))
@@ -160,8 +153,7 @@ def test_a_recorded_interrupt_ends_the_turn(tmp_path, clock, alive):
     assert activity.tick(path, "s1", ME).payload["state"] == "done"
 
 
-def test_a_hook_during_the_check_outranks_an_older_interrupt(tmp_path, clock, alive, monkeypatch):
-    path = str(tmp_path / "activity.json")
+def test_a_hook_during_the_check_outranks_an_older_interrupt(path, clock, alive, monkeypatch):
     open_turn(path)
     assert activity.claim(path, "s1", ME)
 
@@ -176,8 +168,7 @@ def test_a_hook_during_the_check_outranks_an_older_interrupt(tmp_path, clock, al
     assert cache(path)["sessions"]["s1"]["open"] is True
 
 
-def test_a_second_watcher_cannot_claim_a_watched_session(tmp_path, clock, alive):
-    path = str(tmp_path / "activity.json")
+def test_a_second_watcher_cannot_claim_a_watched_session(path, clock, alive):
     open_turn(path)
     assert activity.claim(path, "s1", ME)
     other = {"pid": 6262, "name": "python3"}
@@ -188,16 +179,14 @@ def test_a_second_watcher_cannot_claim_a_watched_session(tmp_path, clock, alive)
     assert activity.claim(path, "s1", other)
 
 
-def test_a_closed_turn_stops_the_watcher(tmp_path, clock, alive):
-    path = str(tmp_path / "activity.json")
+def test_a_closed_turn_stops_the_watcher(path, clock, alive):
     open_turn(path)
     assert activity.claim(path, "s1", ME)
     activity.record(path, event("Stop"), Transition("done"))
     assert activity.tick(path, "s1", ME) is False
 
 
-def test_watch_delivers_heartbeats_until_the_agent_exits(tmp_path, clock, alive, monkeypatch):
-    path = str(tmp_path / "activity.json")
+def test_watch_delivers_heartbeats_until_the_agent_exits(path, clock, alive, monkeypatch):
     open_turn(path)
     monkeypatch.setattr(activity.os, "getpid", lambda: ME["pid"])
     monkeypatch.setattr(activity, "process_name", lambda pid: ME["name"])
@@ -205,7 +194,7 @@ def test_watch_delivers_heartbeats_until_the_agent_exits(tmp_path, clock, alive,
 
     def sleep(seconds):
         clock.ms += int(seconds * 1000)
-        if clock.ms >= 1_760_000_000_000 + 3 * activity.HEARTBEAT_MS:
+        if clock.ms >= START_MS + 3 * activity.HEARTBEAT_MS:
             alive.pop(AGENT["pid"], None)
 
     activity.watch(path, "s1", delivered.append, sleep=sleep)
@@ -221,10 +210,10 @@ def test_watch_delivers_heartbeats_until_the_agent_exits(tmp_path, clock, alive,
     ([("user", "ordinary prompt", 2_000)], False),
 ])
 def test_transcript_interrupts_count_only_as_the_newest_conversation_record(tmp_path, records, expected):
-    since = 1_760_000_001_000
+    since = START_MS + 1_000
     transcript = tmp_path / "session.jsonl"
     transcript.write_text("".join(
-        json.dumps({"type": kind, "timestamp": activity.observation_time(1_760_000_000_000 + offset), "message": {"content": text if kind == "assistant" else [{"type": "text", "text": text}]}}) + "\n"
+        json.dumps({"type": kind, "timestamp": activity.observation_time(START_MS + offset), "message": {"content": text if kind == "assistant" else [{"type": "text", "text": text}]}}) + "\n"
         for kind, text, offset in records
     ))
     os.utime(transcript, (since / 1000 + 10, since / 1000 + 10))
@@ -324,7 +313,7 @@ def test_heartbeats_are_marked_for_every_display():
 # ============================================================================
 
 
-def test_a_real_watcher_reports_done_when_its_agent_exits(tmp_path):
+def test_a_real_watcher_reports_done_when_its_agent_exits(tmp_path, serve):
     """Spawn the installed-layout watcher against a real agent process and a local display."""
     received = []
 
@@ -335,11 +324,7 @@ def test_a_real_watcher_reports_done_when_its_agent_exits(tmp_path):
             self.end_headers()
             self.wfile.write(b"{}")
 
-        def log_message(self, *_):
-            pass
-
-    server = ThreadingHTTPServer(("127.0.0.1", 0), Display)
-    threading.Thread(target=server.serve_forever, daemon=True).start()
+    server = serve(Display)
     home = tmp_path / "home"
     (home / ".vibemon" / "cache").mkdir(parents=True)
     (home / ".vibemon" / "config.json").write_text(json.dumps({
@@ -364,7 +349,6 @@ def test_a_real_watcher_reports_done_when_its_agent_exits(tmp_path):
         assert watcher.wait(timeout=activity.WATCH_TICK_SECONDS + 10) == 0
     finally:
         agent.kill()
-        server.shutdown()
     assert [report["state"] for report in received] == ["done"]
     assert received[0]["project"] == "real" and "heartbeat" not in received[0]
     assert cache(path)["sessions"]["s1"]["open"] is False

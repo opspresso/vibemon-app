@@ -1,16 +1,13 @@
-const fs = require('node:fs');
-const path = require('node:path');
-const vm = require('node:vm');
+const { loadBrowserModule } = require('./helpers/browser-module.cjs');
 const { Event, EventTarget } = globalThis;
 
-const sandbox = {};
-vm.runInNewContext(fs.readFileSync(path.join(__dirname, '../src/engine/animation-policy.js'), 'utf8').replace('export function', 'function') + '\nthis.observeAnimation = observeAnimation;', sandbox);
+const { observeAnimation } = loadBrowserModule('src/engine/animation-policy.js', ['observeAnimation']);
 
 test('visibility and reduced motion stop animation, state renders remain possible, and cleanup detaches listeners', () => {
   const page = new EventTarget(); page.hidden = false;
   const motion = new EventTarget(); motion.matches = false;
   const engine = { setReducedMotion: jest.fn(), startAnimation: jest.fn(), stopAnimation: jest.fn(), render: jest.fn() };
-  const cleanup = sandbox.observeAnimation(engine, page, motion);
+  const cleanup = observeAnimation(engine, page, motion);
   expect(engine.startAnimation).toHaveBeenCalledTimes(1);
   page.hidden = true; page.dispatchEvent(new Event('visibilitychange'));
   expect(engine.stopAnimation).toHaveBeenCalledTimes(1);

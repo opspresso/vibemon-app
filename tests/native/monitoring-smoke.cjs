@@ -19,6 +19,14 @@ async function until(check) {
   for (let i = 0; i < 100; i++) { if (await check()) return; await delay(100); }
   throw new Error('Monitoring UI did not become ready');
 }
+// Settle scrolling and two compositor frames before each screenshot.
+async function capture(view, name) {
+  const page = view.window.webContents;
+  await page.executeJavaScript('document.getElementById("main").scrollTop = 0;');
+  await page.executeJavaScript('new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))');
+  await delay(150);
+  fs.writeFileSync(path.join(artifacts, name), (await page.capturePage()).toPNG());
+}
 app.whenReady().then(async () => {
   const fixture = JSON.parse(fs.readFileSync(process.env.VIBEMON_TEST_FIXTURE, 'utf8'));
   const preferences = new Store({ name: 'monitoring' });
@@ -34,16 +42,12 @@ app.whenReady().then(async () => {
   const view = new WorkspaceWindow({ monitoring: client, settings: new WorkspaceSettings(ports), ...ports, reportError: error => { throw error; } });
   view.open('resources');
   await until(() => view.window.webContents.executeJavaScript('document.querySelectorAll("[data-page]:not([hidden]) .card").length > 0'));
-  await delay(250);
-  fs.writeFileSync(path.join(artifacts, 'monitoring-spark.png'), (await view.window.webContents.capturePage()).toPNG());
+  await capture(view, 'monitoring-spark.png');
   await view.window.webContents.executeJavaScript('document.querySelector("[data-page]:not([hidden]) .card button").click();');
   await until(() => view.window.webContents.executeJavaScript('document.querySelectorAll("#chart circle").length > 0'));
   const result = await view.window.webContents.executeJavaScript('({ cards: document.querySelectorAll("[data-page]:not([hidden]) .card").length, gauges: document.querySelectorAll("#resource-cards [role=meter]").length, points: document.querySelectorAll("#chart circle").length, unified: document.body.textContent.includes("Unified memory"), credentialVisible: Boolean(document.getElementById("read-token").value) })');
   assert.ok(result.gauges >= 3); assert.equal(result.unified, true); assert.equal(result.credentialVisible, false);
-  await delay(250);
-  const image = await view.window.webContents.capturePage();
-  const destination = path.join(artifacts, 'monitoring-spark-trend.png');
-  fs.writeFileSync(destination, image.toPNG());
+  await capture(view, 'monitoring-spark-trend.png');
   console.log('PASS native monitoring:', JSON.stringify(result));
   if (snapshot.accounts.some(account => account.accountId === 'codex:work')) {
     view.open('agents');
@@ -52,10 +56,7 @@ app.whenReady().then(async () => {
     await until(() => view.window.webContents.executeJavaScript('document.querySelectorAll("[data-page]:not([hidden]) .card").length === 2'));
     const names = await view.window.webContents.executeJavaScript('[...document.querySelectorAll("#agent-cards h3")].map(element => element.textContent).sort()');
     assert.deepEqual(names, ['Fixture claude personal', 'Fixture codex work']);
-    await view.window.webContents.executeJavaScript('document.getElementById("main").scrollTop = 0;');
-    await view.window.webContents.executeJavaScript('new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))');
-    await delay(150);
-    fs.writeFileSync(path.join(artifacts, 'monitoring-accounts.png'), (await view.window.webContents.capturePage()).toPNG());
+    await capture(view, 'monitoring-accounts.png');
     await view.window.webContents.executeJavaScript('document.querySelector("[data-page]:not([hidden]) .card button").click();');
     await until(() => view.window.webContents.executeJavaScript('document.querySelectorAll("#chart circle").length > 0'));
     console.log('PASS native account selection: two same-project provider accounts and account trend');
@@ -67,10 +68,7 @@ app.whenReady().then(async () => {
     await until(() => view.window.webContents.executeJavaScript('document.querySelectorAll("[data-page]:not([hidden]) .card").length === 2'));
     const text = await view.window.webContents.executeJavaScript('document.getElementById("resource-cards").textContent');
     assert.ok(text.includes('Ready nodes')); assert.ok(text.includes('Unified memory'));
-    await view.window.webContents.executeJavaScript('document.getElementById("main").scrollTop = 0;');
-    await view.window.webContents.executeJavaScript('new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))');
-    await delay(150);
-    fs.writeFileSync(path.join(artifacts, 'monitoring-resources.png'), (await view.window.webContents.capturePage()).toPNG());
+    await capture(view, 'monitoring-resources.png');
     console.log('PASS native resource selection: real Spark and Kubernetes summaries');
   }
   await view.window.webContents.executeJavaScript('document.querySelector("[data-close-dialog=detail-dialog]").click();');

@@ -18,7 +18,7 @@ const { dockCorner } = require('../../src/modules/dock-layout.cjs');
 const { getDockCandidates } = require('./dock-candidates.cjs');
 const characters = require('../../src/shared/data/characters.json');
 const states = require('../../src/shared/data/states.json');
-const { CHARACTER_IMAGE_FETCH_TIMEOUT_MS, CHARACTER_IMAGE_MAX_BYTES, CHAR_SIZE, STATIC_BASE_URL } = require('../../src/shared/config.cjs');
+const { CHARACTER_IMAGE_FETCH_TIMEOUT_MS, CHARACTER_IMAGE_MAX_BYTES, CHAR_SIZE, DOCK_OVERLAY_GAP, STATIC_BASE_URL } = require('../../src/shared/config.cjs');
 const root = path.resolve(__dirname, '../..');
 const output = path.join(root, 'out', 'overlay-tests', process.platform, app.commandLine.getSwitchValue('force-device-scale-factor') || 'native');
 fs.mkdirSync(output, { recursive: true });
@@ -32,7 +32,13 @@ let focused = 0;
 const ignored = new Map();
 const errors = [];
 const results = [];
+// The 100% character window; smaller scales derive from it.
+const FULL_SIZE = { width: 134, height: 138 };
 const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
+const sameRect = (a, b) => ['x', 'y', 'width', 'height'].every(key => a[key] === b[key]);
+const nextFrames = contents => contents.executeJavaScript('new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))');
+// Changes a <select> the way a user does, so the page's change handler runs.
+const chooseOption = (contents, id, value) => contents.executeJavaScript(`(() => { const select = document.getElementById(${JSON.stringify(id)}); select.value = ${JSON.stringify(String(value))}; select.dispatchEvent(new Event('change')); })()`);
 async function until(check, label) {
   const deadline = Date.now() + 10000;
   do {
@@ -136,7 +142,7 @@ async function verifyDockCorners(win, mode, live = null) {
     state: { state: 'working', project: 'Dock corner verification', model: 'Example model', memory: 42, usage5h: 18, usageWeek: 36 },
     speechBubbleFields: { status: true, project: true, model: true, memory: true, usage5h: true, usageWeek: true }
   };
-  const candidates = live?.candidates || getDockCandidates(display, characterManager.dockMonitor.bounds, { width: 134, height: 138 });
+  const candidates = live?.candidates || getDockCandidates(display, characterManager.dockMonitor.bounds, FULL_SIZE);
   if (source === 'fixture-dock' || source === 'narrow-fixture-dock') assert.deepEqual(candidates.map(candidate => candidate.side), ['left', 'right']);
   if (live?.expectedSides) assert.deepEqual(candidates.map(candidate => candidate.side), live.expectedSides);
   for (const { side, autoScale } of candidates.flatMap(({ side }) => [false, true].map(autoScale => ({ side, autoScale })))) {
@@ -144,7 +150,7 @@ async function verifyDockCorners(win, mode, live = null) {
     characterManager.dockAutoScale = autoScale;
     characterManager.sendDisplayOptions();
     win.setResizable(true);
-    characterManager.positionWindow(win, side === 'left' ? b.x : b.x + b.width - 134, b.y + b.height - 138);
+    characterManager.positionWindow(win, side === 'left' ? b.x : b.x + b.width - FULL_SIZE.width, b.y + b.height - FULL_SIZE.height);
     win.setResizable(false);
     characterManager.refreshDockLayout();
     // Complete the simulated drop through endUserDrag's settling path,
@@ -154,12 +160,12 @@ async function verifyDockCorners(win, mode, live = null) {
     const bubble = bubbleManager.bubbleWindows.get('test');
     if (!autoScale && !characterManager.dockLayout) {
       const corner = dockCorner(display, characterManager.dockMonitor.bounds[0], {
-        x: side === 'left' ? b.x : b.x + b.width - 134, y: b.y + b.height - 138, width: 134, height: 138
+        x: side === 'left' ? b.x : b.x + b.width - FULL_SIZE.width, y: b.y + b.height - FULL_SIZE.height, ...FULL_SIZE
       }, 0, false);
       assert(corner, 'the full-size fallback still has a visible Dock');
       const natural = bubbleManager.lastSizes.get('test');
-      const besideFits = 134 + 4 + natural.width <= corner.area.width && Math.max(138, natural.height) <= corner.area.height;
-      const stackedFits = Math.max(134, natural.width) <= corner.area.width && 138 + 4 + natural.height <= corner.area.height;
+      const besideFits = FULL_SIZE.width + DOCK_OVERLAY_GAP + natural.width <= corner.area.width && Math.max(FULL_SIZE.height, natural.height) <= corner.area.height;
+      const stackedFits = Math.max(FULL_SIZE.width, natural.width) <= corner.area.width && FULL_SIZE.height + DOCK_OVERLAY_GAP + natural.height <= corner.area.height;
       assert(!besideFits && !stackedFits, 'only fall back when both full-size arrangements lack space');
       await until(() => fullSizeWorkAreaPlacement(display), 'full-size overlays return to the work area without overlap');
       const renderedScale = await win.webContents.executeJavaScript('Number(document.getElementById("vibemon-display").style.getPropertyValue("--vibemon-scale"))');
@@ -170,13 +176,12 @@ async function verifyDockCorners(win, mode, live = null) {
     await until(() => {
       const expected = characterManager.dockLayout?.bubble;
       if (!expected) return false;
-      const actual = bubble.getBounds();
-      return ['x', 'y', 'width', 'height'].every(key => actual[key] === expected[key]);
+      return sameRect(bubble.getBounds(), expected);
     }, `${mode} ${side} native Dock corner geometry`);
     const layout = characterManager.dockLayout;
     if (!autoScale) {
       assert.equal(layout.scale, 1);
-      assert.equal(win.getBounds().width, 134);
+      assert.equal(win.getBounds().width, FULL_SIZE.width);
       assert.equal(bubble.getBounds().width, bubbleManager.lastSizes.get('test').width);
     } else {
       assert(layout.scale > 0 && layout.scale <= 1);
@@ -204,8 +209,7 @@ async function verifyDockCorners(win, mode, live = null) {
     await bubbleManager.update('test', { state: { state: 'working' }, speechBubbleFields: { status: true } });
     await until(() => {
       const expected = characterManager.dockLayout?.bubble;
-      const actual = bubble.getBounds();
-      return expected && ['x', 'y', 'width', 'height'].every(key => actual[key] === expected[key]);
+      return expected && sameRect(bubble.getBounds(), expected);
     }, 'short Dock bubble settles');
     if (characterManager.dockLayout.axis === 'horizontal') {
       const characterBounds = win.getBounds();
@@ -223,7 +227,7 @@ async function verifyDockCorners(win, mode, live = null) {
   characterManager.refreshDockLayout();
   bubbleManager.reposition('test');
   await until(() => bubbleManager.bubbleWindows.get('test').getBounds().width === bubbleManager.lastSizes.get('test').width, 'bubble returns to natural size');
-  assert.equal(win.getBounds().width, 134);
+  assert.equal(win.getBounds().width, FULL_SIZE.width);
   assert.equal(characterManager.getDisplayOptions().characterScale, 100);
 }
 
@@ -253,11 +257,11 @@ async function verifyOrdinaryEdgeCenters(win, mode, scale) {
     characterManager.handleWindowMove();
     await bubbleManager.update('test', { state: { state: 'working' }, speechBubbleFields: { status: true } });
     const bubble = bubbleManager.bubbleWindows.get('test');
-    if (bubbleManager.lastSizes.get('test').height >= 138 * scale / 100) continue;
+    if (bubbleManager.lastSizes.get('test').height >= FULL_SIZE.height * scale / 100) continue;
     await until(() => {
       const character = win.getBounds();
       const bounds = bubble.getBounds();
-      return bounds.height < character.height && Math.abs(bounds.y + bounds.height / 2 - (character.y + 69 * scale / 100)) <= 0.5;
+      return bounds.height < character.height && Math.abs(bounds.y + bounds.height / 2 - (character.y + FULL_SIZE.height / 2 * scale / 100)) <= 0.5;
     }, `${mode}/${scale} short bubble centered at the ${edge} edge`);
     results.push({ source: 'ordinary-edge-center', mode, scale, edge, character: win.getBounds(), bubble: bubble.getBounds() });
   }
@@ -286,11 +290,11 @@ async function verify3DFraming(win, scale) {
   win.webContents.send('state-update', { state: 'idle', character: 'clawd' });
   await delay(300);
   await win.webContents.executeJavaScript('document.querySelector(".vibemon-canvas-3d").style.transform = "none"');
-  await win.webContents.executeJavaScript('new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))');
+  await nextFrames(win.webContents);
   const beforeImage = await win.webContents.capturePage();
   const before = opaqueBounds(beforeImage);
   await win.webContents.executeJavaScript('document.querySelector(".vibemon-canvas-3d").style.removeProperty("transform")');
-  await win.webContents.executeJavaScript('new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))');
+  await nextFrames(win.webContents);
   const afterImage = await win.webContents.capturePage();
   const after = opaqueBounds(afterImage);
   fs.writeFileSync(path.join(output, '3d-framing-before.png'), beforeImage.toPNG());
@@ -346,7 +350,7 @@ function fullSizeWorkAreaPlacement(display) {
   const character = characterManager.entry.window.getBounds();
   const bubble = bubbleManager.bubbleWindows.get('test').getBounds();
   const natural = bubbleManager.lastSizes.get('test');
-  if (character.width !== 134 || character.height !== 138 || bubble.width !== natural.width || bubble.height !== natural.height) return false;
+  if (character.width !== FULL_SIZE.width || character.height !== FULL_SIZE.height || bubble.width !== natural.width || bubble.height !== natural.height) return false;
   const area = display.workArea;
   const inside = rect => rect.x >= area.x && rect.y >= area.y && rect.x + rect.width <= area.x + area.width && rect.y + rect.height <= area.y + area.height;
   const separated = character.x + character.width <= bubble.x || bubble.x + bubble.width <= character.x ||
@@ -384,7 +388,7 @@ async function verifyDockSettings() {
   const routed = characterManager.routeStatusUpdate('test', toolState);
   characterManager.sendToWindow('test', 'state-update', routed.stateData);
   for (const [choice, expected] of [['kiro', 'kiro'], ['auto', 'codex']]) {
-    await settingsManager.window.webContents.executeJavaScript(`(() => { const select = document.getElementById('character-lock'); select.value = '${choice}'; select.dispatchEvent(new Event('change')); })()`);
+    await chooseOption(settingsManager.window.webContents, 'character-lock', choice);
     await until(() => characterManager.getState('test').character === expected, 'character preference updates the current project without another report');
     await until(() => ready('character-lock'), 'character preference saved');
     assert.equal(characterManager.getRegisteredState('test').character, 'codex', 'local activity keeps its reported character');
@@ -395,7 +399,7 @@ async function verifyDockSettings() {
   const readChoice = () => settingsManager.window.webContents.executeJavaScript('document.getElementById("dock-corner-size").value');
   assert.equal(await readChoice(), 'keep');
   for (const choice of ['shrink', 'keep']) {
-    await settingsManager.window.webContents.executeJavaScript(`(() => { const select = document.getElementById('dock-corner-size'); select.value = '${choice}'; select.dispatchEvent(new Event('change')); })()`);
+    await chooseOption(settingsManager.window.webContents, 'dock-corner-size', choice);
     await until(() => {
       const layout = characterManager.dockLayout;
       if (characterManager.getDockAutoScale() !== (choice === 'shrink')) return false;
@@ -404,7 +408,7 @@ async function verifyDockSettings() {
       if (choice === 'keep' && layout.scale !== 1) return false;
       const character = characterManager.entry.window.getBounds();
       const bubble = bubbleManager.bubbleWindows.get('test').getBounds();
-      return ['x', 'y', 'width', 'height'].every(key => character[key] === layout.character[key] && bubble[key] === layout.bubble[key]);
+      return sameRect(character, layout.character) && sameRect(bubble, layout.bubble);
     }, 'setting reaches both live overlay windows');
     await until(() => ready('dock-corner-size'), 'Dock preference save acknowledged');
     const restored = new CharacterWindowManager();
@@ -418,7 +422,7 @@ async function verifyDockSettings() {
   }
   const scales = await settingsManager.window.webContents.executeJavaScript('Array.from(document.getElementById("character-scale").options, option => Number(option.value))');
   assert(scales.includes(30) && scales.includes(40), 'settings offer 30% and 40%');
-  await settingsManager.window.webContents.executeJavaScript('(() => { const select = document.getElementById("character-scale"); select.value = "30"; select.dispatchEvent(new Event("change")); })()');
+  await chooseOption(settingsManager.window.webContents, 'character-scale', 30);
   await until(() => characterManager.getCharacterScale() === 30 && characterManager.entry.window.getBounds().width === 40, '30% selection resizes the character');
   assert.equal(await ready('character-scale'), false, 'native geometry can change before the preference save is acknowledged');
   finishScaleSave();
@@ -426,8 +430,8 @@ async function verifyDockSettings() {
   const restoredSize = new CharacterWindowManager();
   assert.equal(restoredSize.getCharacterScale(), 30, '30% size persists');
   restoredSize.cleanup();
-  await settingsManager.window.webContents.executeJavaScript('(() => { const select = document.getElementById("character-scale"); select.value = "100"; select.dispatchEvent(new Event("change")); })()');
-  await until(() => characterManager.getCharacterScale() === 100 && characterManager.entry.window.getBounds().width === 134, 'size restores to 100%');
+  await chooseOption(settingsManager.window.webContents, 'character-scale', 100);
+  await until(() => characterManager.getCharacterScale() === 100 && characterManager.entry.window.getBounds().width === FULL_SIZE.width, 'size restores to 100%');
   await until(() => ready('character-scale'), '100% preference save acknowledged');
   await settingsManager.window.webContents.executeJavaScript('document.getElementById("dock-corner-size-row").scrollIntoView({ block: "center" })');
   fs.writeFileSync(path.join(output, 'dock-corner-settings.png'), (await settingsManager.window.webContents.capturePage()).toPNG());
@@ -468,7 +472,7 @@ async function run() {
         const { window: win } = characterManager.ensureWindow('test');
         const initialState = { state: 'working', character: 'clawd', project: 'test' };
         characterManager.entry.state = initialState;
-        const center = { x: Math.round(67 * scale / 100), y: Math.round(69 * scale / 100) };
+        const center = { x: Math.round(FULL_SIZE.width / 2 * scale / 100), y: Math.round(FULL_SIZE.height / 2 * scale / 100) };
         await until(async () => {
           if (win.webContents.isLoading()) return false;
           await win.webContents.executeJavaScript(`document.dispatchEvent(new MouseEvent('mousemove', { clientX: ${center.x}, clientY: ${center.y} }))`);
@@ -546,7 +550,7 @@ async function run() {
           }
           const monitor = new DockMonitor();
           await monitor.refresh();
-          const live = screen.getAllDisplays().map(display => ({ display, candidates: getDockCandidates(display, monitor.bounds, { width: 134, height: 138 }) }))
+          const live = screen.getAllDisplays().map(display => ({ display, candidates: getDockCandidates(display, monitor.bounds, FULL_SIZE) }))
             .find(candidate => candidate.candidates.length > 0);
           if (live) {
             await verifyDockCorners(win, mode, { monitor, ...live });

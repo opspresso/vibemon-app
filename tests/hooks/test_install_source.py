@@ -3,14 +3,12 @@ import io
 import json
 import os
 from pathlib import Path
-import sys
 import tempfile
 import threading
 import unittest
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from unittest import mock
 
-sys.path.insert(0, str(Path(__file__).parents[2] / "public" / "install"))
 import install
 
 

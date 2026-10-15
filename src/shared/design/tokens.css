@@ -26,6 +26,14 @@
   --vm-sidebar-hover: #1b2940;
   --vm-sidebar-active: #2b2d50;
   --vm-sidebar-accent: #b5a7ff;
+  --vm-sidebar-strong: #ffffff;
+  --vm-sidebar-active-foreground: #e8e3ff;
+  --vm-sidebar-raised: #18243a;
+  --vm-sidebar-chip: #ffffff0c;
+  --vm-sidebar-good: #69cfb5;
+  --vm-sidebar-warning: #efc676;
+  --vm-dialog-shadow: 0 30px 100px #0004;
+  --vm-backdrop: #101b3066;
   --vm-shadow: 0 2px 8px light-dark(#17233b05, #00000012), 0 14px 32px light-dark(#17233b03, #00000012);
   --vm-font: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   --vm-radius-control: 8px;

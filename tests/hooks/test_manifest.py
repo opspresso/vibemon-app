@@ -1,11 +1,8 @@
 import json
 import re
-import sys
 import unittest
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).parents[2] / "scripts"))
-sys.path.insert(0, str(Path(__file__).parents[2] / "public" / "install"))
 
 from generate_manifest import (  # noqa: E402
     DOCS_DIR,
@@ -59,8 +56,3 @@ class ManifestTest(unittest.TestCase):
             "MANIFEST_FILES is out of sync with install.py's downloads — "
             "update scripts/generate_manifest.py",
         )
-
-
-
-if __name__ == "__main__":
-    unittest.main()

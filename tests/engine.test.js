@@ -9,25 +9,13 @@
  * context.
  */
 
-const fs = require('fs');
+const { loadBrowserModule } = require('./helpers/browser-module.cjs');
 const path = require('path');
-const vm = require('vm');
 const { STATE_CONFIG, VALID_STATES } = require('../src/shared/states.cjs');
 const charactersRegistry = require('../src/shared/data/characters.json');
 
 function loadEngine(globals = {}) {
-  const src = fs.readFileSync(
-    path.join(__dirname, '..', 'src', 'engine', 'vibemon-engine.js'),
-    'utf8'
-  )
-    .replace(/export class /g, 'class ')
-    .replace(/export function /g, 'function ')
-    .replace(/export \{[^}]*\};?/g, '')
-    + '\nmodule.exports = { VibeMonEngine, CONSTANTS, CharacterRenderer };';
-
-  const mod = { exports: {} };
-  vm.runInNewContext(src, { module: mod, exports: mod.exports, console, ...globals });
-  return mod.exports;
+  return loadBrowserModule('src/engine/vibemon-engine.js', ['VibeMonEngine', 'CONSTANTS', 'CharacterRenderer'], globals);
 }
 
 const { VibeMonEngine, CONSTANTS, CharacterRenderer } = loadEngine();

@@ -9,10 +9,7 @@ from contextlib import redirect_stderr
 from pathlib import Path
 from unittest.mock import patch
 
-sys.path.insert(0, str(Path(__file__).parents[2] / "public" / "install" / "vibemon"))
-
-import vibemon_core  # noqa: E402
-
+import vibemon_core
 
 EVENT_STATE_MAP = {"SessionStart": "start", "Stop": "done"}
 
@@ -47,6 +44,16 @@ def run_hook(
     return sent
 
 
+def token_count(total_tokens):
+    """One Codex transcript line reporting `total_tokens` of a 100,000-token window."""
+    return json.dumps({
+        "type": "event_msg",
+        "payload": {"type": "token_count", "info": {
+            "last_token_usage": {"total_tokens": total_tokens}, "model_context_window": 100000,
+        }},
+    }) + "\n"
+
+
 class ParseJsonTest(unittest.TestCase):
     def test_non_object_json_yields_empty_dict(self):
         for raw in ("[]", "123", "null", '"x"'):
@@ -60,7 +67,7 @@ class ParseJsonTest(unittest.TestCase):
 
 
 class ProjectMetadataTest(unittest.TestCase):
-    def test_invalid_future_or_expired_observations_are_unknown(self):
+    def test_invalid_future_expired_or_malformed_observations_are_unknown(self):
         with tempfile.TemporaryDirectory() as directory:
             cache_path = Path(directory) / 'projects.json'
             config = vibemon_core.Config((), None, str(cache_path), False, None, None)
@@ -70,24 +77,11 @@ class ProjectMetadataTest(unittest.TestCase):
                     with self.subTest(observed_at=observed_at):
                         cache_path.write_text(json.dumps({key: {'model': 'stale-model', 'memory': 42, 'ts': observed_at}}))
                         self.assertEqual(vibemon_core.get_project_metadata('p'), {})
+                cache_path.write_text('[]')
+                self.assertEqual(vibemon_core.get_project_metadata('p'), {})
                 entry = {'model': 'fresh-model', 'memory': 0, 'ts': 2000}
                 cache_path.write_text(json.dumps({key: entry}))
                 self.assertEqual(vibemon_core.get_project_metadata('p'), entry)
-
-    def test_non_dict_cache_file_is_ignored(self):
-        with tempfile.TemporaryDirectory() as directory:
-            cache_path = Path(directory) / "projects.json"
-            cache_path.write_text("[]")
-            config = vibemon_core.Config(
-                http_urls=(),
-                serial_port=None,
-                cache_path=str(cache_path),
-                auto_launch=False,
-                vibemon_url=None,
-                vibemon_token=None,
-            )
-            with patch.object(vibemon_core, "get_config", return_value=config):
-                self.assertEqual(vibemon_core.get_project_metadata("p"), {})
 
 
 class UsageFieldsTest(unittest.TestCase):
@@ -118,20 +112,7 @@ class UsageFieldsTest(unittest.TestCase):
 class CodexContextUsageTest(unittest.TestCase):
     def test_reads_latest_context_usage_for_thread(self):
         with tempfile.TemporaryDirectory() as directory:
-            session_path = Path(directory) / "rollout-thread-123.jsonl"
-            session_path.write_text(
-                json.dumps({
-                    "type": "event_msg",
-                    "payload": {
-                        "type": "token_count",
-                        "info": {
-                            "last_token_usage": {"total_tokens": 42000},
-                            "model_context_window": 100000,
-                        },
-                    },
-                })
-                + "\n"
-            )
+            (Path(directory) / "rollout-thread-123.jsonl").write_text(token_count(42000))
             with patch.object(vibemon_core, "CODEX_SESSIONS_DIR", directory):
                 result = vibemon_core.get_codex_context_usage({
                     "session_id": "thread-123"
@@ -142,31 +123,7 @@ class CodexContextUsageTest(unittest.TestCase):
     def test_uses_most_recent_token_count(self):
         with tempfile.TemporaryDirectory() as directory:
             session_path = Path(directory) / "session.jsonl"
-            session_path.write_text(
-                "\n".join([
-                    json.dumps({
-                        "type": "event_msg",
-                        "payload": {
-                            "type": "token_count",
-                            "info": {
-                                "last_token_usage": {"total_tokens": 10000},
-                                "model_context_window": 100000,
-                            },
-                        },
-                    }),
-                    json.dumps({
-                        "type": "event_msg",
-                        "payload": {
-                            "type": "token_count",
-                            "info": {
-                                "last_token_usage": {"total_tokens": 73000},
-                                "model_context_window": 100000,
-                            },
-                        },
-                    }),
-                ])
-                + "\n"
-            )
+            session_path.write_text(token_count(10000) + token_count(73000))
             result = vibemon_core.get_codex_context_usage({
                 "transcript_path": str(session_path)
             })
@@ -239,19 +196,13 @@ class SerialDebounceLockTest(unittest.TestCase):
             result = vibemon_core.send_serial(str(port), '{"x":1}')
         return result, sent
 
-    def test_lock_busy_at_write_falls_back_to_direct_send(self):
-        with tempfile.TemporaryDirectory() as directory:
-            result, sent = self._send(directory, [False])
-
-        self.assertTrue(result)
-        self.assertEqual(sent, [(str(Path(directory) / "ttyDevice"), '{"x":1}')])
-
-    def test_relock_busy_at_check_falls_back_to_direct_send(self):
-        with tempfile.TemporaryDirectory() as directory:
-            result, sent = self._send(directory, [True, False])
-
-        self.assertTrue(result)
-        self.assertEqual(sent, [(str(Path(directory) / "ttyDevice"), '{"x":1}')])
+    def test_a_busy_lock_falls_back_to_direct_send(self):
+        # [False]: busy when writing; [True, False]: busy when checking again.
+        for acquired in ([False], [True, False]):
+            with self.subTest(acquired=acquired), tempfile.TemporaryDirectory() as directory:
+                result, sent = self._send(directory, acquired)
+                self.assertTrue(result)
+                self.assertEqual(sent, [(str(Path(directory) / "ttyDevice"), '{"x":1}')])
 
     @unittest.skipIf(vibemon_core.fcntl is None, 'POSIX serial transport')
     def test_debounce_replaces_its_own_link_without_writing_the_link_target(self):
@@ -370,10 +321,6 @@ class DesktopLaunchTest(unittest.TestCase):
         with patch.dict(os.environ, {}, clear=True), patch.object(vibemon_core, 'IS_WINDOWS', True), patch.object(vibemon_core.shutil, 'which', return_value=None), patch.object(vibemon_core.subprocess, 'Popen') as spawn:
             self.assertFalse(vibemon_core.launch_desktop())
             spawn.assert_not_called()
-
-
-if __name__ == "__main__":
-    unittest.main()
 
 
 class SerialPortTest(unittest.TestCase):

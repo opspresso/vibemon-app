@@ -1,13 +1,10 @@
 """Cloud failures stay observable even when local delivery succeeds."""
 import io
-import sys
-from pathlib import Path
 from unittest.mock import patch
 from urllib.error import HTTPError, URLError
 
 import pytest
 
-sys.path.insert(0, str(Path(__file__).parents[2] / 'public' / 'install' / 'vibemon'))
 import vibemon_core
 
 

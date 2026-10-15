@@ -1,14 +1,9 @@
-const fs = require('node:fs');
-const path = require('node:path');
-const vm = require('node:vm');
+const { loadBrowserModule } = require('./helpers/browser-module.cjs');
 const THREE = require('three');
 
 function loadFraming() {
   const window = { innerWidth: 134, innerHeight: 138 };
-  const sandbox = { window };
-  const source = fs.readFileSync(path.join(__dirname, '../src/shared/3d-framing.js'), 'utf8').replaceAll('export function ', 'function ');
-  vm.runInNewContext(source + '\nthis.result = { compute3DFrame, install3DFraming };', sandbox);
-  return { ...sandbox.result, window };
+  return { ...loadBrowserModule('src/shared/3d-framing.js', ['compute3DFrame', 'install3DFraming'], { window }), window };
 }
 
 describe('compute3DFrame', () => {

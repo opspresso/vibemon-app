@@ -9,9 +9,7 @@ from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 from unittest.mock import patch
 
-sys.path.insert(0, str(Path(__file__).parents[2] / "public" / "install" / "vibemon"))
-
-import usage  # noqa: E402
+import usage
 
 
 def _fake_urlopen(payload):
@@ -23,6 +21,30 @@ def _fake_urlopen(payload):
             self.close()
 
     return lambda *args, **kwargs: _Response(json.dumps(payload).encode())
+
+
+def _claude_live(payload):
+    with (
+        patch.object(usage, "read_claude_token", return_value="token"),
+        patch.object(usage, "open_credential_request", _fake_urlopen(payload)),
+    ):
+        return usage.fetch_claude_usage_live()
+
+
+def _codex_live(payload):
+    with (
+        patch.object(usage, "read_codex_token", return_value=("token", "account")),
+        patch.object(usage, "open_credential_request", _fake_urlopen(payload)),
+    ):
+        return usage.fetch_codex_usage_live()
+
+
+def _codex_session_usage(content):
+    """Read Codex usage from one session transcript holding `content`."""
+    with tempfile.TemporaryDirectory() as directory:
+        (Path(directory) / "session.jsonl").write_text(content)
+        with patch.object(usage, "CODEX_SESSIONS_DIR", directory):
+            return usage.get_codex_usage_from_sessions()
 
 
 class UsageTest(unittest.TestCase):
@@ -50,11 +72,7 @@ class UsageTest(unittest.TestCase):
                 },
             ],
         }
-        with (
-            patch.object(usage, "read_claude_token", return_value="token"),
-            patch.object(usage, "open_credential_request", _fake_urlopen(payload)),
-        ):
-            result = usage.fetch_claude_usage_live()
+        result = _claude_live(payload)
 
         self.assertEqual(result["session"]["pct"], 5)
         self.assertEqual(result["week_all"]["pct"], 7)
@@ -67,11 +85,7 @@ class UsageTest(unittest.TestCase):
             "five_hour": {"utilization": 5.0, "resets_at": "2026-07-20T06:10:00+00:00"},
             "seven_day": {"utilization": 7.0, "resets_at": "2026-07-24T17:00:00+00:00"},
         }
-        with (
-            patch.object(usage, "read_claude_token", return_value="token"),
-            patch.object(usage, "open_credential_request", _fake_urlopen(payload)),
-        ):
-            result = usage.fetch_claude_usage_live()
+        result = _claude_live(payload)
 
         self.assertEqual(result["session"]["pct"], 5)
         self.assertEqual(result["week_all"]["pct"], 7)
@@ -95,42 +109,23 @@ class UsageTest(unittest.TestCase):
                 },
             }
         }
-        with (
-            patch.object(usage, "read_codex_token", return_value=("token", "account")),
-            patch.object(usage, "open_credential_request", _fake_urlopen(payload)),
-        ):
-            result = usage.fetch_codex_usage_live()
+        result = _codex_live(payload)
 
         self.assertEqual(result["session"], {"pct": 33, "resets_at": 5000.0})
         self.assertEqual(result["week_all"], {"pct": 7, "resets_at": 90000.0})
 
     def test_claude_live_usage_ignores_non_object_response(self):
-        with (
-            patch.object(usage, "read_claude_token", return_value="token"),
-            patch.object(usage, "open_credential_request", _fake_urlopen([])),
-        ):
-            self.assertIsNone(usage.fetch_claude_usage_live())
+        self.assertIsNone(_claude_live([]))
 
     def test_codex_live_usage_ignores_non_object_response(self):
-        with (
-            patch.object(usage, "read_codex_token", return_value=("token", "account")),
-            patch.object(usage, "open_credential_request", _fake_urlopen([])),
-        ):
-            self.assertIsNone(usage.fetch_codex_usage_live())
+        self.assertIsNone(_codex_live([]))
 
     def test_codex_session_fallback_ignores_non_object_lines(self):
-        with tempfile.TemporaryDirectory() as directory:
-            session_path = Path(directory) / "session.jsonl"
-            session_path.write_text("[]\n")
-            with patch.object(usage, "CODEX_SESSIONS_DIR", directory):
-                self.assertIsNone(usage.get_codex_usage_from_sessions())
+        self.assertIsNone(_codex_session_usage("[]\n"))
 
     def test_old_session_usage_cannot_be_refreshed_as_current(self):
-        with tempfile.TemporaryDirectory() as directory:
-            path = Path(directory) / "session.jsonl"
-            path.write_text(json.dumps({"timestamp": "1970-01-01T00:00:01Z", "payload": {"rate_limits": {"primary": {"used_percent": 42, "window_minutes": 300}}}}))
-            with patch.object(usage, "CODEX_SESSIONS_DIR", directory):
-                self.assertIsNone(usage.get_codex_usage_from_sessions())
+        record = {"timestamp": "1970-01-01T00:00:01Z", "payload": {"rate_limits": {"primary": {"used_percent": 42, "window_minutes": 300}}}}
+        self.assertIsNone(_codex_session_usage(json.dumps(record)))
 
     def test_codex_windows_are_classified_by_duration(self):
         self.assertEqual(usage._codex_window_kind({"window_minutes": 300}), "session")
@@ -142,39 +137,12 @@ class UsageTest(unittest.TestCase):
         )
 
     def test_codex_session_fallback_does_not_report_month_as_session(self):
-        with tempfile.TemporaryDirectory() as directory:
-            session_path = Path(directory) / "session.jsonl"
-            session_path.write_text(json.dumps({
-                "payload": {
-                    "rate_limits": {
-                        "primary": {
-                            "used_percent": 42,
-                            "window_minutes": 43200,
-                            "resets_at": 2000,
-                        }
-                    }
-                }
-            }))
-            with patch.object(usage, "CODEX_SESSIONS_DIR", directory):
-                self.assertIsNone(usage.get_codex_usage_from_sessions())
+        primary = {"used_percent": 42, "window_minutes": 43200, "resets_at": 2000}
+        self.assertIsNone(_codex_session_usage(json.dumps({"payload": {"rate_limits": {"primary": primary}}})))
 
     def test_codex_session_fallback_handles_week_only_primary(self):
-        with tempfile.TemporaryDirectory() as directory:
-            session_path = Path(directory) / "session.jsonl"
-            session_path.write_text(json.dumps({
-                "payload": {
-                    "rate_limits": {
-                        "primary": {
-                            "used_percent": 42,
-                            "window_minutes": 10080,
-                            "resets_at": 2000,
-                        }
-                    }
-                }
-            }))
-            with patch.object(usage, "CODEX_SESSIONS_DIR", directory):
-                result = usage.get_codex_usage_from_sessions()
-
+        primary = {"used_percent": 42, "window_minutes": 10080, "resets_at": 2000}
+        result = _codex_session_usage(json.dumps({"payload": {"rate_limits": {"primary": primary}}}))
         self.assertNotIn("session", result)
         self.assertEqual(result["week_all"]["pct"], 42)
 
@@ -317,7 +285,3 @@ class UsageTest(unittest.TestCase):
                 usage.refresh_usage({"claude"})
 
         self.assertEqual(captured.get("env", {}).get("VIBEMON_SUPPRESS_HOOKS"), "1")
-
-
-if __name__ == "__main__":
-    unittest.main()

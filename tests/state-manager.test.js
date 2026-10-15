@@ -148,95 +148,22 @@ describe('StateManager', () => {
   });
 
   describe('setupStateTimeout', () => {
-    test('sets timer for start state (1 min -> idle)', () => {
-      const callback = jest.fn();
-      stateManager.onStateTimeout = callback;
-
-      stateManager.setupStateTimeout('project1', 'start');
-
-      expect(stateManager.stateTimeoutTimers.has('project1')).toBe(true);
-
-      // Advance time by 1 minute (60000ms)
-      jest.advanceTimersByTime(60000);
-
-      expect(callback).toHaveBeenCalledWith('project1', 'idle');
-      expect(stateManager.stateTimeoutTimers.has('project1')).toBe(false);
-    });
-
-    test('sets timer for done state (1 min -> idle)', () => {
-      const callback = jest.fn();
-      stateManager.onStateTimeout = callback;
-
-      stateManager.setupStateTimeout('project1', 'done');
-
-      jest.advanceTimersByTime(60000);
-
-      expect(callback).toHaveBeenCalledWith('project1', 'idle');
-    });
-
-    test('sets timer for thinking state (5 min -> idle)', () => {
-      const callback = jest.fn();
-      stateManager.onStateTimeout = callback;
-
-      stateManager.setupStateTimeout('project1', 'thinking');
-
-      // Should not trigger at 1 minute
-      jest.advanceTimersByTime(60000);
-      expect(callback).not.toHaveBeenCalled();
-
-      // Trigger at 5 minutes
-      jest.advanceTimersByTime(240000); // Total 5 min
-      expect(callback).toHaveBeenCalledWith('project1', 'idle');
-    });
-
-    test('sets timer for planning state (5 min -> idle)', () => {
-      const callback = jest.fn();
-      stateManager.onStateTimeout = callback;
-
-      stateManager.setupStateTimeout('project1', 'planning');
-
-      jest.advanceTimersByTime(300000); // 5 minutes
-      expect(callback).toHaveBeenCalledWith('project1', 'idle');
-    });
-
-    test('sets timer for working state (5 min -> idle)', () => {
-      const callback = jest.fn();
-      stateManager.onStateTimeout = callback;
-
-      stateManager.setupStateTimeout('project1', 'working');
-
-      jest.advanceTimersByTime(300000);
-      expect(callback).toHaveBeenCalledWith('project1', 'idle');
-    });
-
-    test('sets timer for notification state (5 min -> idle)', () => {
-      const callback = jest.fn();
-      stateManager.onStateTimeout = callback;
-
-      stateManager.setupStateTimeout('project1', 'notification');
-
-      jest.advanceTimersByTime(300000);
-      expect(callback).toHaveBeenCalledWith('project1', 'idle');
-    });
-
-    test.each(['packing', 'alert'])('sets timer for %s state (5 min -> idle)', (state) => {
+    test.each([
+      ['start', 60000, 'idle'], ['done', 60000, 'idle'],
+      ['thinking', 300000, 'idle'], ['planning', 300000, 'idle'], ['working', 300000, 'idle'],
+      ['packing', 300000, 'idle'], ['notification', 300000, 'idle'], ['alert', 300000, 'idle'],
+      ['idle', 300000, 'sleep']
+    ])('%s moves to %s after its timeout, not before', (state, delay, next) => {
       const callback = jest.fn();
       stateManager.onStateTimeout = callback;
 
       stateManager.setupStateTimeout('project1', state);
-      jest.advanceTimersByTime(300000);
+      jest.advanceTimersByTime(delay - 1);
+      expect(callback).not.toHaveBeenCalled();
+      jest.advanceTimersByTime(1);
 
-      expect(callback).toHaveBeenCalledWith('project1', 'idle');
-    });
-
-    test('sets timer for idle state (5 min -> sleep)', () => {
-      const callback = jest.fn();
-      stateManager.onStateTimeout = callback;
-
-      stateManager.setupStateTimeout('project1', 'idle');
-
-      jest.advanceTimersByTime(300000);
-      expect(callback).toHaveBeenCalledWith('project1', 'sleep');
+      expect(callback).toHaveBeenCalledWith('project1', next);
+      expect(stateManager.stateTimeoutTimers.has('project1')).toBe(false);
     });
 
     test('sets window close timer for sleep state', () => {

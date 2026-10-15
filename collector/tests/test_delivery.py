@@ -3,7 +3,9 @@ import os
 import unittest
 from unittest.mock import Mock, patch
 from urllib.error import HTTPError
-from vibemon_collector.application import DeliveryFailure, run
+
+from fake_clock import FakeClock, run_host
+from vibemon_collector.application import DeliveryFailure
 from vibemon_collector.domain import Sample
 from vibemon_collector.transport import JsonClient, checked_url
 from vibemon_collector import __main__ as cli
@@ -26,11 +28,10 @@ class DeliveryTests(unittest.TestCase):
         for status in [301, 400, 401, 403, 404, 409, 413, 422, 501]:
             with self.subTest(status=status):
                 client, secret = self.client(status)
-                now = [0]
                 sampler = Mock(sample=lambda: Sample({'cpuPercent': 20}))
                 with self.assertRaises(DeliveryFailure) as failure:
-                    # Bind this iteration's client and clock explicitly.
-                    run(sampler, lambda payload, client=client: client.request('https://web.example/api/v1/ingest', payload), 'host', 'host', 'Host', ['cpuPercent'], lambda now=now: now[0], lambda now=now: now[0], lambda seconds, now=now: now.__setitem__(0, now[0] + seconds), once=True)
+                    # Bind this iteration's client explicitly.
+                    run_host(sampler, lambda payload, client=client: client.request('https://web.example/api/v1/ingest', payload), FakeClock(), once=True)
                 self.assertFalse(failure.exception.retryable)
                 self.assertIn(str(status), str(failure.exception))
                 self.assertNotIn(secret, str(failure.exception))
@@ -38,15 +39,15 @@ class DeliveryTests(unittest.TestCase):
 
     def test_retry_after_keeps_sampling_and_sends_the_newest_window(self):
         client, _ = self.client(429, {'Retry-After': '60'})
-        now, sent = [0], []
-        sampler = Mock(sample=lambda: Sample({'cpuPercent': now[0]}))
+        clock, sent = FakeClock(), []
+        sampler = Mock(sample=lambda: Sample({'cpuPercent': clock.now}))
         def sender(payload):
             sent.append(payload)
             if len(sent) == 1:
                 return client.request('https://web.example/api/v1/ingest', payload)
             return {'accepted': True}
-        run(sampler, sender, 'host', 'host', 'Host', ['cpuPercent'], lambda: now[0], lambda: now[0], lambda seconds: now.__setitem__(0, now[0] + seconds), once=True)
-        self.assertEqual(now[0], 90)
+        run_host(sampler, sender, clock, once=True)
+        self.assertEqual(clock.now, 90)
         self.assertEqual(sent[-1]['metrics']['cpuPercent'], 80)
 
     def test_temporary_http_failures_remain_retryable(self):
@@ -58,10 +59,10 @@ class DeliveryTests(unittest.TestCase):
                 self.assertTrue(failure.exception.retryable)
 
     def test_invalid_acknowledgement_does_not_retry_forever(self):
-        now = [0]
+        clock = FakeClock()
         with self.assertRaisesRegex(DeliveryFailure, 'acknowledgement'):
-            run(Mock(sample=lambda: Sample({'cpuPercent': 20})), lambda _: {}, 'host', 'host', 'Host', ['cpuPercent'], lambda: now[0], lambda: now[0], lambda seconds: now.__setitem__(0, now[0] + seconds), once=True)
-        self.assertEqual(now[0], 30)
+            run_host(Mock(sample=lambda: Sample({'cpuPercent': 20})), lambda _: {}, clock, once=True)
+        self.assertEqual(clock.now, 30)
 
     def test_web_origin_rejects_paths_but_prometheus_may_have_a_prefix(self):
         with self.assertRaises(ValueError): checked_url('https://web.example/dashboard', origin_only=True)

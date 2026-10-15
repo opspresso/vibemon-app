@@ -757,7 +757,7 @@ describe('updateState change detection', () => {
     expect(manager.updateState('a', { state: 'working', memory: 10 }).updated).toBe(false);
   });
 
-  test('keeps last known terminalId when an update omits it (cloud WS echo)', () => {
+  test('keeps last known terminalId when an update omits it (cloud copy)', () => {
     const manager = managerWithWindow('a', null);
     manager.routeStatusUpdate('a', { state: 'working', project: 'a', terminalId: 'ghostty:100' });
     manager.routeStatusUpdate('a', { state: 'working', project: 'a' });

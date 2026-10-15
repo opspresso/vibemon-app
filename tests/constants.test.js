@@ -1,77 +1,36 @@
 /**
- * Tests for constants.cjs
+ * Invariants between values in src/shared/data/constants.json. Each check
+ * guards a relationship that code relies on, not a specific number.
  */
 
 const constants = require('../src/shared/constants.cjs');
 
-describe('Constants', () => {
-  describe('HTTP Server', () => {
-    test('HTTP_PORT is valid port number', () => {
-      expect(constants.HTTP_PORT).toBe(19280);
-      expect(constants.HTTP_PORT).toBeGreaterThan(0);
-      expect(constants.HTTP_PORT).toBeLessThan(65536);
-    });
+test('state timeouts escalate from idle to sleep to closing the window', () => {
+  expect(constants.IDLE_TIMEOUT_MS).toBeGreaterThan(0);
+  expect(constants.SLEEP_TIMEOUT_MS).toBeGreaterThan(constants.IDLE_TIMEOUT_MS);
+  expect(constants.WINDOW_CLOSE_TIMEOUT_MS).toBeGreaterThan(constants.SLEEP_TIMEOUT_MS);
+});
 
-    test('MAX_PAYLOAD_SIZE is reasonable', () => {
-      expect(constants.MAX_PAYLOAD_SIZE).toBe(10 * 1024);
-      expect(constants.MAX_PAYLOAD_SIZE).toBeGreaterThan(0);
-    });
-  });
+test('a usage refresh accepts only a cache younger than its own interval', () => {
+  expect(constants.USAGE_REFRESH_MAX_AGE_SECONDS * 1000).toBeLessThan(constants.USAGE_REFRESH_INTERVAL_MS);
+});
 
-  describe('Window Settings', () => {
-    test('window width is positive', () => {
-      expect(constants.WINDOW_WIDTH).toBeGreaterThan(0);
-    });
+test('the local server listens on a valid port with a positive body limit', () => {
+  expect(Number.isInteger(constants.HTTP_PORT) && constants.HTTP_PORT > 0 && constants.HTTP_PORT < 65536).toBe(true);
+  expect(constants.MAX_PAYLOAD_SIZE).toBeGreaterThan(0);
+});
 
-    test('MAX_STATE_REGISTRY_SIZE is defined and reasonable', () => {
-      expect(constants.MAX_STATE_REGISTRY_SIZE).toBeGreaterThan(0);
-    });
+test('always-on-top offers every mode the settings screen lists', () => {
+  expect(Object.keys(constants.ALWAYS_ON_TOP_MODES).sort()).toEqual(['active-only', 'all', 'disabled']);
+});
 
-    test('SNAP_THRESHOLD is positive', () => {
-      expect(constants.SNAP_THRESHOLD).toBeGreaterThan(0);
-    });
-  });
+test('character sizes run from 100% down to 30%, largest first', () => {
+  expect(constants.CHARACTER_SCALES[0]).toBe(100);
+  expect(constants.CHARACTER_SCALES.at(-1)).toBe(30);
+  expect([...constants.CHARACTER_SCALES].sort((a, b) => b - a)).toEqual(constants.CHARACTER_SCALES);
+});
 
-  describe('Timeouts', () => {
-    test('timeout values are positive and in correct order', () => {
-      expect(constants.IDLE_TIMEOUT_MS).toBeGreaterThan(0);
-      expect(constants.SLEEP_TIMEOUT_MS).toBeGreaterThan(constants.IDLE_TIMEOUT_MS);
-      expect(constants.WINDOW_CLOSE_TIMEOUT_MS).toBeGreaterThan(constants.SLEEP_TIMEOUT_MS);
-    });
-  });
-
-  describe('Usage Refresh', () => {
-    test('refreshes usage every two minutes with a shorter cache age', () => {
-      expect(constants.USAGE_REFRESH_INTERVAL_MS).toBe(120000);
-      expect(constants.USAGE_REFRESH_MAX_AGE_SECONDS).toBe(90);
-      expect(constants.USAGE_REFRESH_MAX_AGE_SECONDS * 1000)
-        .toBeLessThan(constants.USAGE_REFRESH_INTERVAL_MS);
-    });
-  });
-
-  describe('Modes', () => {
-    test('ALWAYS_ON_TOP_MODES has required modes', () => {
-      expect(constants.ALWAYS_ON_TOP_MODES).toHaveProperty('active-only');
-      expect(constants.ALWAYS_ON_TOP_MODES).toHaveProperty('all');
-      expect(constants.ALWAYS_ON_TOP_MODES).toHaveProperty('disabled');
-    });
-  });
-
-  describe('Character Layout', () => {
-    test('CHAR_SIZE is positive', () => {
-      expect(constants.CHAR_SIZE).toBeGreaterThan(0);
-    });
-
-    test('CHARACTER_SCALES offers 100% down to 30%, largest first', () => {
-      expect(constants.CHARACTER_SCALES[0]).toBe(100);
-      expect(constants.CHARACTER_SCALES[constants.CHARACTER_SCALES.length - 1]).toBe(30);
-      expect(constants.CHARACTER_SCALES).toContain(40);
-      expect([...constants.CHARACTER_SCALES].sort((a, b) => b - a)).toEqual(constants.CHARACTER_SCALES);
-    });
-
-    test('EDGE_MARGINS starts at 0 (flush to the edge) and only grows', () => {
-      expect(constants.EDGE_MARGINS[0]).toBe(0);
-      expect([...constants.EDGE_MARGINS].sort((a, b) => a - b)).toEqual(constants.EDGE_MARGINS);
-    });
-  });
+test('edge margins start flush with the edge and only grow', () => {
+  expect(constants.EDGE_MARGINS[0]).toBe(0);
+  expect([...constants.EDGE_MARGINS].sort((a, b) => a - b)).toEqual(constants.EDGE_MARGINS);
 });

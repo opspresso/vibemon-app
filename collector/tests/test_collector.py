@@ -1,7 +1,8 @@
 import unittest
 from unittest.mock import patch
+
+from fake_clock import FakeClock, run_host
 from vibemon_collector.domain import Sample, TransmissionPolicy, summarize
-from vibemon_collector.application import run
 from vibemon_collector.host import HostSampler
 from vibemon_collector.prometheus import PrometheusSampler, scalar_summary
 from vibemon_collector.transport import checked_url
@@ -73,64 +74,64 @@ class PolicyTests(unittest.TestCase):
         self.assertEqual(summary["health"], "error")
 
     def test_adapter_latency_does_not_stretch_ten_second_cadence(self):
-        now, observations = [0], []
+        clock, observations = FakeClock(), []
         class Sampler:
             def sample(self):
-                observations.append(now[0])
-                now[0] += 2
+                observations.append(clock.now)
+                clock.now += 2
                 return Sample({"cpuPercent": 20})
-        run(Sampler(), lambda payload: {"accepted": True}, "host", "host", "Host", ["cpuPercent"], lambda: now[0], lambda: now[0], lambda seconds: now.__setitem__(0, now[0] + seconds), once=True)
+        run_host(Sampler(), lambda payload: {"accepted": True}, clock, once=True)
         self.assertEqual(observations, [10, 20, 30])
 
     def test_sender_latency_does_not_delay_the_sixty_second_heartbeat(self):
-        now, sent = [0], []
+        clock, sent = FakeClock(), []
         class Sampler:
             def sample(self): return Sample({"cpuPercent": 20})
         def wait(seconds):
-            now[0] += seconds
-            if now[0] >= 95: raise StopIteration()
+            clock.sleep(seconds)
+            if clock.now >= 95: raise StopIteration()
         def sender(payload):
-            sent.append(now[0])
-            now[0] += .5
+            sent.append(clock.now)
+            clock.now += .5
             return {"accepted": True}
         with self.assertRaises(StopIteration):
-            run(Sampler(), sender, "host", "host", "Host", ["cpuPercent"], lambda: now[0], lambda: now[0], wait)
+            run_host(Sampler(), sender, clock, wait)
         self.assertEqual(sent, [30, 90])
 
     def test_sampler_jitter_cannot_skip_a_due_heartbeat(self):
-        now, sent, count = [0], [], [0]
+        clock, sent, count = FakeClock(), [], [0]
         class Sampler:
             def sample(self):
                 count[0] += 1
-                now[0] += .5 if count[0] == 3 else .05
+                clock.now += .5 if count[0] == 3 else .05
                 return Sample({"cpuPercent": 20})
         def wait(seconds):
-            now[0] += seconds
-            if now[0] >= 95: raise StopIteration()
+            clock.sleep(seconds)
+            if clock.now >= 95: raise StopIteration()
         def sender(payload):
-            sent.append(now[0]); return {"accepted": True}
+            sent.append(clock.now); return {"accepted": True}
         with self.assertRaises(StopIteration):
-            run(Sampler(), sender, "host", "host", "Host", ["cpuPercent"], lambda: now[0], lambda: now[0], wait)
+            run_host(Sampler(), sender, clock, wait)
         self.assertEqual(sent, [30.5, 90.05])
 
     def test_collection_and_transmission_failures_do_not_stop_loop(self):
-        now = [0]
+        clock = FakeClock()
         sent = []
         class Sampler:
             def sample(self):
-                if now[0] <= 30:
+                if clock.now <= 30:
                     raise OSError("offline")
-                return Sample({"cpuPercent": now[0]})
+                return Sample({"cpuPercent": clock.now})
         def sender(payload):
             sent.append(payload)
             if len(sent) == 1:
                 raise OSError("disconnected")
             return {"accepted": True}
-        run(Sampler(), sender, "host", "host", "Host", ["cpuPercent"], lambda: now[0], lambda: now[0], lambda seconds: now.__setitem__(0, now[0] + seconds), once=True)
+        run_host(Sampler(), sender, clock, once=True)
         self.assertEqual(len(sent), 2)
         self.assertEqual(sent[0]["health"], "error")
         self.assertEqual(sent[1]["metrics"]["cpuPercent"], 50)
-        self.assertEqual(now[0], 60)
+        self.assertEqual(clock.now, 60)
 
 
 class AdapterTests(unittest.TestCase):
@@ -182,6 +183,3 @@ class AdapterTests(unittest.TestCase):
         self.assertEqual(sample.memory_type, "unified")
         self.assertEqual(sample.metrics, {"memoryPercent": 42, "gpuPercent": None, "gpuTemperatureC": 48})
         self.assertEqual(sample.health, "ok")
-
-
-if __name__ == "__main__": unittest.main()

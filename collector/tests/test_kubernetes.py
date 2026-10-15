@@ -1,11 +1,12 @@
+import time
 import unittest
-from vibemon_collector.kubernetes import KubernetesSampler, quantity
-from vibemon_collector.domain import CLUSTER_METRICS
-from vibemon_collector.disk import DISK_METRICS
 from copy import deepcopy
 from threading import Event
 from unittest.mock import patch
-import time
+
+from vibemon_collector.disk import DISK_METRICS
+from vibemon_collector.domain import CLUSTER_METRICS, summarize
+from vibemon_collector.kubernetes import KubernetesSampler, quantity
 
 class Reader:
     def __init__(self):
@@ -107,7 +108,6 @@ class DiskTests(unittest.TestCase):
         self.assertEqual(KubernetesSampler(self.reader, CLUSTER_METRICS, lambda: 1000, self).sample().health, 'warning')
 
     def test_summary_carries_display_definitions_for_existing_clients(self):
-        from vibemon_collector.domain import summarize
         sample = self.sample()
         summary = summarize([sample] * 3, 'k3s', 'cluster', 'K3S', 1000)
         self.assertEqual(summary['kind'], 'cluster')
@@ -139,6 +139,3 @@ class DiskTests(unittest.TestCase):
         finally:
             release.set()
             sampler.disk_executor.shutdown(wait=True, cancel_futures=True)
-
-
-if __name__ == '__main__': unittest.main()
