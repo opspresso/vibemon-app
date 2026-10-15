@@ -6,7 +6,7 @@ import subprocess
 from concurrent.futures import ThreadPoolExecutor, wait
 from datetime import datetime
 from decimal import Decimal, InvalidOperation
-from .domain import Sample
+from .domain import Sample, cluster_health
 from .disk import CLUSTER_DEFINITIONS, DISK_METRICS
 from .kubelet import filesystem
 
@@ -125,6 +125,4 @@ class KubernetesSampler:
                 if any(len(row) != 2 or row[0] not in {'Pending', 'Running', 'Succeeded', 'Failed', 'Unknown'} for row in rows): raise ValueError('Invalid pod summary')
                 values['podsUnhealthy'] = sum(phase in {'Pending', 'Failed', 'Unknown'} or (phase == 'Running' and ready != 'True') for phase, ready in rows)
             except (OSError, ValueError, TypeError, subprocess.TimeoutExpired): failed = True
-        missing = any(value is None for value in values.values())
-        unhealthy = (values.get('podsUnhealthy') or 0) > 0 or (values.get('nodesReady') is not None and values.get('nodesTotal') is not None and values['nodesReady'] < values['nodesTotal'])
-        return Sample(values, 'error' if failed else 'unknown' if missing else 'warning' if unhealthy else 'ok', metric_definitions=self.metric_definitions)
+        return Sample(values, cluster_health(values, failed), metric_definitions=self.metric_definitions)

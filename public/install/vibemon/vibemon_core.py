@@ -29,6 +29,7 @@ from urllib.parse import urlsplit
 from urllib.request import Request, urlopen
 
 from account_context import cloud_context, project_cache_key
+from project_context import get_project_name, parse_json, read_input
 import session_activity
 from session_activity import Transition
 from http_client import open_credential_request
@@ -191,37 +192,8 @@ def resolve_serial_port(port_pattern: str | None) -> str | None:
     return port_pattern
 
 
-def read_input() -> str:
-    """Read the hook event JSON from stdin.
-
-    The host writes UTF-8, but Python decodes stdin with the locale encoding,
-    so on a cp949/cp1252 Windows console a non-ASCII prompt or project name
-    would raise here — and the bare `except` would turn that into a hook that
-    silently does nothing.
-    """
-    try:
-        sys.stdin.reconfigure(encoding="utf-8", errors="replace")
-    except (AttributeError, OSError, ValueError):
-        pass
-    try:
-        return sys.stdin.read()
-    except Exception:
-        return ""
 
 
-def parse_json(data: str) -> dict[str, Any]:
-    """Parse JSON string to dictionary.
-
-    Valid JSON that isn't an object (array, scalar, null) is treated as an
-    empty event: callers index the result with .get(), and a host that ever
-    writes a non-object payload must degrade to "no status" rather than
-    raising AttributeError out of the hook.
-    """
-    try:
-        value = json.loads(data)
-    except (json.JSONDecodeError, TypeError):
-        return {}
-    return value if isinstance(value, dict) else {}
 
 
 # ============================================================================
@@ -229,50 +201,8 @@ def parse_json(data: str) -> dict[str, Any]:
 # ============================================================================
 
 
-def get_git_root(directory: str) -> str | None:
-    """Get git repository root directory."""
-    if not directory:
-        return None
-    try:
-        result = subprocess.run(
-            ["git", "-C", directory, "rev-parse", "--show-toplevel"],
-            capture_output=True,
-            text=True,
-            timeout=2,
-            creationflags=NO_WINDOW_FLAGS,
-        )
-        if result.returncode == 0:
-            return result.stdout.strip()
-    except (subprocess.TimeoutExpired, FileNotFoundError, OSError):
-        pass
-    return None
 
 
-def get_project_name(cwd: str, transcript_path: str) -> str:
-    """Extract project name from git root, cwd, or transcript path."""
-    # 1. Try git root first (handles subdirectory cases like vibemon/terraform)
-    if cwd:
-        git_root = get_git_root(cwd)
-        if git_root:
-            name = os.path.basename(git_root)
-            if name:
-                return name
-
-    # 2. Fallback to cwd basename
-    if cwd:
-        name = os.path.basename(cwd.rstrip("/"))
-        if name:
-            return name
-
-    # 3. Fallback to transcript path
-    if transcript_path:
-        name = os.path.basename(os.path.dirname(transcript_path))
-        if name:
-            return name
-
-    # 4. Final fallback to current working directory
-    name = os.path.basename(os.getcwd().rstrip("/"))
-    return name if name else "default"
 
 
 def get_transition(

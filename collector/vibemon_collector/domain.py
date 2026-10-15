@@ -40,6 +40,18 @@ def summarize(samples: list[Sample], source_id: str, kind: str, name: str, obser
     return payload
 
 
+def cluster_health(values: dict[str, float | None], failed: bool) -> str:
+    """A cluster is in error when a query failed, unknown when a value is
+    missing, and needs attention when a pod is unhealthy or a node is not ready."""
+    if failed:
+        return "error"
+    if any(value is None for value in values.values()):
+        return "unknown"
+    ready, total = values.get("nodesReady"), values.get("nodesTotal")
+    unhealthy = (values.get("podsUnhealthy") or 0) > 0 or (ready is not None and total is not None and ready < total)
+    return "warning" if unhealthy else "ok"
+
+
 @dataclass
 class TransmissionPolicy:
     last_sent: dict | None = None

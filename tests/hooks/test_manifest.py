@@ -19,6 +19,8 @@ def downloaded_paths() -> set:
     # Some fetches pass a module constant instead of a literal.
     for name in set(re.findall(r"get_file\(([A-Z][A-Z0-9_]*)\)", source)):
         paths.add(getattr(install, name))
+    # The shared scripts are fetched in one loop over SHARED_SCRIPTS.
+    paths.update(f"vibemon/{name}" for name in install.SHARED_SCRIPTS)
     return paths
 
 
