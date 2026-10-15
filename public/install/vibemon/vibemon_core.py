@@ -1307,7 +1307,8 @@ def run(
 
     payload = build_payload(report.state, tool_name, project_name, data)
     session = data.get("session_id")
-    if isinstance(session, str) and session:
+    if isinstance(session, str) and session and report.state in session_activity.ACTIVE_STATES:
+        # Only an open turn needs what a heartbeat repeats.
         agent = session_activity.agent_process() if report.watch else None
         session_activity.remember_payload(path, session, payload, cwd, agent)
         if agent is not None:
