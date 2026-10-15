@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 """Generate a character sprite sheet with OpenAI image API using spritesheet.md prompt."""
 import base64
+import json
 import os
 import sys
-from pathlib import Path
-
+import urllib.error
 import urllib.request
+from pathlib import Path
 
 PROMPTS = Path(__file__).resolve().parent
 ROOT = PROMPTS.parent.parent
@@ -89,8 +90,6 @@ def main() -> None:
     print(f"Requesting {model} size={size} ...", flush=True)
     try:
         with urllib.request.urlopen(req, timeout=600) as resp:
-            import json
-
             data = json.loads(resp.read())
     except urllib.error.HTTPError as e:
         print(f"Image request failed (HTTP {e.code})")

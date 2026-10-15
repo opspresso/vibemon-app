@@ -14,12 +14,10 @@
 - [Hook installation](../public/install/setup.md) and [hook reference](hooks.md) — Canonical public integration source.
 - [Resource collector](../collector/README.md) — Public host/Spark/Kubernetes collector.
 - [Product design](design-system.md) — Shared App/Web tokens, navigation, states, and verification.
-- [2026-10-14 audit](audit-2026-10-14.md) — Complete file review, regression evidence and release limits.
 - [Unified workspace verification](unified-ux-verification.md) — Review inventory, platform checks, screenshots, and release boundary.
 - [Distribution ownership](distribution.md) — App source, pinned Web snapshots, and standalone validation.
 - [Build and packaging](build.md) — Dependencies, validation, canonical assets, signing, and publication.
 - [Overlay verification](overlay-interaction.md) — Character/bubble input, movement, and display scaling.
-- [Pet proposal](milestone/vibemon-pet-development-spec.md) — Future design only; not implemented behavior.
 
 ## Documentation maintenance
 

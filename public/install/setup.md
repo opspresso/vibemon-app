@@ -30,7 +30,7 @@ Choose the flag matching the tool:
 | Flag | Integration |
 | --- | --- |
 | `--claude` | Claude Code hooks and status line |
-| `--codex` | Codex hooks and status-line configuration |
+| `--codex` | Codex hooks; `~/.codex/config.toml` is not changed |
 | `--kiro` | Kiro global hooks |
 | `--openclaw` | OpenClaw plugin; macOS/Linux only |
 | `--opencode` | OpenCode plugin and Python adapter |

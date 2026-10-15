@@ -1,0 +1,22 @@
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+html, body {
+  background: transparent;
+  overflow: hidden;
+}
+
+/* The tail overflows 6px outside .bubble's own box on any of its four
+   edges (see vibemon-bubble.css) — without this reserved space the bubble
+   window (sized to exactly fit its content) would clip it off entirely. */
+body {
+  padding: 6px;
+  user-select: none;
+  width: max-content;
+  transform-origin: top left;
+}
+
+/* Matches the desktop character window's WINDOW_WIDTH (constants.json)
+   so the bubble reads as the same width as the character below it. */
+.bubble {
+  min-width: 134px;
+}

@@ -4,7 +4,7 @@ Verified on 2026-10-11. These results describe the `feat/unified-product-ux` bra
 
 ## Review scope
 
-[The inventory](unified-ux-inventory.json) records the digest and disposition of every tracked file, including retained files outside the changed UI. Source, configuration, tests, comments, guides, and authoring tools were read. Proposed Pet growth features remain proposals.
+[The inventory](unified-ux-inventory.json) records the digest and disposition of every tracked file, including retained files outside the changed UI. Source, configuration, tests, comments, guides, and authoring tools were read.
 
 Character art, historical screenshots, the demo, and current workspace captures were inspected visually. Generated icons were checked against the shared mark; the ICO contains seven PNG sizes, and the packaged ICNS matches its source. The two vendored Three.js files match the locked installed package byte for byte and retain its MIT notice. Vendored minified code was reviewed at this provenance boundary, not manually deminified. Lockfiles were checked through manifests, overrides, integrity records, frozen installation, and the dependency audit. Public Web copies were compared with their reviewed App sources.
 

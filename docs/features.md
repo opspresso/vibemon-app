@@ -15,7 +15,7 @@ VibeMon normalizes multiple agent ecosystems into one display model. The renderi
 |------|-------------------|--------------------|-----------------------|----------------------|
 | Claude Code | Native hooks | Session, turn, and tool hooks | High | None significant for basic monitoring |
 | Codex | Native hooks and non-interactive JSON output | Interactive lifecycle and local tool hooks, `codex exec --json` for automation | High | Hosted tools such as WebSearch do not pass through local tool hooks |
-| Kiro | Native hooks | Prompt, tool, and stop hooks | High | Fewer lifecycle events than Claude Code |
+| Kiro | Native hooks | Prompt, tool, and stop hooks | Medium to high | Kiro documents no cancel event. A cancelled IDE turn can stay active until its next event or until Kiro exits |
 | OpenClaw | Plugin bridge | Plugin SDK hooks | Medium to high | Internal hooks are not enough by themselves for full tool-loop visibility |
 | OpenCode | Plugin + Python adapter | Session, chat, tool, permission, and compaction events | High | No context or plan-usage metrics; uses the default character until registered in this repository |
 
@@ -90,18 +90,18 @@ are defined in a single registry (`src/shared/data/states.json`): bubble
 color/text, focus and loading behavior, and eye/effect type all live in
 one entry per state.
 
-| State | Color | Eyes | Bubble text | Trigger |
-|-------|-------|------|-------------|---------|
-| `start` | Cyan | ■ ■ + ✦ | Hello! | Session begins |
-| `idle` | Green | ■ ■ | Ready | Waiting for input |
-| `thinking` | Purple | ▀ ▀ + 💭 | Thinking | User submits prompt |
-| `planning` | Teal | ▀ ▀ + 💭 | Planning | Plan mode active |
-| `working` | Blue | 👓 (glasses) | (tool-based) | Tool executing |
-| `packing` | Gray | ▀ ▀ + 💭 | Packing | Context compacting |
-| `notification` | Yellow | ● ● + ? | Input? | User input needed |
-| `done` | Green | > < | Done! | Tool completed |
-| `sleep` | Navy | ─ ─ + Z | Zzz... | 5min inactivity |
-| `alert` | Red | ■ ■ + ! | Alert | Critical error/failure |
+| State | Color | Eyes + effect | Bubble text | Trigger |
+|-------|-------|---------------|-------------|---------|
+| `start` | Cyan | sprite eyes + sparkle | Hello! | Session begins |
+| `idle` | Green | sprite eyes, periodic blink | Ready | `start` or `done` aged 1 minute |
+| `thinking` | Purple | sprite eyes + thought bubble | Thinking | Prompt submitted, or a tool ended |
+| `planning` | Teal | sprite eyes + thought bubble | Planning | `thinking` or `working` in plan mode |
+| `working` | Blue | glasses + sparkle | (tool-based) | Tool running |
+| `packing` | Gray | sprite eyes + thought bubble | Packing | Context compacting |
+| `notification` | Yellow | sprite eyes + question mark | Input? | User answer or approval needed |
+| `done` | Green | happy eyes | Done! | Turn ended (stop, interrupt, or session end) |
+| `sleep` | Navy | closed eyes + Z | Zzz... | `idle` aged 5 minutes |
+| `alert` | Red | sprite eyes + exclamation | Alert | Critical error or failure |
 
 ### Working State Text
 
@@ -231,7 +231,7 @@ See [the desktop workspace guide](monitoring.md) for navigation, connection, set
 
 The character is rendered by a bundled engine (`src/engine/vibemon-engine.js`): a 128x128 canvas drawing the character PNG, state-driven pixel-art eyes/effects, and the floating animation, over a fully transparent background. Bundled character images load locally, so starting or reopening the companion does not wait for the CDN. New registry artwork uses bounded downloads; keep versioned filenames when changing artwork.
 
-## Build
+## Hook installation and updates
 
 Hook installation verifies the downloaded installer against the `installer` SHA-256 published in the same origin's `manifest.json` (fetched fresh at install time), so install.py updates ship with a Web deployment alone — no app release needed. install.py then re-checks every file it downloads against that same manifest before writing it, so install.py and manifest.json have to go out in the same deploy. Custom installer deployments can pin a specific hash via `VIBEMON_INSTALLER_SHA256` together with `VIBEMON_DOCS_URL`; the pin takes precedence over the manifest. `VIBEMON_DOCS_URL` selects the source for the installer, manifest, and all installed files. The App passes the same source to the Python child. Use `VIBEMON_URL` separately for the API origin; see [self-hosted installation](../public/install/setup.md#self-hosted-installation).
 
@@ -241,9 +241,4 @@ Detection and hook paths honor `CLAUDE_CONFIG_DIR`, `CODEX_HOME`, `KIRO_HOME`, a
 
 Registration checks inspect the command used on the current OS, including Codex's Windows override and the installer's quoted POSIX paths. OpenClaw requires its script, manifest, and enabled `vibemon-bridge` entry. The installer records `plugins.load.paths`, and existing installations in the global extensions directory are also recognized without that entry. Global disable, deny entries, and a non-empty allowlist that excludes VibeMon prevent an installed status, matching [OpenClaw's plugin policy](https://docs.openclaw.ai/tools/plugin#configure-plugin-policy). After an OpenClaw update, refresh its persisted plugin registry and restart the gateway as described in the [setup guide](https://vibemon.io/docs/hooks#openclaw-configuration). The docs installer currently skips OpenClaw on Windows.
 
-```bash
-pnpm build:mac     # macOS (DMG, ZIP)
-pnpm build:win     # Windows (NSIS, Portable)
-pnpm build:linux   # Linux (AppImage, DEB)
-pnpm build:all     # All platforms
-```
+See [build and release](build.md) for packaging commands.
