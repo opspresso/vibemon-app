@@ -64,7 +64,7 @@ describe('validateCharacter', () => {
   });
 
   test('accepts unknown character names (normalized to default downstream)', () => {
-    const result = validateCharacter('codex');
+    const result = validateCharacter('opencode');
     expect(result.valid).toBe(true);
     expect(result.error).toBeNull();
   });
