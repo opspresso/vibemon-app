@@ -149,11 +149,10 @@ function focusPage() {
 window.addEventListener('focus', focusPage);
 
 // Each dot names its issue, so a reader knows which page resolves it.
-function markAttention({ resources, accounts, notices }) {
-  const plural = (count, noun) => `${count} ${noun}${count === 1 ? ' needs' : 's need'} attention`;
+function markAttention({ notices }) {
   const reasons = {
-    resources: resources ? plural(resources, 'resource') : null,
-    agents: accounts ? plural(accounts, 'coding account') : null,
+    resources: notices.resources,
+    agents: notices.accounts,
     connections: notices.connection,
     integrations: notices.integrations,
     about: notices.update
@@ -229,12 +228,7 @@ function render(value) {
   );
   text($('summary-local-note'), `${active.length} active on this device`);
   // The tile already says "Need attention"; its note names where.
-  const { resources: attentionResources, accounts: attentionAccounts } = value.attention;
-  const attentionWhere = [
-    attentionResources && `${attentionResources} resource${attentionResources === 1 ? '' : 's'}`,
-    attentionAccounts && `${attentionAccounts} account${attentionAccounts === 1 ? '' : 's'}`
-  ].filter(Boolean).join(' · ');
-  text($('summary-attention-note'), overviewAttention ? 'Showing sources to review' : attentionWhere || 'No reported issues');
+  text($('summary-attention-note'), overviewAttention ? 'Showing sources to review' : value.attention.notices.where || 'No reported issues');
   $('overview-attention').setAttribute('aria-pressed', String(overviewAttention));
   document.documentElement.dataset.overviewFilter = overviewAttention ? 'attention' : 'all';
   markAttention(value.attention);

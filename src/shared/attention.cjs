@@ -34,6 +34,7 @@ function attentionAreas(cloud, settings) {
 }
 
 const count = (n, noun) => `${n} ${noun}${n === 1 ? '' : 's'}`;
+const needs = (n, noun) => n ? `${count(n, noun)} ${n === 1 ? 'needs' : 'need'} attention` : null;
 const CONNECTION_NOTICES = {
   'token-expired': 'Read token rejected',
   'permission-denied': 'Read permission required',
@@ -44,14 +45,13 @@ const CONNECTION_NOTICES = {
 /**
  * One short sentence per area that needs the user, or null when it is quiet.
  * @param {ReturnType<typeof attentionAreas>} areas
- * @returns {{dashboard: string|null, connection: string|null, integrations: string|null, update: string|null}}
+ * `resources`, `accounts`, and `where` describe the parts of `dashboard`.
+ * @returns {{dashboard: string|null, resources: string|null, accounts: string|null, where: string,
+ *            connection: string|null, integrations: string|null, update: string|null}}
  */
 function attentionNotices(areas) {
-  const sources = [
-    areas.resources && count(areas.resources, 'resource'),
-    areas.accounts && count(areas.accounts, 'coding account')
-  ].filter(Boolean);
   const total = areas.resources + areas.accounts;
+  const sources = noun => [areas.resources && count(areas.resources, 'resource'), areas.accounts && count(areas.accounts, noun)].filter(Boolean).join(' · ');
   const { repairs, config, delivery } = areas.integrations;
   const broken = repairs.filter(tool => tool.broken).map(tool => tool.name);
   const outdated = repairs.filter(tool => !tool.broken).map(tool => tool.name);
@@ -62,14 +62,14 @@ function attentionNotices(areas) {
     delivery && 'Cloud delivery check failed'
   ].filter(Boolean);
   return {
-    dashboard: total ? `${sources.join(' · ')} ${total === 1 ? 'needs' : 'need'} attention` : null,
+    dashboard: total ? `${sources('coding account')} ${total === 1 ? 'needs' : 'need'} attention` : null,
+    resources: needs(areas.resources, 'resource'),
+    accounts: needs(areas.accounts, 'coding account'),
+    where: sources('account'),
     connection: areas.connection ? CONNECTION_NOTICES[areas.connection] || 'Cloud connection interrupted' : null,
     integrations: integrations.length ? integrations.join(' · ') : null,
     update: areas.update ? `Version ${areas.update.version} ${areas.update.status === 'downloaded' ? 'is ready to install' : 'is available'}` : null
   };
 }
 
-const integrationsNeedAttention = ({ integrations }) => integrations.repairs.length > 0 || integrations.config || integrations.delivery;
-const settingsNeedAttention = areas => Boolean(areas.connection || areas.update) || integrationsNeedAttention(areas);
-
-module.exports = { attentionAreas, attentionNotices, integrationsNeedAttention, settingsNeedAttention };
+module.exports = { attentionAreas, attentionNotices };

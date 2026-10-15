@@ -1,4 +1,4 @@
-const { attentionAreas, attentionNotices, settingsNeedAttention } = require('../src/shared/attention.cjs');
+const { attentionAreas, attentionNotices } = require('../src/shared/attention.cjs');
 
 const cloud = (overrides = {}) => ({ status: 'connected', sources: [], accounts: [], ...overrides });
 const settings = (overrides = {}) => ({
@@ -7,8 +7,7 @@ const settings = (overrides = {}) => ({
 
 test('a quiet workspace has no notices', () => {
   const areas = attentionAreas(cloud(), settings());
-  expect(attentionNotices(areas)).toEqual({ dashboard: null, connection: null, integrations: null, update: null });
-  expect(settingsNeedAttention(areas)).toBe(false);
+  expect(attentionNotices(areas)).toEqual({ dashboard: null, resources: null, accounts: null, where: '', connection: null, integrations: null, update: null });
 });
 
 test.each(['connected', 'connecting', 'not-configured'])('%s is not a connection issue', status => {
@@ -33,12 +32,14 @@ test('each issue is assigned to the page that resolves it', () => {
   expect(attentionNotices(areas)).toEqual({
     // Agent sources count once, through their account.
     dashboard: '1 resource · 2 coding accounts need attention',
+    resources: '1 resource needs attention',
+    accounts: '2 coding accounts need attention',
+    where: '1 resource · 2 accounts',
     connection: 'Read token rejected',
     // A tool that is not installed cannot be repaired here.
     integrations: 'Claude Code needs repair · Codex CLI has an update · Local delivery settings need repair · Cloud delivery check failed',
     update: 'Version 9.9.9 is ready to install'
   });
-  expect(settingsNeedAttention(areas)).toBe(true);
 });
 
 test('a single item reads in the singular', () => {
