@@ -166,7 +166,7 @@ The watcher identifies the agent process as the nearest ancestor of the hook tha
 
 Interactive Codex runs turns in its app-server process, and the TUI is only a client. The hook's agent process is therefore the app-server. A turn continues after its TUI exits and closes with `Stop`.
 
-To verify this lifecycle against an installed agent, run `python3 scripts/verify_agent_continuity.py claude` or `codex` in a [vibemon-app](https://github.com/opspresso/vibemon-app) checkout. The agent runs one 75-second command and uses the signed-in account. The check passes when the turn stays active through a heartbeat and ends with `done`.
+To verify this lifecycle against an installed agent, run `python3 scripts/verify_agent_continuity.py claude`, `codex`, or `opencode` in a [vibemon-app](https://github.com/opspresso/vibemon-app) checkout. The agent runs one 75-second command and uses the signed-in account. The check passes when the turn stays active through a heartbeat and ends with `done`.
 
 ### Session activity cache
 
