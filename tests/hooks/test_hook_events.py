@@ -14,8 +14,6 @@ from unittest.mock import patch
 import pytest
 
 DOCS = Path(__file__).parents[2] / "public" / "install"
-sys.path.insert(0, str(DOCS / "vibemon"))
-sys.path.insert(0, str(DOCS))
 
 import install
 import vibemon_core as core

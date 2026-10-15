@@ -9,8 +9,6 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 ROOT = Path(__file__).parents[2] / 'public' / 'install'
-sys.path.insert(0, str(ROOT / 'vibemon'))
-sys.path.insert(0, str(ROOT / 'claude'))
 import account_context
 import usage_cache
 import vibemon_core
@@ -104,6 +102,3 @@ class AccountIsolationTest(unittest.TestCase):
         self.assertEqual(json.loads(local.call_args.args[2]), {**payload, **context})
         self.assertNotIn('sourceId', payload)
         cloud.assert_called_once_with('https://web.example', 'fixture-write', payload, context)
-
-
-if __name__ == '__main__': unittest.main()

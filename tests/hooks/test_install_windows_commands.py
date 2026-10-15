@@ -4,14 +4,12 @@ import os
 from pathlib import Path
 import shutil
 import subprocess
-import sys
 import tempfile
 import unittest
 from unittest.mock import patch
 import venv
 
 ROOT = Path(__file__).parents[2]
-sys.path.insert(0, str(ROOT / 'public/install'))
 import install
 
 FIXTURE = json.loads((ROOT / 'tests/fixtures/windows-hook-commands.json').read_text())
@@ -77,7 +75,3 @@ class WindowsHookCommandsTest(unittest.TestCase):
                 with self.subTest(shell=shell[0], missing_interpreter=True):
                     result = subprocess.run([*shell, commands[0][1]], input='{}', capture_output=True, encoding='utf-8', timeout=15)
                     self.assertNotEqual(result.returncode, 0, 'a missing pinned interpreter must fail')
-
-
-if __name__ == '__main__':
-    unittest.main()

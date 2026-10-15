@@ -1,14 +1,11 @@
 """Unknown values must survive provider parsing and cloud serialization."""
 import json
-import sys
 from pathlib import Path
 from unittest.mock import patch, MagicMock
 
 import pytest
 
 ROOT = Path(__file__).parents[2] / 'public' / 'install'
-sys.path.insert(0, str(ROOT / 'vibemon'))
-sys.path.insert(0, str(ROOT / 'claude'))
 import statusline
 import usage_cache
 import vibemon_core

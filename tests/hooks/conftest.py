@@ -3,7 +3,11 @@ from pathlib import Path
 
 import pytest
 
-sys.path.insert(0, str(Path(__file__).parents[2] / "public" / "install" / "vibemon"))
+ROOT = Path(__file__).parents[2]
+# Tests import the installer, shared hook modules, Claude status line and
+# manifest generator by module name, the way the installed copies run.
+for directory in ("scripts", "public/install", "public/install/claude", "public/install/vibemon"):
+    sys.path.insert(0, str(ROOT / directory))
 
 import session_activity
 

@@ -9,7 +9,6 @@ from contextlib import redirect_stderr
 from pathlib import Path
 from unittest.mock import patch
 
-sys.path.insert(0, str(Path(__file__).parents[2] / "public" / "install" / "vibemon"))
 
 import vibemon_core  # noqa: E402
 
@@ -370,10 +369,6 @@ class DesktopLaunchTest(unittest.TestCase):
         with patch.dict(os.environ, {}, clear=True), patch.object(vibemon_core, 'IS_WINDOWS', True), patch.object(vibemon_core.shutil, 'which', return_value=None), patch.object(vibemon_core.subprocess, 'Popen') as spawn:
             self.assertFalse(vibemon_core.launch_desktop())
             spawn.assert_not_called()
-
-
-if __name__ == "__main__":
-    unittest.main()
 
 
 class SerialPortTest(unittest.TestCase):

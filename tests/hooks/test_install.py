@@ -14,7 +14,6 @@ import venv
 from pathlib import Path
 from unittest import mock
 
-sys.path.insert(0, str(Path(__file__).parents[2] / "public" / "install"))
 
 import install  # noqa: E402
 
@@ -1262,7 +1261,3 @@ class RemovalFailureTest(unittest.TestCase):
                  mock.patch("sys.stdout", new_callable=io.StringIO):
                 self.assertFalse(install.run_install("shared", install.uninstall_vibemon, None))
             self.assertTrue(script.exists())
-
-
-if __name__ == "__main__":
-    unittest.main()

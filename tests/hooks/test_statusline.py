@@ -8,8 +8,6 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-sys.path.insert(0, str(Path(__file__).parents[2] / "public" / "install" / "vibemon"))
-sys.path.insert(0, str(Path(__file__).parents[2] / "public" / "install" / "claude"))
 
 
 class StatuslineCacheTest(unittest.TestCase):
@@ -121,7 +119,3 @@ class UsageSegmentTest(unittest.TestCase):
         self.assertIn("S ", segment)
         self.assertIn("W ", segment)
         self.assertNotIn("F ", segment)
-
-
-if __name__ == "__main__":
-    unittest.main()

@@ -1,10 +1,8 @@
 import json
-import sys
 import tempfile
 import unittest
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).parents[2] / "public" / "install" / "vibemon"))
 
 from usage_cache import (  # noqa: E402
     get_fresh_provider,
@@ -256,7 +254,3 @@ class UsageCacheTest(unittest.TestCase):
 
         self.assertNotIn("week_fable", cache["claude"])
         self.assertEqual(cache["claude"]["session"]["pct"], 30)
-
-
-if __name__ == "__main__":
-    unittest.main()

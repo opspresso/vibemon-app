@@ -9,7 +9,6 @@ from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 from unittest.mock import patch
 
-sys.path.insert(0, str(Path(__file__).parents[2] / "public" / "install" / "vibemon"))
 
 import usage  # noqa: E402
 
@@ -317,7 +316,3 @@ class UsageTest(unittest.TestCase):
                 usage.refresh_usage({"claude"})
 
         self.assertEqual(captured.get("env", {}).get("VIBEMON_SUPPRESS_HOOKS"), "1")
-
-
-if __name__ == "__main__":
-    unittest.main()
