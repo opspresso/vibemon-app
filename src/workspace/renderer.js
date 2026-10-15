@@ -126,7 +126,7 @@ function accept(value) {
       container._empty = false;
     }
   }
-  if (frame && frame.route !== value.route) {
+  if (pageChanged) {
     detail.close();
     selection.close();
     preferences.leave();
@@ -187,9 +187,7 @@ function render(value) {
   text($('connection-notice-description'), description);
   const resources = cloud.sources.filter((source) => source.kind !== 'agent');
   const accounts = cloud.accounts.map(accountCard);
-  const active = activity.filter((item) =>
-    ['working', 'thinking', 'planning', 'packing'].includes(item.state)
-  );
+  const active = activity.filter((item) => item.running);
   const attention = cloud.attentionCount;
   const receivedCloudData = Boolean(cloud.lastSyncedAt) || !cloud.tokenConfigured;
   text($('nav-resources'), receivedCloudData ? resources.length : '—');

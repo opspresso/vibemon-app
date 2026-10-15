@@ -9,8 +9,8 @@ test('only named local projects appear and the followed project stays first', ()
     empty: { project: '', state: 'idle' }
   };
   expect(localActivity(states, 'z')).toEqual([
-    { id: 'z', focused: true, project: 'Zeta', state: 'working', character: 'codex' },
-    { id: 'a', focused: false, project: 'Alpha', state: 'idle', model: 'test model' }
+    { id: 'z', focused: true, running: true, project: 'Zeta', state: 'working', character: 'codex' },
+    { id: 'a', focused: false, running: false, project: 'Alpha', state: 'idle', model: 'test model' }
   ]);
   expect(localActivity(states, null).map(item => item.id)).toEqual(['a', 'z']);
 });
@@ -31,4 +31,14 @@ test('same-named local projects expose account labels without terminal metadata'
   expect(rows.map(row => row.id)).toEqual(['local:first', 'local:second']);
   expect(rows.map(row => row.account.displayName)).toEqual(['Work', 'Personal']);
   expect(rows.every(row => !Object.hasOwn(row, 'terminalId'))).toBe(true);
+});
+
+test('running follows the state registry, not a waiting or finished state', () => {
+  const rows = localActivity({
+    plan: { project: 'plan', state: 'planning' },
+    pack: { project: 'pack', state: 'packing' },
+    ask: { project: 'ask', state: 'notification' },
+    done: { project: 'done', state: 'done' }
+  }, null);
+  expect(Object.fromEntries(rows.map(row => [row.id, row.running]))).toEqual({ plan: true, pack: true, ask: false, done: false });
 });
