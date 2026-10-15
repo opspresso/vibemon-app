@@ -28,6 +28,13 @@ test.each([{}, { sourceId: 'agent:work', preserveFocus: true }])('uses the same 
     expect(windows.routeStatusUpdate.mock.calls[0][2]).toEqual({ preserveFocus: true });
   } else expect(timers.setupStateTimeout).toHaveBeenCalledWith(id, 'notification');
 });
+test('a heartbeat refreshes the state timer without competing for focus', () => {
+  const { ingress, windows, timers } = fixture();
+  expect(ingress.accept({ state: 'working', project: 'Long build', heartbeat: true }).valid).toBe(true);
+  expect(windows.routeStatusUpdate.mock.calls[0]).toEqual(['Long build', { state: 'working', project: 'Long build' }, { preserveFocus: true }]);
+  expect(timers.setupStateTimeout).toHaveBeenCalledWith('Long build', 'working');
+  expect(ingress.accept({ state: 'working', project: 'Long build', heartbeat: 'yes' }).valid).toBe(false);
+});
 test('records background activity without updating another project window', () => {
   const { ingress, windows, timers, effects } = fixture();
   windows.routeStatusUpdate.mockReturnValue({ switchedProject: null, updateResult: { updated: false }, stateData: {} });
