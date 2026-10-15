@@ -8,6 +8,9 @@ const fs = require('fs');
 const path = require('path');
 const { STATE_COLORS, CHARACTER_CONFIG, DEFAULT_CHARACTER, TRAY_ICON_SIZE } = require('../shared/config.cjs');
 
+// The tray badge and menu dots share one attention color.
+const ATTENTION_COLOR = '#FF6633';
+
 // Tray icon cache for performance
 const trayIconCache = new Map();
 
@@ -70,7 +73,7 @@ function drawTrayIcon(state, characterImage, showBadge) {
 
   if (showBadge) {
     // Small badge in the top-right corner signaling attention is needed.
-    ctx.fillStyle = '#FF6633';
+    ctx.fillStyle = ATTENTION_COLOR;
     ctx.beginPath();
     ctx.arc(size - 5, 5, 3, 0, Math.PI * 2);
     ctx.fill();
@@ -84,6 +87,24 @@ function drawTrayIcon(state, characterImage, showBadge) {
  * registry sprite.
  * @returns {Promise<Electron.NativeImage>}
  */
+let attentionDotImage = null;
+/**
+ * The red dot beside a menu item whose page has an issue: the same color as
+ * the tray icon's badge, drawn at 2x for Retina menus.
+ */
+function attentionDot() {
+  if (!attentionDotImage) {
+    const canvas = createCanvas(32, 32);
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = ATTENTION_COLOR;
+    ctx.beginPath();
+    ctx.arc(16, 16, 8, 0, Math.PI * 2);
+    ctx.fill();
+    attentionDotImage = nativeImage.createFromBuffer(canvas.toBuffer('image/png'), { scaleFactor: 2 });
+  }
+  return attentionDotImage;
+}
+
 async function createTrayIcon(state, character = DEFAULT_CHARACTER, showBadge = false) {
   const name = Object.hasOwn(CHARACTER_CONFIG, character) ? character : DEFAULT_CHARACTER;
   const cacheKey = `${state}-${name}-${showBadge}`;
@@ -101,58 +122,31 @@ async function createTrayIcon(state, character = DEFAULT_CHARACTER, showBadge = 
 }
 
 class TrayManager {
-  constructor(windowManager, app, monitoringClient = null) {
+  constructor(windowManager, app) {
     this.tray = null;
     this.windowManager = windowManager;
     this.app = app;
     this.contextMenu = null;
-    this.monitoringClient = null;
-    this.onMonitoringChange = null;
-    this.cloudStatus = 'not-configured';
-    this.cloudAttentionCount = 0;
+    this.menuKey = null;
+    // One notice per area that needs the user (see shared/attention.cjs).
+    this.notices = { dashboard: null, connection: null, integrations: null, update: null };
     this.iconGeneration = 0;
     this.iconKey = null;
     this.tooltip = null;
-    this.hookInstaller = null;
-    this.updateChecker = null;
     this.openSettings = null;
     this.showCharacterHandler = null;
     this.openDashboard = null;
-    if (monitoringClient) this.setMonitoringClient(monitoringClient);
   }
 
   /**
-   * Set HTTPS monitoring client reference (can be set after construction)
-   * @param {MonitoringClient} monitoringClient
+   * Show where issues are: the icon badge, the tooltip, and the menu items
+   * that open each affected page.
+   * @param {ReturnType<import('../shared/attention.cjs').attentionNotices>} notices
    */
-  setMonitoringClient(monitoringClient) {
-    if (this.monitoringClient && this.onMonitoringChange) this.monitoringClient.off('change', this.onMonitoringChange);
-    this.monitoringClient = monitoringClient;
-    this.onMonitoringChange = snapshot => {
-      this.cloudStatus = snapshot.status;
-      this.cloudAttentionCount = snapshot.attentionCount || 0;
-      this.updateIcon();
-    };
-    if (monitoringClient) {
-      monitoringClient.on('change', this.onMonitoringChange);
-      this.onMonitoringChange(monitoringClient.snapshot());
-    } else { this.cloudStatus = 'not-configured'; this.cloudAttentionCount = 0; this.updateIcon(); }
-  }
-
-  /**
-   * Set HookInstaller reference (can be set after construction)
-   * @param {HookInstaller} hookInstaller
-   */
-  setHookInstaller(hookInstaller) {
-    this.hookInstaller = hookInstaller;
-  }
-
-  /**
-   * Set UpdateChecker reference (can be set after construction)
-   * @param {UpdateChecker} updateChecker
-   */
-  setUpdateChecker(updateChecker) {
-    this.updateChecker = updateChecker;
+  setAttention(notices) {
+    this.notices = { ...notices };
+    this.updateIcon();
+    this.updateMenu();
   }
 
   /**
@@ -179,37 +173,19 @@ class TrayManager {
     return state || { state: 'idle', character: DEFAULT_CHARACTER, project: projectId };
   }
 
-  /**
-   * Whether an update needs a user action, for the tray icon badge.
-   * @returns {boolean}
-   */
-  hasUpdateAvailable() {
-    return Boolean(this.updateChecker && ['available', 'downloaded'].includes(this.updateChecker.getState().status));
-  }
-
-  /**
-   * Whether the tray icon should show its attention badge: an app update is
-   * available, an integration needs repair, or a cloud source needs attention.
-   * @returns {boolean}
-   */
   hasAttentionBadge() {
     return this.attentionReasons().length > 0;
   }
 
+  /** Tooltip lines: each notice and the menu item that resolves it. */
   attentionReasons() {
-    const reasons = [];
-    if (!['connected', 'connecting', 'not-configured'].includes(this.cloudStatus)) {
-      const connection = {
-        'token-expired': 'Read token rejected — check Connections',
-        'permission-denied': 'Read permission required — check Connections',
-        'credential-unavailable': 'Saved token unavailable — check Connections'
-      };
-      reasons.push(connection[this.cloudStatus] || 'Cloud connection interrupted — check Connections');
-    }
-    if (this.cloudAttentionCount > 0) reasons.push(`${this.cloudAttentionCount} monitored item${this.cloudAttentionCount === 1 ? '' : 's'} need${this.cloudAttentionCount === 1 ? 's' : ''} attention — open Dashboard`);
-    if (this.hookInstaller?.hasChanges()) reasons.push('Integrations need repair — open Integrations');
-    if (this.hasUpdateAvailable()) reasons.push('App update available — open About VibeMon');
-    return reasons;
+    const { dashboard, connection, integrations, update } = this.notices;
+    return [
+      connection && `${connection} — open Settings`,
+      dashboard && `${dashboard} — open Dashboard`,
+      integrations && `${integrations} — open Integrations`,
+      update && `${update} — open About VibeMon`
+    ].filter(Boolean);
   }
 
   createTray() {
@@ -249,22 +225,28 @@ class TrayManager {
   }
 
   buildMenuTemplate() {
+    const { dashboard, connection, integrations, update } = this.notices;
+    // An item that opens an affected page carries a red dot and the reason.
+    const flagged = (item, notice) => notice ? { ...item, icon: attentionDot(), sublabel: notice } : item;
     return [
-      { label: 'Dashboard', click: () => this.openDashboard?.() },
-      { label: 'Settings…', click: () => this.openSettings?.('companion') },
+      flagged({ label: 'Dashboard', click: () => this.openDashboard?.() }, dashboard),
+      flagged({ label: 'Settings…', click: () => this.openSettings?.(connection ? 'connections' : 'companion') }, connection),
       { type: 'separator' },
       { label: 'Show companion', click: () => this.showCharacterHandler?.() },
-      { label: 'Integrations…', click: () => this.openSettings?.('integrations') },
+      flagged({ label: 'Integrations…', click: () => this.openSettings?.('integrations') }, integrations),
       { type: 'separator' },
-      { label: 'About VibeMon', click: () => this.openSettings?.('about') },
+      flagged({ label: 'About VibeMon', click: () => this.openSettings?.('about') }, update),
       { label: 'Quit VibeMon', click: () => this.app.quit() }
     ];
   }
 
   updateMenu() {
     // macOS handles mouse-down/tracking natively. Rebuilding a menu in a JS
-    // click callback delays opening and loses clicks during double-clicks.
-    if (!this.tray || this.contextMenu) return;
+    // click callback delays opening and loses clicks during double-clicks,
+    // so the menu is rebuilt only when its notices change.
+    const key = JSON.stringify(this.notices);
+    if (!this.tray || (this.contextMenu && this.menuKey === key)) return;
+    this.menuKey = key;
     this.contextMenu = Menu.buildFromTemplate(this.buildMenuTemplate());
     if (process.platform !== 'win32') this.tray.setContextMenu(this.contextMenu);
   }
@@ -291,7 +273,7 @@ class TrayManager {
     this.iconKey = null;
     this.tooltip = null;
     this.contextMenu = null;
-    if (this.monitoringClient && this.onMonitoringChange) this.monitoringClient.off('change', this.onMonitoringChange);
+    this.menuKey = null;
     if (this.tray) {
       this.tray.destroy();
       this.tray = null;

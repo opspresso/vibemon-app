@@ -8,6 +8,7 @@ const { WorkspaceWindow } = require('../../src/workspace/window.cjs');
 const { installWorkspaceMenu } = require('../../src/workspace/menu.cjs');
 const { HookCloudDelivery } = require('../../src/modules/hook-cloud-delivery.cjs');
 const { TrayManager } = require('../../src/modules/tray-manager.cjs');
+const { attentionAreas, attentionNotices } = require('../../src/shared/attention.cjs');
 const { TOKEN, memoryStore, sources, createPorts, trend } = require('../fixtures/workspace.cjs');
 
 const directory = process.env.VIBEMON_TEST_USER_DATA;
@@ -72,10 +73,13 @@ async function startFixture() {
   const settings = new WorkspaceSettings({ ...ports, cloudDelivery });
   const errors = [];
   const view = new WorkspaceWindow({ monitoring: client, settings, ...ports, reportError: error => { errors.push(error.message); } });
-  settings.onSettingsChanged = () => view.notify('settings');
+  const trayManager = new TrayManager({ getProjectIds: () => [], getState: () => null }, app);
+  // The same composition as main.js: every issue source refreshes the tray.
+  const refreshAttention = () => trayManager.setAttention(attentionNotices(attentionAreas(client.snapshot(), settings.getSnapshot())));
+  settings.onSettingsChanged = () => { view.notify('settings'); refreshAttention(); };
   cloudDelivery.onChange = () => settings.notifyChanged();
-  ports.hookInstaller.onStateChanged = () => view.notify('settings');
-  const trayManager = new TrayManager({ getProjectIds: () => [], getState: () => null }, app, client);
+  ports.hookInstaller.onStateChanged = () => { view.notify('settings'); refreshAttention(); };
+  client.on('change', refreshAttention);
   trayManager.openDashboard = () => view.open('overview');
   trayManager.openSettings = page => view.open(page);
   trayManager.setShowCharacterHandler(ports.showCompanion);
