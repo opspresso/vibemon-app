@@ -2,20 +2,16 @@ const { setImmediate } = require('node:timers');
 
 jest.mock('electron', () => ({
   Tray: jest.fn(), Menu: { buildFromTemplate: jest.fn() },
-  nativeImage: { createFromBuffer: jest.fn(() => ({ image: true })) },
+  nativeImage: {
+    createFromBuffer: jest.fn(() => ({ isEmpty: () => false, getSize: () => ({ width: 2, height: 2 }), toBitmap: () => Buffer.alloc(16, 255) })),
+    createFromBitmap: jest.fn(() => ({ image: true }))
+  },
   BrowserWindow: { fromWebContents: jest.fn() }
-}));
-jest.mock('canvas', () => ({
-  createCanvas: jest.fn(() => ({
-    getContext: () => ({ clearRect() {}, beginPath() {}, roundRect() {}, fill() {}, arc() {}, drawImage() {} }),
-    toBuffer: () => Buffer.alloc(0)
-  })),
-  loadImage: jest.fn(() => Promise.resolve({ image: true }))
 }));
 jest.mock('fs', () => ({ promises: { readFile: jest.fn(() => Promise.resolve(Buffer.alloc(0))) } }));
 const { TrayManager, createTrayIcon } = require('../src/modules/tray-manager.cjs');
 const { Tray, Menu, BrowserWindow } = require('electron');
-const { loadImage } = require('canvas');
+const fs = require('fs');
 const { DEFAULT_CHARACTER } = require('../src/shared/config.cjs');
 let manager, native, events, companion, app, focused;
 const flush = () => new Promise(setImmediate);
@@ -101,12 +97,12 @@ test('250 unchanged status events do not redraw the native tray icon', async () 
 
 test('late sprite loading cannot overwrite a newer character icon', async () => {
   let finish;
-  loadImage.mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }));
+  fs.promises.readFile.mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }));
   focused = { ...focused, character: 'clawd' };
   manager.createTray(); await flush();
   focused = { ...focused, character: 'codex' }; manager.updateIcon(); await flush();
   expect(native.setImage).toHaveBeenCalledTimes(1);
-  finish({ image: true }); await flush();
+  finish(Buffer.alloc(0)); await flush();
   expect(native.setImage).toHaveBeenCalledTimes(1);
 });
 
@@ -209,5 +205,5 @@ test('cleanup prevents delayed icon work from touching a destroyed tray', async 
 test('sprite and native icon caches reuse the same result', async () => {
   const first = await createTrayIcon('idle', 'codex', true);
   expect(await createTrayIcon('idle', 'codex', true)).toBe(first);
-  expect(loadImage).toHaveBeenCalledTimes(1);
+  expect(fs.promises.readFile).toHaveBeenCalledTimes(1);
 });

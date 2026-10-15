@@ -5,6 +5,7 @@ const path = require('node:path');
 const { pathToFileURL } = require('node:url');
 const { app, BrowserWindow } = require('electron');
 const registry = require('../../src/shared/data/characters.json');
+const states = require('../../src/shared/data/states.json');
 const root = path.resolve(__dirname, '../..');
 
 // Run against the real WebGL buffer after compositor frames, including a
@@ -64,6 +65,32 @@ async function verify({ engineUrl, hitUrl, threeUrl, characters, defaultCharacte
   return { preserved, samples: samples.filter(Boolean).length, transparent, transformed, cleared, stationaryRenders, durationMs };
 }
 
+// The 2D companion's expressions must align with and fully replace the eyes
+// painted in its sprite. Pixels come from Chromium's own canvas.
+async function verifyCompanion({ engineUrl, characters, defaultCharacter, states, imageUrls }) {
+  const { createVibeMonEngine } = await import(engineUrl);
+  const container = document.createElement('div');
+  document.body.append(container);
+  const engine = createVibeMonEngine(container, { characters, defaultCharacter, characterImageUrls: imageUrls, states });
+  await engine.init();
+  engine.setReducedMotion(true);
+  const context = engine.canvas.getContext('2d', { willReadFrequently: true });
+  const draw = state => { engine.setState({ state, character: 'vibemon' }); engine.render(); };
+  const pixel = (x, y) => Array.from(context.getImageData(x, y, 1, 1).data);
+  const result = {};
+  draw('idle');
+  result.normal = [46, 82].map(x => pixel(x, 72));
+  for (const [expression, state] of [['blink', 'sleep'], ['happy', 'done']]) {
+    draw(state);
+    result[expression] = { open: [46, 82].flatMap(x => [pixel(x, 62), pixel(x, 82)]), line: [pixel(46, 73), pixel(expression === 'happy' ? 78 : 82, 73)] };
+  }
+  draw('working');
+  result.glasses = { eyes: [46, 82].map(x => pixel(x, 72)), frame: pixel(33, 56) };
+  engine.cleanup();
+  container.remove();
+  return result;
+}
+
 async function run() {
   await app.whenReady();
   const win = new BrowserWindow({ width: 200, height: 220, show: false, webPreferences: { sandbox: true, backgroundThrottling: false } });
@@ -85,6 +112,19 @@ async function run() {
     if (item.name === 'current') { assert.equal(result.preserved, true); assert.equal(result.stationaryRenders, 0); }
     results.push({ name: item.name, ...result });
   }
+  const ink = [36, 27, 58, 255], body = [139, 124, 246, 255];
+  const companion = await win.webContents.executeJavaScript(`(${verifyCompanion.toString()})(${JSON.stringify({
+    engineUrl: pathToFileURL(path.join(root, 'src/engine/vibemon-engine.js')).href,
+    characters: registry.characters, defaultCharacter: registry.default, states: states.states,
+    imageUrls: { vibemon: [pathToFileURL(path.join(root, 'src/assets/characters', registry.characters.vibemon.image)).href] }
+  })})`);
+  assert.deepEqual(companion.normal, [ink, ink], 'open eyes use the sprite ink');
+  for (const expression of ['blink', 'happy']) {
+    assert.deepEqual(companion[expression].open, [body, body, body, body], `${expression} covers the painted eyes`);
+    assert.deepEqual(companion[expression].line, [ink, ink], `${expression} draws its line`);
+  }
+  assert.deepEqual(companion.glasses, { eyes: [ink, ink], frame: [17, 17, 17, 255] }, 'glasses keep the eyes and draw the frame');
+  results.push({ name: 'companion-2d', ...companion });
   const output = path.join(root, 'out/hit-test');
   fs.mkdirSync(output, { recursive: true });
   fs.writeFileSync(path.join(output, 'results.json'), JSON.stringify(results, null, 2));
