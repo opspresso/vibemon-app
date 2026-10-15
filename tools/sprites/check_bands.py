@@ -8,34 +8,7 @@ import sys
 from pathlib import Path
 
 from PIL import Image
-
-
-def is_bg(p) -> bool:
-    r, g, b, a = p
-    return a < 16 or (r > 180 and b > 180 and g < 120)
-
-
-def bands(values, threshold=0.01, min_gap=4, min_size=12):
-    out = []
-    in_band = False
-    start = 0
-    for i, v in enumerate(values):
-        if v > threshold and not in_band:
-            start = i
-            in_band = True
-        elif v <= threshold and in_band:
-            out.append((start, i))
-            in_band = False
-    if in_band:
-        out.append((start, len(values)))
-    # merge bands separated by tiny gaps
-    merged = []
-    for b in out:
-        if merged and b[0] - merged[-1][1] < min_gap:
-            merged[-1] = (merged[-1][0], b[1])
-        else:
-            merged.append(list(b))
-    return [(s, e) for s, e in merged if e - s >= min_size]
+from sprite_grid import bands, is_bg
 
 
 def analyze(path: Path):
@@ -59,7 +32,7 @@ def analyze(path: Path):
     ok_cols = all(c == 10 for c in row_cols) if row_cols else False
     status = "PASS" if ok_rows and ok_cols else "FAIL"
     print(f"{path.name}: {status} rows={n_rows} cols_per_row={row_cols}")
-    for i, ((s, e), c) in enumerate(zip(rows, row_cols)):
+    for i, ((s, e), c) in enumerate(zip(rows, row_cols, strict=True)):
         print(f"    band {i+1}: y={s*2}-{e*2} h={(e-s)*2} cols={c}")
     return ok_rows and ok_cols
 

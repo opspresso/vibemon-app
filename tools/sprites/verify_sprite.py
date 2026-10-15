@@ -4,22 +4,11 @@
 Background = zero-alpha pixels OR chroma-key magenta (#FF00FF) pixels.
 """
 import sys
+from collections import Counter
 from pathlib import Path
 
 from PIL import Image
-
-CELL = 128
-STATES = [
-    "start", "idle", "thinking", "planning", "working",
-    "packing", "notification", "done", "sleep", "alert",
-]
-
-
-def is_bg(p) -> bool:
-    r, g, b, a = p
-    if a < 16:
-        return True
-    return r > 180 and b > 180 and g < 120  # magenta-ish chroma key
+from sprite_grid import CELL, STATES, is_bg
 
 
 def main() -> None:
@@ -34,7 +23,6 @@ def main() -> None:
     print(f"background_pixel_ratio(sampled): {bg_count / total:.2%}")
 
     # background purity: among bg-classified opaque pixels, how uniform is the color?
-    from collections import Counter
     corner_colors = Counter(
         px[x, y][:3] for x, y in [(2, 2), (w - 3, 2), (2, h - 3), (w - 3, h - 3)]
     )
