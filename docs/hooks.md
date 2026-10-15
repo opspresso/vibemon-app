@@ -147,7 +147,7 @@ Hooks deliver coding activity to the [Status API](https://vibemon.io/docs/api/st
 
 ## State Mapping
 
-Hooks report edges: a prompt starts a turn, a tool starts or ends, and a turn stops. The time between two edges is silent. A long tool call, a long model response, or a background subagent sends no event. Every display ages a silent active state to `idle` after 5 minutes (see [state timeouts](features.md#state-timeout)). Hooks therefore keep a running turn visible with heartbeats.
+Hooks report edges: a prompt starts a turn, a tool starts or ends, and a turn stops. The time between two edges is silent. A long tool call, a long model response, or a background subagent sends no event. Every display ages a silent active state to `idle` after 5 minutes (see [state timeouts](https://github.com/opspresso/vibemon-app/blob/main/docs/features.md#state-timeout)). Hooks therefore keep a running turn visible with heartbeats.
 
 ### Turn lifecycle
 
