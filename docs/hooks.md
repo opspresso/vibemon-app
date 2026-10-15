@@ -153,7 +153,7 @@ Hooks report edges: a prompt starts a turn, a tool starts or ends, and a turn st
 
 1. An event with an active state (`thinking`, `planning`, `working`, `packing`, or `notification`) opens the session's turn.
 2. The hook that opens the turn starts one detached watcher process for the session. The watcher runs `python3 ~/.vibemon/vibemon_core.py --watch-session <session_id>`.
-3. While the turn is open, the watcher repeats the last state every 60 seconds without another event. The report has `heartbeat: true`. A heartbeat refreshes the state clock, but it does not take display focus and does not add a Web activity sample.
+3. While the turn is open, the watcher repeats the last state every 60 seconds without another event. The report has `heartbeat: true`. A heartbeat refreshes the state clock, but it does not take display focus and does not add a Web activity sample. It counts the payload's reset countdowns down by the time since the hook built it, so they stay correct against the new observation time.
 4. The turn closes when the agent reports `done` (`Stop`, `StopFailure`, `Interrupt`, or `SessionEnd`) or `start` (a new session).
 5. The watcher also closes the turn and reports `done` within 5 seconds when:
    - the agent process exits without a `SessionEnd` hook, or

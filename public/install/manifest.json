@@ -10,7 +10,7 @@
     "vibemon/account_context.py": "f6babad43f88b5d3bf74f070fc1772d2e226f51559a3841adbb17b54fa9d2b6e",
     "vibemon/cache_io.py": "f99ddbcba818ac8cf5b84aa714cdec1ef4ff87f87680dd2868ef483deb208de7",
     "vibemon/http_client.py": "306f9804a3bffc221b7c68f7b1f100937311908912ffb50bca500d493464052a",
-    "vibemon/session_activity.py": "f8f2294ee2a4f523985697c39081cd4e6d62ba24897f81d64469dc675ced86f9",
+    "vibemon/session_activity.py": "f02c280f7a00748254359f0cda678be37cc429bfd75dcf4d1959b243d2c4684e",
     "vibemon/vibemon_core.py": "d3d1a9463ce31deff183e4da28972cfd94465badd58a5e7fd3770e59a70450bf",
     "claude/statusline.py": "eb841fa51278be66ca7b2c647c6447e878ab974bbf7031321f2588d6ab8a02cb",
     "claude/hooks/vibemon.py": "a592e7e8904b3dbd09f94b9b882906cb9dc470c27f6f68d77bc45fa508d41727",

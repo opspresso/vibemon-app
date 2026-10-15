@@ -53,6 +53,11 @@ WATCH_TICK_SECONDS = 5
 # of parallel tool hooks starts one watcher process, not one per hook.
 WATCH_REQUEST_MS = 10_000
 
+# Payload countdowns in minutes, measured when the payload was built.
+# Displays count them down from the report's observation time, so a repeated
+# payload must age them by the time since it was built.
+RESET_FIELDS = ("usage5hResetsIn", "usageWeekResetsIn", "usageWeekModelResetsIn")
+
 # Sessions without an event for a day are abandoned; their entries are dropped.
 SESSION_MAX_AGE_MS = 86_400_000
 
@@ -200,7 +205,7 @@ def remember_payload(path: str, session: str, payload: dict[str, Any], cwd: str,
         entry = sessions.get(session)
         if not isinstance(entry, dict):
             return cache
-        entry = {**entry, "payload": payload, "cwd": cwd}
+        entry = {**entry, "payload": payload, "payloadMs": _now_ms(), "cwd": cwd}
         if agent is not None:
             entry["agent"] = agent
         sessions[session] = entry
@@ -291,17 +296,29 @@ def tick(path: str, session: str, me: dict[str, Any]) -> Beat | None | bool:
         if closing:
             current = {**current, "open": False, "state": "done", "tools": {}, "updatedMs": now, "reportedMs": now}
             current.pop("watcher", None)
-            outcome["result"] = Beat({**payload, "state": "done", "tool": ""}, current.get("cwd", ""), observation_time(stamp), False) if isinstance(payload, dict) else False
+            outcome["result"] = Beat(_aged({**payload, "state": "done", "tool": ""}, current, now), current.get("cwd", ""), observation_time(stamp), False) if isinstance(payload, dict) else False
         else:
             current = {**current, "reportedMs": now}
             if isinstance(payload, dict):
-                outcome["result"] = Beat({**payload, "state": current["state"]}, current.get("cwd", ""), observation_time(stamp), True)
+                outcome["result"] = Beat(_aged({**payload, "state": current["state"]}, current, now), current.get("cwd", ""), observation_time(stamp), True)
         sessions[session] = current
         return {**cache, "lastMs": stamp, "sessions": sessions}
 
     if not update_json_cache(path, update, timeout=2.0):
         return None
     return outcome["result"]
+
+
+def _aged(payload: dict[str, Any], entry: dict[str, Any], now: int) -> dict[str, Any]:
+    """Count the payload's reset countdowns down to ``now``, as displays do."""
+    built = entry.get("payloadMs")
+    if not isinstance(built, int):
+        return payload
+    elapsed = max(0, (now - built) // 60_000)
+    return {
+        **payload,
+        **{key: max(0, payload[key] - elapsed) for key in RESET_FIELDS if isinstance(payload.get(key), int) and not isinstance(payload.get(key), bool)},
+    }
 
 
 def _read_cache(path: str) -> dict[str, Any]:

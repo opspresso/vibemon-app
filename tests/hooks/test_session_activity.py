@@ -128,6 +128,15 @@ def test_silence_is_filled_with_heartbeats_of_the_current_state(tmp_path, clock,
     assert beat.observed_at > activity.observation_time(clock.ms - activity.HEARTBEAT_MS)
 
 
+def test_heartbeats_count_reset_countdowns_down(tmp_path, clock, alive):
+    path = str(tmp_path / "activity.json")
+    open_turn(path, payload={"state": "thinking", "project": "p", "character": "clawd", "usage5hResetsIn": 100, "usageWeekResetsIn": 2, "usage5h": 40})
+    assert activity.claim(path, "s1", ME)
+    clock.ms += 3 * activity.HEARTBEAT_MS + 30_000
+    beat = activity.tick(path, "s1", ME)
+    assert beat.payload["usage5hResetsIn"] == 97 and beat.payload["usageWeekResetsIn"] == 0 and beat.payload["usage5h"] == 40
+
+
 def test_an_exited_agent_ends_the_turn(tmp_path, clock, alive):
     path = str(tmp_path / "activity.json")
     open_turn(path)
