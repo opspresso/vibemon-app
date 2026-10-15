@@ -36,8 +36,20 @@ jobs:
           echo "tag=$RELEASE_TAG" >> "$GITHUB_OUTPUT"
           echo "commit=$commit" >> "$GITHUB_OUTPUT"
 
-  build:
+  distribution:
     needs: resolve
+    uses: ./.github/workflows/registry-drift.yml
+    with:
+      ref: ${{ needs.resolve.outputs.commit }}
+
+  overlays:
+    needs: resolve
+    uses: ./.github/workflows/overlay-verification.yml
+    with:
+      ref: ${{ needs.resolve.outputs.commit }}
+
+  build:
+    needs: [resolve, distribution, overlays]
     runs-on: ${{ matrix.os }}
 
     strategy:

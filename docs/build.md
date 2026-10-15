@@ -31,7 +31,9 @@ pnpm build:distribution
 
 Edit the canonical App source, update the export map when adding files, and regenerate the installer manifest with `python3 scripts/generate_manifest.py` when changing an installer file. Commit and push App first. In the private Web checkout, advance `app-assets.json` with `node scripts/sync-app-assets.mjs --revision <full-App-commit> --fix`, then run `pnpm check:assets`. Local verification may use `VIBEMON_APP_DIR=../vibemon-app`; CI reads the same public commit without authentication. See [distribution ownership](distribution.md).
 
-The native verification workflow runs lint, unit tests, the workspace, overlays, and unpacked packaging on both macOS and Windows. These checks use the pinned pnpm version and frozen lockfile. Signing/notarization and publication require their existing platform secrets; PR validation does not exercise them.
+The native verification workflow runs lint, unit tests, the workspace, overlays, and unpacked packaging on both macOS and Windows. These checks use the pinned pnpm version and frozen lockfile. Signing/notarization and publication require their existing platform secrets; the verification workflows do not exercise them.
+
+CI runs only before a release. `build-release.yml` first calls the public-distribution and native verification workflows on the tagged commit, and the platform builds start only after both pass. Pull requests and pushes do not start CI; run either workflow by hand (`gh workflow run registry-drift.yml --ref <branch>`, `gh workflow run overlay-verification.yml --ref <branch>`) when a branch needs a hosted check. Before merging, run the matching local checks.
 
 Windows release builds require `WINDOWS_CERTS` (base64 PKCS#12) and `WINDOWS_CERTS_PASSWORD`. Signing is mandatory. CI compares each EXE with the configured signer, then verifies Authenticode file integrity, the exact leaf certificate, and the timestamp with `osslsigncode`. The configured certificate is an explicit trust anchor for this check; the runner and end-user OS trust stores are not modified. A modified-file check must fail before publication.
 
