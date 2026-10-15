@@ -153,6 +153,21 @@ def test_a_recorded_interrupt_ends_the_turn(tmp_path, path, clock, alive):
     assert activity.tick(path, "s1", ME).payload["state"] == "done"
 
 
+def test_no_heartbeat_asserts_a_turn_whose_interrupt_cannot_be_seen(tmp_path, path, clock, alive):
+    transcript = tmp_path / "session.jsonl"
+    open_turn(path, transcript_path=str(transcript))
+    assert activity.claim(path, "s1", ME)
+    clock.ms += 2 * activity.HEARTBEAT_MS
+    # Claude Code writes no transcript: an interrupt would leave no record.
+    assert activity.tick(path, "s1", ME) is None
+    # The watcher still reports the agent's exit.
+    transcript.write_text("")
+    assert activity.tick(path, "s1", ME).heartbeat
+    del alive[AGENT["pid"]]
+    transcript.unlink()
+    assert activity.tick(path, "s1", ME).payload["state"] == "done"
+
+
 def test_a_hook_during_the_check_outranks_an_older_interrupt(path, clock, alive, monkeypatch):
     open_turn(path)
     assert activity.claim(path, "s1", ME)

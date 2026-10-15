@@ -9,12 +9,15 @@ one watcher tick, and end with ``done``.
 Usage:
     python3 scripts/verify_agent_continuity.py claude
     python3 scripts/verify_agent_continuity.py codex
+    python3 scripts/verify_agent_continuity.py opencode
 
 Requirements:
 - The agent CLI is installed and signed in. The run uses the account's quota.
-- claude: the repository hook runs through ``--settings``.
+- claude: only the repository hook runs, through ``--settings``.
 - codex: Codex runs only hooks it trusts, so the run uses the installed hook
   (``~/.codex/hooks/vibemon.py``). Install the current version first.
+- opencode: the run uses the installed plugin and adapter
+  (``~/.config/opencode/plugins/vibemon.js``). Install the current version first.
 
 Reports go only to the local display: the run overrides delivery targets and
 the session cache through ``VIBEMON_*`` environment variables. Hooks that are
@@ -37,6 +40,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "public" / "install" / "vibemon"))
 from session_activity import ACTIVE_STATES, HEARTBEAT_MS, WATCH_TICK_SECONDS  # noqa: E402
 
+AGENTS = ("claude", "codex", "opencode")
 SLEEP_SECONDS = 75
 MAX_GAP_SECONDS = HEARTBEAT_MS / 1000 + WATCH_TICK_SECONDS + 5
 PROMPT = (
@@ -78,11 +82,20 @@ def command(agent: str, work: Path) -> list[str]:
         settings.write_text(json.dumps({"hooks": {
             event: [{"hooks": [{"type": "command", "command": hook, "async": True, "timeout": 10}]}] for event in events
         }}))
-        return ["claude", "-p", PROMPT, "--settings", str(settings), "--allowedTools", "Bash(python3:*)"]
-    installed = Path(os.environ.get("CODEX_HOME", Path.home() / ".codex")) / "hooks" / "vibemon.py"
-    if installed.read_bytes() != (ROOT / "public" / "install" / "codex" / "hooks" / "vibemon.py").read_bytes():
-        print(f"warning: {installed} differs from the repository hook", file=sys.stderr)
-    return ["codex", "exec", "--skip-git-repo-check", "-s", "workspace-write", PROMPT]
+        # Only the repository hook runs: user and project settings stay unloaded.
+        return ["claude", "-p", PROMPT, "--setting-sources", "local", "--settings", str(settings), "--allowedTools", "Bash(python3:*)"]
+    if agent == "codex":
+        warn_if_changed(Path(os.environ.get("CODEX_HOME", Path.home() / ".codex")) / "hooks" / "vibemon.py", "codex/hooks/vibemon.py")
+        return ["codex", "exec", "--skip-git-repo-check", "-s", "workspace-write", PROMPT]
+    home = Path(os.environ.get("OPENCODE_CONFIG_DIR", Path.home() / ".config" / "opencode"))
+    warn_if_changed(home / "plugins" / "vibemon.js", "opencode/plugin/vibemon.js")
+    warn_if_changed(home / "hooks" / "vibemon.py", "opencode/hooks/vibemon.py")
+    return ["opencode", "run", PROMPT]
+
+
+def warn_if_changed(installed: Path, source: str) -> None:
+    if not installed.is_file() or installed.read_bytes() != (ROOT / "public" / "install" / source).read_bytes():
+        print(f"warning: {installed} differs from public/install/{source}", file=sys.stderr)
 
 
 def verdict(received: list[tuple[float, str, bool]]) -> list[str]:
@@ -104,7 +117,7 @@ def verdict(received: list[tuple[float, str, bool]]) -> list[str]:
 
 
 def main() -> int:
-    if len(sys.argv) != 2 or sys.argv[1] not in ("claude", "codex"):
+    if len(sys.argv) != 2 or sys.argv[1] not in AGENTS:
         print(__doc__.split("Requirements:")[0].strip(), file=sys.stderr)
         return 2
     agent = sys.argv[1]

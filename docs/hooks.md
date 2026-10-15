@@ -160,6 +160,7 @@ Hooks report edges: a prompt starts a turn, a tool starts or ends, and a turn st
 5. The watcher also closes the turn and reports `done` within 5 seconds when:
    - the agent process exits without a `SessionEnd` hook, or
    - Claude Code records a user interrupt or a rejected tool (`[Request interrupted by user…]`) in its transcript. Claude Code runs no `Stop` hook for an interrupt.
+6. A heartbeat asserts that the turn still runs. The watcher sends none while the event's `transcript_path` file does not exist, because it could not see an interrupt. Claude Code writes no transcript for a session that runs as a child of another Claude Code session. The state then ages by the state timeouts, and the watcher still reports `done` when the agent exits.
 
 The watcher identifies the agent process as the nearest ancestor of the hook that is not a shell, launcher, or Python interpreter. If it cannot identify that process, no watcher starts, and the session ages by the state timeouts as before.
 
