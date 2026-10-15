@@ -67,7 +67,7 @@ Preference changes save automatically. Connection and selection forms save only 
 | --- | --- |
 | `—` | No supported measurement was reported. This is not zero. |
 | **Stale** | A resource has no accepted receipt for 120 seconds. Check the collector; displayed values are the last known observation. |
-| **Inactive** | A coding project's last event has aged to `sleep`. No action is required. |
+| **Inactive** | A coding project's last report has aged to `sleep`: its turn ended or its hooks stopped reporting. No action is required. |
 | **Token not accepted** | Retrieve an active read token from Web Account. |
 | **Read access required** | Replace the token with one that has read permission. |
 | **Replace saved token** | The local credential cannot be decrypted. Enter it again from Web Account. |

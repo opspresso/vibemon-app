@@ -28,7 +28,7 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import urlsplit
 from urllib.request import Request, urlopen
 
-from account_context import cloud_context, observation_time, project_cache_key
+from account_context import cloud_context, project_cache_key
 import session_activity
 from session_activity import Transition
 from http_client import open_credential_request
