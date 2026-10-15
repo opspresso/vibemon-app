@@ -17,6 +17,7 @@ function token(name) {
   return value;
 }
 // Runs in the page. Each job draws an optional gradient tile, then an SVG image.
+/* global document, Image, btoa */
 function renderInPage(jobs) {
   return Promise.all(jobs.map(async job => {
     const canvas = document.createElement('canvas');

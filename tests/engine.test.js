@@ -10,7 +10,6 @@
  */
 
 const { loadBrowserModule } = require('./helpers/browser-module.cjs');
-const path = require('path');
 const { STATE_CONFIG, VALID_STATES } = require('../src/shared/states.cjs');
 const charactersRegistry = require('../src/shared/data/characters.json');
 
