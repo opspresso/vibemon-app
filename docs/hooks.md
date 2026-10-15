@@ -88,7 +88,7 @@ After installing or updating the plugin, rebuild OpenClaw's persisted plugin reg
 
 ### opencode Configuration
 
-The opencode integration requires opencode 2.0 or later. opencode 1.x cannot load the plugin.
+The opencode integration requires opencode 1.18.29 or later. One plugin file serves opencode 1.x and 2.x.
 
 The opencode plugin reads transmission settings (`http_urls`, `serial_port`, `vibemon_url`, `vibemon_token`) from the same `~/.vibemon/config.json` as the other tools. The plugin at `~/.config/opencode/plugins/vibemon.js` maps opencode events to VibeMon hook events: it spawns the adapter at `~/.config/opencode/hooks/vibemon.py`, which feeds `vibemon_core.py`. opencode auto-discovers plugins in `~/.config/opencode/plugins/` at startup, so no config registration is needed — install the plugin file and restart opencode.
 
@@ -261,7 +261,9 @@ OpenClaw reads the active model and context usage from `llm_output`, resets them
 | Stop | done |
 | SessionEnd | done |
 
-The plugin default-exports the opencode 2.x definition `{ id, setup }`. `setup` registers two tool hooks and reads the event bus (`ctx.event.subscribe()`):
+The plugin default-exports `{ id, setup, server }`. opencode 2.x calls `setup`, and opencode 1.18.29 or later calls `server`.
+
+In opencode 2.x, `setup` registers two tool hooks and reads the event bus (`ctx.event.subscribe()`):
 
 - `session.created` → SessionStart
 - `session.execution.started` or `session.retry.scheduled` → UserPromptSubmit
@@ -280,6 +282,20 @@ opencode loads the plugin once per project instance (one directory). The event b
 The event bus does not replay events sent before the plugin subscribes. For a session without a `session.created` event (the session that starts the project instance, or a resumed session), the plugin reads the session metadata once with `ctx.session.get()`. That session starts at UserPromptSubmit instead of SessionStart.
 
 The model and agent come from the session metadata and `session.step.started`; the `plan` agent sets `permission_mode` to `plan`. Child sessions (metadata with `parentID`) do not publish status, because the parent's `subagent` tool represents them. Each adapter process has a 10-second deadline so a stalled child cannot stop the queue.
+
+In opencode 1.x, `server` returns these hooks:
+
+- event `session.created` → SessionStart
+- hook `chat.message` → UserPromptSubmit, with the message model and agent
+- hook `tool.execute.before` → PreToolUse, with the tool `callID` as `tool_use_id`
+- hook `tool.execute.after` → PostToolUse, with the same `tool_use_id`
+- event `permission.asked` or `permission.updated` → PermissionRequest
+- hook `experimental.session.compacting` → PreCompact
+- event `session.compacted` → PostCompact
+- event `session.idle` or `session.error` → Stop
+- event `session.deleted` → SessionEnd
+
+opencode 1.x sends `session.idle` after every completed, failed, or aborted prompt, so each turn ends in `done`. A failure sends `session.error` before `session.idle`; the plugin sends one `Stop` for both. opencode 1.x delivers only the events of the plugin's own project instance, so the instance directory is the payload `cwd`. Child sessions announced by `session.created` with `parentID` do not publish status.
 
 ## Related Projects
 
