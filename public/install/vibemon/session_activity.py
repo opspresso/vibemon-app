@@ -14,7 +14,9 @@ This module keeps the turn visible until it really ends:
 - While a turn is open, one detached watcher process per session (``watch``)
   repeats the turn's last state every ``HEARTBEAT_MS`` as a heartbeat. It ends
   the turn when the agent process exits, or when Claude Code records a user
-  interrupt, because neither case runs a hook.
+  interrupt, because neither case runs a hook. A heartbeat asserts that the turn
+  still runs, so the watcher sends none while the session's transcript does not
+  exist: it could not see an interrupt, and the state then ages as displays do.
 
 The cache is ``activity.json`` beside the project cache. It holds no prompts,
 tool inputs, or responses: only identifiers, states, and the last display
@@ -277,6 +279,7 @@ def tick(path: str, session: str, me: dict[str, Any]) -> Beat | None | bool:
     agent = entry.get("agent") or {}
     exited = not process_alive(agent.get("pid"), agent.get("name"))
     interrupted = not exited and transcript_interrupted(entry.get("transcript"), entry.get("updatedMs", 0))
+    observable = exited or interrupted or interrupt_observable(entry.get("transcript"))
     outcome: dict[str, Any] = {"result": None}
 
     def update(cache: dict[str, Any]) -> dict[str, Any]:
@@ -289,7 +292,7 @@ def tick(path: str, session: str, me: dict[str, Any]) -> Beat | None | bool:
         # A hook may have reported since the check; its event outranks an
         # interrupt the transcript recorded before it.
         closing = exited or interrupted and current.get("updatedMs") == entry.get("updatedMs")
-        if not closing and now - current.get("reportedMs", 0) < HEARTBEAT_MS:
+        if not closing and (not observable or now - current.get("reportedMs", 0) < HEARTBEAT_MS):
             return cache
         payload = current.get("payload")
         stamp = _stamp(cache, now)
@@ -363,6 +366,17 @@ def watch(path: str, session: str, deliver: Callable[[Beat], None], sleep: Calla
 # ============================================================================
 # Transcript
 # ============================================================================
+
+
+def interrupt_observable(path: Any) -> bool:
+    """Report whether the watcher can see a user interrupt in this session.
+
+    A session without a transcript path reports interrupts through hooks. A
+    path whose file does not exist means Claude Code does not write the
+    transcript (for example, in a session it runs as a child of another one),
+    so an interrupt would leave no record.
+    """
+    return not isinstance(path, str) or not path or os.path.exists(path)
 
 
 def transcript_interrupted(path: Any, since_ms: int) -> bool:
