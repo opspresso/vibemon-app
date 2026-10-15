@@ -4,7 +4,16 @@
 
 Select **Dashboard** from the tray menu to open the workspace and select custom resources, host/cluster presets, and multiple accounts per provider. The App polls summaries with an OS-encrypted read token. Web resource edits control labels, display ranges, and metric order; local hook activity still works independently. See [cloud monitoring](monitoring.md) for setup, selection, trends, and failure states.
 
-The tray's orange-red dot marks a monitored item needing attention, a failed cloud connection, an integration needing repair, or an available app update. Hover over the icon to see each cause and where to resolve it. Inactive coding agents do not turn on the dot.
+The tray's orange-red dot shows that something needs you. The same dot marks where to resolve it:
+
+| Issue | Tray menu item | Workspace mark |
+|-------|----------------|----------------|
+| A selected resource or coding account needs attention | **Dashboard** | **Resources** or **Coding agents** in the sidebar |
+| The read connection failed | **Settings…** (opens Connections) | **Settings** and the **Connections** tab |
+| An integration needs repair or an update, local delivery settings are invalid, or the cloud delivery check failed | **Integrations…** | **Settings** and the **Integrations** tab |
+| An app update is available or ready to install | **About VibeMon** | **Settings** and the **About** tab |
+
+A marked menu item shows the cause below its name, and the icon tooltip lists every cause. In the workspace, hover over a dot to read its cause; screen readers announce it. **Need attention** in Overview counts the affected resources and accounts. Inactive coding agents do not turn on a dot. `src/shared/attention.cjs` assigns each issue to its location for the tray and the workspace.
 
 
 ## Agent Support
