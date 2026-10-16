@@ -35,6 +35,7 @@
 
 import {
   JOINTS,
+  DEFAULT_THEME,
   getStateAnimation,
   getCharacterTheme,
   lerp,
@@ -60,6 +61,9 @@ const CONSTANTS = {
   TAIL_SWAY_RATE: 1.6,       // tail sway speed factor per vibe unit
   FLAME_FLICKER_RATE: 6      // flame flicker speed factor per vibe unit
 };
+
+// Registry theme slots, each painted on one material.
+const THEME_SLOTS = Object.keys(DEFAULT_THEME);
 
 // Rest rotations for posable joints; state poses are sparse overrides.
 const REST_POSE = {
@@ -194,13 +198,9 @@ const MOVE_FNS = {
  * pivots listed in JOINTS.
  */
 function buildMonster(attentive = false) {
+  // Theme slots get their colors from _applyCharacter() right after a build.
   const materials = {
-    body: new THREE.MeshToonMaterial({ color: '#8B7CF6' }),
-    belly: new THREE.MeshToonMaterial({ color: '#EDE9FF' }),
-    accent: new THREE.MeshToonMaterial({ color: '#C4B5FD' }),
-    eye: new THREE.MeshToonMaterial({ color: '#241B3A' }),
-    blush: new THREE.MeshToonMaterial({ color: '#FF9EC4' }),
-    flame: new THREE.MeshBasicMaterial({ color: '#7DF9FF' }),
+    ...Object.fromEntries(THEME_SLOTS.map(slot => [slot, slot === 'flame' ? new THREE.MeshBasicMaterial() : new THREE.MeshToonMaterial()])),
     white: new THREE.MeshBasicMaterial({ color: '#FFFFFF' })
   };
 
@@ -304,7 +304,7 @@ function buildMonster(attentive = false) {
   }
 
   if (!attentive) {
-  // Cheek blushes
+    // Cheek blushes
     for (const side of [-1, 1]) {
       const blush = new THREE.Mesh(new THREE.SphereGeometry(0.15, 12, 10), materials.blush);
       blush.position.set(side * 0.92, 0.02, 0.88);
@@ -470,12 +470,7 @@ export class VibeMonEngine3D {
       this.scene.add(this.rig.group);
     }
     const theme = getCharacterTheme(this.characters[name]);
-    this.rig.materials.body.color.set(theme.body);
-    this.rig.materials.belly.color.set(theme.belly);
-    this.rig.materials.accent.color.set(theme.accent);
-    this.rig.materials.eye.color.set(theme.eye);
-    this.rig.materials.blush.color.set(theme.blush);
-    this.rig.materials.flame.color.set(theme.flame);
+    for (const slot of THEME_SLOTS) this.rig.materials[slot].color.set(theme[slot]);
   }
 
   _applyFrame(dt) {
