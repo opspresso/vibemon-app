@@ -48,6 +48,9 @@ struct Tile: View {
                 .environment(\.widgetRenderingMode, .vibrant)
                 .padding(16)
                 .frame(width: 170, height: 170)
+                // Flatten onto black first: the filter ignores the alpha of each layer.
+                .background(Color.black)
+                .compositingGroup()
                 .luminanceToAlpha()
                 .colorInvert()
                 .background(Color.white.opacity(0.08), in: shape)
