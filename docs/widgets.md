@@ -37,7 +37,7 @@ A coding agent combines all projects of one provider account. The project that n
 | **No resources** | No resource is selected. Connect to Web in **Settings → Connections**, then choose resources in **Customize view**. |
 | **No coding agents** | No account has reported. Install an integration in **Settings → Integrations**, or select accounts in **Customize view**. |
 | **Resource unavailable** / **Agent unavailable** | The chosen item is no longer selected or reporting. Edit the widget to choose another. |
-| **Update VibeMon** | The App and the widget use different data versions. Install the current VibeMon release. |
+| **Restart VibeMon** | The running App and the widget use different data versions, for example after an update. Quit and reopen VibeMon. |
 | **Data unavailable** | The widget data cannot be read. Quit and reopen VibeMon. |
 
 ## Refresh and privacy

@@ -97,7 +97,6 @@ struct FeedMetric: Decodable, Sendable, Identifiable {
     /// Gauge fill from 0 to 1. `nil` for numbers and missing values.
     let fraction: Double?
     let tone: MetricTone
-    let resetsAt: Date?
 
     var id: String { key }
 }

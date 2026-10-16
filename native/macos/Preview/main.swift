@@ -25,10 +25,11 @@ do {
 CharacterArt.directories = [URL(fileURLWithPath: arguments[2], isDirectory: true)]
 let now = arguments.count == 5 ? (try? Date.ISO8601FormatStyle(includingFractionalSeconds: true).parse(arguments[4])) ?? feed.generatedAt : feed.generatedAt
 
-// The last tile shows the first item as it looks after the App quits.
+// After the feed items: notices, the first item after the App quits, and the gallery samples.
 let contents: [WidgetContent] = feed.items.map { .item($0, running: feed.running) }
     + [.notice(.appMissing), .notice(.empty(.resource)), .notice(.unavailable(.agent))]
     + feed.items.prefix(1).map { .item($0, running: false) }
+    + [.item(Samples.item(.resource, now: now), running: true), .item(Samples.item(.agent, now: now), running: true)]
 
 struct Tile: View {
     let content: WidgetContent

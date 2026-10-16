@@ -21,7 +21,7 @@ struct Notice: Sendable, Equatable {
     static let agents = URL(string: "vibemon://dashboard/agents")!
 
     static let appMissing = Notice(symbol: "app.badge", title: "Open VibeMon", detail: "Widgets show data after VibeMon starts.", link: dashboard)
-    static let appUnsupported = Notice(symbol: "arrow.down.app", title: "Update VibeMon", detail: "This widget needs the VibeMon version that installed it.", link: dashboard)
+    static let appUnsupported = Notice(symbol: "arrow.clockwise", title: "Restart VibeMon", detail: "The running App and this widget are different versions.", link: dashboard)
     static let feedUnreadable = Notice(symbol: "exclamationmark.triangle", title: "Data unavailable", detail: "Quit and reopen VibeMon to write the widget data again.", link: dashboard)
 
     static func empty(_ kind: FeedItem.Kind) -> Notice {

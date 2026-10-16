@@ -17,8 +17,8 @@ const METRIC_LIMIT = 3;
 const HORIZON_MS = 60 * 60 * 1000;
 const AGENT_METRICS = [
   { key: 'contextPercent', label: 'Context' },
-  { key: 'usageSessionPercent', label: 'Session', resetsIn: 'usage5hResetsIn', usage: 'session' },
-  { key: 'usageWeekPercent', label: 'Weekly', resetsIn: 'usageWeekResetsIn', usage: 'week' }
+  { key: 'usageSessionPercent', label: 'Session', usage: 'session' },
+  { key: 'usageWeekPercent', label: 'Weekly', usage: 'week' }
 ];
 const GAUGE = { unit: '%', display: 'gauge', min: 0, max: 100 };
 const LINKS = { resource: 'vibemon://dashboard/resources', agent: 'vibemon://dashboard/agents' };
@@ -28,8 +28,8 @@ const LINKS = { resource: 'vibemon://dashboard/resources', agent: 'vibemon://das
  * @param {object} input.cloud MonitoringClient.snapshot(); `evaluatedAt` is its report clock.
  * @param {Array<{id: string, since: number, status: object}>} [input.local] Local projects with an account.
  *   `since` is the wall-clock time at which `status.state` began.
- * @param {Object<string, {session?: {pct: number, resetsAt: number|null}, week?: {pct: number, resetsAt: number|null}}>} [input.usage]
- *   Plan usage on this device by account key (`provider:id`); `resetsAt` is in epoch seconds.
+ * @param {Object<string, {session?: {pct: number}, week?: {pct: number}}>} [input.usage]
+ *   Plan usage on this device by account key (`provider:id`).
  * @param {(character: string) => string|undefined} [input.artwork] Character image file name.
  * @param {number} input.now Wall-clock time in milliseconds.
  * @param {boolean} [input.running] False for the last feed before the App quits.
@@ -85,30 +85,20 @@ function agentAccounts(sources, local, offset) {
 /** A local project in the cloud source shape, timed on the report clock. */
 function localSource({ id, since, status }, offset) {
   const observedAt = new Date(since + offset).toISOString();
-  const agent = { state: status.state, character: status.character, project: status.project };
-  for (const key of ['tool', 'model', 'usage5hResetsIn', 'usageWeekResetsIn']) {
-    if (status[key] !== undefined) agent[key] = status[key];
-  }
   return {
     sourceId: id, kind: 'agent', displayName: status.project, health: 'ok',
-    observedAt, receivedAt: observedAt, agent, account: status.account,
+    observedAt, receivedAt: observedAt, account: status.account,
+    agent: { state: status.state, character: status.character, project: status.project },
     metrics: { contextPercent: status.memory ?? null, usageSessionPercent: status.usage5h ?? null, usageWeekPercent: status.usageWeek ?? null }
   };
 }
 
 function agentItem(account, usage, artwork, now, wall) {
   const latest = account.latest;
-  const metrics = AGENT_METRICS.map(({ key, label, resetsIn, usage: bucket }) => {
-    let value = latest.metrics[key];
-    let resetsAt = null;
-    if (typeof value === 'number' && resetsIn && Number.isSafeInteger(latest.agent[resetsIn])) {
-      resetsAt = wall(Date.parse(latest.observedAt) + latest.agent[resetsIn] * 60000);
-    } else if (typeof value !== 'number' && usage?.[bucket]) {
-      // Hooks omit usage between statusline refreshes; this device's cache has it.
-      value = usage[bucket].pct;
-      resetsAt = usage[bucket].resetsAt === null ? null : new Date(usage[bucket].resetsAt * 1000).toISOString();
-    }
-    return { ...metricEntry({ key, label, ...GAUGE }, value), ...(resetsAt ? { resetsAt } : {}) };
+  const metrics = AGENT_METRICS.map(({ key, label, usage: bucket }) => {
+    // Hooks omit usage between statusline refreshes; this device's cache has it.
+    const value = typeof latest.metrics[key] === 'number' ? latest.metrics[key] : usage?.[bucket]?.pct;
+    return metricEntry({ key, label, ...GAUGE }, value);
   });
   const changes = account.sources.flatMap(source => agentChanges(source.agent.state, Date.parse(source.observedAt)));
   return {

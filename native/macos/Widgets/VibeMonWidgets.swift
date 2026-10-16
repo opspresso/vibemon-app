@@ -60,11 +60,16 @@ struct Provider<Selection: ItemSelection>: AppIntentTimelineProvider {
     let kind: FeedItem.Kind
 
     func placeholder(in context: Context) -> Entry {
-        Entry(date: .now, content: .notice(.empty(kind)))
+        Entry(date: .now, content: .item(Samples.item(kind), running: true))
     }
 
     func snapshot(for configuration: Selection, in context: Context) async -> Entry {
-        Entry(date: .now, content: content(for: configuration))
+        let content = content(for: configuration)
+        // The gallery shows an example until VibeMon has an item of this kind.
+        if context.isPreview, case .notice = content {
+            return Entry(date: .now, content: .item(Samples.item(kind), running: true))
+        }
+        return Entry(date: .now, content: content)
     }
 
     func timeline(for configuration: Selection, in context: Context) async -> Timeline<Entry> {

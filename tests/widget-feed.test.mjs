@@ -21,7 +21,7 @@ const host = (overrides = {}) => {
 const agentSource = (overrides = {}) => ({
   sourceId: 'agent:remote', kind: 'agent', displayName: 'api', receivedAt: iso(-minutes(2)), observedAt: iso(-minutes(2)),
   health: 'ok', stale: false, memoryType: null,
-  agent: { state: 'working', character: 'clawd', project: 'api', usage5hResetsIn: 90 },
+  agent: { state: 'working', character: 'clawd', project: 'api' },
   account: { id: 'work', provider: 'claude', displayName: 'Work' },
   metrics: { contextPercent: 34, usageSessionPercent: 72.4, usageWeekPercent: 91 },
   ...overrides
@@ -80,7 +80,6 @@ test('a coding account ages through idle to inactive and keeps its project', () 
     { at: iso(2 * constants.SLEEP_TIMEOUT_MS - minutes(2)), state: 'inactive', label: 'Inactive', tone: 'neutral', project: 'api' }
   ]);
   assert.deepEqual(item.metrics.map(({ label, value, tone }) => [label, value, tone]), [['Context', '34', 'normal'], ['Session', '72.4', 'warning'], ['Weekly', '91', 'danger']]);
-  assert.equal(item.metrics[1].resetsAt, iso(minutes(88)));
 });
 
 test('an input request from an older project outranks newer work on the same account', () => {
@@ -102,7 +101,6 @@ test('local delivery replaces the cloud copy of a source and fills usage from th
   assert.deepEqual(item.timeline.map(entry => entry.state), ['done', 'idle', 'inactive']);
   assert.equal(item.timeline[1].at, iso(constants.IDLE_TIMEOUT_MS - 30000));
   assert.deepEqual(item.metrics.map(metric => metric.value), ['12', '55', '—']);
-  assert.equal(item.metrics[1].resetsAt, iso(minutes(60)));
   assert.equal(item.observedAt, iso(-30000));
 });
 
