@@ -45,7 +45,7 @@ class MonitoringClient extends EventEmitter {
       : selectedSources === null || selectedSources.includes(source.sourceId));
     const sources = selected.map(source => {
       const displayState = sourceState(source, now);
-      return { ...source, displayMetrics: displayMetrics(source), stale: sourceStale(source, now), displayState, needsAttention: needsAttention(displayState) };
+      return { ...source, displayMetrics: displayMetrics(source, now), stale: sourceStale(source, now), displayState, needsAttention: needsAttention(displayState) };
     });
     const catalogMetrics = metricCatalog(this.catalog);
     const savedMetrics = this.preferences.get('selectedMetrics');

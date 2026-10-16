@@ -105,12 +105,6 @@ export function choices(select, entries, selected) {
   }
   if (document.activeElement !== select) select.value = String(selected);
 }
-export function remaining(seconds) {
-  const minutes = Math.max(0, Math.ceil((seconds * 1000 - Date.now()) / 60000));
-  if (minutes < 60) return `${minutes}m`;
-  if (minutes < 1440) return `${Math.floor(minutes / 60)}h ${minutes % 60}m`;
-  return `${Math.floor(minutes / 1440)}d ${Math.floor((minutes % 1440) / 60)}h`;
-}
 let characterImages = new Map([['vibemon', 'vibemon-v2.png']]);
 export function configureSprites(characters) {
   characterImages = new Map(

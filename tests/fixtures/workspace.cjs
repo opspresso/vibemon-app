@@ -12,13 +12,14 @@ function sources(now = Date.now()) {
     resource('cache', 'Cache service', 'resource', { latency: 12.4, throughput: 1420, connections: 182 }, { resourceType: 'Redis', health: 'warning', statusMessage: 'Latency is above its usual range', metricDefinitions: { latency: { label: 'Response time', unit: 'ms', display: 'gauge', min: 0, max: 50 }, throughput: { label: 'Throughput', unit: 'req/s', display: 'number', min: 0 }, connections: { label: 'Connections', unit: '', display: 'number', min: 0 } }, metricOrder: ['latency', 'throughput', 'connections'] }),
     resource('build-runner', 'Build runner', 'host', { cpuPercent: null, memoryPercent: 42 }, { stale: true, receivedAt: new Date(now - 240000).toISOString() })
   ];
-  for (const [provider, id, displayName, project, session, week, state] of [
-    ['codex', 'team', 'Engineering', 'web-console', 38, 62, 'working'],
-    ['codex', 'personal', 'Personal projects', 'api-gateway', 16, 24, 'idle'],
-    ['claude', 'studio', 'Design studio', 'web-console', 48, 84, 'thinking'],
-    ['kiro', 'lab', 'Research lab', 'experiments', null, null, 'notification']
+  // Reset countdowns are minutes at the observation; Kiro reports no plan usage.
+  for (const [provider, id, displayName, project, session, week, state, resets] of [
+    ['codex', 'team', 'Engineering', 'web-console', 38, 62, 'working', { usage5hResetsIn: 125, usageWeekResetsIn: 4381 }],
+    ['codex', 'personal', 'Personal projects', 'api-gateway', 16, 24, 'idle', { usage5hResetsIn: 42, usageWeekResetsIn: 8640 }],
+    ['claude', 'studio', 'Design studio', 'web-console', 48, 84, 'thinking', { usage5hResetsIn: 18, usageWeekResetsIn: 1500 }],
+    ['kiro', 'lab', 'Research lab', 'experiments', null, null, 'notification', {}]
   ]) {
-    resources.push(resource(`${provider}-${id}`, project, 'agent', { contextPercent: 34, usageSessionPercent: session, usageWeekPercent: week }, { agent: { state, character: provider === 'claude' ? 'clawd' : provider, project, model: provider === 'claude' ? 'Claude' : provider === 'codex' ? 'Codex' : 'Kiro' }, account: { provider, id, displayName } }));
+    resources.push(resource(`${provider}-${id}`, project, 'agent', { contextPercent: 34, usageSessionPercent: session, usageWeekPercent: week }, { agent: { state, character: provider === 'claude' ? 'clawd' : provider, project, model: provider === 'claude' ? 'Claude' : provider === 'codex' ? 'Codex' : 'Kiro', ...resets }, account: { provider, id, displayName } }));
   }
   return resources;
 }

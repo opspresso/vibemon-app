@@ -14,3 +14,4 @@ export function observationAge(timestamp: string | null | undefined, now?: numbe
 export function formatAxisValue(value: number): string;
 export function formatResetTime(minutes: number): string | null;
 export function resetCountdown(resetAt: number | null | undefined, now?: number): string | null;
+export function describeReset(countdown: string | null): string | null;

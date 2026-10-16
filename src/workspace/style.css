@@ -655,6 +655,19 @@ h3 {
 .metric-bar[data-tone='danger'] > span {
   background: var(--vm-danger);
 }
+.metric-reset {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 6px;
+  font-size: 11px;
+  color: var(--vm-muted);
+  font-variant-numeric: tabular-nums;
+}
+.metric-reset > .icon {
+  width: 11px;
+  height: 11px;
+}
 .card-footer {
   display: flex;
   justify-content: space-between;
@@ -767,11 +780,6 @@ h3 {
 }
 .usage-bucket + .usage-bucket {
   margin-top: 12px;
-}
-.usage-reset {
-  font-size: 11px;
-  color: var(--vm-muted);
-  margin-top: 4px;
 }
 .empty {
   grid-column: 1/-1;
@@ -1306,6 +1314,13 @@ dialog::backdrop {
   letter-spacing: -0.5px;
   margin-top: 6px;
 }
+.detail-reading > small {
+  display: block;
+  font-size: 12px;
+  color: var(--vm-muted);
+  margin-top: 4px;
+  font-variant-numeric: tabular-nums;
+}
 .detail-members {
   margin: 12px 0;
 }
@@ -1420,6 +1435,21 @@ dialog::backdrop {
 .compact-card .metric-bar {
   margin-top: 0;
   height: 4px;
+}
+/* A reset time adds a fourth row to every metric of the card, so the gauges stay aligned. */
+.compact-card .metrics:has(.metric-reset:not([hidden])) > .metric {
+  grid-row: span 4;
+}
+.compact-card .metric-reset {
+  margin-top: 0;
+}
+.compact-card .metric-reset-prefix {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
 }
 .compact-card .card-footer {
   padding-top: 12px;

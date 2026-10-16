@@ -54,6 +54,8 @@ export function resetCountdown(resetAt, now = Date.now()) {
   if (typeof resetAt !== 'number' || !Number.isFinite(resetAt) || !Number.isFinite(now)) return null;
   return formatResetTime(Math.max(0, Math.ceil((resetAt - now) / 60000)));
 }
+// The countdown as a sentence for labels and assistive technology.
+export const describeReset = countdown => countdown === null ? null : countdown === 'now' ? 'Resets now' : `Resets in ${countdown}`;
 
 export function formatAxisValue(value) {
   if (typeof value !== 'number' || !Number.isFinite(value)) return '—';
