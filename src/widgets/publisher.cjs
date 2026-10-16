@@ -12,9 +12,9 @@
  * - at most every WIDGET_RELOAD_INTERVAL_MS for other changes, such as a new
  *   metric value or a label change between two active states.
  */
-const fs = require('fs');
 const os = require('os');
 const path = require('path');
+const { writeFileAtomic } = require('../shared/atomic-file.cjs');
 const { agentTransition } = require('../shared/monitoring/state.cjs');
 const { WIDGET_PUBLISH_DELAY_MS, WIDGET_RELOAD_MIN_MS, WIDGET_RELOAD_INTERVAL_MS } = require('../shared/constants.cjs');
 
@@ -22,13 +22,8 @@ const FEED_PATH = path.join(os.homedir(), '.vibemon', 'widgets', 'feed.json');
 // Times are recomputed from two clocks on every build; ignore jitter below this.
 const TIME_TOLERANCE_MS = 2000;
 
-/** Writes the file atomically and readable only by the user. */
-function writeFeedFile(file, text) {
-  fs.mkdirSync(path.dirname(file), { recursive: true, mode: 0o700 });
-  const temporary = `${file}.${process.pid}.tmp`;
-  fs.writeFileSync(temporary, text, { mode: 0o600 });
-  fs.renameSync(temporary, file);
-}
+/** The feed names projects and resources, so only the user can read it. */
+const writeFeedFile = (file, text) => writeFileAtomic(file, text, { mode: 0o600, directoryMode: 0o700 });
 
 /** The display state of an item at an ISO time: the last entry that started by then. */
 function current(item, at) {
