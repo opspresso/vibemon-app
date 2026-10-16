@@ -9,12 +9,12 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const DATA = join(ROOT, 'src/shared/data');
 const CHARACTERS = join(ROOT, 'src/assets/characters');
 
-// Values with an engine drawing branch (vibemon-engine.js drawEyes/drawEffect).
+// Values with an engine drawing branch (vibemon-engine.js drawEyeType/drawEffect).
 const EYE_TYPES = new Set(['normal', 'glasses', 'blink', 'happy']);
 const EFFECTS = new Set(['none', 'sparkle', 'thinking', 'question', 'zzz', 'exclamation']);
 const HEX_COLOR = /^#[0-9A-Fa-f]{6}$/;
 const CANVAS = 128;
-// Palette slots the 3D rig paints (vibemon-engine-3d.js _applyTheme).
+// Palette slots the 3D rig paints (DEFAULT_THEME in monster-states.js).
 const THEME_KEYS = ['body', 'belly', 'accent', 'eye', 'blush', 'flame'];
 
 const errors = [];
