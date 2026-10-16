@@ -1,13 +1,16 @@
 // vibemon-widget-preview: renders widget states to one PNG sheet.
 //
 // The sheet shows every feed item and every notice in light and dark
-// appearance at the macOS small widget size. Use it to review layout
-// changes and to verify that a feed decodes.
+// appearance at the macOS small widget size, then once more in the vibrant
+// mode that macOS uses when the desktop is not focused. The vibrant column is
+// an approximation: it keeps the brightness of each pixel as white. Use the
+// sheet to review layout changes and to verify that a feed decodes.
 //
 // Usage: vibemon-widget-preview <feed.json> <characters-dir> <output.png> [<now ISO 8601>]
 
 import AppKit
 import SwiftUI
+import WidgetKit
 
 let arguments = CommandLine.arguments
 guard (4...5).contains(arguments.count) else {
@@ -34,51 +37,71 @@ let contents: [WidgetContent] = feed.items.map { .item($0, running: feed.running
 struct Tile: View {
     let content: WidgetContent
     let date: Date
+    let vibrant: Bool
 
     var body: some View {
         let view = WidgetContentView(content: content, date: date)
-        view
-            .padding(16)
-            .frame(width: 170, height: 170)
-            .background(ToneBackground(tone: view.tone))
-            .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
-            .overlay(RoundedRectangle(cornerRadius: 22, style: .continuous).strokeBorder(Palette.border, lineWidth: 0.5))
+        let shape = RoundedRectangle(cornerRadius: 22, style: .continuous)
+        if vibrant {
+            // macOS removes the container background and keeps brightness only.
+            view
+                .environment(\.widgetRenderingMode, .vibrant)
+                .padding(16)
+                .frame(width: 170, height: 170)
+                .luminanceToAlpha()
+                .colorInvert()
+                .background(Color.white.opacity(0.08), in: shape)
+        } else {
+            view
+                .padding(16)
+                .frame(width: 170, height: 170)
+                .background(ToneBackground(tone: view.tone))
+                .clipShape(shape)
+                .overlay(shape.strokeBorder(Palette.border, lineWidth: 0.5))
+        }
     }
 }
 
 struct Sheet: View {
     let scheme: ColorScheme
+    let vibrant: Bool
 
     var body: some View {
         LazyVGrid(columns: Array(repeating: GridItem(.fixed(170), spacing: 20), count: 4), spacing: 20) {
-            ForEach(contents.indices, id: \.self) { Tile(content: contents[$0], date: now) }
+            ForEach(contents.indices, id: \.self) { Tile(content: contents[$0], date: now, vibrant: vibrant) }
         }
         .padding(24)
-        .background(Palette.background)
+        .background(vibrant ? Color(white: 0.28) : Palette.background)
         .environment(\.colorScheme, scheme)
     }
 }
 
 @MainActor
-func render(_ scheme: ColorScheme, appearance: NSAppearance.Name) -> CGImage? {
+func render(_ scheme: ColorScheme, appearance: NSAppearance.Name, vibrant: Bool = false) -> CGImage? {
     var image: CGImage?
     NSAppearance(named: appearance)?.performAsCurrentDrawingAppearance {
-        let renderer = ImageRenderer(content: Sheet(scheme: scheme))
+        let renderer = ImageRenderer(content: Sheet(scheme: scheme, vibrant: vibrant))
         renderer.scale = 2
         image = renderer.cgImage
     }
     return image
 }
 
-guard let light = render(.light, appearance: .aqua), let dark = render(.dark, appearance: .darkAqua) else {
+guard let light = render(.light, appearance: .aqua),
+      let dark = render(.dark, appearance: .darkAqua),
+      let vibrant = render(.dark, appearance: .darkAqua, vibrant: true) else {
     FileHandle.standardError.write(Data("cannot render preview\n".utf8))
     exit(1)
 }
-let width = light.width + dark.width
-let height = max(light.height, dark.height)
+let columns = [light, dark, vibrant]
+let width = columns.reduce(0) { $0 + $1.width }
+let height = columns.map(\.height).max() ?? 0
 guard let context = CGContext(data: nil, width: width, height: height, bitsPerComponent: 8, bytesPerRow: 0, space: CGColorSpace(name: CGColorSpace.sRGB)!, bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) else { exit(1) }
-context.draw(light, in: CGRect(x: 0, y: height - light.height, width: light.width, height: light.height))
-context.draw(dark, in: CGRect(x: light.width, y: height - dark.height, width: dark.width, height: dark.height))
+var x = 0
+for column in columns {
+    context.draw(column, in: CGRect(x: x, y: height - column.height, width: column.width, height: column.height))
+    x += column.width
+}
 guard let sheet = context.makeImage(),
       let data = NSBitmapImageRep(cgImage: sheet).representation(using: .png, properties: [:]) else { exit(1) }
 do {

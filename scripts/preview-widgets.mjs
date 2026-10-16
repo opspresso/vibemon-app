@@ -2,7 +2,7 @@
 //
 // The script builds the native products, sends the shared synthetic fixture
 // through MonitoringClient and buildWidgetFeed, and renders every item and
-// notice in light and dark appearance.
+// notice in light and dark appearance and in the approximate vibrant mode.
 //
 // Output: out/widgets/feed.json and out/widgets/preview.png
 import { execFileSync } from 'node:child_process';

@@ -237,27 +237,34 @@ private struct ResourceIcon: View {
 }
 
 /// Pixel-art character from the bundled `characters` folder.
+///
+/// When the desktop is not focused, macOS draws widgets in the vibrant mode:
+/// it keeps only the brightness of each pixel. An opaque tile behind the art
+/// then becomes one bright square, so other modes draw the art alone.
 struct CharacterArt: View {
     /// Folders searched for character images. The preview tool replaces it.
     nonisolated(unsafe) static var directories: [URL] = [Bundle.main.resourceURL?.appendingPathComponent("characters")].compactMap { $0 }
     static let fallback = "vibemon-v2.png"
 
     let file: String?
+    @Environment(\.widgetRenderingMode) private var renderingMode
 
     var body: some View {
+        let fullColor = renderingMode == .fullColor
         Group {
             if let image = Self.image(named: file) ?? Self.image(named: Self.fallback) {
                 Image(nsImage: image)
                     .resizable()
                     .interpolation(.none)
+                    .desaturatedWhenAccented()
                     .aspectRatio(contentMode: .fit)
                     // Light characters, such as Kiro, need an edge on a light tile.
-                    .shadow(color: Palette.foreground.opacity(0.35), radius: 0.6)
-                    .padding(3)
+                    .shadow(color: fullColor ? Palette.foreground.opacity(0.35) : .clear, radius: 0.6)
+                    .padding(fullColor ? 3 : 1)
             }
         }
         .frame(width: 28, height: 28)
-        .background(Palette.subtle, in: RoundedRectangle(cornerRadius: 7, style: .continuous))
+        .background(fullColor ? Palette.subtle : .clear, in: RoundedRectangle(cornerRadius: 7, style: .continuous))
         .accessibilityHidden(true)
     }
 
@@ -268,6 +275,18 @@ struct CharacterArt: View {
             if let image = NSImage(contentsOf: directory.appendingPathComponent(file)) { return image }
         }
         return nil
+    }
+}
+
+private extension Image {
+    /// Keeps the art in gray instead of one accent color where macOS supports it.
+    @ViewBuilder
+    func desaturatedWhenAccented() -> some View {
+        if #available(macOS 15, *) {
+            widgetAccentedRenderingMode(.desaturated)
+        } else {
+            self
+        }
     }
 }
 
