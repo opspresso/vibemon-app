@@ -4,6 +4,11 @@
 
 const { screen } = require('electron');
 
+// The level of an always-on-top overlay. The character and its speech bubble
+// share it so they stack together. macOS: 'floating' keeps the tray menu
+// above the overlays. Windows/Linux: 'screen-saver' keeps them visible in WSL.
+const ALWAYS_ON_TOP_LEVEL = process.platform === 'darwin' ? 'floating' : 'screen-saver';
+
 /**
  * Center the window on the display the cursor is on, clamped to its work
  * area — tray-opened windows would otherwise always open on the primary
@@ -23,4 +28,4 @@ function centerOnCursorDisplay(window) {
   window.setBounds({ x, y, width, height });
 }
 
-module.exports = { centerOnCursorDisplay };
+module.exports = { ALWAYS_ON_TOP_LEVEL, centerOnCursorDisplay };

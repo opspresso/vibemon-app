@@ -14,11 +14,7 @@ const { HTTP_PORT } = require('../shared/config.cjs');
 const { webOrigin, sameWebOrigin } = require('../shared/web-origin.cjs');
 const { writeFileAtomic } = require('../shared/atomic-file.cjs');
 
-function homePath(...segments) {
-  return path.join(os.homedir(), ...segments);
-}
-
-const VIBEMON_HOME = homePath('.vibemon');
+const VIBEMON_HOME = path.join(os.homedir(), '.vibemon');
 const VIBEMON_CONFIG_PATH = path.join(VIBEMON_HOME, 'config.json');
 const DESKTOP_HTTP_URL = `http://127.0.0.1:${HTTP_PORT}`;
 

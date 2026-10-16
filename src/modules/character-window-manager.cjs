@@ -11,6 +11,7 @@
 const { BrowserWindow, screen } = require('electron');
 const path = require('path');
 const { trackWindowPointer } = require('./window-pointer.cjs');
+const { ALWAYS_ON_TOP_LEVEL } = require('./window-position.cjs');
 const { dockCorner, fitDockLayout } = require('./dock-layout.cjs');
 const Store = require('electron-store');
 const {
@@ -72,11 +73,6 @@ function repinAxis(pos, oldSize, newSize, oldStart, oldLength, newStart, newLeng
 // before those guards existed still send it — drop it at the shared
 // ingestion point so it can never reach the registry, focus, or window.
 const INTERNAL_PROJECT_ID = '.vibemon';
-
-// Platform-specific always-on-top level
-// macOS: 'floating' (required for tray menu visibility)
-// Windows/Linux: 'screen-saver' (required for window visibility in WSL/Windows)
-const ALWAYS_ON_TOP_LEVEL = process.platform === 'darwin' ? 'floating' : 'screen-saver';
 
 // WINDOW_WIDTH/WINDOW_HEIGHT are the full-size (100%) dimensions; the
 // Character Size setting scales both — see windowSize().
