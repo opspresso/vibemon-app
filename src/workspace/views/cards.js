@@ -41,7 +41,7 @@ export function createMetric() {
   bar.append(fill);
   // Compact cards show the reset time only as a tooltip (see style.css).
   const reset = el('p', undefined, 'metric-reset');
-  const resetPrefix = el('span', undefined, 'metric-reset-prefix');
+  const resetPrefix = el('span');
   const resetTime = el('span');
   reset.append(icon('refresh'), resetPrefix, resetTime);
   node.append(label, bar, reset);
