@@ -1436,14 +1436,9 @@ dialog::backdrop {
   margin-top: 0;
   height: 4px;
 }
-/* A reset time adds a fourth row to every metric of the card, so the gauges stay aligned. */
-.compact-card .metrics:has(.metric-reset:not([hidden])) > .metric {
-  grid-row: span 4;
-}
+/* Overview cards keep a fixed height so both categories fit the minimum
+   window. Their reset time is a tooltip and is read by assistive technology. */
 .compact-card .metric-reset {
-  margin-top: 0;
-}
-.compact-card .metric-reset-prefix {
   position: absolute;
   width: 1px;
   height: 1px;

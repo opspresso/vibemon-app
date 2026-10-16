@@ -18,7 +18,7 @@ Latest state is polled every 30 seconds, restricted to the saved selection. Sele
 
 Cloud report age is anchored to the response's `serverTime` and advances with a monotonic elapsed clock. The computer's date or time-zone settings do not change freshness, attention, or the recent-hour window. Failed requests keep aging the last accepted snapshot; they do not reset its age.
 
-Session and weekly usage show the time until that plan limit resets, for example `Resets in 2h5m`, in the companion bubble, account cards, account details, the usage panel, and the macOS widgets. The format is `now`, `42m`, `2h5m`, or `3d1h`. Nothing is shown when the hook reports no reset time.
+Session and weekly usage show the time until that plan limit resets, for example `Resets in 2h5m`, in the companion bubble, the account cards on **Coding agents**, account details, the usage panel, and the macOS widgets. The smaller Overview cards show it when you point to a usage metric. The format is `now`, `42m`, `2h5m`, or `3d1h`. Nothing is shown when the hook reports no reset time.
 
 Cloud reset countdowns use the observation timestamp and the same cloud clock. Local hook countdowns use their local observation time. Each monitoring poll refreshes a visible bubble only when its displayed values change; this does not refresh agent activity, extend sleep timers, or reopen a closed companion. A legacy report without an observation timestamp keeps its supplied duration.
 

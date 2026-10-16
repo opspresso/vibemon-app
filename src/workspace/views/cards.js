@@ -39,7 +39,7 @@ export function createMetric() {
   const bar = el('div', undefined, 'metric-bar');
   const fill = el('span');
   bar.append(fill);
-  // Compact cards show only the time; the prefix stays for assistive technology.
+  // Compact cards show the reset time only as a tooltip (see style.css).
   const reset = el('p', undefined, 'metric-reset');
   const resetPrefix = el('span', undefined, 'metric-reset-prefix');
   const resetTime = el('span');
@@ -70,11 +70,12 @@ export function updateMetric(node, { metric, value, label, precise = false, now 
   }
   const countdown = available ? resetCountdown(metric.resetAt, now) : null;
   reset.hidden = countdown === null;
-  if (countdown !== null) {
+  if (countdown === null) node.removeAttribute('title');
+  else {
     const sentence = describeReset(countdown);
     text(resetPrefix, sentence.slice(0, -countdown.length));
     text(resetTime, countdown);
-    reset.title = `${sentence} · ${new Date(Date.now() + metric.resetAt - now).toLocaleString()}`;
+    node.title = `${sentence} · ${new Date(Date.now() + metric.resetAt - now).toLocaleString()}`;
   }
 }
 
