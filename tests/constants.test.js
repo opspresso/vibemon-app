@@ -34,3 +34,8 @@ test('edge margins start flush with the edge and only grow', () => {
   expect(constants.EDGE_MARGINS[0]).toBe(0);
   expect([...constants.EDGE_MARGINS].sort((a, b) => a - b)).toEqual(constants.EDGE_MARGINS);
 });
+
+test('the character window fits the sprite plus its floating clearance', () => {
+  // 5px is FLOAT_AMPLITUDE_Y in vibemon-engine.js; .vibemon-display in styles.css uses the same height.
+  expect(constants.WINDOW_HEIGHT).toBe(constants.CHAR_Y_BASE + constants.CHAR_SIZE + 5);
+});

@@ -15,6 +15,7 @@ const { dockCorner, fitDockLayout } = require('./dock-layout.cjs');
 const Store = require('electron-store');
 const {
   WINDOW_WIDTH,
+  WINDOW_HEIGHT,
   MAX_STATE_REGISTRY_SIZE,
   SNAP_THRESHOLD,
   SNAP_DEBOUNCE_MS,
@@ -24,8 +25,6 @@ const {
   SPEECH_BUBBLE_FIELDS,
   CHARACTER_NAMES,
   DEFAULT_CHARACTER,
-  CHAR_Y_BASE,
-  CHAR_SIZE,
   CHARACTER_SCALES,
   CHARACTER_3D_RENDER_SCALE,
   CHARACTER_3D_PADDING,
@@ -79,13 +78,8 @@ const INTERNAL_PROJECT_ID = '.vibemon';
 // Windows/Linux: 'screen-saver' (required for window visibility in WSL/Windows)
 const ALWAYS_ON_TOP_LEVEL = process.platform === 'darwin' ? 'floating' : 'screen-saver';
 
-// Window height: just tall enough for the character sprite
-// (CHAR_Y_BASE + CHAR_SIZE) plus exactly the clearance its floating
-// animation needs (FLOAT_AMPLITUDE_Y in vibemon-engine.js). Must stay in
-// sync with .vibemon-display in styles.css.
 // WINDOW_WIDTH/WINDOW_HEIGHT are the full-size (100%) dimensions; the
 // Character Size setting scales both — see windowSize().
-const WINDOW_HEIGHT = CHAR_Y_BASE + CHAR_SIZE + 5;
 
 class CharacterWindowManager {
   constructor({ dockMonitor = null } = {}) {
