@@ -19,7 +19,7 @@
     "kiro/hooks/vibemon.py": "07bab6364ddcc314fa2af4741dea4bb02d0ad30138dfe5c052b95ee39406d6a0",
     "kiro/hooks/vibemon.json": "b4f43d0d1f3ae7f9884a2379ecc8d3f9ff62ac7b166f4b0b5e1f6a2c959cb2b9",
     "kiro/hooks/vibemon-session-end.json": "0892e909e9bb9f333f4208bb14f95554f9b01153df1b0057b0e056c02b9d06b9",
-    "openclaw/extensions/index.mjs": "ee7a02da47c9577ba8d32943cc9170241247ba62f4958c5f1cae8beb21d219ea",
+    "openclaw/extensions/index.mjs": "a6a150071984d435e11d441d17c0b87a95a10181e8c11f66fd50114346f73a5e",
     "openclaw/extensions/openclaw.plugin.json": "128a5d1b57649575b25764614e5d8a8e93f68ab2b63d69ae759f244f125d49b0",
     "opencode/plugin/vibemon.js": "94e77897400629555448d5d5ba438d0d04716ee84c79d6bc33adc63ee9582e5b",
     "opencode/hooks/vibemon.py": "da432f78fc9f31d75dcfb9d1bbb5bfe6542de80583314cd574d265c501fb837c"
