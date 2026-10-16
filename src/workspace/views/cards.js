@@ -1,4 +1,4 @@
-import { measurementUnit, stateTone } from '../../shared/design/presentation.mjs';
+import { measurementUnit, metricTone, resourceType, stateTone } from '../../shared/design/presentation.mjs';
 import {
   el,
   text,
@@ -14,10 +14,6 @@ import {
   remaining
 } from '../dom.js';
 
-export const resourceType = (source) =>
-  source.resourceType ||
-  { host: 'Host', cluster: 'Kubernetes', resource: 'Resource' }[source.kind] ||
-  'Resource';
 export const accountCard = (account) => ({
   ...account.latest,
   sourceId: account.accountId,
@@ -64,12 +60,7 @@ export function updateMetric(node, { metric, value, label, precise = false }) {
     bar.setAttribute('aria-valuemax', metric.max);
     bar.setAttribute('aria-valuenow', Math.max(metric.min, Math.min(metric.max, value)));
     bar.setAttribute('aria-valuetext', reading(value, metric.unit, precise));
-    bar.dataset.tone =
-      metric.key.startsWith('usage') && value >= 90
-        ? 'danger'
-        : metric.key.startsWith('usage') && value >= 70
-          ? 'warning'
-          : 'normal';
+    bar.dataset.tone = metricTone(metric.key, value);
   }
 }
 

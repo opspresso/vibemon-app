@@ -1,6 +1,6 @@
-import { formatAxisValue } from '../../shared/design/presentation.mjs';
+import { formatAxisValue, resourceType } from '../../shared/design/presentation.mjs';
 import { $, el, text, choices, keyed, svg, reading, badge, providerName, stateLabel, ago } from '../dom.js';
-import { resourceType, accountCard, sourceState } from './cards.js';
+import { accountCard, sourceState } from './cards.js';
 
 export function setupDetail({ getFrame, cloudTime, request, run }) {
   const dialog = $('detail-dialog');
