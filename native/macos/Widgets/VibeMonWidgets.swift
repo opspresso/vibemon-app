@@ -33,7 +33,7 @@ struct AgentWidget: Widget {
             EntryView(entry: entry)
         }
         .configurationDisplayName("Coding Agent")
-        .description("State, project, and usage of one coding agent account.")
+        .description("State and usage of one coding agent account.")
         .supportedFamilies([.systemSmall])
     }
 }

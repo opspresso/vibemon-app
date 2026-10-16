@@ -84,8 +84,6 @@ struct FeedStatus: Decodable, Sendable, Equatable {
     let state: String
     let label: String
     let tone: Tone
-    /// The project that the agent state belongs to.
-    let project: String?
 }
 
 struct FeedMetric: Decodable, Sendable, Identifiable {

@@ -109,10 +109,7 @@ function agentItem(account, usage, artwork, now, wall) {
     artwork: artwork(latest.agent.character),
     observedAt: wall(Date.parse(latest.observedAt)),
     metrics,
-    timeline: timeline(changes, now, wall, time => {
-      const { state, project } = accountActivity(account, time);
-      return { ...status(state), project };
-    }),
+    timeline: timeline(changes, now, wall, time => status(accountActivity(account, time).state)),
     link: LINKS.agent
   };
 }

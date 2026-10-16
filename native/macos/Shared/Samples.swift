@@ -18,7 +18,7 @@ enum Samples {
              "metrics":[{"key":"context","label":"Context","value":"34","unit":"%","fraction":0.34,"tone":"normal"},
                         {"key":"session","label":"Session","value":"48","unit":"%","fraction":0.48,"tone":"normal"},
                         {"key":"week","label":"Weekly","value":"72","unit":"%","fraction":0.72,"tone":"warning"}],
-             "timeline":[{"at":"\(at)","state":"working","label":"Working","tone":"active","project":"my-project"}],"link":"vibemon://dashboard/agents"}
+             "timeline":[{"at":"\(at)","state":"working","label":"Working","tone":"active"}],"link":"vibemon://dashboard/agents"}
             """
         }
         // The literals above are fixed and valid; a decoding failure is a programming error.
