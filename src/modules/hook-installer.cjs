@@ -1,4 +1,3 @@
-const { describeFailure } = require('../shared/install-result.cjs');
 /**
  * AI tool hook installer for Vibe Monitor
  *
@@ -18,8 +17,10 @@ const crypto = require('crypto');
 const { spawn } = require('child_process');
 const { dialog, shell } = require('electron');
 const Store = require('electron-store');
-const { DOCS_BASE_URL, INSTALLER_SHA256 } = require('../shared/config.cjs');
+const { DOCS_BASE_URL, INSTALLER_SHA256, HOOK_DOWNLOAD_TIMEOUT_MS } = require('../shared/config.cjs');
+const { describeFailure } = require('../shared/install-result.cjs');
 const { findPython, SPAWN_DEFAULTS, IS_WINDOWS } = require('./python-runtime.cjs');
+const { expandHome } = require('./usage-cache-reader.cjs');
 
 // Tolerate an accidental trailing slash on the (env-overridable) base URL.
 const DOCS_BASE = DOCS_BASE_URL.replace(/\/+$/, '');
@@ -210,12 +211,7 @@ function homePath(...segments) {
  */
 function resolveToolHome(envName, defaultDir) {
   const configured = String(process.env[envName] || '').trim();
-  if (!configured) return homePath(defaultDir);
-  if (configured === '~') return os.homedir();
-  if (configured.startsWith('~/') || configured.startsWith('~\\')) {
-    return path.join(os.homedir(), configured.slice(2));
-  }
-  return path.resolve(configured);
+  return configured ? expandHome(configured) : homePath(defaultDir);
 }
 
 function isOpenClawRegistered(docs) {
@@ -502,8 +498,8 @@ class HookInstaller {
   }
 
   /**
-   * Recompute and cache each tool's status. Blocking (spawns `which`/`where`
-   * per tool and reads its config files) — safe to call occasionally (startup,
+   * Recompute and cache each tool's status. Blocking (scans PATH for each
+   * tool's command and reads its config files) — safe to call occasionally (startup,
    * periodic check, after an install), not on every render.
    *
    * `hasHook` means installed *and wired up*: a script file whose registration
@@ -571,7 +567,7 @@ class HookInstaller {
   /** Download bounded text and settle stalled or interrupted requests. */
   downloadText(relativePath) {
     return new Promise((resolve, reject) => {
-      const req = https.get(`${DOCS_BASE}/${relativePath}`, { timeout: 30000 }, res => {
+      const req = https.get(`${DOCS_BASE}/${relativePath}`, { timeout: HOOK_DOWNLOAD_TIMEOUT_MS }, res => {
         if (res.statusCode !== 200) {
           res.resume();
           reject({ reason: 'download-failed', statusCode: res.statusCode });
