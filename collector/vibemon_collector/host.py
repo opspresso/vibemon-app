@@ -5,7 +5,7 @@ import shutil
 import subprocess
 import psutil
 from .domain import Sample
-from .disk import DISK_METRICS, HOST_DEFINITIONS
+from .disk import DISK_METRICS, HOST_DEFINITIONS, checked_capacity, disk_values
 
 
 def number(value: str, maximum: float) -> float | None:
@@ -50,10 +50,8 @@ class HostSampler:
         if set(values).intersection(DISK_METRICS):
             try:
                 disk = psutil.disk_usage('/')
-                if any(isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value) for value in (disk.free, disk.total)) or not 0 <= disk.free <= disk.total or disk.total <= 0:
-                    raise ValueError('Invalid filesystem capacity')
-                disk_values = dict(zip(DISK_METRICS, (disk.free / 1024 ** 3, disk.total / 1024 ** 3, 100 * (1 - disk.free / disk.total))))
-                values.update({key: value for key, value in disk_values.items() if key in values})
+                measured = disk_values(*checked_capacity(disk.free, disk.total))
+                values.update({key: value for key, value in measured.items() if key in values})
             except (OSError, ValueError):
                 failed = True
         if self.gpu_command and any(key in values for key in ("gpuPercent", "gpuTemperatureC")):

@@ -1,11 +1,11 @@
 """Read node root-filesystem statistics using only nodes/stats permission."""
 import ipaddress
 import json
-import math
 import ssl
 from datetime import datetime
 from pathlib import Path
 from urllib.request import HTTPSHandler, ProxyHandler, Request, build_opener
+from .disk import checked_capacity
 from .transport import NoRedirect
 
 SERVICE_ACCOUNT = Path('/var/run/secrets/kubernetes.io/serviceaccount')
@@ -40,7 +40,4 @@ def filesystem(response, name, now):
     timestamp = datetime.fromisoformat(fs['time'].replace('Z', '+00:00'))
     if timestamp.tzinfo is None or not -30 <= now - timestamp.timestamp() <= 120:
         raise ValueError('Stale filesystem statistics')
-    available, capacity = fs['availableBytes'], fs['capacityBytes']
-    if any(isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value) for value in (available, capacity)) or not 0 <= available <= capacity or capacity <= 0:
-        raise ValueError('Invalid filesystem capacity')
-    return available, capacity
+    return checked_capacity(fs['availableBytes'], fs['capacityBytes'])
