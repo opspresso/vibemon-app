@@ -7,10 +7,10 @@ const { IDLE_TIMEOUT_MS, WIDGET_PUBLISH_DELAY_MS, WIDGET_RELOAD_MIN_MS, WIDGET_R
 const T0 = Date.parse('2026-10-16T09:00:00.000Z');
 const iso = ms => new Date(ms).toISOString();
 
-function item({ id = 'resource:a', tone = 'good', state = 'ok', metric = '1', timeline } = {}) {
+function item({ id = 'resource:a', tone = 'good', state = 'ok', metric = '1', timeline, resetsAt } = {}) {
   return {
     id, kind: 'resource', title: 'A', subtitle: 'Host', observedAt: iso(T0), link: 'vibemon://dashboard/resources',
-    metrics: [{ key: 'cpuPercent', label: 'CPU', value: metric, unit: '%', fraction: 0.01, tone: 'normal' }],
+    metrics: [{ key: 'cpuPercent', label: 'CPU', value: metric, unit: '%', fraction: 0.01, tone: 'normal', ...(resetsAt ? { resetsAt } : {}) }],
     timeline: timeline ?? [{ at: iso(T0), state, label: state, tone }]
   };
 }
@@ -97,6 +97,19 @@ describe('WidgetPublisher', () => {
     expect(writes).toHaveLength(3);
     expect(reloads).toEqual([T0]);
     advance(WIDGET_RELOAD_INTERVAL_MS);
+    expect(reloads).toEqual([T0, T0 + WIDGET_RELOAD_INTERVAL_MS]);
+  });
+
+  test('reset time jitter needs no reload, but a moved reset does', () => {
+    const { publisher, reloads, setItems, advance } = setup();
+    setItems([item({ resetsAt: iso(T0 + 3600000) })]);
+    publisher.publish();
+    setItems([item({ resetsAt: iso(T0 + 3600000 + 500) })]);
+    publisher.publish();
+    advance(WIDGET_RELOAD_INTERVAL_MS);
+    expect(reloads).toEqual([T0]);
+    setItems([item({ resetsAt: iso(T0 + 7200000) })]);
+    publisher.publish();
     expect(reloads).toEqual([T0, T0 + WIDGET_RELOAD_INTERVAL_MS]);
   });
 

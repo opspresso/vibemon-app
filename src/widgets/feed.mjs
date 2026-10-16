@@ -6,9 +6,11 @@
 // so a widget keeps aging correctly between App writes.
 import { accountName, formatMeasurement, measurementUnit, metricTone, providerLabel, resourceType, stateLabel, stateTone } from '../shared/design/presentation.mjs';
 import monitoring from '../shared/monitoring/state.cjs';
+import clock from '../shared/monitoring/clock.cjs';
 import constants from '../shared/constants.cjs';
 
 const { accountActivity, agentTransition, groupAccounts, sourceState } = monitoring;
+const { usageResetAt } = clock;
 
 export const WIDGET_FEED_VERSION = 1;
 // A small widget shows three metric rows.
@@ -28,8 +30,8 @@ const LINKS = { resource: 'vibemon://dashboard/resources', agent: 'vibemon://das
  * @param {object} input.cloud MonitoringClient.snapshot(); `evaluatedAt` is its report clock.
  * @param {Array<{id: string, since: number, status: object}>} [input.local] Local projects with an account.
  *   `since` is the wall-clock time at which `status.state` began.
- * @param {Object<string, {session?: {pct: number}, week?: {pct: number}}>} [input.usage]
- *   Plan usage on this device by account key (`provider:id`).
+ * @param {Object<string, {session?: {pct: number, resetsAt: number|null}, week?: {pct: number, resetsAt: number|null}}>} [input.usage]
+ *   Plan usage on this device by account key (`provider:id`). `resetsAt` is in epoch seconds.
  * @param {(character: string) => string|undefined} [input.artwork] Character image file name.
  * @param {number} input.now Wall-clock time in milliseconds.
  * @param {boolean} [input.running] False for the last feed before the App quits.
@@ -44,7 +46,7 @@ export function buildWidgetFeed({ cloud, local = [], usage = {}, artwork = () =>
   const resources = cloud.sources
     .filter(source => source.kind !== 'agent')
     .map(source => resourceItem(source, selected, reportNow, wall));
-  const agents = agentAccounts(cloud.sources, local, offset)
+  const agents = agentAccounts(cloud.sources, local, offset, now)
     .map(account => agentItem(account, usage[account.accountId], artwork, reportNow, wall));
   const byTitle = (a, b) => a.title.localeCompare(b.title) || a.subtitle.localeCompare(b.subtitle) || (a.id < b.id ? -1 : 1);
   return {
@@ -76,29 +78,40 @@ function resourceItem(source, selected, now, wall) {
 }
 
 /** Cloud and local projects grouped by account. Local delivery owns a shared source. */
-function agentAccounts(sources, local, offset) {
+function agentAccounts(sources, local, offset, now) {
   const localIds = new Set(local.map(project => project.status.sourceId).filter(Boolean));
   const cloud = sources.filter(source => source.kind === 'agent' && !localIds.has(source.sourceId));
-  return groupAccounts([...cloud, ...local.map(project => localSource(project, offset))]);
+  return groupAccounts([...cloud, ...local.map(project => localSource(project, offset, now))]);
 }
 
 /** A local project in the cloud source shape, timed on the report clock. */
-function localSource({ id, since, status }, offset) {
+function localSource({ id, since, status }, offset, now) {
   const observedAt = new Date(since + offset).toISOString();
+  // `since` is when the state began. Hooks measure reset countdowns when they
+  // build a report, so those count from the report's own observation time.
+  const resets = Object.fromEntries(AGENT_METRICS.map(({ key }) => {
+    const resetAt = usageResetAt(key, status, status.observedAt, now);
+    return [key, resetAt === null ? null : resetAt + offset];
+  }));
   return {
     sourceId: id, kind: 'agent', displayName: status.project, health: 'ok',
     observedAt, receivedAt: observedAt, account: status.account,
     agent: { state: status.state, character: status.character, project: status.project },
-    metrics: { contextPercent: status.memory ?? null, usageSessionPercent: status.usage5h ?? null, usageWeekPercent: status.usageWeek ?? null }
+    metrics: { contextPercent: status.memory ?? null, usageSessionPercent: status.usage5h ?? null, usageWeekPercent: status.usageWeek ?? null },
+    resets
   };
 }
 
 function agentItem(account, usage, artwork, now, wall) {
   const latest = account.latest;
   const metrics = AGENT_METRICS.map(({ key, label, usage: bucket }) => {
+    if (typeof latest.metrics[key] === 'number') {
+      const resetAt = latest.resets ? latest.resets[key] : usageResetAt(key, latest.agent, latest.observedAt, now);
+      return metricEntry({ key, label, ...GAUGE }, latest.metrics[key], resetAt === null ? null : wall(resetAt));
+    }
     // Hooks omit usage between statusline refreshes; this device's cache has it.
-    const value = typeof latest.metrics[key] === 'number' ? latest.metrics[key] : usage?.[bucket]?.pct;
-    return metricEntry({ key, label, ...GAUGE }, value);
+    const cached = usage?.[bucket];
+    return metricEntry({ key, label, ...GAUGE }, cached?.pct, Number.isFinite(cached?.resetsAt) ? new Date(cached.resetsAt * 1000).toISOString() : null);
   });
   const changes = account.sources.flatMap(source => agentChanges(source.agent.state, Date.parse(source.observedAt)));
   return {
@@ -140,7 +153,8 @@ function timeline(changes, now, wall, evaluate) {
 
 const status = state => ({ state, label: stateLabel(state), tone: stateTone(state) });
 
-function metricEntry(metric, value) {
+/** `resetsAt` is the wall-clock ISO time at which a plan usage limit resets; the widget counts down to it. */
+function metricEntry(metric, value, resetsAt = null) {
   const available = typeof value === 'number' && Number.isFinite(value);
   return {
     key: metric.key,
@@ -148,6 +162,7 @@ function metricEntry(metric, value) {
     value: formatMeasurement(value, metric.unit, false, '—', false),
     unit: available ? measurementUnit(metric.unit) : '',
     fraction: available && metric.display === 'gauge' ? Math.max(0, Math.min(1, (value - metric.min) / (metric.max - metric.min))) : null,
-    tone: metricTone(metric.key, value)
+    tone: metricTone(metric.key, value),
+    ...(available && resetsAt ? { resetsAt } : {})
   };
 }

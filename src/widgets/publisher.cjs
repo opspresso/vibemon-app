@@ -35,6 +35,12 @@ function urgentKey(feed, at) {
   return JSON.stringify([feed.running, feed.items.map(item => [item.id, item.title, item.artwork, current(item, at).tone])]);
 }
 
+const sameTime = (a, b) => a === b || (Boolean(a) && Boolean(b) && Math.abs(Date.parse(a) - Date.parse(b)) < TIME_TOLERANCE_MS);
+const sameMetrics = (a, b) => a.length === b.length && a.every(({ resetsAt, ...metric }, index) => {
+  const { resetsAt: next, ...other } = b[index];
+  return sameTime(resetsAt, next) && JSON.stringify(metric) === JSON.stringify(other);
+});
+
 /** Everything else that a widget renders after `at`. */
 function sameRendering(previous, next, at) {
   if (previous.items.length !== next.items.length) return false;
@@ -45,10 +51,10 @@ function sameRendering(previous, next, at) {
     const state = entry => JSON.stringify([entry.state, entry.label]);
     return state(current(before, at)) === state(current(after, at))
       && before.message === after.message
-      && JSON.stringify(before.metrics) === JSON.stringify(after.metrics)
-      && Math.abs(Date.parse(before.observedAt) - Date.parse(after.observedAt)) < TIME_TOLERANCE_MS
+      && sameMetrics(before.metrics, after.metrics)
+      && sameTime(before.observedAt, after.observedAt)
       && old.length === upcoming.length
-      && old.every((entry, step) => state(entry) === state(upcoming[step]) && Math.abs(Date.parse(entry.at) - Date.parse(upcoming[step].at)) < TIME_TOLERANCE_MS);
+      && old.every((entry, step) => state(entry) === state(upcoming[step]) && sameTime(entry.at, upcoming[step].at));
   });
 }
 
