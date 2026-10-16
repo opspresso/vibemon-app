@@ -211,6 +211,19 @@ describe('cloud monitoring', () => {
     for (const value of [-1, 101, Infinity, NaN]) expect(() => validateSources([{ ...raw, agent: { ...raw.agent, usageWeekModel: value } }])).toThrow();
     expect(() => validateSources([{ ...raw, agent: { ...raw.agent, usageWeekModelResetsIn: 1.5 } }])).toThrow();
   });
+  test('agent plan usage metrics carry their reset time on the report clock', async () => {
+    const { client, fetchImpl } = fixture();
+    const observed = 1000000 - 90000;
+    fetchImpl.mockResolvedValue(okResponse({ sources: [source(1000000), { ...source(observed), sourceId: 'work', kind: 'agent', memoryType: null,
+      metrics: { usageSessionPercent: 40, usageWeekPercent: 20 }, account: { provider: 'codex', id: 'work', displayName: 'Work' },
+      agent: { state: 'working', character: 'codex', project: 'demo', usage5hResetsIn: 125 } }] }));
+    await client.poll(true);
+    const metrics = Object.fromEntries(client.snapshot().accounts[0].latest.displayMetrics.map(metric => [metric.key, metric]));
+    expect(metrics.usageSessionPercent.resetAt).toBe(observed + 125 * 60000);
+    expect(metrics.usageWeekPercent).not.toHaveProperty('resetAt');
+    expect(metrics.contextPercent).not.toHaveProperty('resetAt');
+    expect(client.snapshot().sources.find(item => item.kind === 'host').displayMetrics.some(metric => 'resetAt' in metric)).toBe(false);
+  });
 });
 
 describe('credential storage', () => {

@@ -96,7 +96,7 @@ private struct ItemView: View {
             }
             Spacer(minLength: 8)
             VStack(alignment: .leading, spacing: 6) {
-                ForEach(item.metrics.prefix(3)) { MetricRow(metric: $0) }
+                ForEach(item.metrics.prefix(3)) { MetricRow(metric: $0, date: date) }
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
@@ -165,14 +165,29 @@ private struct StatusLine: View {
 
 private struct MetricRow: View {
     let metric: FeedMetric
+    let date: Date
 
     var body: some View {
+        let countdown = metric.resetsAt.map { Countdown.text(until: $0, now: date) }
         VStack(alignment: .leading, spacing: 3) {
             HStack(alignment: .firstTextBaseline, spacing: 4) {
                 Text(metric.label)
                     .font(.system(size: 10, weight: .medium))
                     .foregroundStyle(Palette.muted)
                     .lineLimit(1)
+                if let countdown {
+                    // The reset time gives way first when the row is narrow.
+                    HStack(alignment: .firstTextBaseline, spacing: 1) {
+                        Image(systemName: "arrow.clockwise")
+                            .font(.system(size: 7, weight: .semibold))
+                        Text(countdown)
+                            .font(.system(size: 9.5, weight: .medium))
+                            .monospacedDigit()
+                    }
+                    .foregroundStyle(Palette.muted)
+                    .lineLimit(1)
+                    .layoutPriority(-1)
+                }
                 Spacer(minLength: 4)
                 HStack(alignment: .firstTextBaseline, spacing: 0) {
                     Text(metric.value)
@@ -192,7 +207,7 @@ private struct MetricRow: View {
         }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(metric.label)
-        .accessibilityValue("\(metric.value)\(metric.unit)")
+        .accessibilityValue(countdown.map { "\(metric.value)\(metric.unit), \(Countdown.sentence($0))" } ?? "\(metric.value)\(metric.unit)")
     }
 }
 
@@ -329,5 +344,29 @@ enum Age {
         case ..<86400: return "\(seconds / 3600)h"
         default: return "\(seconds / 86400)d"
         }
+    }
+}
+
+/// Time left until a plan usage limit resets. It matches `formatResetTime` in
+/// `src/shared/design/presentation.mjs`: "now", "24m", "2h5m", or "3d4h".
+enum Countdown {
+    static func minutes(until date: Date, now: Date) -> Int {
+        max(0, Int((date.timeIntervalSince(now) / 60).rounded(.up)))
+    }
+
+    static func text(until date: Date, now: Date) -> String {
+        let minutes = minutes(until: date, now: now)
+        switch minutes {
+        case 0: return "now"
+        case ..<60: return "\(minutes)m"
+        case ..<1440: return minutes % 60 == 0 ? "\(minutes / 60)h" : "\(minutes / 60)h\(minutes % 60)m"
+        default:
+            let hours = minutes % 1440 / 60
+            return hours == 0 ? "\(minutes / 1440)d" : "\(minutes / 1440)d\(hours)h"
+        }
+    }
+
+    static func sentence(_ text: String) -> String {
+        text == "now" ? "Resets now" : "Resets in \(text)"
     }
 }

@@ -14,7 +14,7 @@
  *
  * App loads this canonical module directly. web-distribution.json exports
  * it to Web's pinned public snapshot. Web imports its pure helpers
- * (barColor, formatMinutes, pickTextColor) for its React bubble component.
+ * (barColor, pickTextColor) for its React bubble component.
  *
  * Expected bubble element structure (see vibemon-bubble.css):
  *   <div class="bubble">
@@ -39,7 +39,7 @@
  *   renderBubble(bubbleEl, {
  *     status: { type: 'text', text: 'Thinking', showLoading: true, slow: true },
  *     project: { type: 'text', text: '📁 my-project' },
- *     memory: { type: 'metric', icon: '🧠', value: 45, resetIn: 24 }
+ *     usage5h: { type: 'metric', icon: '⏱️', value: 45, resetIn: 125 }  // "45% · 2h5m"
  *   }, 'left', '#9933FF', { opaque: true });
  *
  * The optional 5th argument's `opaque` flag (default false) picks between a
@@ -48,7 +48,7 @@
  * the text contrast does not depend on content behind the bubble.
  */
 
-import { formatMeasurement } from '../design/presentation.mjs';
+import { formatMeasurement, formatResetTime } from '../design/presentation.mjs';
 
 // Same green/yellow/orange/red thresholds as statusline.py's C_GREEN/C_YELLOW/C_ORANGE/C_RED.
 export function barColor(percent) {
@@ -56,18 +56,6 @@ export function barColor(percent) {
   if (percent > 70) return '#FF8800';
   if (percent > 50) return '#FFCC00';
   return '#00AA00';
-}
-
-// Minutes until a usage quota resets, formatted compactly: "24m", "2h5m", "3d4h".
-export function formatMinutes(mins) {
-  mins = Math.max(0, Math.round(mins));
-  if (mins < 60) return mins + 'm';
-  const hours = Math.floor(mins / 60);
-  const remMins = mins % 60;
-  if (hours < 24) return remMins > 0 ? hours + 'h' + remMins + 'm' : hours + 'h';
-  const days = Math.floor(hours / 24);
-  const remHours = hours % 24;
-  return remHours > 0 ? days + 'd' + remHours + 'h' : days + 'd';
 }
 
 export function hexToRgb(hex) {
@@ -145,9 +133,8 @@ export function renderBubble(bubbleEl, fields, tailSide, bgColor, opts) {
       icon.textContent = data.icon;
       fill.style.width = pct + '%';
       fill.style.background = barColor(pct);
-      const pctText = typeof data.resetIn === 'number'
-        ? `${formatMeasurement(pct, '%')} · ${formatMinutes(data.resetIn)}`
-        : formatMeasurement(pct, '%');
+      const reset = formatResetTime(data.resetIn);
+      const pctText = reset ? `${formatMeasurement(pct, '%')} · ${reset}` : formatMeasurement(pct, '%');
       value.textContent = data.label ? `${data.label} ${pctText}` : pctText;
       row.style.display = 'flex';
     } else if (row.dataset.field === 'status') {

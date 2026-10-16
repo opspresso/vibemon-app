@@ -1,4 +1,5 @@
 const { webOrigin } = require('../shared/web-origin.cjs');
+const { usageResetAt } = require('../shared/monitoring/clock.cjs');
 const { accountKey: accountId, groupAccounts } = require('../shared/monitoring/state.cjs');
 const { BUILTIN_METRICS: METRICS, AGENT_TEXT_LIMITS, validPercentage, validateDefinitions, validateValues, validateOrder, validText, definitionsFor, selectionKey, metricCatalog } = require('../shared/resource-schema.cjs');
 const validId = id => typeof id === 'string' && /^[a-zA-Z0-9][a-zA-Z0-9_.:-]{0,127}$/.test(id);
@@ -6,8 +7,12 @@ function metrics(value, definitions = METRICS) {
   // Edited display ranges do not invalidate measurements outside the visible gauge.
   return validateValues(value, definitions, definitions === METRICS);
 }
-function displayMetrics(source) {
-  return Object.entries(definitionsFor(source)).map(([key, definition]) => ({ ...definition, key, selectionKey: selectionKey(source, key) }));
+// Agent plan usage metrics also carry `resetAt`, the report-clock time at which they reset.
+function displayMetrics(source, now) {
+  return Object.entries(definitionsFor(source)).map(([key, definition]) => {
+    const resetAt = source.agent ? usageResetAt(key, source.agent, source.observedAt, now) : null;
+    return { ...definition, key, selectionKey: selectionKey(source, key), ...(resetAt === null ? {} : { resetAt }) };
+  });
 }
 function validTime(value) { return typeof value === 'string' && Number.isFinite(Date.parse(value)); }
 function validateSources(value) {

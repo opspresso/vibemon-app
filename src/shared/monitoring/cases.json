@@ -784,5 +784,146 @@
       "unit": "GiB",
       "expected": "3,755.45"
     }
+  ],
+  "resetCountdowns": [
+    {
+      "name": "session countdown at the observation",
+      "metric": "usageSessionPercent",
+      "agent": {
+        "usage5hResetsIn": 125
+      },
+      "eventAgeMs": 0,
+      "elapsedMs": 0,
+      "expected": "2h5m"
+    },
+    {
+      "name": "countdown keeps the minute until a full minute passes",
+      "metric": "usageSessionPercent",
+      "agent": {
+        "usage5hResetsIn": 125
+      },
+      "eventAgeMs": 59999,
+      "elapsedMs": 0,
+      "expected": "2h5m"
+    },
+    {
+      "name": "countdown loses a minute after a full minute",
+      "metric": "usageSessionPercent",
+      "agent": {
+        "usage5hResetsIn": 125
+      },
+      "eventAgeMs": 60000,
+      "elapsedMs": 0,
+      "expected": "2h4m"
+    },
+    {
+      "name": "report age and snapshot age add up",
+      "metric": "usageSessionPercent",
+      "agent": {
+        "usage5hResetsIn": 125
+      },
+      "eventAgeMs": 30000,
+      "elapsedMs": 30000,
+      "expected": "2h4m"
+    },
+    {
+      "name": "whole hours omit minutes",
+      "metric": "usageSessionPercent",
+      "agent": {
+        "usage5hResetsIn": 60
+      },
+      "eventAgeMs": 0,
+      "elapsedMs": 0,
+      "expected": "1h"
+    },
+    {
+      "name": "less than an hour shows minutes",
+      "metric": "usageSessionPercent",
+      "agent": {
+        "usage5hResetsIn": 59
+      },
+      "eventAgeMs": 0,
+      "elapsedMs": 0,
+      "expected": "59m"
+    },
+    {
+      "name": "last minute shows one minute",
+      "metric": "usageSessionPercent",
+      "agent": {
+        "usage5hResetsIn": 1
+      },
+      "eventAgeMs": 0,
+      "elapsedMs": 59999,
+      "expected": "1m"
+    },
+    {
+      "name": "a passed reset shows now",
+      "metric": "usageSessionPercent",
+      "agent": {
+        "usage5hResetsIn": 1
+      },
+      "eventAgeMs": 0,
+      "elapsedMs": 60000,
+      "expected": "now"
+    },
+    {
+      "name": "a reset reported as zero shows now",
+      "metric": "usageSessionPercent",
+      "agent": {
+        "usage5hResetsIn": 0
+      },
+      "eventAgeMs": 0,
+      "elapsedMs": 0,
+      "expected": "now"
+    },
+    {
+      "name": "weekly countdown shows days and hours",
+      "metric": "usageWeekPercent",
+      "agent": {
+        "usageWeekResetsIn": 4381
+      },
+      "eventAgeMs": 0,
+      "elapsedMs": 0,
+      "expected": "3d1h"
+    },
+    {
+      "name": "whole days omit hours",
+      "metric": "usageWeekPercent",
+      "agent": {
+        "usageWeekResetsIn": 1440
+      },
+      "eventAgeMs": 0,
+      "elapsedMs": 0,
+      "expected": "1d"
+    },
+    {
+      "name": "each usage metric reads its own field",
+      "metric": "usageWeekPercent",
+      "agent": {
+        "usage5hResetsIn": 125
+      },
+      "eventAgeMs": 0,
+      "elapsedMs": 0,
+      "expected": null
+    },
+    {
+      "name": "a missing countdown shows nothing",
+      "metric": "usageSessionPercent",
+      "agent": {},
+      "eventAgeMs": 0,
+      "elapsedMs": 0,
+      "expected": null
+    },
+    {
+      "name": "context has no reset",
+      "metric": "contextPercent",
+      "agent": {
+        "usage5hResetsIn": 30,
+        "usageWeekResetsIn": 40
+      },
+      "eventAgeMs": 0,
+      "elapsedMs": 0,
+      "expected": null
+    }
   ]
 }

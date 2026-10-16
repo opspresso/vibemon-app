@@ -1,4 +1,4 @@
-import { accountName, measurementUnit, metricTone, resourceType, stateTone } from '../../shared/design/presentation.mjs';
+import { accountName, describeReset, measurementUnit, metricTone, resetCountdown, resourceType, stateTone } from '../../shared/design/presentation.mjs';
 import {
   el,
   text,
@@ -10,8 +10,7 @@ import {
   ago,
   sprite,
   providerName,
-  badge,
-  remaining
+  badge
 } from '../dom.js';
 
 export const accountCard = (account) => ({
@@ -40,12 +39,18 @@ export function createMetric() {
   const bar = el('div', undefined, 'metric-bar');
   const fill = el('span');
   bar.append(fill);
-  node.append(label, bar);
-  node._parts = { name, value, amount, unit, bar, fill };
+  // Compact cards show the reset time only as a tooltip (see style.css).
+  const reset = el('p', undefined, 'metric-reset');
+  const resetPrefix = el('span');
+  const resetTime = el('span');
+  reset.append(icon('refresh'), resetPrefix, resetTime);
+  node.append(label, bar, reset);
+  node._parts = { name, value, amount, unit, bar, fill, reset, resetPrefix, resetTime };
   return node;
 }
-export function updateMetric(node, { metric, value, label, precise = false }) {
-  const { name, value: output, amount, unit, bar, fill } = node._parts;
+/** `metric.resetAt` is the time at which a plan usage limit resets, on the same clock as `now`. */
+export function updateMetric(node, { metric, value, label, precise = false, now = Date.now() }) {
+  const { name, value: output, amount, unit, bar, fill, reset, resetPrefix, resetTime } = node._parts;
   text(name, label || metric.label);
   text(amount, reading(value, metric.unit, precise, '—', false));
   text(unit, typeof value === 'number' && Number.isFinite(value) ? measurementUnit(metric.unit) : '');
@@ -62,6 +67,15 @@ export function updateMetric(node, { metric, value, label, precise = false }) {
     bar.setAttribute('aria-valuenow', Math.max(metric.min, Math.min(metric.max, value)));
     bar.setAttribute('aria-valuetext', reading(value, metric.unit, precise));
     bar.dataset.tone = metricTone(metric.key, value);
+  }
+  const countdown = available ? resetCountdown(metric.resetAt, now) : null;
+  reset.hidden = countdown === null;
+  if (countdown === null) node.removeAttribute('title');
+  else {
+    const sentence = describeReset(countdown);
+    text(resetPrefix, sentence.slice(0, -countdown.length));
+    text(resetTime, countdown);
+    node.title = `${sentence} · ${new Date(Date.now() + metric.resetAt - now).toLocaleString()}`;
   }
 }
 
@@ -178,7 +192,8 @@ export function renderCards(
       const metrics = (compact ? visible.slice(0, 3) : visible).map((metric) => ({
         metric,
         value: source.metrics[metric.key],
-        precise: !compact && metric.selectionKey.startsWith('resource:')
+        precise: !compact && metric.selectionKey.startsWith('resource:'),
+        now
       }));
       keyed(parts.metrics, metrics, (entry) => entry.metric.key, createMetric, updateMetric);
       const projects = source.isAccount && !compact ? source.members.slice(0, 3) : [];
@@ -296,28 +311,24 @@ export function renderUsage(container, usage) {
         entries,
         ([key]) => key,
         () => {
-          const item = el('div', undefined, 'usage-bucket');
-          item._metric = createMetric();
-          item._reset = el('p', undefined, 'usage-reset');
-          item.append(item._metric, item._reset);
+          const item = createMetric();
+          item.classList.add('usage-bucket');
           return item;
         },
         (item, [key, value]) => {
-          updateMetric(item._metric, {
+          updateMetric(item, {
             metric: {
               key: `usage-${key}`,
               label: key === 'session' ? 'Session' : key === 'week' ? 'Weekly' : value.label || 'Model limit',
               unit: '%',
               display: 'gauge',
               min: 0,
-              max: 100
+              max: 100,
+              // The usage cache records reset times in epoch seconds on this device's clock.
+              resetAt: value.resetsAt === null ? null : value.resetsAt * 1000
             },
             value: value.pct
           });
-          text(
-            item._reset,
-            value.resetsAt ? `Resets in ${remaining(value.resetsAt)}` : 'Reset time not reported'
-          );
         }
       );
     }

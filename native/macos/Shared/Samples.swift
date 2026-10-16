@@ -5,6 +5,8 @@ import Foundation
 enum Samples {
     static func item(_ kind: FeedItem.Kind, now: Date = .now) -> FeedItem {
         let at = now.formatted(.iso8601)
+        let session = now.addingTimeInterval(125 * 60).formatted(.iso8601)
+        let week = now.addingTimeInterval(4381 * 60).formatted(.iso8601)
         let json = switch kind {
         case .resource: """
             {"id":"sample:resource","kind":"resource","title":"Build server","subtitle":"Host","symbol":"host","observedAt":"\(at)",
@@ -16,8 +18,8 @@ enum Samples {
         case .agent: """
             {"id":"sample:agent","kind":"agent","title":"Claude Code","subtitle":"default","artwork":"clawd.png","observedAt":"\(at)",
              "metrics":[{"key":"context","label":"Context","value":"34","unit":"%","fraction":0.34,"tone":"normal"},
-                        {"key":"session","label":"Session","value":"48","unit":"%","fraction":0.48,"tone":"normal"},
-                        {"key":"week","label":"Weekly","value":"72","unit":"%","fraction":0.72,"tone":"warning"}],
+                        {"key":"session","label":"Session","value":"48","unit":"%","fraction":0.48,"tone":"normal","resetsAt":"\(session)"},
+                        {"key":"week","label":"Weekly","value":"72","unit":"%","fraction":0.72,"tone":"warning","resetsAt":"\(week)"}],
              "timeline":[{"at":"\(at)","state":"working","label":"Working","tone":"active"}],"link":"vibemon://dashboard/agents"}
             """
         }

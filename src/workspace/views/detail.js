@@ -1,4 +1,4 @@
-import { formatAxisValue } from '../../shared/design/presentation.mjs';
+import { describeReset, formatAxisValue, resetCountdown } from '../../shared/design/presentation.mjs';
 import { $, el, text, choices, keyed, svg, reading, badge, stateLabel, ago } from '../dom.js';
 import { accountCard, sourceState, sourceType } from './cards.js';
 
@@ -108,6 +108,7 @@ export function setupDetail({ getFrame, cloudTime, request, run }) {
     timer = setInterval(refresh, getFrame().cloud.trendRefreshMs);
   }
   function renderSource(source) {
+    const now = cloudTime();
     text($('detail-title'), source.displayName);
     text($('detail-type'), sourceType(source));
     const status = el('span');
@@ -115,7 +116,7 @@ export function setupDetail({ getFrame, cloudTime, request, run }) {
     $('detail-status').replaceChildren(status);
     text($('detail-message'), source.statusMessage || '');
     $('detail-message').hidden = !source.statusMessage;
-    text($('detail-received'), `Received ${ago(source.receivedAt, cloudTime()).toLowerCase()}`);
+    text($('detail-received'), `Received ${ago(source.receivedAt, now).toLowerCase()}`);
     const selectedMetrics = metrics(source);
     keyed(
       $('detail-readings'),
@@ -123,12 +124,16 @@ export function setupDetail({ getFrame, cloudTime, request, run }) {
       (metric) => metric.key,
       () => {
         const node = el('div', undefined, 'detail-reading');
-        node.append(el('span'), el('strong'));
+        node.append(el('span'), el('strong'), el('small'));
         return node;
       },
       (node, metric) => {
+        const value = source.metrics[metric.key];
         text(node.children[0], metric.label);
-        text(node.children[1], reading(source.metrics[metric.key], metric.unit, metric.selectionKey.startsWith('resource:')));
+        text(node.children[1], reading(value, metric.unit, metric.selectionKey.startsWith('resource:')));
+        const reset = typeof value === 'number' ? describeReset(resetCountdown(metric.resetAt, now)) : null;
+        text(node.children[2], reset);
+        node.children[2].hidden = reset === null;
       }
     );
     keyed(

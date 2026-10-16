@@ -1,5 +1,4 @@
 export declare function barColor(percent: number): string;
-export declare function formatMinutes(mins: number): string;
 export declare function hexToRgb(hex: string): { r: number; g: number; b: number };
 export declare function bgRgba(hex: string, alpha: number): string;
 export declare function pickTextColor(hex: string): string;
@@ -15,6 +14,7 @@ export interface BubbleMetricField {
   type: 'metric';
   icon: string;
   value: number;
+  /** Whole minutes until the usage limit resets (see formatResetTime). */
   resetIn?: number;
   /** Prefix shown before the percentage, e.g. "Fable" on the model-scoped weekly row. */
   label?: string;

@@ -104,6 +104,33 @@ test('local delivery replaces the cloud copy of a source and fills usage from th
   assert.equal(item.observedAt, iso(-30000));
 });
 
+test('plan usage carries the wall-clock time at which it resets', () => {
+  const skew = minutes(3);
+  const remote = agentSource({ observedAt: iso(skew - minutes(2)), agent: { state: 'working', character: 'clawd', project: 'api', usage5hResetsIn: 125, usageWeekResetsIn: 4381 } });
+  const [item] = build({ cloud: cloud([remote], { evaluatedAt: NOW + skew }) }).items;
+  assert.deepEqual(item.metrics.map(metric => metric.resetsAt), [undefined, iso(-minutes(2) + minutes(125)), iso(-minutes(2) + minutes(4381))]);
+  // A missing value has no countdown, even when the reset time is known.
+  const empty = agentSource({ metrics: { contextPercent: 34, usageSessionPercent: null, usageWeekPercent: null }, agent: { ...remote.agent } });
+  assert.deepEqual(build({ cloud: cloud([empty]) }).items[0].metrics.map(metric => metric.resetsAt), [undefined, undefined, undefined]);
+});
+
+test('local reports count reset times from their own observation, and cached usage from its cache', () => {
+  const local = [{
+    id: 'local:agent:remote', since: NOW - minutes(10),
+    status: { state: 'working', project: 'api', character: 'clawd', sourceId: 'agent:remote', usage5h: 40, usage5hResetsIn: 30, observedAt: iso(-minutes(1)), account: { id: 'work', provider: 'claude', displayName: 'Work' } }
+  }];
+  const usage = { 'claude:work': { session: null, week: { pct: 20, resetsAt: NOW / 1000 + 7200 } } };
+  const [item] = build({ cloud: cloud([], { evaluatedAt: NOW + minutes(3) }), local, usage }).items;
+  assert.deepEqual(item.metrics.map(metric => metric.resetsAt), [undefined, iso(minutes(29)), iso(minutes(120))]);
+});
+
+test('reset times outside the Date range do not stop the feed', () => {
+  const remote = agentSource({ agent: { state: 'working', character: 'clawd', project: 'api', usage5hResetsIn: Number.MAX_SAFE_INTEGER } });
+  const usage = { 'claude:work': { session: null, week: { pct: 20, resetsAt: Number.MAX_SAFE_INTEGER } } };
+  const [item] = build({ cloud: cloud([{ ...remote, metrics: { ...remote.metrics, usageWeekPercent: null } }]), usage }).items;
+  assert.deepEqual(item.metrics.map(metric => [metric.value, metric.resetsAt]), [['34', undefined], ['72.4', undefined], ['20', undefined]]);
+});
+
 test('local projects appear without a cloud connection, sorted after resources', () => {
   const local = [
     { id: 'local:x', since: NOW, status: { state: 'thinking', project: 'x', character: 'codex', account: { id: 'default', provider: 'codex', displayName: 'codex default' } } },

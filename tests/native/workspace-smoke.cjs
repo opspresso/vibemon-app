@@ -95,6 +95,7 @@ startFixture().then(async fixture => {
       await client.poll(true); await published();
       assert.equal(await text('#summary-attention'), '3', 'wall-clock skew does not add stale warnings');
       assert.equal(await ui('[...document.querySelectorAll("#overview-accounts time")].every(node => node.textContent === "Just now")'), true, 'report age uses server time');
+      assert.ok((await ui('[...document.querySelectorAll("#overview-accounts .metric-reset:not([hidden])")].map(node => node.textContent)')).includes('Resets in 2h5m'), 'reset countdowns use server time');
     }
   } finally { client.now = localClock; await client.poll(true); }
   const overviewBounds = await ui('({ bottom: document.querySelector("#overview-accounts .card").getBoundingClientRect().bottom, viewport: innerHeight })');
@@ -276,6 +277,7 @@ startFixture().then(async fixture => {
   assert.deepEqual(await ui('[...document.querySelectorAll("#agent-cards h3")].map(node => node.textContent)'), ['api-gateway', 'web-console']);
   assert.ok((await text('#agent-cards')).includes('Codex · team'));
   assert.ok((await text('#agent-cards')).includes('Codex · personal'));
+  assert.ok((await text('#agent-cards')).includes('Resets in 2h5m') && (await text('#agent-cards')).includes('Resets in 3d1h'), 'plan usage shows its reset countdown');
   for (const query of ['Engineering', 'team', 'web-console']) {
     await input('#agent-search', query);
     assert.deepEqual(await ui('[...document.querySelectorAll("#agent-cards .card")].map(card => card._source.sourceId)'), ['codex:team'], `${query} finds the same account after its title changes`);
@@ -284,6 +286,7 @@ startFixture().then(async fixture => {
   await input('#agent-filter', 'kiro');
   assert.ok((await text('#agent-cards')).includes('Needs input'));
   assert.ok((await text('#agent-cards')).includes('—'), 'unreported provider quota is not zero');
+  assert.equal(await ui('document.querySelectorAll("#agent-cards .metric-reset:not([hidden])").length'), 0, 'an unreported reset time shows nothing');
   await input('#agent-filter', 'all');
   const beforeMetricSelection = client.snapshot();
   await client.select({ sources: beforeMetricSelection.selectedSources, accounts: beforeMetricSelection.selectedAccounts, metrics: [] });

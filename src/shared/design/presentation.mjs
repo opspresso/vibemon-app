@@ -37,6 +37,26 @@ export function observationAge(timestamp, now = Date.now()) {
   return `${Math.floor(seconds / 86400)}d ago`;
 }
 
+// Time left until a plan usage limit resets, in whole minutes: "now", "24m",
+// "2h", "2h5m", "3d", or "3d4h". Zero means the window has already reset.
+export function formatResetTime(minutes) {
+  if (!Number.isSafeInteger(minutes) || minutes < 0) return null;
+  if (minutes === 0) return 'now';
+  if (minutes < 60) return `${minutes}m`;
+  const [large, small, unit, rest] = minutes < 1440
+    ? [Math.floor(minutes / 60), minutes % 60, 'h', 'm']
+    : [Math.floor(minutes / 1440), Math.floor((minutes % 1440) / 60), 'd', 'h'];
+  return `${large}${unit}${small ? `${small}${rest}` : ''}`;
+}
+// The countdown text for a reset time in milliseconds (see usageResetAt), or
+// null when the reset time is not reported.
+export function resetCountdown(resetAt, now = Date.now()) {
+  if (typeof resetAt !== 'number' || !Number.isFinite(resetAt) || !Number.isFinite(now)) return null;
+  return formatResetTime(Math.max(0, Math.ceil((resetAt - now) / 60000)));
+}
+// The countdown as a sentence for labels and assistive technology.
+export const describeReset = countdown => countdown === null ? null : countdown === 'now' ? 'Resets now' : `Resets in ${countdown}`;
+
 export function formatAxisValue(value) {
   if (typeof value !== 'number' || !Number.isFinite(value)) return '—';
   const absolute = Math.abs(value);
