@@ -47,7 +47,7 @@ export function buildWidgetFeed({ cloud, local = [], usage = {}, artwork = () =>
     .filter(source => source.kind !== 'agent')
     .map(source => resourceItem(source, selected, reportNow, wall));
   const agents = agentAccounts(cloud.sources, local, offset, now)
-    .map(account => agentItem(account, usage[account.accountId], artwork, reportNow, wall));
+    .map(account => agentItem(account, usage[account.accountId], artwork, reportNow, wall, offset));
   const byTitle = (a, b) => a.title.localeCompare(b.title) || a.subtitle.localeCompare(b.subtitle) || (a.id < b.id ? -1 : 1);
   return {
     version: WIDGET_FEED_VERSION,
@@ -102,16 +102,16 @@ function localSource({ id, since, status }, offset, now) {
   };
 }
 
-function agentItem(account, usage, artwork, now, wall) {
+function agentItem(account, usage, artwork, now, wall, offset) {
   const latest = account.latest;
   const metrics = AGENT_METRICS.map(({ key, label, usage: bucket }) => {
     if (typeof latest.metrics[key] === 'number') {
       const resetAt = latest.resets ? latest.resets[key] : usageResetAt(key, latest.agent, latest.observedAt, now);
-      return metricEntry({ key, label, ...GAUGE }, latest.metrics[key], resetAt === null ? null : wall(resetAt));
+      return metricEntry({ key, label, ...GAUGE }, latest.metrics[key], resetAt === null ? null : isoTime(resetAt - offset));
     }
     // Hooks omit usage between statusline refreshes; this device's cache has it.
     const cached = usage?.[bucket];
-    return metricEntry({ key, label, ...GAUGE }, cached?.pct, Number.isFinite(cached?.resetsAt) ? new Date(cached.resetsAt * 1000).toISOString() : null);
+    return metricEntry({ key, label, ...GAUGE }, cached?.pct, isoTime(cached?.resetsAt * 1000));
   });
   const changes = account.sources.flatMap(source => agentChanges(source.agent.state, Date.parse(source.observedAt)));
   return {
@@ -152,6 +152,8 @@ function timeline(changes, now, wall, evaluate) {
 }
 
 const status = state => ({ state, label: stateLabel(state), tone: stateTone(state) });
+// An ISO time, or null when `time` is not a representable Date.
+const isoTime = time => Number.isNaN(new Date(time).getTime()) ? null : new Date(time).toISOString();
 
 /** `resetsAt` is the wall-clock ISO time at which a plan usage limit resets; the widget counts down to it. */
 function metricEntry(metric, value, resetsAt = null) {

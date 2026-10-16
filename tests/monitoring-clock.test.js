@@ -58,5 +58,7 @@ test('usage reset time anchors plan usage countdowns at the observation', () => 
     expect(usageResetAt('usageSessionPercent', { usage5hResetsIn: value }, observedAt, start)).toBeNull();
   }
   expect(usageResetAt('usageSessionPercent', null, observedAt, start)).toBeNull();
+  // A safe integer can still exceed the Date range once converted to a time.
+  expect(usageResetAt('usageSessionPercent', { usage5hResetsIn: Number.MAX_SAFE_INTEGER }, observedAt, start)).toBeNull();
   expect(usageResetAt('usageSessionPercent', fields, observedAt, NaN)).toBeNull();
 });

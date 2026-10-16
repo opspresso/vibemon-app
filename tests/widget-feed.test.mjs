@@ -124,6 +124,13 @@ test('local reports count reset times from their own observation, and cached usa
   assert.deepEqual(item.metrics.map(metric => metric.resetsAt), [undefined, iso(minutes(29)), iso(minutes(120))]);
 });
 
+test('reset times outside the Date range do not stop the feed', () => {
+  const remote = agentSource({ agent: { state: 'working', character: 'clawd', project: 'api', usage5hResetsIn: Number.MAX_SAFE_INTEGER } });
+  const usage = { 'claude:work': { session: null, week: { pct: 20, resetsAt: Number.MAX_SAFE_INTEGER } } };
+  const [item] = build({ cloud: cloud([{ ...remote, metrics: { ...remote.metrics, usageWeekPercent: null } }]), usage }).items;
+  assert.deepEqual(item.metrics.map(metric => [metric.value, metric.resetsAt]), [['34', undefined], ['72.4', undefined], ['20', undefined]]);
+});
+
 test('local projects appear without a cloud connection, sorted after resources', () => {
   const local = [
     { id: 'local:x', since: NOW, status: { state: 'thinking', project: 'x', character: 'codex', account: { id: 'default', provider: 'codex', displayName: 'codex default' } } },

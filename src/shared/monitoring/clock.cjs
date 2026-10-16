@@ -23,13 +23,15 @@ function remainingResetMinutes(minutes, observedAt, now = Date.now()) {
 const USAGE_RESET_FIELDS = Object.freeze({ usageSessionPercent: 'usage5hResetsIn', usageWeekPercent: 'usageWeekResetsIn' });
 
 // The time in milliseconds at which a plan usage metric resets, or null when
-// `fields` does not report it. A countdown from this time matches
-// remainingResetMinutes: a future observation does not increase it.
+// `fields` does not report it or the time is outside the Date range. A
+// countdown from this time matches remainingResetMinutes: a future
+// observation does not increase it.
 function usageResetAt(key, fields, observedAt, now = Date.now()) {
   const minutes = Object.hasOwn(USAGE_RESET_FIELDS, key) ? fields?.[USAGE_RESET_FIELDS[key]] : undefined;
   if (!Number.isSafeInteger(minutes) || minutes < 0 || !Number.isFinite(now)) return null;
   const observed = typeof observedAt === 'string' ? Date.parse(observedAt) : NaN;
-  return (Number.isFinite(observed) ? Math.min(observed, now) : now) + minutes * 60000;
+  const resetAt = (Number.isFinite(observed) ? Math.min(observed, now) : now) + minutes * 60000;
+  return Number.isNaN(new Date(resetAt).getTime()) ? null : resetAt;
 }
 
 module.exports = { snapshotClock, remainingResetMinutes, USAGE_RESET_FIELDS, usageResetAt };
