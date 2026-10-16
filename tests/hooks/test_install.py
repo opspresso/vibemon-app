@@ -902,21 +902,21 @@ class InstallCodexOwnershipTest(unittest.TestCase):
 
 
 class InstallOpencodeTest(unittest.TestCase):
-    def _opens_home(self, home):
+    def _config_home(self, home):
         return home / ".config" / "opencode"
 
     def test_installs_plugin_and_adapter_byte_identical(self):
         with tempfile.TemporaryDirectory() as directory:
             home = Path(directory)
-            self._opens_home(home).mkdir(parents=True)  # tool detection
+            self._config_home(home).mkdir(parents=True)  # tool detection
             source = install.FileSource(DOCS_DIR)
 
             with PosixInstall(home), mock.patch.object(install.shutil, "which", return_value=None):
                 result = install.install_opencode(source)
 
             self.assertTrue(result)
-            plugin = self._opens_home(home) / "plugins" / "vibemon.js"
-            hook = self._opens_home(home) / "hooks" / "vibemon.py"
+            plugin = self._config_home(home) / "plugins" / "vibemon.js"
+            hook = self._config_home(home) / "hooks" / "vibemon.py"
             self.assertEqual(
                 plugin.read_text(encoding="utf-8"),
                 (DOCS_DIR / "opencode" / "plugin" / "vibemon.js").read_text(encoding="utf-8"),
