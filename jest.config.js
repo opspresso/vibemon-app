@@ -14,6 +14,7 @@ module.exports = {
     'src/modules/**/*.{js,cjs}',
     'src/monitoring/**/*.cjs',
     'src/workspace/**/*.cjs',
+    'src/widgets/**/*.cjs',
     'src/shared/**/*.{js,cjs}',
     '!**/node_modules/**'
   ],
