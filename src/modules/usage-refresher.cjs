@@ -75,16 +75,16 @@ class UsageRefresher {
    */
   async refresh() {
     if (this.inFlight) {
-      return Promise.resolve({ ok: false, reason: 'in-flight' });
+      return { ok: false, reason: 'in-flight' };
     }
     if (!fs.existsSync(USAGE_SCRIPT_PATH)) {
-      return Promise.resolve({ ok: false, reason: 'not-installed' });
+      return { ok: false, reason: 'not-installed' };
     }
     this.inFlight = true;
     const python = await findPython();
     if (!python) {
       this.inFlight = false;
-      return Promise.resolve({ ok: false, reason: 'python-not-found' });
+      return { ok: false, reason: 'python-not-found' };
     }
     const maxAgeSeconds = shouldForceCodexRefresh() ? 0 : USAGE_REFRESH_MAX_AGE_SECONDS;
     return new Promise((resolve) => {
