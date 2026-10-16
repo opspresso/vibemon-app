@@ -7,6 +7,7 @@
  * - BubbleWindowManager: The speech bubble that follows the character window
  * - TrayManager: System tray icon and menu
  * - HttpServer: HTTP API server
+ * - WidgetPublisher: The feed that the macOS widgets read
  */
 
 // Load environment variables from .env.local or .env
@@ -25,7 +26,9 @@ const { WorkspaceSettings } = require('./workspace/settings.cjs');
 const { localActivity } = require('./workspace/activity.cjs');
 const { attentionAreas, attentionNotices } = require('./shared/attention.cjs');
 const { installWorkspaceMenu } = require('./workspace/menu.cjs');
-const { getUsageSnapshot } = require('./modules/usage-cache-reader.cjs');
+const { dashboardPage } = require('./workspace/deep-link.cjs');
+const { getUsageSnapshot, providerCacheKey } = require('./modules/usage-cache-reader.cjs');
+const { WidgetPublisher, usageByAccount, widgetsSupported } = require('./widgets/publisher.cjs');
 const { execFile } = require('child_process');
 
 // Modules
@@ -44,7 +47,7 @@ const { StatusIngress } = require('./application/status-ingress.cjs');
 const { interactionTarget } = require('./modules/window-interaction-target.cjs');
 const registryCache = require('./shared/registry-cache.cjs');
 const {
-  CHARACTER_IMAGE_FETCH_TIMEOUT_MS, CHARACTER_IMAGE_MAX_BYTES, CHAR_SIZE,
+  CHARACTER_CONFIG, CHARACTER_IMAGE_FETCH_TIMEOUT_MS, CHARACTER_IMAGE_MAX_BYTES, CHAR_SIZE,
   HOOK_CHECK_INITIAL_DELAY_MS, HOOK_CHECK_INTERVAL_MS, HTTP_PORT,
   UPDATE_CHECK_INITIAL_DELAY_MS, UPDATE_CHECK_INTERVAL_MS,
   USAGE_REFRESH_INITIAL_DELAY_MS, USAGE_REFRESH_INTERVAL_MS
@@ -79,6 +82,7 @@ let workspaceSettings = null;
 let httpServer = null;
 let monitoringClient = null;
 let workspaceWindow = null;
+let widgetPublisher = null;
 let hookCheckTimer = null;
 let updateCheckTimer = null;
 let usageRefreshTimer = null;
@@ -96,8 +100,14 @@ function getBubbleOptions(projectId) {
   };
 }
 
+// Local activity feeds the workspace and the widgets.
+function activityChanged() {
+  workspaceWindow?.notify('activity');
+  widgetPublisher?.schedule();
+}
+
 // Refresh the speech bubble whenever the followed project's state/info changes
-windowManager.onRegistryChanged = () => workspaceWindow?.notify('activity');
+windowManager.onRegistryChanged = activityChanged;
 windowManager.onStateUpdated = (projectId) => {
   bubbleWindowManager.update(projectId, getBubbleOptions(projectId))
     .catch((err) => console.error('Bubble update failed:', err));
@@ -126,9 +136,20 @@ app.on('second-instance', () => {
   workspaceWindow?.open('overview');
 });
 
+// A widget click opens its Dashboard page. A link can arrive before the
+// workspace exists when it launches the App; the page then opens once ready.
+let pendingPage = null;
+app.on('open-url', (event, link) => {
+  event.preventDefault();
+  const page = dashboardPage(link);
+  if (!page) return;
+  if (workspaceWindow) workspaceWindow.open(page);
+  else pendingPage = page;
+});
+
 // Set up state manager callbacks
 stateManager.onStateTimeout = (projectId, newState) => {
-  workspaceWindow?.notify('activity');
+  activityChanged();
   // Merge with the registry state so background projects expire too.
   const existingState = windowManager.getRegisteredState(projectId);
   if (!existingState) return;
@@ -163,7 +184,7 @@ stateManager.onWindowCloseTimeout = (projectId) => {
   windowManager.closeWindow(projectId);
   stateManager.cleanupProject(projectId);
   windowManager.removeProject(projectId);
-  workspaceWindow?.notify('activity');
+  activityChanged();
   bubbleWindowManager.destroy(projectId);
   if (trayManager) {
     trayManager.updateMenu();
@@ -173,7 +194,7 @@ stateManager.onWindowCloseTimeout = (projectId) => {
 
 // Set up window manager callback for when the window is closed
 windowManager.onWindowClosed = (projectId) => {
-  workspaceWindow?.notify('activity');
+  activityChanged();
   // Activity expires independently of the companion's visibility.
   bubbleWindowManager.destroy(projectId);
   if (trayManager) {
@@ -183,7 +204,7 @@ windowManager.onWindowClosed = (projectId) => {
 };
 
 function notifyStatusChange(menuOnly) {
-  workspaceWindow?.notify('activity');
+  activityChanged();
   if (!menuOnly) trayManager?.updateIcon();
   trayManager?.updateMenu();
 }
@@ -369,6 +390,21 @@ ipcMain.handle('focus-terminal', async (event) => {
   }
 });
 
+/**
+ * WidgetKit accepts reload requests only from the main executable of the app
+ * that contains the widgets, so a Node-API module makes the request from this
+ * process. An unpackaged Electron binary contains no VibeMon widgets.
+ */
+function widgetReloader() {
+  if (!app.isPackaged) return null;
+  try {
+    return require(path.join(process.resourcesPath, 'widget-center.node')).reloadTimelines;
+  } catch (error) {
+    console.error('Widget reload module unavailable; widgets refresh on their own schedule:', error.message);
+    return null;
+  }
+}
+
 // App lifecycle
 app.whenReady().then(() => {
   // Hide Dock icon on macOS (tray-only app)
@@ -399,6 +435,8 @@ app.whenReady().then(() => {
   };
   cloudDelivery.onChange = () => workspaceSettings.notifyChanged();
   trayManager.openDashboard = () => workspaceWindow.open('overview');
+  if (pendingPage) workspaceWindow.open(pendingPage);
+  pendingPage = null;
   trayManager.openSettings = page => workspaceWindow.open(page || 'companion');
   installWorkspaceMenu({ open: page => workspaceWindow.open(page), showCompanion: showCharacterAgain });
   trayManager.setShowCharacterHandler(showCharacterAgain);
@@ -406,6 +444,7 @@ app.whenReady().then(() => {
   const cloudActivity = statusIngress.cloudActivity(() => monitoringClient.currentTime());
   monitoringClient.on('change', snapshot => {
     cloudActivity.accept(snapshot.sources);
+    widgetPublisher?.schedule();
     refreshAttention();
     for (const projectId of windowManager.getProjectIds()) {
       bubbleWindowManager.refresh(projectId, getBubbleOptions(projectId))
@@ -413,6 +452,18 @@ app.whenReady().then(() => {
     }
   });
   monitoringClient.start();
+
+  if (widgetsSupported()) {
+    // feed.mjs is an ES module that shares the renderer's display rules.
+    const { buildWidgetFeed } = require('./widgets/feed.mjs');
+    widgetPublisher = new WidgetPublisher({
+      collect: () => ({ cloud: monitoringClient.snapshot(), states: windowManager.getRegisteredStates(), usage: usageByAccount(getUsageSnapshot(), providerCacheKey) }),
+      build: buildWidgetFeed,
+      reload: widgetReloader(),
+      artwork: character => CHARACTER_CONFIG[character]?.image
+    });
+    widgetPublisher.schedule();
+  }
 
 
   // Start HTTP server
@@ -470,7 +521,10 @@ app.whenReady().then(() => {
   // usage data stays fresh even when no Claude Code session is running.
   // A successful refresh invalidates the visible workspace's usage snapshot.
   const refreshUsage = () => usageRefresher.refresh().then((result) => {
-    if (result.ok) workspaceWindow?.notify('usage');
+    if (result.ok) {
+      workspaceWindow?.notify('usage');
+      widgetPublisher?.schedule();
+    }
   });
   setTimeout(refreshUsage, USAGE_REFRESH_INITIAL_DELAY_MS);
   usageRefreshTimer = setInterval(refreshUsage, USAGE_REFRESH_INTERVAL_MS);
@@ -547,6 +601,8 @@ app.on('before-quit', () => {
   if (trayManager) {
     trayManager.cleanup();
   }
+  // Before monitoring stops: the last feed keeps the final readings.
+  widgetPublisher?.stop();
   if (monitoringClient) monitoringClient.stop();
   if (workspaceWindow) workspaceWindow.cleanup();
   if (httpServer) {

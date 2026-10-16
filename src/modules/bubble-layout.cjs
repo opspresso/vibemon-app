@@ -1,5 +1,4 @@
-const { WINDOW_WIDTH, CHAR_Y_BASE, CHAR_SIZE } = require('../shared/constants.cjs');
-const WINDOW_HEIGHT = CHAR_Y_BASE + CHAR_SIZE + 5;
+const { WINDOW_WIDTH, WINDOW_HEIGHT } = require('../shared/constants.cjs');
 const GAP = 4;
 const EDGE_EPSILON = 2;
 const clamp = (value, start, end) => Math.max(start, Math.min(end, value));

@@ -113,9 +113,7 @@ SERIAL_BAUD_RATE = "115200"
 # HTTP configuration
 HTTP_TIMEOUT_SECONDS = 5
 
-# Cache configuration: entries older than this are treated as unknown rather
-# than sent as-is. Usage freshness is evaluated per provider; project metadata
-# continues to use its own entry timestamps.
+# Codex session logs, searched for the active thread's context usage.
 CODEX_SESSIONS_DIR = str(
     Path(os.environ.get("CODEX_HOME") or "~/.codex").expanduser() / "sessions"
 )
@@ -192,17 +190,9 @@ def resolve_serial_port(port_pattern: str | None) -> str | None:
     return port_pattern
 
 
-
-
-
-
 # ============================================================================
 # State Functions
 # ============================================================================
-
-
-
-
 
 
 def get_transition(
@@ -261,8 +251,6 @@ def get_project_metadata(project: str, cwd: str | None = None) -> dict[str, Any]
         return {}
 
     return entry
-
-
 
 
 def get_codex_context_usage(data: dict[str, Any]) -> float | None:
@@ -1061,7 +1049,6 @@ def send_to_all(payload: dict[str, Any], is_start: bool = False, context: dict |
 # Command Handlers
 # ============================================================================
 
-# Command handler mapping
 def send_serial_input(args: list[str]) -> bool:
     """Internal serial transport entry point for the OpenClaw plugin.
 
@@ -1099,6 +1086,7 @@ def send_cloud_status(provider: str) -> bool:
         return False
 
 
+# Command-line entry points, dispatched before hook input is read.
 COMMAND_HANDLERS: dict[str, Any] = {
     "--send-cloud": lambda args: send_cloud_status(args[0]) if len(args) == 1 else False,
     "--launch-desktop": lambda args: launch_desktop(),

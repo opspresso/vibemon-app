@@ -7,7 +7,7 @@ from concurrent.futures import ThreadPoolExecutor, wait
 from datetime import datetime
 from decimal import Decimal, InvalidOperation
 from .domain import Sample, cluster_health
-from .disk import CLUSTER_DEFINITIONS, DISK_METRICS
+from .disk import CLUSTER_DEFINITIONS, DISK_METRICS, disk_values
 from .kubelet import filesystem
 
 DISK_QUERY_TIMEOUT = 5
@@ -115,8 +115,8 @@ class KubernetesSampler:
                     for future in futures: future.cancel()
                 available = sum(item[0] for item in disks)
                 capacity = sum(item[1] for item in disks)
-                disk_values = dict(zip(DISK_METRICS, (available / 1024 ** 3, capacity / 1024 ** 3, 100 * (1 - available / capacity))))
-                values.update({key: value for key, value in disk_values.items() if key in values})
+                measured = disk_values(available, capacity)
+                values.update({key: value for key, value in measured.items() if key in values})
             except (OSError, ValueError, KeyError, TypeError, AttributeError, IndexError, subprocess.TimeoutExpired):
                 failed = True
         if 'podsUnhealthy' in values:

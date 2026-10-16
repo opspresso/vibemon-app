@@ -11,6 +11,7 @@ Monitor selected resources and coding accounts from your desktop. VibeMon combin
 - Select multiple Codex, Claude, Kiro, or other provider accounts independently.
 - Choose visible metrics and view recent-hour trends. Web edits to resource labels, ranges, and order appear on the next poll.
 - Receive local tool events without a cloud connection. Hooks support Claude Code, Codex, Kiro, OpenClaw, and OpenCode.
+- Add macOS widgets: each one shows the state and metrics of one resource or one coding agent.
 
 ![Desktop workspace with synthetic monitoring data](docs/images/workspace-overview-light.png)
 
@@ -44,6 +45,10 @@ The App keeps its read token in OS secure storage. **Disconnect** removes the lo
 Open **Settings → Integrations → Install integration** for the tool you use, then restart that tool. Local character updates do not require Google login. To send the same activity to Web, enter a separate write token in **Send activity to Web** and select **Save and verify**. The App's read token is never reused for hooks.
 
 Tool detection honors `CLAUDE_CONFIG_DIR`, `CODEX_HOME`, `KIRO_HOME`, and `OPENCODE_CONFIG_DIR`. These variables must reach both the tool and App processes. OpenClaw installation is supported on macOS/Linux. See the [hook installation guide](https://vibemon.io/docs/setup) for headless/Windows setup and [hook reference](https://vibemon.io/docs/hooks) for event mappings.
+
+## macOS widgets
+
+On macOS 14 or later, select **Edit Widgets** on the desktop and search for **VibeMon**. Add a **Resource** or **Coding Agent** widget for each item you want to watch, then edit the widget to choose the item. See [macOS widgets](docs/widgets.md).
 
 ## Character display
 

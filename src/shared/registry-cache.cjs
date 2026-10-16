@@ -19,15 +19,14 @@
 const fs = require('fs');
 const path = require('path');
 const { readJsonResponse } = require('./json-response.cjs');
-const { REGISTRY_MAX_RESPONSE_BYTES } = require('./constants.cjs');
+const { writeFileAtomic } = require('./atomic-file.cjs');
+const { REGISTRY_FETCH_TIMEOUT_MS, REGISTRY_MAX_RESPONSE_BYTES } = require('./constants.cjs');
 
 const bundledStates = require('./data/states.json');
 const bundledCharacters = require('./data/characters.json');
 const bundledImageFiles = Object.values(bundledCharacters.characters).map(character => character.image);
 
 const STATIC_BASE_URL = (process.env.VIBEMON_STATIC_URL || 'https://vibemon.io/static').replace(/\/+$/, '');
-
-const FETCH_TIMEOUT_MS = 5000;
 
 // Engine drawing capabilities: unknown values are clamped to these.
 const EYE_TYPES = new Set(['normal', 'glasses', 'blink', 'happy']);
@@ -236,17 +235,11 @@ function loadRegistries() {
 }
 
 async function fetchJson(url) {
-  const res = await fetch(url, { signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) });
+  const res = await fetch(url, { signal: AbortSignal.timeout(REGISTRY_FETCH_TIMEOUT_MS) });
   if (!res.ok) {
     throw new Error(`HTTP ${res.status}`);
   }
   return readJsonResponse(res, REGISTRY_MAX_RESPONSE_BYTES);
-}
-
-function writeFileAtomic(file, data) {
-  const tmp = `${file}.tmp`;
-  fs.writeFileSync(tmp, data);
-  fs.renameSync(tmp, file);
 }
 
 /**
@@ -272,7 +265,6 @@ async function refresh() {
       return false;
     }
     const cached = sanitizeCharactersRegistry(readJsonSafe(path.join(dir, 'characters.json')));
-    fs.mkdirSync(dir, { recursive: true });
     writeFileAtomic(path.join(dir, 'states.json'), JSON.stringify(states, null, 2));
     if (characters.revision < Math.max(bundledCharacters.revision ?? 0, cached?.revision ?? 0)) {
       console.warn('Registry refresh: states updated; keeping newer bundled or cached character artwork');

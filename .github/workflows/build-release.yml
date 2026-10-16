@@ -114,6 +114,11 @@ jobs:
         if: matrix.os == 'macos-latest'
         run: |
           codesign --verify --deep --strict dist/mac-arm64/VibeMon.app
+          # WidgetKit loads only a sandboxed extension; notarization rejects debug entitlements.
+          extension=dist/mac-arm64/VibeMon.app/Contents/PlugIns/VibeMonWidgets.appex
+          codesign -d --entitlements - --xml "$extension" > "$RUNNER_TEMP/widgets.plist"
+          test "$(/usr/libexec/PlistBuddy -c 'Print :com.apple.security.app-sandbox' "$RUNNER_TEMP/widgets.plist")" = true
+          ! /usr/libexec/PlistBuddy -c 'Print :com.apple.security.get-task-allow' "$RUNNER_TEMP/widgets.plist" 2>/dev/null
           xcrun stapler validate dist/mac-arm64/VibeMon.app
           spctl --assess --type execute --verbose dist/mac-arm64/VibeMon.app
 

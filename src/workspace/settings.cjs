@@ -5,6 +5,9 @@ const {
 } = require('../shared/config.cjs');
 const { describeFailure } = require('../shared/install-result.cjs');
 
+// ~/.vibemon/config.json fields the workspace shows and edits. Credentials stay out.
+const HOOK_SETTINGS = ['debug', 'auto_launch', 'http_urls', 'serial_port'];
+
 // Fixed navigation targets — the renderer picks by key, so no URL ever
 // crosses the IPC boundary.
 const EXTERNAL_LINKS = {
@@ -58,7 +61,7 @@ class WorkspaceSettings {
    */
   getVibemonConfigView() {
     const config = this.vibemonConfigManager.read();
-    const display = Object.fromEntries(['debug', 'auto_launch', 'http_urls', 'serial_port'].map(key => [key, config[key]]));
+    const display = Object.fromEntries(HOOK_SETTINGS.map(key => [key, config[key]]));
     return { ...display, status: this.vibemonConfigManager.getStatus() };
   }
 
@@ -167,8 +170,7 @@ class WorkspaceSettings {
 
     handle('set-vibemon-config', (partial) => {
       if (!partial || typeof partial !== 'object' || Array.isArray(partial)) throw new Error('Config changes must be a JSON object');
-      const editable = ['debug', 'auto_launch', 'http_urls', 'serial_port'];
-      if (Object.keys(partial).some(key => !editable.includes(key))) throw new Error('This hook setting cannot be changed from the workspace');
+      if (Object.keys(partial).some(key => !HOOK_SETTINGS.includes(key))) throw new Error('This hook setting cannot be changed from the workspace');
       this.vibemonConfigManager.write(partial);
       this.notifyChanged();
       return this.getVibemonConfigView();

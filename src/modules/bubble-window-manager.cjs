@@ -11,16 +11,8 @@ const path = require('path');
 const { trackWindowPointer } = require('./window-pointer.cjs');
 const { placeBubble } = require('./bubble-layout.cjs');
 const { remainingResetMinutes } = require('../shared/monitoring/clock.cjs');
-const { STATE_COLORS, STATE_TEXTS, TOOL_TEXTS, LOADING_STATES } = require('../shared/config.cjs');
-
-// Must match character-window-manager.cjs's ALWAYS_ON_TOP_LEVEL so the
-// bubble stacks at the same level as its character window.
-const ALWAYS_ON_TOP_LEVEL = process.platform === 'darwin' ? 'floating' : 'screen-saver';
-
-// Backstop for a bubble window that never fires 'did-finish-load' or
-// 'did-fail-load' (e.g. loadFile hangs) — destroy it so ensureBubbleWindow()
-// doesn't wait forever.
-const LOAD_TIMEOUT_MS = 5000;
+const { ALWAYS_ON_TOP_LEVEL } = require('./window-position.cjs');
+const { STATE_COLORS, STATE_TEXTS, TOOL_TEXTS, LOADING_STATES, BUBBLE_LOAD_TIMEOUT_MS } = require('../shared/config.cjs');
 
 const METRIC_ICONS = {
   memory: '🧠',
@@ -212,7 +204,7 @@ class BubbleWindowManager {
     // otherwise leave every ensureBubbleWindow() caller awaiting forever.
     const timeoutTimer = setTimeout(() => {
       if (this.isWindowValid(win)) win.destroy();
-    }, LOAD_TIMEOUT_MS);
+    }, BUBBLE_LOAD_TIMEOUT_MS);
 
     const loadPromise = new Promise((resolve) => {
       win.webContents.once('did-finish-load', () => {

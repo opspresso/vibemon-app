@@ -10,7 +10,6 @@ const { validPercentage, validText, AGENT_TEXT_LIMITS } = require('../shared/res
 // monitoring/domain.cjs and uses the cloud API's source contract.
 const { project: PROJECT_MAX_LENGTH, tool: TOOL_MAX_LENGTH, model: MODEL_MAX_LENGTH, character: CHARACTER_MAX_LENGTH } = AGENT_TEXT_LIMITS;
 const TERMINAL_ID_MAX_LENGTH = 100;
-// Memory is now a number (0-100), not a string
 // iTerm2: iterm2:w0t0p0:UUID format, Ghostty: ghostty:PID format
 const ITERM2_SESSION_PATTERN = /^iterm2:w\d+t\d+p\d+:[0-9A-Fa-f-]{36}$/;
 const GHOSTTY_PID_PATTERN = /^ghostty:\d{1,10}$/;
@@ -159,50 +158,25 @@ function validateStatusPayload(data) {
     }
   }
 
-  const stateResult = validateState(data.state);
-  if (!stateResult.valid) return stateResult;
-
-  const characterResult = validateCharacter(data.character);
-  if (!characterResult.valid) return characterResult;
-
-  const projectResult = validateProject(data.project);
-  if (!projectResult.valid) return projectResult;
-
-  const memoryResult = validateMemory(data.memory);
-  if (!memoryResult.valid) return memoryResult;
-
-  const usage5hResult = validateUsage(data.usage5h, 'usage5h');
-  if (!usage5hResult.valid) return usage5hResult;
-
-  const usageWeekResult = validateUsage(data.usageWeek, 'usageWeek');
-  if (!usageWeekResult.valid) return usageWeekResult;
-
-  const usage5hResetsInResult = validateResetMinutes(data.usage5hResetsIn, 'usage5hResetsIn');
-  if (!usage5hResetsInResult.valid) return usage5hResetsInResult;
-
-  const usageWeekResetsInResult = validateResetMinutes(data.usageWeekResetsIn, 'usageWeekResetsIn');
-  if (!usageWeekResetsInResult.valid) return usageWeekResetsInResult;
-
-  const usageWeekModelResult = validateUsage(data.usageWeekModel, 'usageWeekModel');
-  if (!usageWeekModelResult.valid) return usageWeekModelResult;
-
-  const usageWeekModelResetsInResult = validateResetMinutes(
-    data.usageWeekModelResetsIn, 'usageWeekModelResetsIn'
-  );
-  if (!usageWeekModelResetsInResult.valid) return usageWeekModelResetsInResult;
-
-  const usageWeekModelLabelResult = validateUsageLabel(data.usageWeekModelLabel);
-  if (!usageWeekModelLabelResult.valid) return usageWeekModelLabelResult;
-
-  const toolResult = validateTool(data.tool);
-  if (!toolResult.valid) return toolResult;
-
-  const modelResult = validateModel(data.model);
-  if (!modelResult.valid) return modelResult;
-
-  const terminalIdResult = validateTerminalId(data.terminalId);
-  if (!terminalIdResult.valid) return terminalIdResult;
-
+  // The first failing field decides the error.
+  for (const result of [
+    validateState(data.state),
+    validateCharacter(data.character),
+    validateProject(data.project),
+    validateMemory(data.memory),
+    validateUsage(data.usage5h, 'usage5h'),
+    validateUsage(data.usageWeek, 'usageWeek'),
+    validateResetMinutes(data.usage5hResetsIn, 'usage5hResetsIn'),
+    validateResetMinutes(data.usageWeekResetsIn, 'usageWeekResetsIn'),
+    validateUsage(data.usageWeekModel, 'usageWeekModel'),
+    validateResetMinutes(data.usageWeekModelResetsIn, 'usageWeekModelResetsIn'),
+    validateUsageLabel(data.usageWeekModelLabel),
+    validateTool(data.tool),
+    validateModel(data.model),
+    validateTerminalId(data.terminalId)
+  ]) {
+    if (!result.valid) return result;
+  }
   return { valid: true, error: null };
 }
 

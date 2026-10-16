@@ -18,18 +18,13 @@ function createMockResponse() {
   const headers = {};
   return {
     headers,
-    statusCode: null,
-    body: null,
     setHeader: jest.fn((name, value) => {
       headers[name] = value;
     }),
-    writeHead: jest.fn((statusCode, headersObj) => {
-      this.statusCode = statusCode;
+    writeHead: jest.fn((_statusCode, headersObj) => {
       Object.assign(headers, headersObj);
     }),
-    end: jest.fn((body) => {
-      this.body = body;
-    })
+    end: jest.fn()
   };
 }
 

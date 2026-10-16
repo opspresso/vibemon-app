@@ -193,17 +193,26 @@ class HttpServer {
     }
   }
 
-  async handlePostStatus(req, res) {
-    if (!hasJsonContentType(req)) {
+  /**
+   * Reads a JSON object body, or sends the error response and returns null.
+   * @param {boolean} [optional] accept a request without a JSON Content-Type (no body)
+   */
+  async readJson(req, res, optional = false) {
+    if (!optional && !hasJsonContentType(req)) {
       sendError(res, 415, 'Content-Type must be application/json');
-      return;
+      return null;
     }
     const { data, error, statusCode } = await parseJsonBody(req, MAX_PAYLOAD_SIZE);
-
     if (error) {
       sendError(res, statusCode, error);
-      return;
+      return null;
     }
+    return data;
+  }
+
+  async handlePostStatus(req, res) {
+    const data = await this.readJson(req, res);
+    if (!data) return;
 
     const result = this.ingress.accept(data);
     if (!result.valid) { sendError(res, 400, result.error); return; }
@@ -220,16 +229,8 @@ class HttpServer {
   }
 
   async handlePostClose(req, res) {
-    if (!hasJsonContentType(req)) {
-      sendError(res, 415, 'Content-Type must be application/json');
-      return;
-    }
-    const { data, error, statusCode } = await parseJsonBody(req, MAX_PAYLOAD_SIZE);
-
-    if (error) {
-      sendError(res, statusCode, error);
-      return;
-    }
+    const data = await this.readJson(req, res);
+    if (!data) return;
 
     const projectId = data.project;
 
@@ -264,16 +265,9 @@ class HttpServer {
   }
 
   async handlePostShow(req, res) {
-    if (req.headers['content-length'] && !hasJsonContentType(req)) {
-      sendError(res, 415, 'Content-Type must be application/json');
-      return;
-    }
-    const { data, error, statusCode } = await parseJsonBody(req, MAX_PAYLOAD_SIZE);
-
-    if (error) {
-      sendError(res, statusCode, error);
-      return;
-    }
+    // An empty body selects the followed project.
+    const data = await this.readJson(req, res, !req.headers['content-length']);
+    if (!data) return;
 
     const projectId = data.project;
 
@@ -306,16 +300,8 @@ class HttpServer {
   }
 
   async handlePostCharacterLock(req, res) {
-    if (!hasJsonContentType(req)) {
-      sendError(res, 415, 'Content-Type must be application/json');
-      return;
-    }
-    const { data, error, statusCode } = await parseJsonBody(req, MAX_PAYLOAD_SIZE);
-
-    if (error) {
-      sendError(res, statusCode, error);
-      return;
-    }
+    const data = await this.readJson(req, res);
+    if (!data) return;
 
     const character = data.character;
 

@@ -152,7 +152,7 @@ describe('VibemonConfigManager', () => {
     test('persists to ~/.vibemon/config.json', () => {
       manager.write({ debug: true });
 
-      expect(fs.mkdirSync).toHaveBeenCalledWith(expect.stringContaining('.vibemon'), { recursive: true });
+      expect(fs.mkdirSync).toHaveBeenCalledWith(expect.stringContaining('.vibemon'), { recursive: true, mode: 0o700 });
       expect(fs.writeFileSync).toHaveBeenCalledWith(
         expect.stringMatching(/config\.json\.\d+\.tmp$/),
         expect.stringContaining('"debug": true'),
@@ -168,7 +168,7 @@ describe('VibemonConfigManager', () => {
       manager.write({ debug: true });
 
       expect(fs.chmodSync).toHaveBeenCalledWith(expect.stringContaining('.vibemon'), 0o700);
-      expect(fs.chmodSync).toHaveBeenCalledWith(expect.stringContaining('config.json'), 0o600);
+      expect(fs.chmodSync).toHaveBeenCalledWith(expect.stringMatching(/config\.json\.\d+\.tmp$/), 0o600);
     });
 
     test('does not throw when chmodSync is unsupported (e.g. non-Unix platforms)', () => {
@@ -223,7 +223,7 @@ describe('VibemonConfigManager', () => {
 
     test('creates a new config with defaults when missing', () => {
       expect(manager.ensureDesktopUrl('my_token')).toBe(true);
-      expect(fs.mkdirSync).toHaveBeenCalledWith(expect.stringContaining('.vibemon'), { recursive: true });
+      expect(fs.mkdirSync).toHaveBeenCalledWith(expect.stringContaining('.vibemon'), { recursive: true, mode: 0o700 });
 
       const written = JSON.parse(fs.writeFileSync.mock.calls[0][1]);
       expect(written.http_urls).toEqual(['http://127.0.0.1:19280']);

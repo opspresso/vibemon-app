@@ -12,12 +12,9 @@ const os = require('os');
 const path = require('path');
 const { HTTP_PORT } = require('../shared/config.cjs');
 const { webOrigin, sameWebOrigin } = require('../shared/web-origin.cjs');
+const { writeFileAtomic } = require('../shared/atomic-file.cjs');
 
-function homePath(...segments) {
-  return path.join(os.homedir(), ...segments);
-}
-
-const VIBEMON_HOME = homePath('.vibemon');
+const VIBEMON_HOME = path.join(os.homedir(), '.vibemon');
 const VIBEMON_CONFIG_PATH = path.join(VIBEMON_HOME, 'config.json');
 const DESKTOP_HTTP_URL = `http://127.0.0.1:${HTTP_PORT}`;
 
@@ -217,16 +214,8 @@ class VibemonConfigManager {
    */
   persist(config) {
     try {
-      fs.mkdirSync(VIBEMON_HOME, { recursive: true });
-      const tempPath = `${VIBEMON_CONFIG_PATH}.${process.pid}.tmp`;
-      fs.writeFileSync(tempPath, JSON.stringify(config, null, 2) + '\n', { mode: 0o600 });
-      try {
-        fs.chmodSync(VIBEMON_HOME, 0o700);
-        fs.chmodSync(tempPath, 0o600);
-      } catch {
-        // Best-effort; non-Unix platforms may not support chmod.
-      }
-      fs.renameSync(tempPath, VIBEMON_CONFIG_PATH);
+      // The file holds the write token.
+      writeFileAtomic(VIBEMON_CONFIG_PATH, JSON.stringify(config, null, 2) + '\n', { mode: 0o600, directoryMode: 0o700 });
       return true;
     } catch (err) {
       console.error('[VibemonConfig] failed to save ~/.vibemon/config.json:', err.message);

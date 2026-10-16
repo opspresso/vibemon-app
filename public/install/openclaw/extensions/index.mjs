@@ -416,7 +416,7 @@ async function sendVibeMonApi(payload, target = config) {
  * Build status payload
  */
 function buildPayload(state, extra = {}) {
-  const payload = {
+  return {
     state,
     project: config.projectName,
     character: config.character,
@@ -424,8 +424,6 @@ function buildPayload(state, extra = {}) {
     memory: undefined,
     ...extra,
   };
-
-  return payload;
 }
 
 // Same UTF-8 identity tuple as vibemon/account_context.py; terminal metadata is local only.
@@ -562,9 +560,8 @@ const plugin = {
     if (config.httpEnabled && config.httpUrls.length > 0) {
       api.logger.info(`[vibemon] HTTP origins: ${config.httpUrls.map(targetLabel).join(", ")}`);
     }
-    // Log VibeMon API configuration
-    // Never log token content: tokens can be as short as 8 chars, so even a
-    // prefix can be the whole credential.
+    // Log VibeMon API configuration. Never log any part of the token: logs
+    // leave the machine more easily than the configuration file.
     if (config.vibemonUrl && config.vibemonToken) {
       api.logger.info(`[vibemon] VibeMon API: ${targetLabel(config.vibemonUrl)} (token: set)`);
     } else {

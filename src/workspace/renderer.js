@@ -1,4 +1,4 @@
-import { $, text, hydrateIcons, connection, choices, configureSprites, ago, providerName } from './dom.js';
+import { $, text, hydrateIcons, connection, isConnectionStatus, choices, configureSprites, ago, providerName } from './dom.js';
 import { renderCards, renderActivity, renderUsage, accountCard, needsAttention } from './views/cards.js';
 import { setupPreferences } from './views/preferences.js';
 import { setupSelection } from './views/selection.js';
@@ -28,17 +28,8 @@ hydrateIcons();
 
 async function request(command, ...args) {
   const response = await api.request(command, ...args);
-  if (!response.ok) {
-    const known = [
-      'token-expired',
-      'permission-denied',
-      'credential-unavailable',
-      'secure-storage-unavailable',
-      'connection-error',
-      'not-configured'
-    ];
-    throw new Error(known.includes(response.error) ? connection(response.error)[1] : response.error);
-  }
+  // A connection status code becomes its explanation; other errors are already sentences.
+  if (!response.ok) throw new Error(isConnectionStatus(response.error) ? connection(response.error)[1] : response.error);
   if (command === 'settings') {
     accept(response.value.frame);
     return response.value.result;

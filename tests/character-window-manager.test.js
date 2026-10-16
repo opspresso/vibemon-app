@@ -805,8 +805,7 @@ describe('window geometry (character size + edge margin)', () => {
   const { screen } = require('electron');
   const WORK_AREA_WIDTH = 1920;
   const WORK_AREA_HEIGHT = 1080;
-  // Matches CHAR_Y_BASE + CHAR_SIZE + 5 in character-window-manager.cjs
-  const WINDOW_HEIGHT = 138;
+  const { WINDOW_HEIGHT } = require('../src/shared/constants.cjs');
 
   beforeEach(() => {
     screen.getDisplayMatching.mockImplementation(() => ({

@@ -53,6 +53,14 @@ jobs:
         run: pnpm exec electron-builder --dir --publish never --config.directories.output=out/package-check
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+      - name: Verify packaged macOS widgets
+        if: runner.os == 'macOS'
+        run: |
+          app=$(ls -d out/package-check/mac*/VibeMon.app)
+          test -f "$app/Contents/PlugIns/VibeMonWidgets.appex/Contents/Resources/Metadata.appintents/extract.actionsdata"
+          test -f "$app/Contents/Resources/widget-center.node"
+          plutil -extract CFBundleURLTypes.0.CFBundleURLSchemes.0 raw "$app/Contents/Info.plist" | grep -qx vibemon
+          pnpm preview:widgets
       - name: Save geometry results and screenshots
         if: always()
         uses: actions/upload-artifact@v7
@@ -62,3 +70,4 @@ jobs:
             out/overlay-tests/
             out/workspace-tests/
             out/hit-test/
+            out/widgets/

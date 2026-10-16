@@ -119,8 +119,9 @@ def _show_flag(env_key: str, default: bool) -> bool:
     return val != "0"
 
 
-# Statusline segment toggles (config keys: show_*). Defaults match the curated
-# layout — every segment on except the work-duration timer.
+# Statusline segment toggles (config keys: show_*). A key missing from
+# statusline.json uses these defaults: tokens, cost, line counts, and work
+# duration are off; every other segment is on.
 SHOW_PROJECT = _show_flag("VIBEMON_SHOW_PROJECT", True)
 SHOW_GIT = _show_flag("VIBEMON_SHOW_GIT", True)
 SHOW_MODEL = _show_flag("VIBEMON_SHOW_MODEL", True)
@@ -162,10 +163,6 @@ def detach_stdio() -> None:
             os.close(devnull_fd)
     except OSError:
         pass
-
-
-
-
 
 
 # ============================================================================
@@ -214,10 +211,6 @@ def get_branch_emoji(branch: str) -> str:
 
     # Default emoji
     return "🌿"
-
-
-
-
 
 
 def get_git_info(directory: str) -> str:
@@ -626,9 +619,9 @@ def build_statusline(
     """Build the status line string.
 
     Each segment is gated by a SHOW_* toggle (config keys: show_*), so users
-    can curate which fields appear. Default layout:
-    📂 project │ 🌿 branch │ 🤖 model │ 📥📤 tokens │ 💰 cost │ +/- lines │
-    🧠 memory │ 📊 usage │ ⏳ reset │ version  (work-duration ⏱️ off by default)
+    can curate which fields appear. Segment order:
+    📂 project │ 🌿 branch │ 🤖 model │ 📥📤 tokens │ 💰 cost │ ⏱️ duration │
+    +/- lines │ 🧠 memory │ 📊 usage │ ⏳ reset │ version
     """
     SEP = " │ "
     parts: list[str] = []

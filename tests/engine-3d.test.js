@@ -13,7 +13,7 @@ const { loadBrowserModule } = require('./helpers/browser-module.cjs');
 const charactersRegistry = require('../src/shared/data/characters.json');
 
 const monsterStates = loadBrowserModule('src/engine/monster-states.js', [
-  'JOINTS', 'MOVES', 'STATE_ANIMATIONS', 'getStateAnimation', 'getCharacterTheme', 'lerp', 'dampFactor'
+  'JOINTS', 'MOVES', 'STATE_ANIMATIONS', 'DEFAULT_THEME', 'getStateAnimation', 'getCharacterTheme', 'lerp', 'dampFactor'
 ]);
 const companion = loadBrowserModule('src/engine/vibemon-companion.mjs', [
   'COMPANION_SIZE', 'COMPANION_OUTLINE', 'COMPANION_EYES'

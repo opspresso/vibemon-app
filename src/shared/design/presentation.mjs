@@ -8,9 +8,14 @@ export const codingProviders = Object.freeze([
   { id: 'opencode', name: 'OpenCode', character: 'vibemon' }
 ].map(Object.freeze));
 export const providerLabel = provider => codingProviders.find(item => item.id === provider)?.name ?? provider;
+// An account key is `provider:id`; people know the account by its ID.
+export const accountName = accountKey => accountKey.slice(accountKey.indexOf(':') + 1);
 export const statePresentation = state => Object.hasOwn(states, state) ? [...states[state]] : [state, 'neutral'];
 export const stateLabel = state => statePresentation(state)[0];
 export const stateTone = state => statePresentation(state)[1];
+export const resourceType = source => source.resourceType || { host: 'Host', cluster: 'Kubernetes' }[source.kind] || 'Resource';
+// Plan usage warns before a limit; other measurements have no thresholds.
+export const metricTone = (key, value) => !key.startsWith('usage') || !(value >= 70) ? 'normal' : value >= 90 ? 'danger' : 'warning';
 
 const decimal = new Intl.NumberFormat(undefined, { maximumFractionDigits: 1 });
 const unitFormats = new Map(Object.entries(unitFractionDigits).map(([unit, maximumFractionDigits]) => [unit, new Intl.NumberFormat(undefined, { maximumFractionDigits })]));

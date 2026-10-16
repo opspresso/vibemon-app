@@ -2,7 +2,7 @@
 
 ## Project Structure & Module Organization
 
-VibeMon is an Electron desktop application. The main process starts in `src/main.js`; CommonJS services live in `src/modules/`, shared registries in `src/shared/`, and renderer code in `src/renderer.js`, `src/shared/bubble/`, and `src/engine/`. Keep tests in `tests/`, documentation in `docs/`, character art in `src/assets/characters/`, and application icons in `assets/`.
+VibeMon is an Electron desktop application. The main process starts in `src/main.js`; CommonJS services live in `src/modules/`, shared registries in `src/shared/`, and renderer code in `src/renderer.js`, `src/shared/bubble/`, and `src/engine/`. The macOS widget feed lives in `src/widgets/`, and the WidgetKit extension in `native/macos/` (see `docs/widgets.md`). Keep tests in `tests/`, documentation in `docs/`, character art in `src/assets/characters/`, and application icons in `assets/`.
 
 ## Architecture & Data Flow
 
@@ -17,6 +17,7 @@ Use Node.js 26.11.1 from `.nvmrc` and pnpm:
 - `pnpm lint` checks JavaScript and CommonJS files with ESLint.
 - `pnpm test` runs the Jest suite once; `pnpm test:watch` reruns affected tests during development.
 - `pnpm test:coverage` writes coverage reports to `coverage/`.
+- `pnpm preview:widgets` builds the macOS widgets with Xcode and renders their states to `out/widgets/preview.png`.
 - `pnpm build` creates platform packages without publishing. Use `pnpm build:mac`, `pnpm build:win`, or `pnpm build:linux` for a specific target.
 - `pnpm check:registry` validates local registry fields, image references, and dimensions.
 - `pnpm check:distribution` validates the public export map without network or private credentials.

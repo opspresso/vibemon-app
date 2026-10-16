@@ -1,4 +1,4 @@
-import { measurementUnit, stateTone } from '../../shared/design/presentation.mjs';
+import { accountName, measurementUnit, metricTone, resourceType, stateTone } from '../../shared/design/presentation.mjs';
 import {
   el,
   text,
@@ -14,10 +14,6 @@ import {
   remaining
 } from '../dom.js';
 
-export const resourceType = (source) =>
-  source.resourceType ||
-  { host: 'Host', cluster: 'Kubernetes', resource: 'Resource' }[source.kind] ||
-  'Resource';
 export const accountCard = (account) => ({
   ...account.latest,
   sourceId: account.accountId,
@@ -29,6 +25,7 @@ export const accountCard = (account) => ({
   members: account.sources
 });
 export const sourceState = source => source.displayState;
+export const sourceType = source => source.isAccount ? `${providerName(source.provider)} · ${accountName(source.sourceId)}` : resourceType(source);
 export const needsAttention = source => source.needsAttention;
 
 export function createMetric() {
@@ -64,12 +61,7 @@ export function updateMetric(node, { metric, value, label, precise = false }) {
     bar.setAttribute('aria-valuemax', metric.max);
     bar.setAttribute('aria-valuenow', Math.max(metric.min, Math.min(metric.max, value)));
     bar.setAttribute('aria-valuetext', reading(value, metric.unit, precise));
-    bar.dataset.tone =
-      metric.key.startsWith('usage') && value >= 90
-        ? 'danger'
-        : metric.key.startsWith('usage') && value >= 70
-          ? 'warning'
-          : 'normal';
+    bar.dataset.tone = metricTone(metric.key, value);
   }
 }
 
@@ -153,11 +145,11 @@ export function renderCards(
         delete card.dataset.agentTone;
         delete card.dataset.agentState;
       }
-      card.setAttribute('aria-label', source.isAccount ? `${source.displayName} · ${providerName(source.provider)} · ${source.sourceId.slice(source.provider.length + 1)}` : source.displayName);
+      card.setAttribute('aria-label', source.isAccount ? `${source.displayName} · ${sourceType(source)}` : source.displayName);
       const parts = card._parts;
       parts.edge.hidden = !source.isAccount;
       text(parts.name, source.displayName);
-      text(parts.type, source.isAccount ? `${providerName(source.provider)} · ${source.sourceId.slice(source.provider.length + 1)}` : resourceType(source));
+      text(parts.type, sourceType(source));
       const identity = source.isAccount ? source.agent?.character : source.kind;
       if (parts.image.dataset.identity !== identity) {
         if (source.isAccount) {

@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- WidgetKit loads only sandboxed extensions. -->
+	<key>com.apple.security.app-sandbox</key>
+	<true/>
+	<!-- Read-only access to the feed that VibeMon writes. No other file or network access. -->
+	<key>com.apple.security.temporary-exception.files.home-relative-path.read-only</key>
+	<array>
+		<string>/.vibemon/widgets/</string>
+	</array>
+</dict>
+</plist>

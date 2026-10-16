@@ -145,11 +145,13 @@ export function setupPreferences({ getFrame, request, run, notify }) {
     text($('theme-storage-status'), message);
     $('theme-storage-status').hidden = !message;
   };
+  const themes = ['light', 'dark', 'system'];
+  const sessionOnly = 'Appearance changes apply to this session. Local storage is unavailable.';
   let storedTheme = null;
   try { storedTheme = window.localStorage.getItem('vibemon.workspace.theme'); }
-  catch { appearanceNotice('Appearance changes apply to this session. Local storage is unavailable.'); }
-  if (storedTheme !== null && !['light', 'dark', 'system'].includes(storedTheme)) appearanceNotice('The saved appearance was invalid. Choose an appearance to replace it.');
-  const theme = ['light', 'dark', 'system'].includes(storedTheme) ? storedTheme : 'system';
+  catch { appearanceNotice(sessionOnly); }
+  if (storedTheme !== null && !themes.includes(storedTheme)) appearanceNotice('The saved appearance was invalid. Choose an appearance to replace it.');
+  const theme = themes.includes(storedTheme) ? storedTheme : 'system';
   document.documentElement.dataset.theme = theme;
   $('theme').value = theme;
   $('theme').addEventListener('change', () => {
@@ -157,7 +159,7 @@ export function setupPreferences({ getFrame, request, run, notify }) {
     try {
       window.localStorage.setItem('vibemon.workspace.theme', $('theme').value);
       appearanceNotice('');
-    } catch { appearanceNotice('Appearance changes apply to this session. Local storage is unavailable.'); }
+    } catch { appearanceNotice(sessionOnly); }
   });
 
   function render(frame) {

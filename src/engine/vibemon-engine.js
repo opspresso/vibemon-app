@@ -239,27 +239,13 @@ function drawEffect(effect, char, animFrame, drawRect) {
       ], effectColor, outlineColor, drawRect);
     }
   } else if (effect === 'exclamation') {
-    // Draw exclamation mark (white with red border)
+    // A white mark with a red border; it shakes 2 art pixels up and down.
     const shakeOffset = (Math.floor(animFrame / 2) % 4 < 2) ? 2 : -2;
     const markY = effectY + shakeOffset;
-
-    // Exclamation body (white rectangle)
-    drawRect(effectX + 1, markY, 4, 10, CONSTANTS.COLOR_WHITE);
-
-    // Red border around body
-    drawRect(effectX, markY - 1, 6, 1, '#DD0000');
-    drawRect(effectX, markY + 10, 6, 1, '#DD0000');
-    drawRect(effectX, markY, 1, 10, '#DD0000');
-    drawRect(effectX + 5, markY, 1, 10, '#DD0000');
-
-    // Exclamation dot (white square)
-    drawRect(effectX + 1, markY + 12, 4, 2, CONSTANTS.COLOR_WHITE);
-
-    // Red border around dot
-    drawRect(effectX, markY + 11, 6, 1, '#DD0000');
-    drawRect(effectX, markY + 14, 6, 1, '#DD0000');
-    drawRect(effectX, markY + 12, 1, 2, '#DD0000');
-    drawRect(effectX + 5, markY + 12, 1, 2, '#DD0000');
+    drawOutlinedRects([
+      [effectX + 1, markY, 4, 10],
+      [effectX + 1, markY + 12, 4, 2]
+    ], CONSTANTS.COLOR_WHITE, '#DD0000', drawRect);
   } else if (effect !== 'none') {
     // 'none' intentionally draws nothing; anything else is a registry typo.
     console.warn(`VibeMon engine: unknown effect "${effect}" - nothing drawn`);

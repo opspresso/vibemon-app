@@ -15,8 +15,8 @@ html, body {
    interaction expression must react the moment the mouse goes down.
    Sized to the sprite canvas (128x128 at 3,5) plus exactly the clearance
    its floating animation needs (FLOAT_AMPLITUDE_X/Y in vibemon-engine.js)
-   — must stay in sync with the window size set by
-   character-window-manager.cjs.
+   — must stay in sync with WINDOW_WIDTH and WINDOW_HEIGHT in
+   constants.json (tests/constants.test.js checks the height).
    The Character Size setting scales the whole area down through
    --vibemon-scale (set by renderer.js). Scaling with a transform keeps the
    layout box — and so both engines' canvas resolution — at full size, so

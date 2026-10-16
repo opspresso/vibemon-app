@@ -1,5 +1,19 @@
-"""Display definitions for optional root-filesystem measurements."""
+"""Root-filesystem measurements: validation, units, and display definitions."""
+import math
+
 DISK_METRICS = ('diskAvailableGiB', 'diskTotalGiB', 'diskUsedPercent')
+
+
+def checked_capacity(available, capacity):
+    """Return the byte counts, or raise ValueError when they cannot describe one filesystem."""
+    if any(isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value) for value in (available, capacity)) or not 0 <= available <= capacity or capacity <= 0:
+        raise ValueError('Invalid filesystem capacity')
+    return available, capacity
+
+
+def disk_values(available, capacity):
+    """Available and total GiB, and the used percentage including reserved space."""
+    return dict(zip(DISK_METRICS, (available / 1024 ** 3, capacity / 1024 ** 3, 100 * (1 - available / capacity))))
 CLUSTER_DEFINITIONS = {
     'cpuPercent': {'label': 'CPU', 'unit': '%', 'display': 'gauge', 'min': 0, 'max': 100},
     'memoryPercent': {'label': 'Memory', 'unit': '%', 'display': 'gauge', 'min': 0, 'max': 100},

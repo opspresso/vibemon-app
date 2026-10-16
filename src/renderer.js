@@ -98,25 +98,20 @@ async function init() {
   cleanupAnimation = observeAnimation(vibeMonEngine);
 
   // Listen for state updates from main process
-  if (window.electronAPI) {
-    cleanupStateListener = window.electronAPI.onStateUpdate((data) => {
-      // Validate incoming data
-      if (!data || typeof data !== 'object') return;
+  cleanupStateListener = window.electronAPI.onStateUpdate((data) => {
+    if (!data || typeof data !== 'object') return;
+    if (typeof data.state === 'string') lastReportedState = data.state;
+    vibeMonEngine.setState(data);
+    // Keep the interaction expression on top of updates that arrive
+    // mid-click/drag; the real state is restored when it ends.
+    if (interactionActive) vibeMonEngine.setState({ state: 'start' });
+    vibeMonEngine.render();
+  });
 
-      // Update state in VibeMon engine
-      if (typeof data.state === 'string') lastReportedState = data.state;
-      vibeMonEngine.setState(data);
-      // Keep the interaction expression on top of updates that arrive
-      // mid-click/drag; the real state is restored when it ends.
-      if (interactionActive) vibeMonEngine.setState({ state: 'start' });
-      vibeMonEngine.render();
-    });
-
-    // Size/dev-mode changes made in Settings apply live — no window reload.
-    cleanupDisplayOptionsListener = window.electronAPI.onDisplayOptions((options) => {
-      applyDisplayOptions(container, options);
-    });
-  }
+  // Size/dev-mode changes made in Settings apply live — no window reload.
+  cleanupDisplayOptionsListener = window.electronAPI.onDisplayOptions((options) => {
+    applyDisplayOptions(container, options);
+  });
 
   cleanupInteraction = installWindowInteraction({
     hitTest: createCharacterHitTest(vibeMonEngine),
@@ -132,18 +127,12 @@ function cleanup() {
   cleanupFraming = null;
   cleanupInteraction?.();
   cleanupInteraction = null;
-  if (vibeMonEngine) {
-    vibeMonEngine.cleanup();
-    vibeMonEngine = null;
-  }
-  if (cleanupStateListener) {
-    cleanupStateListener();
-    cleanupStateListener = null;
-  }
-  if (cleanupDisplayOptionsListener) {
-    cleanupDisplayOptionsListener();
-    cleanupDisplayOptionsListener = null;
-  }
+  vibeMonEngine?.cleanup();
+  vibeMonEngine = null;
+  cleanupStateListener?.();
+  cleanupStateListener = null;
+  cleanupDisplayOptionsListener?.();
+  cleanupDisplayOptionsListener = null;
 }
 
 // Initialize on load

@@ -126,41 +126,18 @@ export function badge(node, state) {
   node.className = `chip ${stateTone(state)}`;
   text(node, stateLabel(state));
 }
+const CONNECTION = {
+  connected: ['Connected', 'Your workspace is connected.', 'good'],
+  connecting: ['Connecting', 'Checking your workspace connection…', 'neutral'],
+  'not-configured': ['Not connected', 'Connect a workspace to follow resources and cloud accounts.', 'neutral'],
+  'token-expired': ['Token not accepted', 'Retrieve an active read token from your Web Account.', 'danger'],
+  'permission-denied': ['Read access required', 'This token cannot read monitoring data. Use a token with read permission.', 'danger'],
+  'credential-unavailable': ['Replace saved token', 'The saved token cannot be unlocked. Enter it again from Web Account.', 'warning'],
+  'secure-storage-unavailable': ['Unlock secure storage', 'Unlock your operating system secure storage, then try again.', 'warning'],
+  'connection-error': ['Connection interrupted', 'Showing last received readings. Check your Web address and connection.', 'warning']
+};
+export const isConnectionStatus = status => Object.hasOwn(CONNECTION, status);
+/** @returns {[label: string, description: string, tone: string]} */
 export function connection(status) {
-  return (
-    {
-      connected: ['Connected', 'Your workspace is connected.', 'good'],
-      connecting: ['Connecting', 'Checking your workspace connection…', 'neutral'],
-      'not-configured': [
-        'Not connected',
-        'Connect a workspace to follow resources and cloud accounts.',
-        'neutral'
-      ],
-      'token-expired': [
-        'Token not accepted',
-        'Retrieve an active read token from your Web Account.',
-        'danger'
-      ],
-      'permission-denied': [
-        'Read access required',
-        'This token cannot read monitoring data. Use a token with read permission.',
-        'danger'
-      ],
-      'credential-unavailable': [
-        'Replace saved token',
-        'The saved token cannot be unlocked. Enter it again from Web Account.',
-        'warning'
-      ],
-      'secure-storage-unavailable': [
-        'Unlock secure storage',
-        'Unlock your operating system secure storage, then try again.',
-        'warning'
-      ],
-      'connection-error': [
-        'Connection interrupted',
-        'Showing last received readings. Check your Web address and connection.',
-        'warning'
-      ]
-    }[status] || ['Connection problem', 'Check your Web address and saved read token.', 'warning']
-  );
+  return CONNECTION[status] || ['Connection problem', 'Check your Web address and saved read token.', 'warning'];
 }
