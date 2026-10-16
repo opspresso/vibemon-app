@@ -26,6 +26,7 @@ const { WorkspaceSettings } = require('./workspace/settings.cjs');
 const { localActivity } = require('./workspace/activity.cjs');
 const { attentionAreas, attentionNotices } = require('./shared/attention.cjs');
 const { installWorkspaceMenu } = require('./workspace/menu.cjs');
+const { dashboardPage } = require('./workspace/deep-link.cjs');
 const { getUsageSnapshot, providerCacheKey } = require('./modules/usage-cache-reader.cjs');
 const { WidgetPublisher, usageByAccount, widgetsSupported } = require('./widgets/publisher.cjs');
 const { execFile } = require('child_process');
@@ -133,6 +134,17 @@ windowManager.onAlwaysOnTopChanged = (projectId) => {
 // Handle second instance launch attempt
 app.on('second-instance', () => {
   workspaceWindow?.open('overview');
+});
+
+// A widget click opens its Dashboard page. A link can arrive before the
+// workspace exists when it launches the App; the page then opens once ready.
+let pendingPage = null;
+app.on('open-url', (event, link) => {
+  event.preventDefault();
+  const page = dashboardPage(link);
+  if (!page) return;
+  if (workspaceWindow) workspaceWindow.open(page);
+  else pendingPage = page;
 });
 
 // Set up state manager callbacks
@@ -423,6 +435,8 @@ app.whenReady().then(() => {
   };
   cloudDelivery.onChange = () => workspaceSettings.notifyChanged();
   trayManager.openDashboard = () => workspaceWindow.open('overview');
+  if (pendingPage) workspaceWindow.open(pendingPage);
+  pendingPage = null;
   trayManager.openSettings = page => workspaceWindow.open(page || 'companion');
   installWorkspaceMenu({ open: page => workspaceWindow.open(page), showCompanion: showCharacterAgain });
   trayManager.setShowCharacterHandler(showCharacterAgain);
