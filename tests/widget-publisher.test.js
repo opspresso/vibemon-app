@@ -184,7 +184,8 @@ describe('widget feed helpers', () => {
     writeFeedFile(file, '{"version":1}');
     writeFeedFile(file, '{"version":2}');
     expect(fs.readFileSync(file, 'utf8')).toBe('{"version":2}');
-    expect(fs.statSync(file).mode & 0o777).toBe(0o600);
+    // Windows has no POSIX permission bits; the feed is read only on macOS.
+    if (process.platform !== 'win32') expect(fs.statSync(file).mode & 0o777).toBe(0o600);
     expect(fs.readdirSync(path.dirname(file))).toEqual(['feed.json']);
     fs.rmSync(directory, { recursive: true });
   });
