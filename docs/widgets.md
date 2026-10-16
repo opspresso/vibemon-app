@@ -5,7 +5,7 @@ VibeMon adds two small widgets to macOS 14 or later. Each widget shows one item:
 | Widget | Shows | Source |
 | --- | --- | --- |
 | **Resource** | State, collector message, and up to three metrics of one resource | Resources selected in **Customize view** |
-| **Coding Agent** | State, active project, context, session usage, and weekly usage of one provider account | Selected cloud accounts and local hook activity |
+| **Coding Agent** | State, context, session usage, and weekly usage of one provider account | Selected cloud accounts and local hook activity |
 
 Add as many widgets as you need, for example one per server and one per coding account.
 
@@ -22,12 +22,12 @@ A new widget shows the first item until you choose one. Click a widget to open i
 
 ## What the widget shows
 
-- **Status line**: the state in its color and the age of the last report, for example `3m`. States use the same names and rules as the Dashboard: a resource becomes **Stale** 120 seconds after its last receipt, and a coding agent ages to **Idle** and then **Inactive** when its hooks stop reporting.
-- **Detail line**: the project of a coding agent, or the collector's message for a resource.
+- **Header**: the icon, the name, and below the name the state in its color with the age of the last report, for example `3m`. The widget picker shows the account or resource type. States use the same names and rules as the Dashboard: a resource becomes **Stale** 120 seconds after its last receipt, and a coding agent ages to **Idle** and then **Inactive** when its hooks stop reporting.
+- **Detail line**: the collector's message for a resource, or **App closed** after VibeMon quits. A coding agent has no detail line.
 - **Metrics**: the first three metrics selected in **Customize view** for a resource. A coding agent shows **Context**, **Session**, and **Weekly**. A plan usage bar uses the warning color from 70% and the danger color from 90%. `—` means no measurement was reported.
 - **App closed**: VibeMon has quit. The values are the last known ones and keep aging.
 
-A coding agent combines all projects of one provider account. The project that needs attention is shown first, for example a project waiting for input. Local hook reports replace the cloud copy of the same project. When a hook report has no usage, the widget uses the plan usage on this Mac.
+A coding agent combines all projects of one provider account. The state of the project that needs attention is shown first, for example a project waiting for input. Local hook reports replace the cloud copy of the same project. When a hook report has no usage, the widget uses the plan usage on this Mac.
 
 ## Notices
 

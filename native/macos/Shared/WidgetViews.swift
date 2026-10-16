@@ -86,17 +86,15 @@ private struct ItemView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            Header(item: item)
-            StatusLine(status: status, trailing: running ? age : "App closed")
-                .padding(.top, 9)
+            Header(item: item, status: status, age: Age.text(since: item.observedAt, now: date))
             if let detail {
                 Text(detail)
                     .font(.system(size: 11, weight: .medium))
                     .foregroundStyle(Palette.foreground.opacity(0.78))
                     .lineLimit(item.metrics.isEmpty ? 3 : 1)
-                    .padding(.top, 2)
+                    .padding(.top, 8)
             }
-            Spacer(minLength: 6)
+            Spacer(minLength: 8)
             VStack(alignment: .leading, spacing: 6) {
                 ForEach(item.metrics.prefix(3)) { MetricRow(metric: $0) }
             }
@@ -105,19 +103,20 @@ private struct ItemView: View {
         .accessibilityElement(children: .combine)
     }
 
-    /// Agents name their project; resources show the collector's message.
+    /// After the App quits, the values are the last known ones; otherwise a
+    /// resource shows the collector's message.
     private var detail: String? {
-        switch item.kind {
-        case .agent: status.project
-        case .resource: item.message
-        }
+        guard running else { return "App closed" }
+        return item.kind == .resource ? item.message : nil
     }
-
-    private var age: String { Age.text(since: item.observedAt, now: date) }
 }
 
+/// The icon beside the title and the status. The subtitle is spoken only:
+/// the widget picker shows it, and the small widget has no room for it.
 private struct Header: View {
     let item: FeedItem
+    let status: FeedStatus
+    let age: String
 
     var body: some View {
         HStack(spacing: 8) {
@@ -125,40 +124,41 @@ private struct Header: View {
             case .agent: CharacterArt(file: item.artwork)
             case .resource: ResourceIcon(symbol: item.symbol)
             }
-            VStack(alignment: .leading, spacing: 1) {
+            VStack(alignment: .leading, spacing: 2) {
                 Text(item.title)
                     .font(.system(size: 13, weight: .semibold))
                     .foregroundStyle(Palette.foreground)
-                Text(item.subtitle)
-                    .font(.system(size: 10))
-                    .foregroundStyle(Palette.muted)
+                    .lineLimit(1)
+                    .accessibilityLabel("\(item.title), \(item.subtitle)")
+                StatusLine(status: status, age: age)
             }
-            .lineLimit(1)
         }
     }
 }
 
 private struct StatusLine: View {
     let status: FeedStatus
-    let trailing: String
+    let age: String
 
     var body: some View {
-        HStack(spacing: 5) {
+        HStack(spacing: 4) {
             Circle()
                 .fill(status.tone.color)
                 .frame(width: 7, height: 7)
                 .widgetAccentable()
             Text(status.label)
-                .font(.system(size: 12, weight: .semibold))
+                .font(.system(size: 11, weight: .semibold))
                 .foregroundStyle(status.tone.color)
                 .lineLimit(1)
+                // Long labels, such as Needs input, share the row with the age.
+                .minimumScaleFactor(0.8)
                 .layoutPriority(1)
-            Spacer(minLength: 4)
-            Text(trailing)
+            Spacer(minLength: 3)
+            Text(age)
                 .font(.system(size: 10))
                 .monospacedDigit()
                 .foregroundStyle(Palette.muted)
-                .lineLimit(1)
+                .fixedSize()
         }
     }
 }

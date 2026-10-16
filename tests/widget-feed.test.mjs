@@ -68,16 +68,16 @@ test('timeline times follow the wall clock when the server clock differs', () =>
   assert.equal(item.timeline[1].at, iso(constants.CLOUD_STALE_MS - minutes(1)));
 });
 
-test('a coding account ages through idle to inactive and keeps its project', () => {
+test('a coding account ages through idle to inactive', () => {
   const [item] = build({ cloud: cloud([agentSource()]) }).items;
   assert.equal(item.id, 'agent:claude:work');
   assert.equal(item.title, 'Claude Code');
   assert.equal(item.subtitle, 'work');
   assert.equal(item.artwork, 'clawd.png');
   assert.deepEqual(item.timeline, [
-    { at: iso(0), state: 'working', label: 'Working', tone: 'active', project: 'api' },
-    { at: iso(constants.SLEEP_TIMEOUT_MS - minutes(2)), state: 'idle', label: 'Idle', tone: 'neutral', project: 'api' },
-    { at: iso(2 * constants.SLEEP_TIMEOUT_MS - minutes(2)), state: 'inactive', label: 'Inactive', tone: 'neutral', project: 'api' }
+    { at: iso(0), state: 'working', label: 'Working', tone: 'active' },
+    { at: iso(constants.SLEEP_TIMEOUT_MS - minutes(2)), state: 'idle', label: 'Idle', tone: 'neutral' },
+    { at: iso(2 * constants.SLEEP_TIMEOUT_MS - minutes(2)), state: 'inactive', label: 'Inactive', tone: 'neutral' }
   ]);
   assert.deepEqual(item.metrics.map(({ label, value, tone }) => [label, value, tone]), [['Context', '34', 'normal'], ['Session', '72.4', 'warning'], ['Weekly', '91', 'danger']]);
 });
@@ -86,9 +86,9 @@ test('an input request from an older project outranks newer work on the same acc
   const waiting = agentSource({ sourceId: 'agent:a', observedAt: iso(-minutes(3)), agent: { state: 'notification', character: 'clawd', project: 'web' } });
   const working = agentSource({ sourceId: 'agent:b', observedAt: iso(-minutes(1)), agent: { state: 'working', character: 'clawd', project: 'api' } });
   const [item] = build({ cloud: cloud([working, waiting]) }).items;
-  assert.deepEqual(item.timeline[0], { at: iso(0), state: 'notification', label: 'Needs input', tone: 'warning', project: 'web' });
+  assert.deepEqual(item.timeline[0], { at: iso(0), state: 'notification', label: 'Needs input', tone: 'warning' });
   // The input request ages out first; the newer work is then shown.
-  assert.deepEqual(item.timeline[1], { at: iso(constants.SLEEP_TIMEOUT_MS - minutes(3)), state: 'working', label: 'Working', tone: 'active', project: 'api' });
+  assert.deepEqual(item.timeline[1], { at: iso(constants.SLEEP_TIMEOUT_MS - minutes(3)), state: 'working', label: 'Working', tone: 'active' });
 });
 
 test('local delivery replaces the cloud copy of a source and fills usage from this device', () => {

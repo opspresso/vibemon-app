@@ -22,7 +22,7 @@ const FEED_PATH = path.join(os.homedir(), '.vibemon', 'widgets', 'feed.json');
 // Times are recomputed from two clocks on every build; ignore jitter below this.
 const TIME_TOLERANCE_MS = 2000;
 
-/** The feed names projects and resources, so only the user can read it. */
+/** The feed names resources, accounts, and collector messages, so only the user can read it. */
 const writeFeedFile = (file, text) => writeFileAtomic(file, text, { mode: 0o600, directoryMode: 0o700 });
 
 /** The display state of an item at an ISO time: the last entry that started by then. */
@@ -30,9 +30,9 @@ function current(item, at) {
   return item.timeline.findLast(entry => entry.at <= at) ?? item.timeline[0];
 }
 
-/** Items, titles, and current tones: changes the user must see now. */
+/** Items, titles, artwork, and current tones: changes the user must see now. */
 function urgentKey(feed, at) {
-  return JSON.stringify([feed.running, feed.items.map(item => [item.id, item.title, item.subtitle, item.artwork, current(item, at).tone])]);
+  return JSON.stringify([feed.running, feed.items.map(item => [item.id, item.title, item.artwork, current(item, at).tone])]);
 }
 
 /** Everything else that a widget renders after `at`. */
@@ -42,7 +42,7 @@ function sameRendering(previous, next, at) {
     const after = next.items[index];
     const plan = item => item.timeline.filter(entry => entry.at > at);
     const [old, upcoming] = [plan(before), plan(after)];
-    const state = entry => JSON.stringify([entry.state, entry.label, entry.project]);
+    const state = entry => JSON.stringify([entry.state, entry.label]);
     return state(current(before, at)) === state(current(after, at))
       && before.message === after.message
       && JSON.stringify(before.metrics) === JSON.stringify(after.metrics)
