@@ -196,16 +196,20 @@ private struct MetricRow: View {
     }
 }
 
+/// A gauge in the metric color on a subtle track. In the vibrant mode, macOS
+/// keeps only brightness, so the fill is white on a faint track there.
 private struct GaugeBar: View {
     let fraction: Double
     let color: Color
+    @Environment(\.widgetRenderingMode) private var renderingMode
 
     var body: some View {
+        let fullColor = renderingMode == .fullColor
         GeometryReader { geometry in
             ZStack(alignment: .leading) {
-                Capsule().fill(Palette.subtle)
+                Capsule().fill(fullColor ? Palette.subtle : Color.white.opacity(0.15))
                 Capsule()
-                    .fill(color)
+                    .fill(fullColor ? color : Color.white)
                     .frame(width: fraction > 0 ? max(4, geometry.size.width * min(fraction, 1)) : 0)
                     .widgetAccentable()
             }

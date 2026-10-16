@@ -26,7 +26,7 @@ A new widget shows the first item until you choose one. Click a widget to open i
 - **Detail line**: the collector's message for a resource, or **App closed** after VibeMon quits. A coding agent has no detail line.
 - **Metrics**: the first three metrics selected in **Customize view** for a resource. A coding agent shows **Context**, **Session**, and **Weekly**. A plan usage bar uses the warning color from 70% and the danger color from 90%. `—` means no measurement was reported.
 - **App closed**: VibeMon has quit. The values are the last known ones and keep aging.
-- **Desktop not focused**: macOS draws the widget in one color. The character is then drawn without its tile, so its outline stays visible.
+- **Desktop not focused**: macOS draws the widget in one color. The character is then drawn without its tile, so its outline stays visible, and gauges are white on a faint track.
 
 A coding agent combines all projects of one provider account. The state of the project that needs attention is shown first, for example a project waiting for input. Local hook reports replace the cloud copy of the same project. When a hook report has no usage, the widget uses the plan usage on this Mac.
 
