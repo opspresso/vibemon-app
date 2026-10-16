@@ -1,6 +1,6 @@
-import { formatAxisValue, resourceType } from '../../shared/design/presentation.mjs';
-import { $, el, text, choices, keyed, svg, reading, badge, providerName, stateLabel, ago } from '../dom.js';
-import { accountCard, sourceState } from './cards.js';
+import { formatAxisValue } from '../../shared/design/presentation.mjs';
+import { $, el, text, choices, keyed, svg, reading, badge, stateLabel, ago } from '../dom.js';
+import { accountCard, sourceState, sourceType } from './cards.js';
 
 export function setupDetail({ getFrame, cloudTime, request, run }) {
   const dialog = $('detail-dialog');
@@ -109,10 +109,7 @@ export function setupDetail({ getFrame, cloudTime, request, run }) {
   }
   function renderSource(source) {
     text($('detail-title'), source.displayName);
-    text(
-      $('detail-type'),
-      source.isAccount ? `${providerName(source.provider)} · ${source.sourceId.slice(source.provider.length + 1)}` : resourceType(source)
-    );
+    text($('detail-type'), sourceType(source));
     const status = el('span');
     badge(status, sourceState(source));
     $('detail-status').replaceChildren(status);

@@ -4,7 +4,7 @@
 // the widget only lays the result out. One item is one resource or one coding
 // agent account. Each item carries a timeline of its future display states,
 // so a widget keeps aging correctly between App writes.
-import { formatMeasurement, measurementUnit, metricTone, providerLabel, resourceType, stateLabel, stateTone } from '../shared/design/presentation.mjs';
+import { accountName, formatMeasurement, measurementUnit, metricTone, providerLabel, resourceType, stateLabel, stateTone } from '../shared/design/presentation.mjs';
 import monitoring from '../shared/monitoring/state.cjs';
 import constants from '../shared/constants.cjs';
 
@@ -105,7 +105,7 @@ function agentItem(account, usage, artwork, now, wall) {
     id: `agent:${account.accountId}`,
     kind: 'agent',
     title: providerLabel(account.provider),
-    subtitle: account.accountId.slice(account.provider.length + 1),
+    subtitle: accountName(account.accountId),
     artwork: artwork(latest.agent.character),
     observedAt: wall(Date.parse(latest.observedAt)),
     metrics,

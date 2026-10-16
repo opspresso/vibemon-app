@@ -1,3 +1,4 @@
+import { accountName } from '../../shared/design/presentation.mjs';
 import { $, el, keyed, text, providerName, connection } from '../dom.js';
 
 export function setupSelection({ getFrame, request, navigate, run, notify, fail }) {
@@ -54,7 +55,7 @@ export function setupSelection({ getFrame, request, navigate, run, notify, fail 
       'account-choices',
       cloud.accountCatalog.map((account) => ({
         id: account.accountId,
-        label: `${providerName(account.provider)} · ${account.displayName} (${account.accountId.slice(account.provider.length + 1)})`
+        label: `${providerName(account.provider)} · ${account.displayName} (${accountName(account.accountId)})`
       })),
       saved.accounts
     );

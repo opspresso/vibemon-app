@@ -1,4 +1,4 @@
-import { measurementUnit, metricTone, resourceType, stateTone } from '../../shared/design/presentation.mjs';
+import { accountName, measurementUnit, metricTone, resourceType, stateTone } from '../../shared/design/presentation.mjs';
 import {
   el,
   text,
@@ -25,6 +25,7 @@ export const accountCard = (account) => ({
   members: account.sources
 });
 export const sourceState = source => source.displayState;
+export const sourceType = source => source.isAccount ? `${providerName(source.provider)} · ${accountName(source.sourceId)}` : resourceType(source);
 export const needsAttention = source => source.needsAttention;
 
 export function createMetric() {
@@ -144,11 +145,11 @@ export function renderCards(
         delete card.dataset.agentTone;
         delete card.dataset.agentState;
       }
-      card.setAttribute('aria-label', source.isAccount ? `${source.displayName} · ${providerName(source.provider)} · ${source.sourceId.slice(source.provider.length + 1)}` : source.displayName);
+      card.setAttribute('aria-label', source.isAccount ? `${source.displayName} · ${sourceType(source)}` : source.displayName);
       const parts = card._parts;
       parts.edge.hidden = !source.isAccount;
       text(parts.name, source.displayName);
-      text(parts.type, source.isAccount ? `${providerName(source.provider)} · ${source.sourceId.slice(source.provider.length + 1)}` : resourceType(source));
+      text(parts.type, sourceType(source));
       const identity = source.isAccount ? source.agent?.character : source.kind;
       if (parts.image.dataset.identity !== identity) {
         if (source.isAccount) {
