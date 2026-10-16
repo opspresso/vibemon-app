@@ -120,6 +120,7 @@ def setup_tty_input():
             # In non-interactive mode, this is expected and OK
             pass
 
+
 # VibeMon install files base URL
 DOCS_BASE_URL = "https://vibemon.io/install"
 MAX_DOWNLOAD_BYTES = 1024 * 1024
@@ -1028,7 +1029,6 @@ def is_tool_installed(commands: str | tuple[str, ...], home_dir: Path) -> bool:
     return any(shutil.which(command) is not None for command in commands) or home_dir.exists()
 
 
-# Caches the resolved token so ~/.vibemon/config.json is only configured once per run
 # Shared ~/.vibemon scripts, installed for every platform and removed by
 # --uninstall --vibemon. vibemon_core.py imports the others, so it comes last.
 SHARED_SCRIPTS = (
@@ -1036,6 +1036,7 @@ SHARED_SCRIPTS = (
     "usage_cache.py", "project_context.py", "session_activity.py", "vibemon_core.py",
 )
 
+# Caches the resolved token so ~/.vibemon/config.json is only configured once per run.
 VIBEMON_CONFIG_CACHE = {}
 
 
@@ -1970,8 +1971,7 @@ def selected_platforms(args) -> list:
     """Platform keys chosen on the command line, in a stable order."""
     if args.all:
         return list(ALL_PLATFORMS)
-    return [key for key in ("claude", "codex", "kiro", "openclaw", "opencode", "vibemon")
-            if getattr(args, key)]
+    return [key for key in INSTALLERS if getattr(args, key)]
 
 
 def report_and_exit(results: list, action: str) -> None:
@@ -2042,9 +2042,10 @@ def main():
 
         valid = {key: name for key, name, _ in MENU_CHOICES}
         valid.update({name: name for _, name, _ in MENU_CHOICES})
+        keys = [key for key, _, _ in MENU_CHOICES]
         while True:
             try:
-                choice = input("\nYour choice [1/2/3/4/5/6/7/q]: ").strip().lower()
+                choice = input(f"\nYour choice [{'/'.join(keys)}/q]: ").strip().lower()
             except EOFError:
                 print("\nCancelled.")
                 sys.exit(0)
@@ -2055,7 +2056,7 @@ def main():
                 picked = valid[choice]
                 platforms = list(ALL_PLATFORMS) if picked == "all" else [picked]
                 break
-            print("Please enter 1, 2, 3, 4, 5, 6, 7, or q")
+            print(f"Please enter {', '.join(keys)}, or q")
 
     # args.token applies to menu and flag selections alike.
     results = [
