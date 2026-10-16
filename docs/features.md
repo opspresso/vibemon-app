@@ -179,6 +179,7 @@ The app shows exactly one character window plus its following speech bubble:
 - **Frameless window**: Clean floating design
 - **Always on Top**: Stays visible above other windows (configurable modes)
 - **System Tray**: Quick access from menubar/taskbar
+- **macOS widgets**: One desktop widget per resource or coding agent, on macOS 14 or later. See [macOS widgets](widgets.md)
 - **Draggable**: Move the character anywhere on screen
 - **Snap to corner**: Can be dragged past the screen edge mid-drag; once you let go, it's clamped back on-screen, snapping flush to a corner within a 30px threshold
 - **macOS Dock corners**: Dropping the character at a bottom corner uses the free space beside a bottom Dock, or below a side Dock, while respecting Edge Margin. **Settings → Companion → Dock corner size** chooses the behavior and saves it across restarts. **Keep current size** is the default: both overlays retain their sizes and sit beside or above each other in the available space. If neither arrangement fits, normal work-area placement preserves their sizes. **Auto shrink** scales both overlays, including the bubble's tail, to fit the Dock's narrow strip; dragging away restores Character Size and the bubble's natural size. Changing the setting immediately updates a parked character. Dock geometry is refreshed while a character rests in a bottom corner; unavailable or hidden Dock geometry uses normal work-area placement.
