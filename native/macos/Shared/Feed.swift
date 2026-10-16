@@ -95,6 +95,8 @@ struct FeedMetric: Decodable, Sendable, Identifiable {
     /// Gauge fill from 0 to 1. `nil` for numbers and missing values.
     let fraction: Double?
     let tone: MetricTone
+    /// When a plan usage limit resets. `nil` when no reset is reported.
+    let resetsAt: Date?
 
     var id: String { key }
 }

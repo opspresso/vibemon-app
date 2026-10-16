@@ -31,7 +31,7 @@ const client = new MonitoringClient({
 await client.configure({ url: 'https://vibemon.io', token: TOKEN });
 const local = [{
   id: 'local:preview', since: now - 20000,
-  status: { state: 'done', project: 'vibemon-app', character: 'clawd', memory: 18, usage5h: 23, usageWeek: 41, account: { id: 'default', provider: 'claude', displayName: 'claude default' } }
+  status: { state: 'done', project: 'vibemon-app', character: 'clawd', memory: 18, usage5h: 23, usageWeek: 41, usage5hResetsIn: 42, usageWeekResetsIn: 8640, observedAt: new Date(now - 20000).toISOString(), account: { id: 'default', provider: 'claude', displayName: 'claude default' } }
 }];
 const feed = buildWidgetFeed({ cloud: client.snapshot(), local, now, artwork: name => CHARACTER_CONFIG[name]?.image });
 

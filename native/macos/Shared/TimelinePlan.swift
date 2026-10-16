@@ -3,17 +3,35 @@ import Foundation
 /// The moments at which a widget's rendering changes.
 ///
 /// WidgetKit renders entries at their dates without running code in between.
-/// The plan adds an entry for each later display state in the feed and for
-/// each change of the report age text, up to `horizon`. After the horizon,
-/// WidgetKit asks for a new timeline and the widget reads the feed again.
+/// The plan adds an entry for each later display state in the feed, for each
+/// change of the report age text, and for each change of a reset countdown,
+/// up to `horizon`. After the horizon, WidgetKit asks for a new timeline and
+/// the widget reads the feed again.
 enum TimelinePlan {
     static let horizon: TimeInterval = 60 * 60
 
     static func dates(for content: WidgetContent, now: Date) -> [Date] {
         guard case .item(let item, _) = content else { return [now] }
         let end = now.addingTimeInterval(horizon)
-        let changes = item.changes(after: now) + ageChanges(since: item.observedAt, after: now, until: end)
+        let countdowns = item.metrics.prefix(3).compactMap(\.resetsAt).flatMap { countdownChanges(until: $0, after: now, until: end) }
+        let changes = item.changes(after: now) + ageChanges(since: item.observedAt, after: now, until: end) + countdowns
         return [now] + Set(changes.filter { $0 <= end }).sorted()
+    }
+
+    /// The times at which `Countdown.text` shows a new value: each minute below
+    /// one day, otherwise each hour.
+    static func countdownChanges(until reset: Date, after now: Date, until end: Date) -> [Date] {
+        var dates: [Date] = []
+        var minutes = Countdown.minutes(until: reset, now: now)
+        while minutes > 0 {
+            // From one day, the text shows whole hours: it changes when the hour drops.
+            minutes -= minutes >= 1440 ? minutes % 60 + 1 : 1
+            // The text shows `minutes` from the moment that exactly that many remain.
+            let date = reset.addingTimeInterval(-Double(minutes) * 60)
+            if date > end { return dates }
+            dates.append(date)
+        }
+        return dates
     }
 
     /// The times at which `Age.text` shows a new value.
