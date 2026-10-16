@@ -978,14 +978,16 @@ describe('HookInstaller', () => {
       expect(JSON.stringify(spawn.mock.calls.map(call => call[1]))).not.toContain(token);
     });
 
-    test('omits --token when the token is missing or malformed (install.py exits 2 on a bad --token)', async () => {
+    test('withholds a missing or malformed token, which install.py would reject', async () => {
       mockSuccessfulInstall();
 
       await hookInstaller.installTools([TOOLS[0]], null);
-      expect(spawn.mock.calls[0][1]).toEqual([...pythonPrefix, '-', TOOLS[0].flag]);
-
       await hookInstaller.installTools([TOOLS[0]], 'BAD TOKEN!');
-      expect(spawn.mock.calls[1][1]).toEqual([...pythonPrefix, '-', TOOLS[0].flag]);
+
+      for (const [, args, options] of spawn.mock.calls) {
+        expect(args).toEqual([...pythonPrefix, '-', TOOLS[0].flag]);
+        expect(options.env.VIBEMON_WRITE_TOKEN).toBe(process.env.VIBEMON_WRITE_TOKEN);
+      }
     });
 
     test('suppresses the whole batch and skips spawning when the download fails', async () => {
