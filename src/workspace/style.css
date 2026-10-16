@@ -1250,16 +1250,6 @@ dialog::backdrop {
   font-size: 11px;
   color: var(--vm-muted);
 }
-.provider-heading {
-  font-size: 12px;
-  color: var(--vm-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.7px;
-  margin: 13px 0 5px;
-}
-.provider-heading:first-child {
-  margin-top: 0;
-}
 .dialog-footer {
   display: flex;
   align-items: center;
