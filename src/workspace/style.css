@@ -24,6 +24,9 @@ summary {
 }
 button {
   cursor: pointer;
+  transition:
+    background 0.15s,
+    border-color 0.15s;
 }
 button:disabled {
   cursor: wait;
@@ -40,11 +43,6 @@ summary:focus-visible {
 /* Headings announce navigation; keyboard-operated controls retain their focus rings. */
 #page-title:focus {
   outline: none;
-}
-button {
-  transition:
-    background 0.15s,
-    border-color 0.15s;
 }
 button,
 a {
@@ -1245,11 +1243,6 @@ dialog::backdrop {
 .selection-columns .choice {
   padding: 7px 0;
 }
-.selection-columns .choice .small {
-  display: block;
-  font-size: 11px;
-  color: var(--vm-muted);
-}
 .dialog-footer {
   display: flex;
   align-items: center;
@@ -1451,9 +1444,6 @@ dialog::backdrop {
   }
   .card-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-  .card-grid > .card:last-child:nth-child(3) {
-    grid-column: auto;
   }
   .summary {
     padding: 14px;
