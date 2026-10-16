@@ -11,6 +11,8 @@ pnpm test:overlays
 pnpm build:mac
 ```
 
+macOS packages include the widget extension from `native/macos`, so a macOS build requires Xcode 16 or later. The `beforePack` hook builds it; see [macOS widgets](widgets.md#develop).
+
 Build scripts pass `--publish never`. For unsigned local macOS verification, set `CSC_IDENTITY_AUTO_DISCOVERY=false`. A successful unsigned build verifies packaging; it does not verify signing or notarization.
 
 Desktop packages bundle Electron, so it belongs in development dependencies. Releases are distributed through GitHub and Homebrew. The root package is private and cannot be published to npm. `dist/` contains generated build artifacts and is not committed.
