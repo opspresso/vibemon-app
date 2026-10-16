@@ -1,0 +1,405 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		5A0000000000000000000030 /* characters in Resources */ = {isa = PBXBuildFile; fileRef = 5A0000000000000000000025 /* characters */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		5A0000000000000000000020 /* VibeMonWidgets.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = VibeMonWidgets.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		5A0000000000000000000021 /* widget-center.node */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.dylib"; includeInIndex = 0; path = "widget-center.node"; sourceTree = BUILT_PRODUCTS_DIR; };
+		5A0000000000000000000026 /* NodeAPI.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = NodeAPI.h; sourceTree = "<group>"; };
+		5A0000000000000000000022 /* vibemon-widget-preview */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = "vibemon-widget-preview"; sourceTree = BUILT_PRODUCTS_DIR; };
+		5A0000000000000000000023 /* Widgets-Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "Widgets-Info.plist"; sourceTree = "<group>"; };
+		5A0000000000000000000024 /* Widgets.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Widgets.entitlements; sourceTree = "<group>"; };
+		5A0000000000000000000025 /* characters */ = {isa = PBXFileReference; lastKnownFileType = folder; name = characters; path = ../../src/assets/characters; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFileSystemSynchronizedRootGroup section */
+		5A0000000000000000000010 /* Shared */ = {isa = PBXFileSystemSynchronizedRootGroup; path = Shared; sourceTree = "<group>"; };
+		5A0000000000000000000011 /* Widgets */ = {isa = PBXFileSystemSynchronizedRootGroup; path = Widgets; sourceTree = "<group>"; };
+		5A0000000000000000000012 /* WidgetCenter */ = {isa = PBXFileSystemSynchronizedRootGroup; path = WidgetCenter; sourceTree = "<group>"; };
+		5A0000000000000000000013 /* Preview */ = {isa = PBXFileSystemSynchronizedRootGroup; path = Preview; sourceTree = "<group>"; };
+/* End PBXFileSystemSynchronizedRootGroup section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		5A0000000000000000000051 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		5A0000000000000000000054 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		5A0000000000000000000056 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		5A0000000000000000000002 = {
+			isa = PBXGroup;
+			children = (
+				5A0000000000000000000010 /* Shared */,
+				5A0000000000000000000011 /* Widgets */,
+				5A0000000000000000000012 /* WidgetCenter */,
+				5A0000000000000000000013 /* Preview */,
+				5A0000000000000000000004 /* Config */,
+				5A0000000000000000000025 /* characters */,
+				5A0000000000000000000003 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		5A0000000000000000000003 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				5A0000000000000000000020 /* VibeMonWidgets.appex */,
+				5A0000000000000000000021 /* widget-center.node */,
+				5A0000000000000000000022 /* vibemon-widget-preview */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		5A0000000000000000000004 /* Config */ = {
+			isa = PBXGroup;
+			children = (
+				5A0000000000000000000023 /* Widgets-Info.plist */,
+				5A0000000000000000000024 /* Widgets.entitlements */,
+				5A0000000000000000000026 /* NodeAPI.h */,
+			);
+			path = Config;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		5A0000000000000000000040 /* VibeMonWidgets */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 5A0000000000000000000061 /* Build configuration list for PBXNativeTarget "VibeMonWidgets" */;
+			buildPhases = (
+				5A0000000000000000000050 /* Sources */,
+				5A0000000000000000000051 /* Frameworks */,
+				5A0000000000000000000052 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				5A0000000000000000000010 /* Shared */,
+				5A0000000000000000000011 /* Widgets */,
+			);
+			name = VibeMonWidgets;
+			packageProductDependencies = (
+			);
+			productName = VibeMonWidgets;
+			productReference = 5A0000000000000000000020 /* VibeMonWidgets.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
+		5A0000000000000000000041 /* VibeMonWidgetCenter */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 5A0000000000000000000062 /* Build configuration list for PBXNativeTarget "VibeMonWidgetCenter" */;
+			buildPhases = (
+				5A0000000000000000000053 /* Sources */,
+				5A0000000000000000000054 /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				5A0000000000000000000012 /* WidgetCenter */,
+			);
+			name = VibeMonWidgetCenter;
+			packageProductDependencies = (
+			);
+			productName = "widget-center";
+			productReference = 5A0000000000000000000021 /* widget-center.node */;
+			productType = "com.apple.product-type.library.dynamic";
+		};
+		5A0000000000000000000042 /* VibeMonWidgetPreview */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 5A0000000000000000000063 /* Build configuration list for PBXNativeTarget "VibeMonWidgetPreview" */;
+			buildPhases = (
+				5A0000000000000000000055 /* Sources */,
+				5A0000000000000000000056 /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				5A0000000000000000000010 /* Shared */,
+				5A0000000000000000000013 /* Preview */,
+			);
+			name = VibeMonWidgetPreview;
+			packageProductDependencies = (
+			);
+			productName = "vibemon-widget-preview";
+			productReference = 5A0000000000000000000022 /* vibemon-widget-preview */;
+			productType = "com.apple.product-type.tool";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		5A0000000000000000000001 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 2700;
+				LastUpgradeCheck = 2700;
+			};
+			buildConfigurationList = 5A0000000000000000000060 /* Build configuration list for PBXProject "VibeMonWidgets" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = 5A0000000000000000000002;
+			minimizedProjectReferenceProxies = 1;
+			preferredProjectObjectVersion = 77;
+			productRefGroup = 5A0000000000000000000003 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				5A0000000000000000000040 /* VibeMonWidgets */,
+				5A0000000000000000000041 /* VibeMonWidgetCenter */,
+				5A0000000000000000000042 /* VibeMonWidgetPreview */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		5A0000000000000000000052 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				5A0000000000000000000030 /* characters in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		5A0000000000000000000050 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		5A0000000000000000000053 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		5A0000000000000000000055 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		5A0000000000000000000070 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ENABLE_MODULES = YES;
+				CODE_SIGN_IDENTITY = "-";
+				CODE_SIGN_STYLE = Manual;
+				CURRENT_PROJECT_VERSION = 1;
+				DEAD_CODE_STRIPPING = YES;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MARKETING_VERSION = 0.0.0;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = macosx;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 6.0;
+			};
+			name = Debug;
+		};
+		5A0000000000000000000071 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ENABLE_MODULES = YES;
+				CODE_SIGN_IDENTITY = "-";
+				CODE_SIGN_STYLE = Manual;
+				CURRENT_PROJECT_VERSION = 1;
+				DEAD_CODE_STRIPPING = YES;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MARKETING_VERSION = 0.0.0;
+				SDKROOT = macosx;
+				CODE_SIGN_INJECT_BASE_ENTITLEMENTS = NO;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_VERSION = 6.0;
+			};
+			name = Release;
+		};
+		5A0000000000000000000072 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CODE_SIGN_ENTITLEMENTS = Config/Widgets.entitlements;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = "Config/Widgets-Info.plist";
+				INFOPLIST_KEY_CFBundleDisplayName = VibeMon;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "Copyright © opspresso. MIT License.";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@executable_path/../../../../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.opspresso.vibemon.widgets;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+			};
+			name = Debug;
+		};
+		5A0000000000000000000073 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CODE_SIGN_ENTITLEMENTS = Config/Widgets.entitlements;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = "Config/Widgets-Info.plist";
+				INFOPLIST_KEY_CFBundleDisplayName = VibeMon;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "Copyright © opspresso. MIT License.";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@executable_path/../../../../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.opspresso.vibemon.widgets;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+			};
+			name = Release;
+		};
+		5A0000000000000000000074 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				EXECUTABLE_EXTENSION = node;
+				EXECUTABLE_PREFIX = "";
+				LD_DYLIB_INSTALL_NAME = "@rpath/widget-center.node";
+				OTHER_LDFLAGS = (
+					"-Wl,-U,_napi_create_function",
+					"-Wl,-U,_napi_set_named_property",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = "com.opspresso.vibemon.widget-center";
+				PRODUCT_NAME = "widget-center";
+				SKIP_INSTALL = YES;
+				SWIFT_OBJC_BRIDGING_HEADER = Config/NodeAPI.h;
+			};
+			name = Debug;
+		};
+		5A0000000000000000000075 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				EXECUTABLE_EXTENSION = node;
+				EXECUTABLE_PREFIX = "";
+				LD_DYLIB_INSTALL_NAME = "@rpath/widget-center.node";
+				OTHER_LDFLAGS = (
+					"-Wl,-U,_napi_create_function",
+					"-Wl,-U,_napi_set_named_property",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = "com.opspresso.vibemon.widget-center";
+				PRODUCT_NAME = "widget-center";
+				SKIP_INSTALL = YES;
+				SWIFT_OBJC_BRIDGING_HEADER = Config/NodeAPI.h;
+			};
+			name = Release;
+		};
+		5A0000000000000000000076 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				PRODUCT_BUNDLE_IDENTIFIER = "com.opspresso.vibemon.widget-preview";
+				PRODUCT_NAME = "vibemon-widget-preview";
+				SKIP_INSTALL = YES;
+			};
+			name = Debug;
+		};
+		5A0000000000000000000077 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				PRODUCT_BUNDLE_IDENTIFIER = "com.opspresso.vibemon.widget-preview";
+				PRODUCT_NAME = "vibemon-widget-preview";
+				SKIP_INSTALL = YES;
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		5A0000000000000000000060 /* Build configuration list for PBXProject "VibeMonWidgets" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				5A0000000000000000000070 /* Debug */,
+				5A0000000000000000000071 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		5A0000000000000000000061 /* Build configuration list for PBXNativeTarget "VibeMonWidgets" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				5A0000000000000000000072 /* Debug */,
+				5A0000000000000000000073 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		5A0000000000000000000062 /* Build configuration list for PBXNativeTarget "VibeMonWidgetCenter" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				5A0000000000000000000074 /* Debug */,
+				5A0000000000000000000075 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		5A0000000000000000000063 /* Build configuration list for PBXNativeTarget "VibeMonWidgetPreview" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				5A0000000000000000000076 /* Debug */,
+				5A0000000000000000000077 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = 5A0000000000000000000001 /* Project object */;
+}

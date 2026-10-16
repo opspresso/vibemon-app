@@ -66,3 +66,7 @@ out/
 *.egg-info/
 collector/build/
 collector/dist/
+
+# Xcode
+xcuserdata/
+*.xcodeproj/project.xcworkspace/
