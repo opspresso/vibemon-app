@@ -195,7 +195,6 @@ def ask_yes_no(question: str, default: bool = True, unattended: bool = None) -> 
     unattended=False for prompts that would replace user-owned configuration,
     so an unattended run leaves it alone instead of silently overwriting it.
     """
-    global AUTO_APPROVE, NON_INTERACTIVE
     if AUTO_APPROVE:
         return True
     if NON_INTERACTIVE:
@@ -233,7 +232,6 @@ def validate_token(token: str) -> None:
 
 def configure_token(config: dict, cli_token: str = None) -> dict:
     """Configure a write credential from CLI, environment, or hidden input."""
-    global AUTO_APPROVE, NON_INTERACTIVE
     current_token = config.get("vibemon_token", "")
 
     print(f"\n{colored('VibeMon API Token Configuration:', 'cyan')}")
