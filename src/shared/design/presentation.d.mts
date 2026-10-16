@@ -12,3 +12,5 @@ export function measurementUnit(unit: string): string;
 export function formatMeasurement(value: unknown, unit?: string, exact?: boolean, unavailable?: string, includeUnit?: boolean): string;
 export function observationAge(timestamp: string | null | undefined, now?: number): string;
 export function formatAxisValue(value: number): string;
+export function formatResetTime(minutes: number): string | null;
+export function resetCountdown(resetAt: number | null | undefined, now?: number): string | null;

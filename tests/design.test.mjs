@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { statePresentation, providerLabel, formatMeasurement, observationAge, formatAxisValue } from '../src/shared/design/presentation.mjs';
+import { statePresentation, providerLabel, formatMeasurement, observationAge, formatAxisValue, formatResetTime, resetCountdown } from '../src/shared/design/presentation.mjs';
+import { usageResetAt } from '../src/shared/monitoring/clock.cjs';
 import { dominantState, needsAttention, sourceState, accountState } from '../src/shared/monitoring/state.cjs';
 import { mergeMean } from '../src/shared/resource-schema.cjs';
 import { monitoringContract } from '../scripts/generate-monitoring.mjs';
@@ -26,6 +27,20 @@ test('renderer labels match the validated canonical policy without network acces
 test('the macOS widget palette matches the shared design tokens', () => widgetPalette());
 test('measurement precision follows the shared device contract', () => {
   for (const { value, unit, expected } of fixtures.measurements) assert.equal(formatMeasurement(value, unit, false, '—', false), expected);
+});
+test('usage reset countdowns follow the shared device contract', () => {
+  const snapshot = Date.parse('2026-10-13T08:00:00Z');
+  for (const { name, metric, agent, eventAgeMs, elapsedMs, expected } of fixtures.resetCountdowns) {
+    const resetAt = usageResetAt(metric, agent, new Date(snapshot - eventAgeMs).toISOString(), snapshot);
+    assert.equal(resetCountdown(resetAt, snapshot + elapsedMs), expected, name);
+  }
+});
+
+test('reset times outside whole non-negative minutes have no text', () => {
+  for (const value of [-1, 1.5, NaN, Infinity, null, undefined, '5']) assert.equal(formatResetTime(value), null);
+  assert.equal(formatResetTime(10079), '6d23h');
+  assert.equal(resetCountdown(null), null);
+  assert.equal(resetCountdown(Date.parse('2026-10-13T08:00:00Z'), NaN), null);
 });
 
 test('weighted means remain inside the observed range without inventing maxima', () => {
