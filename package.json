@@ -26,7 +26,8 @@
     "check:registry": "node scripts/check-registry.mjs",
     "check:distribution": "node scripts/export-web.mjs",
     "build:distribution": "node scripts/export-web.mjs --write",
-    "test:design": "node --test tests/*.test.mjs"
+    "test:design": "node --test tests/*.test.mjs",
+    "preview:widgets": "node scripts/preview-widgets.mjs"
   },
   "author": "nalbam",
   "license": "MIT",
@@ -55,6 +56,7 @@
     "electron-updater": "^6.8.9"
   },
   "devDependencies": {
+    "@electron/osx-sign": "1.3.3",
     "electron": "^43.7.9",
     "electron-builder": "^26.15.3",
     "eslint": "^9.39.5",
@@ -70,6 +72,7 @@
       "LICENSE",
       "package.json"
     ],
+    "beforePack": "./scripts/macos-widgets-packaging.cjs",
     "mac": {
       "category": "public.app-category.developer-tools",
       "icon": "assets/icon.icns",
@@ -80,7 +83,28 @@
       "entitlements": "entitlements.mac.plist",
       "entitlementsInherit": "entitlements.mac.plist",
       "hardenedRuntime": true,
-      "gatekeeperAssess": false
+      "gatekeeperAssess": false,
+      "extraFiles": [
+        {
+          "from": "build/macos-widgets/Release/VibeMonWidgets.appex",
+          "to": "PlugIns/VibeMonWidgets.appex"
+        }
+      ],
+      "extraResources": [
+        {
+          "from": "build/macos-widgets/Release/widget-center.node",
+          "to": "widget-center.node"
+        }
+      ],
+      "sign": "./scripts/macos-widgets-packaging.cjs",
+      "protocols": [
+        {
+          "name": "VibeMon",
+          "schemes": [
+            "vibemon"
+          ]
+        }
+      ]
     },
     "win": {
       "icon": "assets/icon.ico",
