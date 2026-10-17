@@ -44,7 +44,7 @@ The App keeps its read token in OS secure storage. **Disconnect** removes the lo
 
 Open **Settings → Integrations → Install integration** for the tool you use, then restart that tool. Local character updates do not require Google login. To send the same activity to Web, enter a separate write token in **Send activity to Web** and select **Save and verify**. The App's read token is never reused for hooks.
 
-Tool detection honors `CLAUDE_CONFIG_DIR`, `CODEX_HOME`, `KIRO_HOME`, and `OPENCODE_CONFIG_DIR`. These variables must reach both the tool and App processes. OpenClaw installation is supported on macOS/Linux. See the [hook installation guide](https://vibemon.io/docs/setup) for headless/Windows setup and [hook reference](https://vibemon.io/docs/hooks) for event mappings.
+Tool detection honors `CLAUDE_CONFIG_DIR`, `CODEX_HOME`, `KIRO_HOME`, and `OPENCODE_CONFIG_DIR`. These variables must reach both the tool and App processes. OpenClaw installation is supported on macOS/Linux. See [Monitor coding agents](https://vibemon.io/docs/coding-agents) for terminal and Windows setup, and the [hook reference](docs/hooks.md) for event mappings.
 
 ## macOS widgets
 
@@ -71,7 +71,7 @@ Web development normally runs on `http://localhost:3030`; the unpackaged App acc
 
 - [Documentation index](docs/README.md) — Desktop user and developer guides.
 - [Local HTTP API](docs/api.md) — Loopback status, window, and health endpoints.
-- [Web Monitoring API](https://vibemon.io/docs/api/monitoring) — Cloud tokens, summaries, settings, and trends.
+- [Send your own data](https://vibemon.io/docs/api) — Web API to send and read summaries with a token.
 - [Web service](https://vibemon.io) — Login, source configuration, and browser dashboard.
 - [Hooks and collector source](docs/distribution.md) — Public installers, collector, shared schema, registries, and rendering assets live in this repository.
 - [Web source](https://github.com/opspresso/vibemon-web) — Private service implementation; App installation, builds, and CI do not require access.

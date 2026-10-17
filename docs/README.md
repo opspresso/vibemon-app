@@ -11,7 +11,7 @@
 ## Integrate and develop
 
 - [Local HTTP API](api.md) — The App's loopback endpoints on port 19280.
-- [Web Monitoring API](https://vibemon.io/docs/api/monitoring) — Authenticated cloud endpoints; separate from the local API.
+- [Send your own data](https://vibemon.io/docs/api) — Authenticated Web endpoints; separate from the local API.
 - [Hook installation](../public/install/setup.md) and [hook reference](hooks.md) — Canonical public integration source.
 - [Resource collector](../collector/README.md) — Public host/Spark/Kubernetes collector.
 - [Product design](design-system.md) — Shared App/Web tokens, navigation, states, and verification.
