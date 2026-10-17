@@ -34,6 +34,8 @@ struct FeedItem: Decodable, Sendable, Identifiable {
     let kind: Kind
     let title: String
     let subtitle: String
+    let selectionTitle: String?
+    let selectionSubtitle: String?
     /// Resource icon: `host`, `unified`, `cluster`, or `resource`.
     let symbol: String?
     /// Agent character art file in the bundled `characters` folder.
@@ -57,7 +59,7 @@ struct FeedItem: Decodable, Sendable, Identifiable {
     }
 
     private enum CodingKeys: String, CodingKey {
-        case id, kind, title, subtitle, symbol, artwork, observedAt, message, metrics, timeline, link
+        case id, kind, title, subtitle, selectionTitle, selectionSubtitle, symbol, artwork, observedAt, message, metrics, timeline, link
     }
 
     init(from decoder: Decoder) throws {
@@ -66,6 +68,8 @@ struct FeedItem: Decodable, Sendable, Identifiable {
         kind = try container.decode(Kind.self, forKey: .kind)
         title = try container.decode(String.self, forKey: .title)
         subtitle = try container.decode(String.self, forKey: .subtitle)
+        selectionTitle = try container.decodeIfPresent(String.self, forKey: .selectionTitle)
+        selectionSubtitle = try container.decodeIfPresent(String.self, forKey: .selectionSubtitle)
         symbol = try container.decodeIfPresent(String.self, forKey: .symbol)
         artwork = try container.decodeIfPresent(String.self, forKey: .artwork)
         observedAt = try container.decode(Date.self, forKey: .observedAt)

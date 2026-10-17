@@ -67,7 +67,13 @@ private enum Catalog {
     }
 
     static func items(_ kind: FeedItem.Kind) -> [Entry] {
-        (FeedStore.load().feed?.items(of: kind) ?? []).map { Entry(id: $0.id, title: $0.title, subtitle: $0.subtitle) }
+        (FeedStore.load().feed?.items(of: kind) ?? []).map { item in
+            Entry(
+                id: item.id,
+                title: item.selectionTitle ?? (kind == .agent ? "\(item.title) · \(item.subtitle)" : item.title),
+                subtitle: item.selectionSubtitle ?? item.subtitle
+            )
+        }
     }
 
     /// A saved choice stays resolvable after its item leaves the feed, so the
