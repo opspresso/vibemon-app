@@ -3,7 +3,7 @@ import { test } from 'node:test';
 import { readFile } from 'node:fs/promises';
 import { characterImages } from '../src/shared/character-images.mjs';
 const characters = { vibemon: { image: 'vibemon-v2.png' } };
-const registry = { characters, bundledImageFiles: ['vibemon-v2.png'], imageFetchTimeoutMs: 100, imageMaxBytes: 65536, imageSize: 128, staticBaseUrl: 'https://example.invalid' };
+const registry = { characters, bundledImageFiles: ['vibemon-v2.png'], imageFetchTimeoutMs: 100, imageMaxBytes: 65536, imageSizes: [128, 256, 512], staticBaseUrl: 'https://example.invalid' };
 
 test('bundled sprites render without consulting even an unavailable network', async () => {
   const result = await characterImages(registry, { fetchImage: () => assert.fail('Bundled art must not wait for the network') });

@@ -345,12 +345,17 @@ export class VibeMonEngine {
   _buildDOM() {
     const canvas = document.createElement('canvas');
     canvas.className = 'vibemon-canvas';
-    canvas.width = CONSTANTS.CHAR_SIZE;
-    canvas.height = CONSTANTS.CHAR_SIZE;
+    // Drawing stays in CHAR_SIZE units. At least 2x backing pixels keep the
+    // art sharp on Retina displays and when a window moves to one.
+    const density = Math.max(2, Math.ceil(globalThis.devicePixelRatio || 1));
+    canvas.width = CONSTANTS.CHAR_SIZE * density;
+    canvas.height = CONSTANTS.CHAR_SIZE * density;
     this.container.appendChild(canvas);
 
     this.canvas = canvas;
     this.ctx = canvas.getContext('2d');
+    this.ctx.scale(density, density);
+    this.ctx.imageSmoothingQuality = 'high';
   }
 
   async init() {

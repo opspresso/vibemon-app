@@ -17,12 +17,29 @@ describe('tray icon bitmap', () => {
     expect(edge).toBeLessThan(255);
   });
 
-  test('scales the sprite by nearest neighbor inside a one-pixel inset', () => {
+  test('enlarges a small sprite inside a one-pixel inset', () => {
     // A 2x2 sprite: opaque blue on the left column, transparent on the right.
     const sprite = { width: 2, height: 2, data: Buffer.from([255, 0, 0, 255, 0, 0, 0, 0, 255, 0, 0, 255, 0, 0, 0, 0]) };
     const bitmap = trayIconBitmap(SIZE, '#00AA00', sprite);
     expect(pixel(bitmap, SIZE, 3, 11)).toEqual(bgra(0x0000FF));
     expect(pixel(bitmap, SIZE, 18, 11)).toEqual(bgra(0x00AA00));
+  });
+
+  test('shrinks a large sprite by averaging the pixels each target covers', () => {
+    // 40x1 sprite: alternating opaque white and transparent columns, two per target pixel.
+    const data = Buffer.alloc(40 * 4);
+    for (let x = 0; x < 40; x += 2) data.fill(255, x * 4, x * 4 + 4);
+    const bitmap = trayIconBitmap(SIZE, '#000000', { width: 40, height: 1, data });
+    // Half-covered white over opaque black: no hard on/off pixels.
+    expect(pixel(bitmap, SIZE, 11, 11)).toEqual([128, 128, 128, 255]);
+  });
+
+  test('draws the same icon with twice the pixels at scale 2', () => {
+    const bitmap = trayIconBitmap(SIZE, '#9933FF', null, '#FF6633', 2);
+    expect(bitmap.length).toBe(SIZE * SIZE * 16);
+    expect(pixel(bitmap, SIZE * 2, 22, 30)).toEqual(bgra(0x9933FF));
+    expect(pixel(bitmap, SIZE * 2, (SIZE - 5) * 2, 10)).toEqual(bgra(0xFF6633));
+    expect(pixel(bitmap, SIZE * 2, 0, 0)[3]).toBe(0);
   });
 
   test('draws the attention badge only when asked', () => {

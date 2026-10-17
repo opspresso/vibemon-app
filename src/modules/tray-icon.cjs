@@ -53,34 +53,48 @@ const roundedSquare = (size, radius) => (x, y) => {
 const circle = (cx, cy, radius) => (x, y) => (x - cx) ** 2 + (y - cy) ** 2 <= radius * radius;
 
 /**
- * Draw a sprite into a square region with nearest-neighbor scaling, which
- * keeps pixel art sharp.
+ * Draw a sprite into a square region. Each target pixel averages the source
+ * pixels it covers, so a large sprite shrinks without jagged edges. Averaging
+ * premultiplied values keeps transparent edges free of dark fringes.
  * @param {{width: number, height: number, data: Buffer}} sprite
  */
 function drawSprite(target, size, sprite, inset) {
   const extent = size - inset * 2;
+  const span = (index, length) => {
+    const start = Math.min(length - 1, Math.floor(index * length / extent));
+    return [start, Math.max(start + 1, Math.floor((index + 1) * length / extent))];
+  };
   for (let y = 0; y < extent; y++) {
-    const sy = Math.min(sprite.height - 1, Math.floor((y + 0.5) * sprite.height / extent));
+    const [top, bottom] = span(y, sprite.height);
     for (let x = 0; x < extent; x++) {
-      const sx = Math.min(sprite.width - 1, Math.floor((x + 0.5) * sprite.width / extent));
-      const source = (sy * sprite.width + sx) * 4;
-      const alpha = sprite.data[source + 3];
-      if (alpha > 0) over(target, ((y + inset) * size + x + inset) * 4, sprite.data[source], sprite.data[source + 1], sprite.data[source + 2], alpha);
+      const [left, right] = span(x, sprite.width);
+      const sum = [0, 0, 0, 0];
+      for (let sy = top; sy < bottom; sy++) {
+        for (let sx = left; sx < right; sx++) {
+          const source = (sy * sprite.width + sx) * 4;
+          for (let channel = 0; channel < 4; channel++) sum[channel] += sprite.data[source + channel];
+        }
+      }
+      const count = (bottom - top) * (right - left);
+      const [blue, green, red, alpha] = sum.map(value => value / count);
+      if (alpha > 0) over(target, ((y + inset) * size + x + inset) * 4, blue, green, red, alpha);
     }
   }
 }
 
 /**
  * The tray icon: a state-colored rounded square, the character sprite, and
- * an optional attention badge in the top-right corner.
- * @returns {Buffer} size x size premultiplied BGRA
+ * an optional attention badge in the top-right corner. `scale` draws the
+ * same `size`-point icon with more pixels for Retina displays.
+ * @returns {Buffer} (size * scale) x (size * scale) premultiplied BGRA
  */
-function trayIconBitmap(size, background, sprite, badgeColor = null) {
-  const pixels = Buffer.alloc(size * size * 4);
-  fill(pixels, size, background, roundedSquare(size, 4));
-  if (sprite) drawSprite(pixels, size, sprite, 1);
-  if (badgeColor) fill(pixels, size, badgeColor, circle(size - 5, 5, 3));
-  return pixels;
+function trayIconBitmap(size, background, sprite, badgeColor = null, scale = 1) {
+  const pixels = size * scale;
+  const bitmap = Buffer.alloc(pixels * pixels * 4);
+  fill(bitmap, pixels, background, roundedSquare(pixels, 4 * scale));
+  if (sprite) drawSprite(bitmap, pixels, sprite, scale);
+  if (badgeColor) fill(bitmap, pixels, badgeColor, circle((size - 5) * scale, 5 * scale, 3 * scale));
+  return bitmap;
 }
 
 /** A filled dot centered in a size x size square. */
