@@ -154,6 +154,7 @@ function sessionBridge(directory) {
       state.revision = revision;
     }
     let accountHint = { provider: state.provider, revision: state.revision };
+    if (state.revision !== "0" && !state.revision.startsWith("environment:")) accountHint.credential_id = state.revision;
     if (toolUseID && eventName === "PreToolUse") state.toolAccounts.set(toolUseID, accountHint);
     if (toolUseID && eventName === "PostToolUse") {
       accountHint = state.toolAccounts.get(toolUseID) || accountHint;

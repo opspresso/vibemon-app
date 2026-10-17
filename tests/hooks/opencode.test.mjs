@@ -396,6 +396,7 @@ test("credential switching settles the previous account and binds the next turn"
   assert.equal(reports.at(-2).hook_event_name, "Stop");
   assert.equal(reports.at(-2).account_hint.revision, "0");
   assert.equal(reports.at(-1).account_hint.revision, "new-account");
+  assert.equal(reports.at(-1).account_hint.credential_id, "new-account");
   await h.one.tool("execute.after", { sessionID: "s", tool: "read", id: "old-call" });
   assert.equal(h.payloads().at(-1).account_hint.revision, "0");
   assert.ok(h.payloads().every(p => p.account_hint.provider === "anthropic"));
