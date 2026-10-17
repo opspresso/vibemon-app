@@ -1276,6 +1276,7 @@ class CollectorInstallTest(unittest.TestCase):
         self.assertEqual(install.source_id('k8s', 'arn:aws:eks:us-east-1:1:cluster/demo'), 'k8s-arn-aws-eks-us-east-1-1-cluster-demo')
         self.assertEqual(install.source_id('host', '한글'), 'host-default')
 
+    @unittest.skipIf(os.name == 'nt', 'the systemd unit is Linux-only')
     def test_the_unit_reads_the_token_from_a_file_and_stops_on_permanent_rejection(self):
         paths = install.CollectorPaths(system=True)
         unit = install.collector_unit(paths, 'https://vibemon.io', 'DGX Spark', 'host-dgx-spark')
