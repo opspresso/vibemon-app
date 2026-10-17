@@ -29,4 +29,11 @@ function process(source) {
   };
 }
 
-module.exports = { process };
+// Jest caches transformed files by their source and config only, so the key
+// also covers this transform: a changed rewrite then applies without --clearCache.
+const ownSource = require('node:fs').readFileSync(__filename, 'utf8');
+function getCacheKey(source, filename, { configString }) {
+  return require('node:crypto').createHash('sha256').update(ownSource).update('\0').update(source).update('\0').update(filename).update('\0').update(configString).digest('hex');
+}
+
+module.exports = { process, getCacheKey };
