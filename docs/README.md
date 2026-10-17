@@ -3,7 +3,8 @@
 ## Use the App
 
 - [Install and connect](../README.md#install-and-start) — Packages, cloud connection, and local hooks.
-- [Desktop workspace](monitoring.md) — Dashboard, read tokens, resource/account selection, settings, and recovery.
+- [Get started](https://vibemon.io/docs) — Choose a source, install its integration or collector, and confirm its first report.
+- [Desktop workspace](monitoring.md) — Sign-in, dashboard, resource/account selection, settings, and recovery.
 - [Desktop features](features.md) — Character states, animations, settings, and tray controls.
 - [macOS widgets](widgets.md) — One resource or coding agent per desktop widget.
 - [Web connection guide](https://vibemon.io/docs) — Google login, tokens, collectors, and coding accounts.

@@ -31,18 +31,20 @@ Open the installed VibeMon application. It starts in the system tray and listens
 
 ## Connect cloud sources
 
-1. Sign in to [VibeMon Account](https://vibemon.io/account) with Google.
-2. Create a **Read** token and select **Show token** to copy it. Tokens can be retrieved again; deleting one stops its API access.
-3. Click the App tray icon, select **Settings…**, then open **Connections**. Enter the Web origin and read token, then select **Save and connect**.
-4. Open **Customize view**, select resources, provider accounts, and metrics, then select **Save view**.
+1. Click the menu-bar or tray icon and select **Dashboard**.
+2. Open **Settings → Connections** and select **Sign in with VibeMon**.
+3. In the browser, sign in with Google or an invited email account, then select **Allow**. The App receives its own read token.
+4. In **Overview**, open **Customize view**, select resources, provider accounts, and metrics, then select **Save view**.
 
-A source appears after its collector or hook sends the first report. Follow the [connection guide](https://vibemon.io/docs) to set up separate write tokens, custom resources, or several accounts for one provider. Provider credentials remain on the source machine.
+A source appears after its collector or hook sends the first report. Follow [Get started](https://vibemon.io/docs) to connect a coding tool or server. Use the same VibeMon sign-in for the sending computer and Desktop. Compare one card and its report time with the [Web dashboard](https://vibemon.io/dashboard); Desktop refreshes every 30 seconds. Provider credentials remain on the source machine.
 
-The App keeps its read token in OS secure storage. **Disconnect** removes the local credential; deleting the token on Web invalidates it for every client using it. See [the desktop workspace guide](docs/monitoring.md) for selection, missing data, stale sources, and troubleshooting.
+If you already have a read token from [Account](https://vibemon.io/account), open **Use a read token instead**, enter the Web origin and token, then select **Save and connect**. The App keeps it in OS secure storage. **Disconnect this device** clears the local connection and attempts to delete that token on Web. If Web is unreachable, delete it on Account. Other clients using that token also lose access. See [the desktop workspace guide](docs/monitoring.md) for selection, missing data, stale sources, and troubleshooting.
 
 ## Connect local coding tools
 
-Open **Settings → Integrations → Install integration** for the tool you use, then restart that tool. Local character updates do not require Google login. To send the same activity to Web, enter a separate write token in **Send activity to Web** and select **Save and verify**. The App's read token is never reused for hooks.
+Open **Settings → Integrations → Install integration** for the tool you use, then restart that tool. Local character updates do not require Web login. To send the same activity to Web, select **Sign in to send activity** in **Send activity to Web** and approve it in the browser. To use an existing write token, open **Use a write token instead** and select **Save and verify**. The App's read token is never reused for hooks.
+
+Start a coding task and check its project and report time on Web. A moving local character confirms local delivery; it does not confirm that the separate Web connection works. The App does not install coding tools themselves or start collection on remote servers.
 
 Tool detection honors `CLAUDE_CONFIG_DIR`, `CODEX_HOME`, `KIRO_HOME`, and `OPENCODE_CONFIG_DIR`. These variables must reach both the tool and App processes. OpenClaw installation is supported on macOS/Linux. See [Monitor coding agents](https://vibemon.io/docs/coding-agents) for terminal and Windows setup, and the [hook reference](docs/hooks.md) for event mappings.
 
