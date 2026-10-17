@@ -541,21 +541,6 @@ startFixture().then(async fixture => {
   await screenshot('disconnected');
 
   view.window.setSize(820, 600);
-  const beforeGeneratedAccount = state.sources;
-  const generatedId = `auto:27e702a8${'a'.repeat(56)}`;
-  state.sources = () => beforeGeneratedAccount().map(source => source.sourceId === 'codex-team' ? { ...source, account: { ...source.account, id: generatedId } } : source);
-  await client.poll(true); await published(); await navigate('agents');
-  assert.ok((await text('#agent-cards')).includes('Codex · 27e702a8'));
-  assert.ok(!(await text('#agent-cards')).includes(generatedId));
-  await ui(`[...document.querySelectorAll('#agent-cards .card')].find(card => card._source.sourceId === ${JSON.stringify(`codex:${generatedId}`)}).querySelector('footer button').click()`);
-  await until(() => visible('#detail-dialog'), 'generated account detail');
-  assert.equal(await text('#detail-type'), 'Codex · 27e702a8');
-  await click('#remove-monitor');
-  await until(() => ports.calls.some(call => call[0] === 'external' && new URL(call[1]).searchParams.get('id') === `codex:${generatedId}`), 'account removal keeps the full ID');
-  await screenshot('account-short-label');
-  await click('[data-close-dialog="detail-dialog"]');
-  state.sources = beforeGeneratedAccount;
-  await client.poll(true); await published();
   for (const route of ['overview', 'resources', 'agents', 'connections', 'companion', 'integrations', 'about']) {
     await navigate(route);
     assert.equal(await ui('document.getElementById("main").scrollWidth <= document.getElementById("main").clientWidth'), true, `${route} fits the minimum window width`);
@@ -571,6 +556,24 @@ startFixture().then(async fixture => {
   const compactBounds = await ui('({ bottom: document.querySelector("#overview-accounts .card").getBoundingClientRect().bottom, viewport: innerHeight })');
   await screenshot('compact-overview');
   assert.ok(compactBounds.bottom < compactBounds.viewport, `both categories fit the minimum window: ${JSON.stringify(compactBounds)}`);
+  const beforeGeneratedAccount = state.sources;
+  const previousSelection = { sources: client.snapshot().selectedSources, accounts: client.snapshot().selectedAccounts, metrics: client.snapshot().selectedMetrics };
+  const generatedId = `auto:27e702a8${'a'.repeat(56)}`;
+  state.sources = () => beforeGeneratedAccount().map(source => source.sourceId === 'codex-team' ? { ...source, account: { ...source.account, id: generatedId } } : source);
+  await client.poll(true);
+  await client.select({ ...previousSelection, accounts: null });
+  await published(); await navigate('agents');
+  assert.ok((await text('#agent-cards')).includes('Codex · 27e702a8'));
+  assert.ok(!(await text('#agent-cards')).includes(generatedId));
+  await ui(`[...document.querySelectorAll('#agent-cards .card')].find(card => card._source.sourceId === ${JSON.stringify(`codex:${generatedId}`)}).querySelector('footer button').click()`);
+  await until(() => visible('#detail-dialog'), 'generated account detail');
+  assert.equal(await text('#detail-type'), 'Codex · 27e702a8');
+  await click('#remove-monitor');
+  await until(() => ports.calls.some(call => call[0] === 'external' && new URL(call[1]).searchParams.get('id') === `codex:${generatedId}`), 'account removal keeps the full ID');
+  await screenshot('account-short-label');
+  await click('[data-close-dialog="detail-dialog"]');
+  state.sources = beforeGeneratedAccount;
+  await client.poll(true); await client.select(previousSelection); await published();
   // Exercise the API's accepted text/value limits at the minimum window size.
   const longName = '測'.repeat(128);
   state.sources = () => originalSources().map(source => {
@@ -603,7 +606,7 @@ startFixture().then(async fixture => {
     await until(async () => (await text(route === 'agents' ? '#agent-cards' : route === 'resources' ? '#resource-cards' : '#overview-resources')).includes(cardTitle), `${route} renders accepted long names`);
     await checkFit(route, '#main, .card, .card-heading, .metric, .metric-line, .card-title-group');
     if (route === 'overview') continue;
-    const detailIdentity = route === 'agents' ? `${cardTitle} · ${'p'.repeat(32)} · ${'a'.repeat(128)}` : cardTitle;
+    const detailIdentity = route === 'agents' ? `${cardTitle} · ${'p'.repeat(32)} · ${'a'.repeat(15)}…${'a'.repeat(6)}` : cardTitle;
     await click(`section[data-page="${route}"] [aria-label="View ${detailIdentity} details"]`);
     await until(() => visible('#detail-dialog'), 'long source details');
     assert.equal(await text('#detail-type'), route === 'agents' ? `${'p'.repeat(32)} · ${'a'.repeat(128)}` : '基'.repeat(64));
