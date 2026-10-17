@@ -35,6 +35,8 @@ def isolated_account_context(tmp_path, monkeypatch):
 @pytest.fixture(autouse=True)
 def no_real_watcher(request, monkeypatch):
     """Hook tests run inside a real agent; never attach a watcher to it."""
+    if hasattr(session_activity.agent_process, 'cache_clear'):
+        session_activity.agent_process.cache_clear()
     monkeypatch.setattr(session_activity, "start_watcher", lambda *_: False)
     if not request.node.get_closest_marker("process_tree"):
         monkeypatch.setattr(session_activity, "agent_process", lambda: None)

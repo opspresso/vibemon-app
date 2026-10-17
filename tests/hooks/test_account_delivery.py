@@ -1,5 +1,6 @@
 import json
 import sys
+from pathlib import Path
 from types import SimpleNamespace
 import account_context
 import statusline
@@ -105,3 +106,48 @@ def test_openclaw_agents_share_an_explicit_account_but_keep_distinct_project_sou
     assert contexts[0]['account']['id'] == contexts[1]['account']['id'] == 'shared-account'
     assert contexts[0]['sourceId'] != contexts[1]['sourceId']
     assert set(contexts[0]) == {'account', 'sourceId', 'observedAt'}
+
+
+def test_account_scoping_does_not_rewrite_the_providers_transcript_session_id(tmp_path, monkeypatch):
+    monkeypatch.setattr(sys, 'argv', ['vibemon.py'])
+    monkeypatch.setattr(core, 'get_config', lambda: SimpleNamespace(cache_path=str(tmp_path / 'projects.json')))
+    monkeypatch.setattr(core, 'read_input', lambda: json.dumps({'session_id':'original-provider-id','hook_event_name':'SessionStart','cwd':str(tmp_path)}))
+    seen = []
+    def build(state, tool, project, data):
+        seen.append(data['session_id'])
+        return {'state':state,'character':'codex','project':project}
+    monkeypatch.setattr(core, 'send_to_all', lambda *args: None)
+    core.run({'SessionStart':'start'}, build, 'SessionStart', account_provider='codex')
+    assert seen == ['original-provider-id']
+    activities = json.loads((tmp_path / 'activity.json').read_text())['sessions']
+    assert 'original-provider-id' not in activities
+    assert len(activities) == 1
+
+
+def test_same_profile_and_session_in_two_agent_processes_keep_separate_bindings(tmp_path, monkeypatch):
+    import session_activity
+    monkeypatch.delenv('VIBEMON_ACCOUNT_ID', raising=False)
+    first = authenticated('codex', 'a', 'org', 'A', 'fixture')
+    second = authenticated('codex', 'b', 'org', 'B', 'fixture')
+    parent = {'pid':101,'name':'codex','generation':'one'}
+    monkeypatch.setattr(session_activity, 'agent_process', lambda: parent)
+    monkeypatch.setattr(account_context._source, 'resolve', lambda *_: first if parent['pid'] == 101 else second)
+    data = {'session_id':'same-session','hook_event_name':'SessionStart'}
+    assert account_context.prepare_account('codex', data) == first
+    parent = {'pid':202,'name':'codex','generation':'two'}
+    assert account_context.prepare_account('codex', data) == second
+    parent = {'pid':101,'name':'codex','generation':'one'}
+    assert account_context.prepare_account('codex', {**data,'hook_event_name':'PreToolUse'}) == first
+
+
+def test_background_profile_queries_do_not_bind_to_the_desktop_process(tmp_path, monkeypatch):
+    import session_activity
+    monkeypatch.delenv('VIBEMON_ACCOUNT_ID', raising=False)
+    monkeypatch.setattr(session_activity, 'agent_process', lambda: {'pid':101,'name':'Electron','generation':'one'})
+    first = authenticated('codex', 'a', 'org', 'A', 'fixture')
+    second = authenticated('codex', 'b', 'org', 'B', 'fixture')
+    result = [first, second]
+    monkeypatch.setattr(account_context._source, 'resolve', lambda *_: result.pop(0))
+    assert account_context.prepare_account('codex') == first
+    assert account_context.prepare_account('codex') == second
+    assert json.loads(Path(account_context.registry_path()).read_text())['sessions'] == {}

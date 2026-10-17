@@ -10,7 +10,7 @@ from dataclasses import replace
 from pathlib import Path
 
 from account_identity import AccountIdentity, named, fingerprint
-from account_service import AccountService, identity_hint
+from account_service import AccountService, identity_hint, session_key
 from account_sources import LocalAccountSource, tool_profile
 from account_store import JsonAccountStore
 
@@ -26,18 +26,39 @@ def registry_path() -> str:
     return str(Path.home() / '.vibemon' / 'accounts.json')
 
 
-def prepare_account(provider: str, data: dict | None = None, root: str | None = None) -> AccountIdentity:
-    data = data or {}
+def profile_context(provider: str, root: str | None = None, hint: dict | None = None):
     target = tool_profile(provider, root=root)
-    hint = identity_hint(data.get('account_hint'))
+    hint = identity_hint(hint)
     if provider == 'openclaw':
         target = replace(target, context=hint.get('agent_id') or 'main')
     elif provider == 'kiro':
         target = replace(target, context=hint.get('runtime') or 'kiro-ide')
+    return target, hint
+
+
+def event_context(provider: str, data: dict) -> dict:
+    # Import at the composition boundary: session_activity uses observation_time.
+    from session_activity import agent_process
+    parent = agent_process()
+    hint = identity_hint(data.get('account_hint'))
+    hint.pop('runtime_id', None)
+    if parent is not None:
+        hint['runtime_id'] = fingerprint('runtime-v1', str(parent['pid']), parent.get('name', ''), str(parent.get('generation') or ''))
+    if provider == 'kiro':
+        executable = Path((parent or {}).get('name', '').replace('\\', '/')).name.lower().removesuffix('.exe')
+        hint['runtime'] = 'kiro-cli' if executable in ('kiro-cli', 'q') else 'kiro-ide'
+    result = {**data, 'account_hint': hint}
+    if not data.get('session_id') and data.get('hook_event_name') and parent is not None:
+        result['session_id'] = f"process:{parent['pid']}:{data.get('cwd', '')}"
+    return result
+
+
+def prepare_account(provider: str, data: dict | None = None, root: str | None = None) -> AccountIdentity:
+    data = event_context(provider, data or {})
+    target, hint = profile_context(provider, root, data.get('account_hint'))
     service = AccountService(_source, JsonAccountStore(registry_path()))
     return service.bind(target, dict(os.environ), data.get('session_id'), data.get('hook_event_name', ''),
-        data.get('cwd') if isinstance(data.get('cwd'), str) and Path(data['cwd']).is_dir() else None,
-        hint)
+        data.get('cwd') if isinstance(data.get('cwd'), str) and Path(data['cwd']).is_dir() else None, hint)
 
 
 @contextmanager
@@ -59,8 +80,10 @@ def current_account(provider: str) -> AccountIdentity:
     return AccountIdentity(provider, identity.id, label or identity.display_name, identity.kind, identity.evidence)
 
 
-def activity_key(identity: AccountIdentity, session: str, root: str | None = None) -> str:
-    return fingerprint('activity-v1', tool_profile(identity.provider, root=root).key, identity.id, session)
+def activity_key(provider: str | AccountIdentity, session: str, root: str | None = None, hint: dict | None = None) -> str:
+    provider = provider.provider if isinstance(provider, AccountIdentity) else provider
+    target, hint = profile_context(provider, root, hint)
+    return session_key(target, session, dict(os.environ), hint)
 
 
 def account_id(provider: str) -> str:

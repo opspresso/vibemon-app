@@ -31,6 +31,8 @@ import subprocess
 import sys
 import time
 from dataclasses import dataclass
+from functools import lru_cache
+from pathlib import Path
 from datetime import datetime
 from typing import Any, Callable
 
@@ -105,6 +107,7 @@ class Report:
     observed_at: str
     # True when the hook must start this session's watcher.
     watch: bool = False
+    event_stamp_ms: int | None = None
 
 
 def is_input_tool(name: Any) -> bool:
@@ -167,6 +170,9 @@ def record(path: str, data: dict[str, Any], transition: Transition) -> Report | 
         now = _now_ms()
         sessions = _live_sessions(cache, now)
         entry = dict(sessions.get(session) or {})
+        if event == 'SessionStart':
+            for key in ('watcher', 'agent', 'watchRequestedMs', 'payload', 'account'):
+                entry.pop(key, None)
         if (transition.settles or event in TOOL_FINISHED_EVENTS) and not entry.get("open"):
             result["skip"] = True
             return cache
@@ -189,7 +195,7 @@ def record(path: str, data: dict[str, Any], transition: Transition) -> Report | 
         elif event == "ElicitationResult":
             elicitations = max(0, elicitations - 1)
         state = _resolve(transition.state, tools, elicitations, event if isinstance(event, str) else "")
-        entry.update(tools=tools, elicitations=elicitations, updatedMs=now, reportedMs=now, state=state, open=state in ACTIVE_STATES)
+        entry.update(tools=tools, elicitations=elicitations, updatedMs=now, reportedMs=now, eventStampMs=stamp, state=state, open=state in ACTIVE_STATES)
         transcript = data.get("transcript_path")
         if isinstance(transcript, str) and transcript:
             entry["transcript"] = transcript
@@ -204,7 +210,7 @@ def record(path: str, data: dict[str, Any], transition: Transition) -> Report | 
         if watch:
             entry["watchRequestedMs"] = now
         sessions[session] = entry
-        result.update(state=state, observedAt=observation_time(stamp), watch=watch)
+        result.update(state=state, observedAt=observation_time(stamp), watch=watch, stamp=stamp)
         return {**cache, "lastMs": stamp, "sessions": sessions}
 
     if not update_json_cache(path, update):
@@ -212,23 +218,33 @@ def record(path: str, data: dict[str, Any], transition: Transition) -> Report | 
         return None if transition.settles else Report(transition.state, observation_time())
     if result.get("skip"):
         return None
-    return Report(result["state"], result["observedAt"], result["watch"])
+    return Report(result["state"], result["observedAt"], result["watch"], result["stamp"])
 
 
-def remember_payload(path: str, session: str, payload: dict[str, Any], cwd: str, agent: dict[str, Any] | None, account: dict | None = None) -> None:
-    """Store what a heartbeat repeats: the display payload and the agent process."""
+def remember_payload(path: str, session: str, payload: dict[str, Any], cwd: str, agent: dict[str, Any] | None, account: dict | None = None, event_stamp_ms: int | None = None) -> bool:
+    """Store only the newest event's payload, even when identity lookup finishes late."""
+    saved = {'value': False}
     def update(cache: dict[str, Any]) -> dict[str, Any]:
         sessions = dict(cache.get("sessions") or {})
         entry = sessions.get(session)
         if not isinstance(entry, dict):
             return cache
+        if event_stamp_ms is not None and entry.get('eventStampMs') != event_stamp_ms:
+            return cache
+        saved['value'] = True
         entry = {**entry, "payload": payload, "payloadMs": _now_ms(), "cwd": cwd, "account": account}
         if agent is not None:
             entry["agent"] = agent
         sessions[session] = entry
         return {**cache, "sessions": sessions}
 
-    update_json_cache(path, update)
+    return update_json_cache(path, update) and saved['value']
+
+
+def needs_agent(path: str, session: str) -> bool:
+    entry = (_read_cache(path).get('sessions') or {}).get(session)
+    agent = entry.get('agent') if isinstance(entry, dict) else None
+    return not isinstance(agent, dict) or not pid_exists(agent.get('pid'))
 
 
 # ============================================================================
@@ -294,6 +310,8 @@ def tick(path: str, session: str, me: dict[str, Any]) -> Beat | None | bool:
         return False
     agent = entry.get("agent") or {}
     exited = not process_alive(agent.get("pid"), agent.get("name"))
+    if not exited and agent.get('generation'):
+        exited = process_generation(agent['pid']) != agent['generation']
     interrupted = not exited and transcript_ended(entry.get("transcript"), entry.get("updatedMs", 0))
     observable = exited or interrupted or interrupt_observable(entry.get("transcript"))
     outcome: dict[str, Any] = {"result": None}
@@ -307,7 +325,7 @@ def tick(path: str, session: str, me: dict[str, Any]) -> Beat | None | bool:
         now = _now_ms()
         # A hook may have reported since the check; its event outranks an
         # interrupt the transcript recorded before it.
-        closing = exited or interrupted and current.get("updatedMs") == entry.get("updatedMs")
+        closing = (exited or interrupted) and current.get("updatedMs") == entry.get("updatedMs") and current.get("agent") == entry.get("agent")
         if not closing and (not observable or now - current.get("reportedMs", 0) < HEARTBEAT_MS):
             return cache
         payload = current.get("payload")
@@ -480,6 +498,7 @@ def _epoch_ms(value: Any) -> int:
 # ============================================================================
 
 
+@lru_cache(maxsize=1)
 def agent_process() -> dict[str, Any] | None:
     """Identify the agent process that ran this hook: its nearest non-wrapper ancestor."""
     pid = os.getppid()
@@ -491,9 +510,39 @@ def agent_process() -> dict[str, Any] | None:
             return None
         parent, name = info
         if _base_name(name) not in WRAPPER_PROCESSES:
-            return {"pid": pid, "name": name}
+            return {"pid": pid, "name": name, "generation": process_generation(pid)}
         pid = parent
     return None
+
+
+def process_generation(pid: int) -> str | None:
+    """Identify one process lifetime so a reused PID cannot inherit an account."""
+    if os.name == 'nt':
+        import ctypes
+        from ctypes import wintypes
+        kernel = ctypes.WinDLL('kernel32', use_last_error=True)
+        kernel.OpenProcess.argtypes = [wintypes.DWORD, wintypes.BOOL, wintypes.DWORD]
+        kernel.OpenProcess.restype = wintypes.HANDLE
+        kernel.GetProcessTimes.argtypes = [wintypes.HANDLE] + [ctypes.POINTER(wintypes.FILETIME)] * 4
+        kernel.GetProcessTimes.restype = wintypes.BOOL
+        kernel.CloseHandle.argtypes = [wintypes.HANDLE]
+        handle = kernel.OpenProcess(0x1000, False, pid)
+        if not handle: return None
+        try:
+            created, exited, system, user = (wintypes.FILETIME() for _ in range(4))
+            if not kernel.GetProcessTimes(handle, *(ctypes.byref(item) for item in (created, exited, system, user))): return None
+            return str((created.dwHighDateTime << 32) | created.dwLowDateTime)
+        finally: kernel.CloseHandle(handle)
+    try:
+        stat = Path(f'/proc/{pid}/stat')
+        if stat.exists():
+            value = stat.read_text()
+            return value[value.rindex(')') + 2:].split()[19]
+        result = subprocess.run(['ps', '-o', 'lstart=', '-p', str(pid)], capture_output=True, text=True,
+            timeout=2, env={**os.environ, 'LC_ALL': 'C', 'TZ': 'UTC'}, creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
+        return result.stdout.strip() if result.returncode == 0 else None
+    except (OSError, ValueError, IndexError, subprocess.SubprocessError):
+        return None
 
 
 def process_name(pid: int) -> str:

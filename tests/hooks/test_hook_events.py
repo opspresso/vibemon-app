@@ -374,9 +374,12 @@ def test_plan_mode_keeps_planning_while_tools_run(tmp_path):
 
 def test_abandoned_sessions_are_dropped(tmp_path):
     run_session(tmp_path, [pre("left-running")], now=NOW)
+    old_session, = json.loads((tmp_path / "activity.json").read_text())["sessions"]
     run_session(tmp_path, [{"hook_event_name": "UserPromptSubmit", "session_id": "session-2"}], now=NOW + 86_400)
     cache = json.loads((tmp_path / "activity.json").read_text())
-    assert list(cache["sessions"]) == ["session-2"]
+    assert len(cache["sessions"]) == 1
+    assert old_session not in cache["sessions"]
+    assert next(iter(cache["sessions"].values()))["state"] == "thinking"
 
 
 def test_kiro_locates_its_v3_session_record(tmp_path, monkeypatch):

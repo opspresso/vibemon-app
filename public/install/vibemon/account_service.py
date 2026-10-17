@@ -13,8 +13,13 @@ MAX_SESSIONS = 1024
 def identity_hint(value) -> dict[str, str]:
     if not isinstance(value, dict):
         return {}
-    return {key: clean for key in ['provider', 'credential_id', 'agent_id', 'revision', 'manual_id', 'manual_name', 'runtime']
+    return {key: clean for key in ['provider', 'credential_id', 'agent_id', 'revision', 'manual_id', 'manual_name', 'runtime', 'runtime_id']
         if (clean := text(value.get(key), 256)) is not None}
+
+
+def session_key(target, session: str, environment: dict, hint: dict | None = None) -> str:
+    ident = environment.get(f'VIBEMON_{target.provider.upper()}_ACCOUNT_ID') or environment.get('VIBEMON_ACCOUNT_ID') or ''
+    return fingerprint('session-v1', target.key, session, ident, json.dumps(identity_hint(hint), sort_keys=True))
 
 
 class AccountService:
@@ -42,7 +47,7 @@ class AccountService:
         """
         session = text(session)
         hint = identity_hint(hint)
-        key = fingerprint('session-v1', target.key, session, json.dumps(hint, sort_keys=True)) if session else None
+        key = session_key(target, session, environment, hint) if session else None
         before = self.store.read()
         existing = before.get('sessions', {}).get(key) if key else None
         now = self.now()
@@ -63,7 +68,7 @@ class AccountService:
                 except ValueError: pass
             identity = chosen['identity']
             if key:
-                sessions[key] = {'account': identity.record(), 'profile': target.key, 'expiresAt': now + SESSION_AGE_SECONDS}
+                sessions[key] = {'account': identity.record(), 'profile': target.key, 'sessionId': session, 'boundAt': now, 'expiresAt': now + SESSION_AGE_SECONDS}
             sessions = dict(sorted(sessions.items(), key=lambda item: item[1]['expiresAt'], reverse=True)[:MAX_SESSIONS])
             profiles = dict(current.get('profiles', {}))
             previous = profiles.get(target.key, {})

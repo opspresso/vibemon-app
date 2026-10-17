@@ -28,7 +28,7 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import urlsplit
 from urllib.request import Request, urlopen
 
-from account_context import cloud_context, project_cache_key, prepare_account, using_account, activity_key
+from account_context import cloud_context, project_cache_key, prepare_account, using_account, activity_key, event_context
 from account_identity import AccountIdentity
 from account_service import identity_hint
 from project_context import get_project_name, parse_json, read_input
@@ -1233,14 +1233,8 @@ def run(
     if event_aliases:
         event_name = event_aliases.get(event_name, event_name)
     data = {**data, "hook_event_name": event_name}
-    if account_provider and (account_provider == 'kiro' or not data.get('session_id')):
-        parent = session_activity.agent_process()
-        if account_provider == 'kiro':
-            executable = Path((parent or {}).get('name', '').replace('\\', '/')).name.lower().removesuffix('.exe')
-            runtime = 'kiro-cli' if executable in ('kiro-cli', 'q') else 'kiro-ide'
-            data = {**data, 'account_hint': {**identity_hint(data.get('account_hint')), 'runtime': runtime}}
-        if not data.get('session_id') and parent is not None:
-            data = {**data, 'session_id': f"process:{parent['pid']}:{data.get('cwd', '')}"}
+    if account_provider:
+        data = event_context(account_provider, data)
     if account_provider == 'opencode' and event_name == start_event:
         hint = data.get('account_hint')
         known_backend = isinstance(hint, dict) and isinstance(hint.get('provider'), str) and hint['provider'].strip()
@@ -1248,20 +1242,10 @@ def run(
         if not known_backend and not explicit_account:
             prepare_desktop()
             return
-    if account_provider:
-        try:
-            identity = prepare_account(account_provider, data, profile_root)
-        except (OSError, ValueError):
-            print("[vibemon] Could not bind this session to its account; no report was sent.", file=sys.stderr)
-            return
-        if isinstance(data.get('session_id'), str) and data['session_id']:
-            data = {**data, 'session_id': activity_key(identity, data['session_id'], profile_root)}
-        with using_account(identity):
-            return process_event(data, event_name, event_state_map, build_payload, start_event, refine, locate_transcript, identity)
-    return process_event(data, event_name, event_state_map, build_payload, start_event, refine, locate_transcript, None)
+    return process_event(data, event_name, event_state_map, build_payload, start_event, refine, locate_transcript, account_provider, profile_root)
 
 
-def process_event(data, event_name, event_state_map, build_payload, start_event, refine, locate_transcript, identity):
+def process_event(data, event_name, event_state_map, build_payload, start_event, refine, locate_transcript, account_provider=None, profile_root=None):
     tool_name = data.get("tool_name", "")
     cwd = data.get("cwd", "")
     transcript_path = data.get("transcript_path", "")
@@ -1289,7 +1273,10 @@ def process_event(data, event_name, event_state_map, build_payload, start_event,
     # Stamp before git discovery and usage metadata, which can finish after a
     # newer hook; late delivery then cannot replace newer activity.
     path = activity_path()
-    report = session_activity.record(path, data, transition)
+    session = data.get('session_id')
+    tracked_session = activity_key(account_provider, session, profile_root, data.get('account_hint')) if account_provider and isinstance(session, str) and session else session
+    activity_data = {**data, 'session_id': tracked_session} if tracked_session else data
+    report = session_activity.record(path, activity_data, transition)
     if report is None:
         debug_log(f"Event settles no open turn, skipping: {event_name}")
         return
@@ -1297,16 +1284,30 @@ def process_event(data, event_name, event_state_map, build_payload, start_event,
 
     debug_log(f"Event: {event_name}, Tool: {tool_name}, Project: {project_name}")
 
-    payload = build_payload(report.state, tool_name, project_name, data)
-    session = data.get("session_id")
-    if isinstance(session, str) and session and report.state in session_activity.ACTIVE_STATES:
-        # Only an open turn needs what a heartbeat repeats.
-        agent = session_activity.agent_process() if report.watch else None
-        session_activity.remember_payload(path, session, payload, cwd, agent, account=identity.record() if identity else None)
-        if agent is not None:
-            session_activity.start_watcher(os.path.abspath(__file__), session)
+    def emit(identity):
+        payload = build_payload(report.state, tool_name, project_name, data)
+        session = tracked_session
+        if isinstance(session, str) and session and report.state in session_activity.ACTIVE_STATES:
+            needs_agent = report.watch or session_activity.needs_agent(path, session)
+            agent = session_activity.agent_process() if needs_agent else None
+            remembered = session_activity.remember_payload(path, session, payload, cwd, agent,
+                account=identity.record() if identity else None, event_stamp_ms=report.event_stamp_ms)
+            if remembered and agent is not None:
+                session_activity.start_watcher(os.path.abspath(__file__), session)
+        deliver_report(payload, cwd, report.observed_at, is_start=event_name == start_event,
+            account=identity.record() if identity else None)
 
-    deliver_report(payload, cwd, report.observed_at, is_start=event_name == start_event, account=identity.record() if identity else None)
+    if account_provider:
+        try:
+            identity = prepare_account(account_provider, data, profile_root)
+        except (OSError, ValueError):
+            print("[vibemon] Could not bind this session to its account; no report was sent.", file=sys.stderr)
+            return
+        with using_account(identity):
+            emit(identity)
+    else:
+        emit(None)
+
 
 
 if __name__ == "__main__":
