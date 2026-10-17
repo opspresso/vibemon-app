@@ -609,7 +609,7 @@ startFixture().then(async fixture => {
     const detailIdentity = route === 'agents' ? `${cardTitle} · ${'p'.repeat(32)} · ${'a'.repeat(15)}…${'a'.repeat(6)}` : cardTitle;
     await click(`section[data-page="${route}"] [aria-label="View ${detailIdentity} details"]`);
     await until(() => visible('#detail-dialog'), 'long source details');
-    assert.equal(await text('#detail-type'), route === 'agents' ? `${'p'.repeat(32)} · ${'a'.repeat(128)}` : '基'.repeat(64));
+    assert.equal(await text('#detail-type'), route === 'agents' ? `${'p'.repeat(32)} · ${'a'.repeat(15)}…${'a'.repeat(6)}` : '基'.repeat(64));
     await checkFit(`${route} detail`, '#detail-dialog, .dialog-heading, #detail-type, .detail-message, .detail-reading, .detail-member');
     await screenshot(`long-${route}-detail`);
     await click('[data-close-dialog="detail-dialog"]');
