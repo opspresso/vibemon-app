@@ -14,7 +14,8 @@ function installWorkspaceMenu({ open, showCompanion }) {
     : [settings, about, { type: 'separator' }, item('quit', 'action.quitApp')];
   const edit = [
     item('undo', 'menu.undo'), item('redo', 'menu.redo'), { type: 'separator' },
-    item('cut', 'menu.cut'), item('copy', 'menu.copy'), item('paste', 'menu.paste'), item('selectAll', 'menu.selectAll')
+    item('cut', 'menu.cut'), item('copy', 'menu.copy'), item('paste', 'menu.paste'),
+    ...(mac ? [item('pasteAndMatchStyle', 'menu.pasteAndMatchStyle')] : []), item('delete', 'menu.delete'), item('selectAll', 'menu.selectAll')
   ];
   const windows = [item('minimize', 'menu.minimize'), item('zoom', 'menu.zoom'), { type: 'separator' }, item('front', 'menu.front')];
   const workspace = [

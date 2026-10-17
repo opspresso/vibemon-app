@@ -68,4 +68,8 @@ test('widget strings with shared English use the shared translations', () => {
   const widget = (ko, ja) => ({ strings: { 'Resets in %@': { localizations: { ko: { stringUnit: { value: ko } }, ja: { stringUnit: { value: ja } } } } } });
   assert.doesNotThrow(() => validateWidgetStrings(catalog, widget('%@ 후 초기화', '%@後にリセット')));
   assert.throws(() => validateWidgetStrings(catalog, widget('%@ 뒤 초기화', '%@後にリセット')), /must equal shared.json reset.in/);
+  const days = { en: { d: '{days}d{hours}h' }, ko: { d: '{days}일 {hours}시간' }, ja: { d: '{days}日{hours}時間' } };
+  const span = ko => ({ strings: { '%lldd%lldh': { localizations: { ko: { stringUnit: { value: ko } }, ja: { stringUnit: { value: '%1$lld日%2$lld時間' } } } } } });
+  assert.doesNotThrow(() => validateWidgetStrings(days, span('%1$lld일 %2$lld시간')));
+  assert.throws(() => validateWidgetStrings(days, span('%2$lld일 %1$lld시간')), /must equal shared.json d/);
 });

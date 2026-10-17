@@ -64,6 +64,14 @@ export function validateCatalog(name, catalog) {
 // equals a shared English message must also equal its translations.
 const widgetStringsSource = new URL('../native/macos/Widgets/Localizable.xcstrings', import.meta.url);
 const sameShape = text => text.replace(/\{\w+\}|%(?:\d+\$)?(?:lld|@)/g, '{}');
+// The argument number of each placeholder in reading order: `{name}` counts
+// by its place in the English message, `%2$lld` by its number.
+const argumentOrder = (text, english) => {
+  const names = [...english.matchAll(/\{(\w+)\}/g)].map(match => match[1]);
+  let next = 0;
+  return [...text.matchAll(/\{(\w+)\}|%(?:(\d+)\$)?(?:lld|@)/g)]
+    .map(([, name, number]) => name ? names.indexOf(name) + 1 : number ? Number(number) : ++next).join(',');
+};
 
 export function validateWidgetStrings(catalog, widgetStrings) {
   const shared = new Map();
@@ -74,7 +82,8 @@ export function validateWidgetStrings(catalog, widgetStrings) {
     for (const key of shared.get(sameShape(source)) ?? []) {
       for (const locale of ['ko', 'ja']) {
         const value = entry.localizations?.[locale]?.stringUnit?.value;
-        if (value === undefined || sameShape(value) !== sameShape(catalog[locale][key])) {
+        const expected = catalog[locale][key];
+        if (value === undefined || sameShape(value) !== sameShape(expected) || argumentOrder(value, source) !== argumentOrder(expected, catalog.en[key])) {
           throw new Error(`Widget string ${JSON.stringify(source)} ${locale} must equal shared.json ${key}: ${JSON.stringify(catalog[locale][key])}`);
         }
       }

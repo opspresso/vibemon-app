@@ -33,7 +33,7 @@ test('role menu items use the App language', () => {
     const menu = installWorkspaceMenu({ open: jest.fn(), showCompanion: jest.fn() });
     const roles = menu.flatMap(item => [item, ...(item.submenu ?? [])]).filter(item => item.role);
     expect(roles.filter(item => !item.label)).toEqual([]);
-    expect(menu.find(item => item.role === 'editMenu').submenu.map(item => item.label).filter(Boolean)).toEqual(['실행 취소', '실행 복귀', '오려두기', '복사하기', '붙여넣기', '전체 선택']);
+    expect(menu.find(item => item.role === 'editMenu').submenu.map(item => item.label).filter(Boolean)).toEqual(['실행 취소', '실행 복귀', '오려두기', '복사하기', '붙여넣기', '붙여넣고 스타일 일치시키기', '삭제', '전체 선택']);
     expect(menu[0].submenu.find(item => item.role === 'quit').label).toBe('VibeMon 종료');
   } finally {
     setLocale('en');
