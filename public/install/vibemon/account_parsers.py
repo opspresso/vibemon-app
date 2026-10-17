@@ -67,3 +67,29 @@ def kiro_account(status: Any) -> AccountIdentity | None:
     # the authority in the key; a changed email intentionally creates a new identity.
     authority = text(status.get("startUrl")) or ""
     return authenticated("kiro", email, method + ":" + authority, f"Kiro · {email}", "kiro-whoami-email")
+
+
+def opencode_connection(entries: Any, backend: str, target, credential_id: str | None = None) -> AccountIdentity | None:
+    """OpenCode v2 lists its selected connection first; IDs identify saved connections.
+
+    The CLI intentionally omits secret values. A saved connection is not
+    necessarily a verified person, so its identity stays machine/profile scoped.
+    """
+    from account_identity import profile
+    if not isinstance(entries, list) or not text(backend, 128):
+        return None
+    matches = [entry for entry in entries if isinstance(entry, dict) and entry.get('id') == backend]
+    if len(matches) != 1 or not isinstance(matches[0].get('connections'), list):
+        return None
+    connections = matches[0]['connections']
+    if credential_id:
+        connections = [item for item in connections if isinstance(item, dict) and item.get('id') == credential_id]
+    if not connections or not isinstance(connections[0], dict):
+        return None
+    connection = connections[0]
+    ident = text(connection.get('id'), 256)
+    label = text(connection.get('label'), 128)
+    if connection.get('type') != 'credential' or not ident or not label:
+        return None
+    resolved = profile('opencode', target.root, target.instance, f'{backend} · {label}', backend + ':' + ident)
+    return AccountIdentity(resolved.provider, resolved.id, resolved.display_name, 'credential', 'opencode-selected-connection')

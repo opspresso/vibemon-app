@@ -1,6 +1,7 @@
 """Identity selection and session binding use cases behind source and storage ports."""
 from __future__ import annotations
 
+import json
 import time
 from dataclasses import asdict
 from account_identity import AccountIdentity, fingerprint, named, text
@@ -9,11 +10,21 @@ SESSION_AGE_SECONDS = 86400
 MAX_SESSIONS = 1024
 
 
+def identity_hint(value) -> dict[str, str]:
+    if not isinstance(value, dict):
+        return {}
+    return {key: clean for key in ['provider', 'credential_id', 'agent_id', 'revision', 'manual_id', 'manual_name']
+        if (clean := text(value.get(key), 256)) is not None}
+
+
 class AccountService:
     def __init__(self, source, store, now=time.time):
         self.source, self.store, self.now = source, store, now
 
     def resolve(self, target, environment: dict, cwd: str | None = None, hint: dict | None = None) -> AccountIdentity:
+        hint = identity_hint(hint)
+        if target.provider == 'openclaw' and hint.get('manual_id'):
+            return named(target.provider, hint['manual_id'], hint.get('manual_name'))
         ident = environment.get(f'VIBEMON_{target.provider.upper()}_ACCOUNT_ID') or environment.get('VIBEMON_ACCOUNT_ID')
         label = environment.get(f'VIBEMON_{target.provider.upper()}_ACCOUNT_NAME') or environment.get('VIBEMON_ACCOUNT_NAME')
         if ident:
@@ -30,7 +41,8 @@ class AccountService:
         this registry. Resolving credentials never runs inside the file lock.
         """
         session = text(session)
-        key = fingerprint('session-v1', target.key, session) if session else None
+        hint = identity_hint(hint)
+        key = fingerprint('session-v1', target.key, session, json.dumps(hint, sort_keys=True)) if session else None
         before = self.store.read()
         existing = before.get('sessions', {}).get(key) if key else None
         now = self.now()

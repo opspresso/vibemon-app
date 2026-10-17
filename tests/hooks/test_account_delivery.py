@@ -66,3 +66,28 @@ def test_account_persistence_failure_does_not_publish_misattributed_activity(tmp
     monkeypatch.setattr(core, 'send_to_all', lambda *args: sent.append(args))
     core.run({'SessionStart': 'start'}, lambda *args: {}, 'SessionStart', account_provider='codex')
     assert sent == []
+
+
+def test_activity_keys_separate_copied_session_ids_in_two_profiles(tmp_path, monkeypatch):
+    account = authenticated('codex', 'same-user', 'same-org', 'Same account', 'fixture')
+    keys = []
+    for name in ['work', 'another-profile']:
+        monkeypatch.setenv('CODEX_HOME', str(tmp_path / name))
+        keys.append(account_context.activity_key(account, 'copied-session'))
+    assert keys[0] != keys[1]
+
+
+def test_opencode_waits_for_the_selected_backend_without_losing_desktop_launch(tmp_path, monkeypatch):
+    from unittest.mock import Mock
+    monkeypatch.delenv('VIBEMON_ACCOUNT_ID', raising=False)
+    monkeypatch.delenv('VIBEMON_OPENCODE_ACCOUNT_ID', raising=False)
+    monkeypatch.setattr(sys, 'argv', ['vibemon.py'])
+    monkeypatch.setattr(core, 'read_input', lambda: json.dumps({'session_id': 's1', 'hook_event_name': 'SessionStart', 'account_hint': {'provider': ''}}))
+    launch = Mock(); send = Mock(); probe = Mock()
+    monkeypatch.setattr(core, 'prepare_desktop', launch)
+    monkeypatch.setattr(core, 'send_to_all', send)
+    monkeypatch.setattr(core, 'prepare_account', probe)
+    core.run({'SessionStart': 'start'}, lambda *args: {}, 'SessionStart', account_provider='opencode')
+    launch.assert_called_once()
+    send.assert_not_called()
+    probe.assert_not_called()

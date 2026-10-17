@@ -74,3 +74,19 @@ def test_explicit_account_names_preserve_existing_contract():
     with pytest.raises(ValueError): named('codex', 'work', 'unsafe\nname')
     identity = authenticated('claude', 'subject', 'org', 'User', 'fixture')
     assert AccountIdentity.restore(identity.record()) == identity
+
+
+def test_opencode_uses_the_active_connection_without_exposing_or_inventing_a_person():
+    from account_parsers import opencode_connection
+    from account_sources import Profile
+    target = Profile('opencode', '/profiles/opencode', 'machine')
+    entries = [{'id': 'anthropic', 'connections': [
+        {'type': 'credential', 'id': 'work', 'label': 'Work', 'method': 'oauth'},
+        {'type': 'credential', 'id': 'personal', 'label': 'Personal', 'method': 'oauth'}]}]
+    first = opencode_connection(entries, 'anthropic', target)
+    assert first.kind == 'credential'
+    assert 'Work' in first.display_name
+    assert first.id != opencode_connection(entries, 'anthropic', target, 'personal').id
+    assert opencode_connection(entries, 'openai', target) is None
+    assert opencode_connection(entries, 'anthropic', target, 'deleted') is None
+    assert opencode_connection([{'id':'anthropic','connections':[{'type':'env','name':'ANTHROPIC_API_KEY'}]}], 'anthropic', target) is None

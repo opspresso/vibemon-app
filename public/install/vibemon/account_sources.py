@@ -14,7 +14,7 @@ from pathlib import Path
 from typing import Any
 
 from account_identity import AccountIdentity, fingerprint, profile, text
-from account_parsers import claude_account, codex_account, jwt_claims, kiro_account
+from account_parsers import claude_account, codex_account, jwt_claims, kiro_account, opencode_connection
 
 MAX_METADATA_BYTES = 1024 * 1024
 PROBE_TIMEOUT_SECONDS = 3
@@ -196,4 +196,13 @@ class LocalAccountSource:
                 if identity: break
         elif target.provider == 'kiro':
             identity = kiro_account(self.command(['kiro-cli', 'whoami', '--format', 'json'], env, cwd))
+        elif target.provider == 'opencode':
+            backend = text((hint or {}).get('provider'), 128)
+            if backend:
+                identity = opencode_connection(self.command(['opencode', 'auth', 'list', '--format', 'json'], env, cwd),
+                    backend, target, text((hint or {}).get('credential_id'), 256))
+        elif target.provider == 'openclaw':
+            agent = text((hint or {}).get('agent_id'), 128) or 'main'
+            return profile('openclaw', target.root + '/agent:' + agent, target.instance,
+                f'{agent} @ {target.instance} · Account not identified')
         return identity or target.unidentified()

@@ -60,7 +60,8 @@ function dispatch(payload) {
   // A newer state replaces a pending one of the same session. A tool event
   // is never replaced: the hook tracks which tool calls are still running.
   const pending = payloadQueue.findIndex((entry) =>
-    entry.session_id === payload.session_id && entry.cwd === payload.cwd && !entry.tool_use_id);
+    entry.session_id === payload.session_id && entry.cwd === payload.cwd &&
+    JSON.stringify(entry.account_hint) === JSON.stringify(payload.account_hint) && !entry.tool_use_id);
   if (pending !== -1) payloadQueue.splice(pending, 1);
   payloadQueue.push(payload);
   if (payloadQueue.length > MAX_QUEUED_PAYLOADS) {
@@ -126,15 +127,17 @@ function modelName(model) {
 // owned top-level session with the instance directory.
 function sessionBridge(directory) {
   const sessions = new Map();
+  const accountRevisions = new Map();
 
   // `info` is session metadata: a 2.x session.created payload, a
   // ctx.session.get() result, or a 1.x session `info`.
   function remember(sessionID, info) {
-    const state = sessions.get(sessionID) || { owned: false, agent: "", model: "" };
+    const state = sessions.get(sessionID) || { owned: false, agent: "", model: "", provider: "", revision: "0", toolAccounts: new Map() };
     const location = text(info?.location?.directory) || text(info?.directory);
     if (location) state.owned = location === directory;
     state.parentID = text(info?.parentID) || state.parentID;
     state.model = modelName(info?.model) || state.model;
+    state.provider = text(info?.model?.providerID) || state.provider;
     state.agent = text(info?.agent) || state.agent;
     sessions.set(sessionID, state);
     return state;
@@ -146,8 +149,23 @@ function sessionBridge(directory) {
     // completion must not mark the still-running parent as done.
     if (state.parentID) return;
     if (eventName === "Stop" && state.lastEvent === "Stop") return;
-    state.lastEvent = eventName;
-    dispatch({
+    if (eventName === "UserPromptSubmit") {
+      const revision = accountRevisions.get(state.provider) || "0";
+      state.revision = revision;
+    }
+    let accountHint = { provider: state.provider, revision: state.revision };
+    if (toolUseID && eventName === "PreToolUse") state.toolAccounts.set(toolUseID, accountHint);
+    if (toolUseID && eventName === "PostToolUse") {
+      accountHint = state.toolAccounts.get(toolUseID) || accountHint;
+      state.toolAccounts.delete(toolUseID);
+    }
+    const previous = state.lastReport;
+    const changed = previous && JSON.stringify(previous.account_hint) !== JSON.stringify(accountHint);
+    const lateTool = changed && eventName === "PostToolUse";
+    if (changed && previous.account_hint.provider && !lateTool && previous.hook_event_name !== "Stop" && previous.hook_event_name !== "SessionEnd") {
+      dispatch({ ...previous, hook_event_name: "Stop", tool_name: "", tool_use_id: "" });
+    }
+    const report = {
       hook_event_name: eventName,
       session_id: sessionID,
       tool_name: text(tool),
@@ -156,10 +174,18 @@ function sessionBridge(directory) {
       transcript_path: "",
       permission_mode: state.agent === "plan" ? "plan" : "default",
       model: state.model,
-    });
+      account_hint: accountHint,
+    };
+    if (!lateTool) {
+      state.lastEvent = eventName;
+      state.lastReport = report;
+    }
+    dispatch(report);
   }
 
-  return { sessions, remember, sendStatus };
+  return { sessions, remember, sendStatus, accountChanged(provider, revision) {
+    if (provider) accountRevisions.set(provider, revision);
+  } };
 }
 
 // opencode 2.x calls setup once per project instance in one server. The event
@@ -169,7 +195,7 @@ function sessionBridge(directory) {
 // once and with its own project directory.
 function setup(ctx) {
   const directory = text(ctx.location?.directory) || process.cwd();
-  const { sessions, remember, sendStatus } = sessionBridge(directory);
+  const { sessions, remember, sendStatus, accountChanged } = sessionBridge(directory);
   const lookups = new Map();
 
   // The event stream does not replay events sent before setup subscribes.
@@ -221,6 +247,10 @@ function setup(ctx) {
   // arrive many times per step and add no state.
   function onEvent(event) {
     const data = event?.data || {};
+    if (event?.type === "credential.switched") {
+      accountChanged(text(data.integrationID), text(data.credentialID) || `environment:${event.created}`);
+      return;
+    }
     const sessionID = text(data.sessionID);
     if (!sessionID) return;
 
@@ -229,6 +259,7 @@ function setup(ctx) {
     } else if (event.type === "session.step.started") {
       withSession(sessionID, (state) => {
         state.model = modelName(data.model) || state.model;
+        state.provider = text(data.model?.providerID) || state.provider;
         state.agent = text(data.agent) || state.agent;
       });
     } else if (STATUS_EVENTS[event.type]) {

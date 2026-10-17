@@ -8,7 +8,7 @@ from contextvars import ContextVar
 from datetime import datetime, timezone
 from pathlib import Path
 
-from account_identity import AccountIdentity, named
+from account_identity import AccountIdentity, named, fingerprint
 from account_service import AccountService
 from account_sources import LocalAccountSource, tool_profile
 from account_store import JsonAccountStore
@@ -51,6 +51,10 @@ def current_account(provider: str) -> AccountIdentity:
         return named(provider, ident, label)
     identity = tool_profile(provider).unidentified()
     return AccountIdentity(provider, identity.id, label or identity.display_name, identity.kind, identity.evidence)
+
+
+def activity_key(identity: AccountIdentity, session: str, root: str | None = None) -> str:
+    return fingerprint('activity-v1', tool_profile(identity.provider, root=root).key, identity.id, session)
 
 
 def account_id(provider: str) -> str:

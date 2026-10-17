@@ -28,7 +28,7 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import urlsplit
 from urllib.request import Request, urlopen
 
-from account_context import cloud_context, project_cache_key, prepare_account, using_account
+from account_context import cloud_context, project_cache_key, prepare_account, using_account, activity_key
 from account_identity import AccountIdentity
 from project_context import get_project_name, parse_json, read_input
 import session_activity
@@ -984,17 +984,23 @@ def get_desktop_url(http_urls: tuple[str, ...]) -> str | None:
     return None
 
 
-def send_to_all(payload: dict[str, Any], is_start: bool = False, context: dict | bool | None = None) -> None:
-    """Send payload to all configured targets concurrently."""
+def prepare_desktop() -> None:
+    """Start the configured local viewer without creating a placeholder account."""
     config = get_config()
-
-    # Launch Desktop App if not running (on start) - must be sequential
     desktop_url = get_desktop_url(config.http_urls)
-    if desktop_url and is_start and config.auto_launch:
+    if desktop_url and config.auto_launch:
         if not is_monitor_running(desktop_url):
             debug_log("Desktop App not running, launching...")
             launch_desktop()
         show_monitor_window(desktop_url)
+
+
+def send_to_all(payload: dict[str, Any], is_start: bool = False, context: dict | bool | None = None) -> None:
+    """Send payload to all configured targets concurrently."""
+    config = get_config()
+
+    if is_start:
+        prepare_desktop()
 
     # Every display receives the same non-secret provider/workspace identity.
     payload_str = json.dumps({**payload, **context} if isinstance(context, dict) else payload)
@@ -1202,12 +1208,21 @@ def run(
     if event_aliases:
         event_name = event_aliases.get(event_name, event_name)
     data = {**data, "hook_event_name": event_name}
+    if account_provider == 'opencode' and event_name == start_event:
+        hint = data.get('account_hint')
+        known_backend = isinstance(hint, dict) and isinstance(hint.get('provider'), str) and hint['provider'].strip()
+        explicit_account = os.environ.get('VIBEMON_OPENCODE_ACCOUNT_ID') or os.environ.get('VIBEMON_ACCOUNT_ID')
+        if not known_backend and not explicit_account:
+            prepare_desktop()
+            return
     if account_provider:
         try:
             identity = prepare_account(account_provider, data, profile_root)
         except (OSError, ValueError):
             print("[vibemon] Could not bind this session to its account; no report was sent.", file=sys.stderr)
             return
+        if isinstance(data.get('session_id'), str) and data['session_id']:
+            data = {**data, 'session_id': activity_key(identity, data['session_id'], profile_root)}
         with using_account(identity):
             return process_event(data, event_name, event_state_map, build_payload, start_event, refine, locate_transcript, identity)
     return process_event(data, event_name, event_state_map, build_payload, start_event, refine, locate_transcript, None)

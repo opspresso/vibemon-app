@@ -384,3 +384,32 @@ test("opencode 1.x: malformed input sends nothing and never throws", async () =>
   await h.flush();
   assert.deepEqual(h.payloads(), []);
 });
+
+test("credential switching settles the previous account and binds the next turn", async () => {
+  const h = await opencode();
+  await h.event("session.created", created("s", "/projects/one", { model: { id: "model", providerID: "anthropic" } }));
+  await h.event("session.execution.started", { sessionID: "s" });
+  await h.one.tool("execute.before", { sessionID: "s", tool: "read", id: "old-call" });
+  await h.event("credential.switched", { integrationID: "anthropic", credentialID: "new-account" });
+  await h.event("session.execution.started", { sessionID: "s" });
+  const reports = h.payloads();
+  assert.equal(reports.at(-2).hook_event_name, "Stop");
+  assert.equal(reports.at(-2).account_hint.revision, "0");
+  assert.equal(reports.at(-1).account_hint.revision, "new-account");
+  await h.one.tool("execute.after", { sessionID: "s", tool: "read", id: "old-call" });
+  assert.equal(h.payloads().at(-1).account_hint.revision, "0");
+  assert.ok(h.payloads().every(p => p.account_hint.provider === "anthropic"));
+});
+
+test("a different model provider closes the previous connection without mixing its model", async () => {
+  const h = await opencode();
+  await h.event("session.created", created("s", "/projects/one", { model: { id: "claude", providerID: "anthropic" } }));
+  await h.event("session.execution.started", { sessionID: "s" });
+  await h.event("session.step.started", { sessionID: "s", model: { id: "gpt", providerID: "openai" } });
+  await h.one.tool("execute.before", { sessionID: "s", tool: "read" });
+  assert.equal(h.payloads().at(-2).hook_event_name, "Stop");
+  assert.equal(h.payloads().at(-2).account_hint.provider, "anthropic");
+  assert.equal(h.payloads().at(-2).model, "claude");
+  assert.equal(h.payloads().at(-1).account_hint.provider, "openai");
+  assert.equal(h.payloads().at(-1).model, "gpt");
+});
