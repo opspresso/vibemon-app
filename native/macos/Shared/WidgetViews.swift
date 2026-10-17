@@ -72,12 +72,14 @@ struct ToneBackground: View {
         ZStack {
             Palette.surface
             if tone != .neutral {
-                RadialGradient(colors: [tone.color.opacity(0.16), .clear], center: .topTrailing, startRadius: 0, endRadius: 150)
+                RadialGradient(colors: [tone.color.opacity(0.18), .clear], center: .topTrailing, startRadius: 0, endRadius: 160)
             }
         }
     }
 }
 
+/// The layout matches the iPhone small widget: header, status line, then
+/// metrics lifted slightly off the bottom edge.
 private struct ItemView: View {
     let item: FeedItem
     let status: FeedStatus
@@ -85,38 +87,30 @@ private struct ItemView: View {
     let running: Bool
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            Header(item: item, status: status, age: Age.text(since: item.observedAt, now: date))
-            if let detail {
-                Text(detail)
+        VStack(alignment: .leading, spacing: 6) {
+            Header(item: item)
+            StatusLine(status: status, age: Age.text(since: item.observedAt, now: date), running: running)
+            if item.metrics.isEmpty, let message = item.message, item.kind == .resource {
+                Text(message)
                     .font(.system(size: 11, weight: .medium))
-                    .foregroundStyle(Palette.foreground.opacity(0.78))
-                    .lineLimit(item.metrics.isEmpty ? 3 : 1)
-                    .padding(.top, 8)
+                    .foregroundStyle(Palette.foreground.opacity(0.8))
+                    .lineLimit(3)
+                    .padding(.top, 4)
             }
-            Spacer(minLength: 8)
+            Spacer(minLength: 4)
             VStack(alignment: .leading, spacing: 6) {
                 ForEach(item.metrics.prefix(3)) { MetricRow(metric: $0, date: date) }
             }
+            .padding(.bottom, 4)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .accessibilityElement(children: .combine)
     }
-
-    /// After the App quits, the values are the last known ones; otherwise a
-    /// resource shows the collector's message.
-    private var detail: String? {
-        guard running else { return "App closed" }
-        return item.kind == .resource ? item.message : nil
-    }
 }
 
-/// The icon beside the title and the status. The subtitle is spoken only:
-/// the widget picker shows it, and the small widget has no room for it.
+/// The icon, the title, and the subtitle.
 private struct Header: View {
     let item: FeedItem
-    let status: FeedStatus
-    let age: String
 
     var body: some View {
         HStack(spacing: 8) {
@@ -124,21 +118,26 @@ private struct Header: View {
             case .agent: CharacterArt(file: item.artwork)
             case .resource: ResourceIcon(symbol: item.symbol)
             }
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: 0) {
                 Text(item.title)
-                    .font(.system(size: 13, weight: .semibold))
+                    .font(.system(size: 14, weight: .semibold))
                     .foregroundStyle(Palette.foreground)
                     .lineLimit(1)
-                    .accessibilityLabel("\(item.title), \(item.subtitle)")
-                StatusLine(status: status, age: age)
+                Text(item.subtitle)
+                    .font(.system(size: 11))
+                    .foregroundStyle(Palette.muted)
+                    .lineLimit(1)
             }
         }
     }
 }
 
+/// A status dot, the state label, and the report age. After the App quits,
+/// the values are the last known ones, so a closed-App mark appears.
 private struct StatusLine: View {
     let status: FeedStatus
     let age: String
+    let running: Bool
 
     var body: some View {
         HStack(spacing: 4) {
@@ -154,6 +153,12 @@ private struct StatusLine: View {
                 .minimumScaleFactor(0.8)
                 .layoutPriority(1)
             Spacer(minLength: 3)
+            if !running {
+                Image(systemName: "powersleep")
+                    .font(.system(size: 9, weight: .semibold))
+                    .foregroundStyle(Palette.muted)
+                    .accessibilityLabel("App closed")
+            }
             Text(age)
                 .font(.system(size: 10))
                 .monospacedDigit()
@@ -170,36 +175,10 @@ private struct MetricRow: View {
     var body: some View {
         let countdown = metric.resetsAt.map { Countdown.text(until: $0, now: date) }
         VStack(alignment: .leading, spacing: 3) {
-            HStack(alignment: .firstTextBaseline, spacing: 4) {
-                Text(metric.label)
-                    .font(.system(size: 10, weight: .medium))
-                    .foregroundStyle(Palette.muted)
-                    .lineLimit(1)
-                if let countdown {
-                    // The reset time gives way first when the row is narrow.
-                    HStack(alignment: .firstTextBaseline, spacing: 1) {
-                        Image(systemName: "arrow.clockwise")
-                            .font(.system(size: 7, weight: .semibold))
-                        Text(countdown)
-                            .font(.system(size: 9.5, weight: .medium))
-                            .monospacedDigit()
-                    }
-                    .foregroundStyle(Palette.muted)
-                    .lineLimit(1)
-                    .layoutPriority(-1)
-                }
-                Spacer(minLength: 4)
-                HStack(alignment: .firstTextBaseline, spacing: 0) {
-                    Text(metric.value)
-                        .font(.system(size: 12, weight: .semibold))
-                        .monospacedDigit()
-                        .foregroundStyle(Palette.foreground)
-                    Text(metric.unit)
-                        .font(.system(size: 9.5, weight: .medium))
-                        .foregroundStyle(Palette.muted)
-                }
-                .lineLimit(1)
-                .layoutPriority(1)
+            // The reset countdown gives way when the row is too narrow for it.
+            ViewThatFits(in: .horizontal) {
+                header(countdown: countdown)
+                header(countdown: nil)
             }
             if let fraction = metric.fraction {
                 GaugeBar(fraction: fraction, color: metric.tone.color)
@@ -208,6 +187,37 @@ private struct MetricRow: View {
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(metric.label)
         .accessibilityValue(countdown.map { "\(metric.value)\(metric.unit), \(Countdown.sentence($0))" } ?? "\(metric.value)\(metric.unit)")
+    }
+
+    private func header(countdown: String?) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 4) {
+            Text(metric.label)
+                .font(.system(size: 11, weight: .medium))
+                .foregroundStyle(Palette.muted)
+                .lineLimit(1)
+            if let countdown {
+                HStack(alignment: .firstTextBaseline, spacing: 1) {
+                    Image(systemName: "arrow.clockwise")
+                        .font(.system(size: 7, weight: .semibold))
+                    Text(countdown)
+                        .monospacedDigit()
+                }
+                .font(.system(size: 9.5, weight: .medium))
+                .foregroundStyle(Palette.muted)
+                .fixedSize()
+            }
+            Spacer(minLength: 4)
+            HStack(alignment: .firstTextBaseline, spacing: 0) {
+                Text(metric.value)
+                    .font(.system(size: 12.5, weight: .semibold))
+                    .monospacedDigit()
+                    .foregroundStyle(Palette.foreground)
+                Text(metric.unit)
+                    .font(.system(size: 9.5, weight: .medium))
+                    .foregroundStyle(Palette.muted)
+            }
+            .fixedSize()
+        }
     }
 }
 
@@ -238,10 +248,10 @@ private struct ResourceIcon: View {
 
     var body: some View {
         Image(systemName: systemName)
-            .font(.system(size: 13, weight: .semibold))
+            .font(.system(size: 14, weight: .semibold))
             .foregroundStyle(Palette.accent)
-            .frame(width: 28, height: 28)
-            .background(Palette.accent.opacity(0.12), in: RoundedRectangle(cornerRadius: 7, style: .continuous))
+            .frame(width: 30, height: 30)
+            .background(Palette.accent.opacity(0.12), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
             .widgetAccentable()
     }
 
@@ -255,7 +265,7 @@ private struct ResourceIcon: View {
     }
 }
 
-/// Pixel-art character from the bundled `characters` folder.
+/// Character art from the bundled `characters` folder, in a 30-point tile.
 ///
 /// When the desktop is not focused, macOS draws widgets in the vibrant mode:
 /// it keeps only the brightness of each pixel. An opaque tile behind the art
@@ -274,7 +284,7 @@ struct CharacterArt: View {
             if let image = Self.image(named: file) ?? Self.image(named: Self.fallback) {
                 Image(nsImage: image)
                     .resizable()
-                    .interpolation(.none)
+                    .interpolation(.high)
                     .desaturatedWhenAccented()
                     .aspectRatio(contentMode: .fit)
                     // Light characters, such as Kiro, need an edge on a light tile.
@@ -282,8 +292,8 @@ struct CharacterArt: View {
                     .padding(fullColor ? 3 : 1)
             }
         }
-        .frame(width: 28, height: 28)
-        .background(fullColor ? Palette.subtle : .clear, in: RoundedRectangle(cornerRadius: 7, style: .continuous))
+        .frame(width: 30, height: 30)
+        .background(fullColor ? Palette.subtle : .clear, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
         .accessibilityHidden(true)
     }
 
@@ -334,15 +344,15 @@ private struct NoticeView: View {
     }
 }
 
-/// Compact report age at minute precision, matching the widget's refresh steps.
+/// Report age at minute precision, worded like the iPhone widgets.
 enum Age {
     static func text(since date: Date, now: Date) -> String {
         let seconds = max(0, Int(now.timeIntervalSince(date)))
         switch seconds {
-        case ..<60: return "now"
-        case ..<3600: return "\(seconds / 60)m"
-        case ..<86400: return "\(seconds / 3600)h"
-        default: return "\(seconds / 86400)d"
+        case ..<60: return "Just now"
+        case ..<3600: return "\(seconds / 60)m ago"
+        case ..<86400: return "\(seconds / 3600)h ago"
+        default: return "\(seconds / 86400)d ago"
         }
     }
 }
