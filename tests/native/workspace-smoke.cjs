@@ -565,7 +565,7 @@ startFixture().then(async fixture => {
   await published(); await navigate('agents');
   assert.ok((await text('#agent-cards')).includes('Codex · 27e702a8'));
   assert.ok(!(await text('#agent-cards')).includes(generatedId));
-  await ui(`[...document.querySelectorAll('#agent-cards .card')].find(card => card._source.sourceId === ${JSON.stringify(`codex:${generatedId}`)}).querySelector('footer button').click()`);
+  await ui(`[...document.querySelectorAll('#agent-cards .card')].find(card => card._source.sourceId === ${JSON.stringify(`codex:${generatedId}`)}).querySelector('.card-footer button').click()`);
   await until(() => visible('#detail-dialog'), 'generated account detail');
   assert.equal(await text('#detail-type'), 'Codex · 27e702a8');
   await click('#remove-monitor');
