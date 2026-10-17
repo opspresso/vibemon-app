@@ -90,16 +90,18 @@ private struct ItemView: View {
         VStack(alignment: .leading, spacing: 6) {
             Header(item: item)
             StatusLine(status: status, age: Age.text(since: item.observedAt, now: date), running: running)
-            if item.metrics.isEmpty, let message = item.message, item.kind == .resource {
+            // A resource message explains its state, so it takes the place of one metric.
+            let message = item.kind == .resource ? item.message : nil
+            if let message {
                 Text(message)
                     .font(.system(size: 11, weight: .medium))
                     .foregroundStyle(Palette.foreground.opacity(0.8))
-                    .lineLimit(3)
-                    .padding(.top, 4)
+                    .lineLimit(item.metrics.isEmpty ? 3 : 1)
+                    .padding(.top, 2)
             }
-            Spacer(minLength: 4)
-            VStack(alignment: .leading, spacing: 6) {
-                ForEach(item.metrics.prefix(3)) { MetricRow(metric: $0, date: date) }
+            Spacer(minLength: 0)
+            VStack(alignment: .leading, spacing: 4) {
+                ForEach(item.metrics.prefix(message == nil ? 3 : 2)) { MetricRow(metric: $0, date: date) }
             }
             .padding(.bottom, 4)
         }
