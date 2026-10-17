@@ -172,6 +172,7 @@ export function renderCards(
       parts.edge.hidden = !source.isAccount;
       text(parts.name, source.displayName);
       text(parts.type, sourceType(source));
+      parts.type.title = source.isAccount ? source.sourceId : '';
       const identity = source.isAccount ? source.agent?.character : source.kind;
       if (parts.image.dataset.identity !== identity) {
         if (source.isAccount) {

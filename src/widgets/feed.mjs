@@ -123,6 +123,8 @@ function agentItem(account, usage, artwork, now, wall, offset, t) {
     kind: 'agent',
     title: providerLabel(account.provider),
     subtitle: accountName(account.accountId),
+    selectionTitle: `${providerLabel(account.provider)} · ${accountName(account.accountId)}`,
+    selectionSubtitle: [...new Set([account.displayName, ...account.sources.map(source => source.agent?.project || source.displayName)])].slice(0, 4).join(' · '),
     artwork: artwork(latest.agent.character),
     observedAt: wall(Date.parse(latest.observedAt)),
     metrics,

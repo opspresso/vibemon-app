@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { statePresentation, providerLabel, formatMeasurement, observationAge, formatAxisValue, formatResetTime, resetCountdown } from '../src/shared/design/presentation.mjs';
+import { accountName, statePresentation, providerLabel, formatMeasurement, observationAge, formatAxisValue, formatResetTime, resetCountdown } from '../src/shared/design/presentation.mjs';
 import { usageResetAt } from '../src/shared/monitoring/clock.cjs';
 import { dominantState, needsAttention, sourceState, accountState } from '../src/shared/monitoring/state.cjs';
 import { mergeMean } from '../src/shared/resource-schema.cjs';
@@ -111,4 +111,15 @@ test('axis labels stay concise without rounding tiny readings to zero', () => {
   assert.equal(formatAxisValue(1e-8), '1.0e-8');
   assert.equal(formatAxisValue(-12.345), '-12.3');
   assert.equal(formatAxisValue(0), '0');
+});
+
+
+test('account labels shorten generated identities without changing manual names', () => {
+  for (const kind of ['auto', 'profile', 'credential']) {
+    assert.equal(accountName(`codex:${kind}:27e702a8${'a'.repeat(56)}`), '27e702a8');
+  }
+  assert.equal(accountName('claude:work'), 'work');
+  assert.equal(accountName('codex:default'), 'default');
+  assert.equal(accountName('claude:auto:manual-name'), 'auto:manual-name');
+  assert.equal(accountName(`codex:${'long'.repeat(20)}`).length, 22);
 });

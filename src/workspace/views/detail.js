@@ -116,6 +116,7 @@ export function setupDetail({ getFrame, cloudTime, request, run }) {
     const now = cloudTime();
     text($('detail-title'), source.displayName);
     text($('detail-type'), sourceType(source));
+    $('detail-type').title = source.isAccount ? source.sourceId : '';
     const status = el('span');
     badge(status, sourceState(source));
     $('detail-status').replaceChildren(status);
@@ -180,6 +181,9 @@ export function setupDetail({ getFrame, cloudTime, request, run }) {
   $('retry-trend').addEventListener('click', refresh);
   $('edit-resource').addEventListener('click', () =>
     run($('edit-resource'), () => request('open-web', 'edit-resource', selected.sourceId))
+  );
+  $('remove-monitor').addEventListener('click', () =>
+    run($('remove-monitor'), () => request('remove-monitor', { kind: selected.isAccount ? 'account' : 'source', id: selected.sourceId }))
   );
   dialog.addEventListener('close', () => {
     // A queued close event can arrive after this dialog has reopened.

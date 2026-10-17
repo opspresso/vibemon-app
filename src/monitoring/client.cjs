@@ -1,5 +1,6 @@
 const { readJsonResponse } = require('../shared/json-response.cjs');
 const { EventEmitter } = require('events');
+const { URL, URLSearchParams } = require('node:url');
 const { METRICS, validId, validAccountId, accountId, groupAccounts, webOrigin, validateSources, validateTrend, validateDefinitions, validateOrder, displayMetrics, metricCatalog } = require('./domain.cjs');
 const { CLOUD_POLL_MS, CLOUD_REQUEST_TIMEOUT_MS, CLOUD_TREND_MS, CLOUD_MAX_RESPONSE_BYTES } = require('../shared/constants.cjs');
 const { sourceStale, sourceState, accountActivity, needsAttention, attentionCount } = require('../shared/monitoring/state.cjs');
@@ -224,6 +225,21 @@ class MonitoringClient extends EventEmitter {
   catalogEntry(source) {
     return { sourceId: source.sourceId, displayName: source.displayName, kind: source.kind,
       ...(source.metricDefinitions ? { resourceType: source.resourceType, metricDefinitions: source.metricDefinitions, metricOrder: source.metricOrder } : {}) };
+  }
+  async removalUrl(target) {
+    const generation = this.generation;
+    const account = target?.kind === 'account';
+    if (!target || !['source', 'account'].includes(target.kind) || !(account ? validAccountId(target.id) : validId(target.id))) throw new Error('Invalid removal target');
+    const present = account ? this.accountCatalog.some(item => item.accountId === target.id)
+      : this.catalog.some(item => item.sourceId === target.id && item.kind !== 'agent');
+    if (!present) throw new Error(t('error.removalMissing'));
+    const origin = webOrigin(this.preferences.get('url') || 'https://vibemon.io', this.allowLocalHttp);
+    const connection = await this.request('/api/v1/connection?scope=read');
+    if (generation !== this.generation) throw new Error(t('error.connectionChanged'));
+    if (connection.connected !== true || connection.scope !== 'read' || !validId(connection.ownerId)) throw new Error(t('error.removalUpgrade'));
+    const url = new URL('/dashboard', origin);
+    url.search = new URLSearchParams({ view: account ? 'agents' : 'resources', remove: target.kind, id: target.id, owner: connection.ownerId }).toString();
+    return url.href;
   }
   async trend(target) {
     const generation = this.generation;

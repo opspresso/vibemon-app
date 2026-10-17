@@ -113,6 +113,10 @@ class WorkspaceWindow {
         await this.openExternal(new URL('/account?purpose=write', origin).href);
         return true;
       }
+      case 'remove-monitor': {
+        await this.openExternal(await this.monitoring.removalUrl(args[0]));
+        return true;
+      }
       case 'open-web': {
         const [destination, sourceId] = args;
         let pathname = Object.hasOwn(WEB_PATHS, destination) ? WEB_PATHS[destination] : null;

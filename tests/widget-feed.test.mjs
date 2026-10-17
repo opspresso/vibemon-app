@@ -151,3 +151,15 @@ test('labels follow the App language', () => {
   assert.equal(agent.timeline[0].label, '작업 중');
   assert.equal(build({ cloud: cloud([agentSource()]) }).items[0].metrics[1].label, 'Session');
 });
+
+
+test('widget choices identify accounts of the same provider and show their projects', () => {
+  const work = agentSource({ account: { provider: 'codex', id: `auto:27e702a8${'a'.repeat(56)}`, displayName: 'Work' }, agent: { state: 'working', character: 'codex', project: 'dockpad' } });
+  const personal = agentSource({ sourceId: 'agent:personal', account: { provider: 'codex', id: `auto:396c8f1c${'b'.repeat(56)}`, displayName: 'Personal' }, agent: { state: 'working', character: 'codex', project: 'opspresso' } });
+  const items = build({ cloud: cloud([work, personal]) }).items;
+  assert.deepEqual(items.map(item => item.selectionTitle).sort(), ['Codex · 27e702a8', 'Codex · 396c8f1c']);
+  assert.equal(items.find(item => item.selectionTitle.endsWith('27e702a8')).selectionSubtitle, 'Work · dockpad');
+  assert.equal(items.find(item => item.selectionTitle.endsWith('396c8f1c')).selectionSubtitle, 'Personal · opspresso');
+  assert.equal(new Set(items.map(item => item.id)).size, 2);
+  assert.ok(items.every(item => item.id.includes('auto:') && item.id.length > 64));
+});

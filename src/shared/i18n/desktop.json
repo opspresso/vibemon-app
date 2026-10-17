@@ -457,7 +457,10 @@
     "accounts.kind.manual": "Manual label",
     "accounts.profile": "Profile details",
     "accounts.observed": "Last identified: {time}",
-    "accounts.usageUnavailable": "Usage could not be refreshed. Open this profile and check its login; activity monitoring remains available."
+    "accounts.usageUnavailable": "Usage could not be refreshed. Open this profile and check its login; activity monitoring remains available.",
+    "detail.removeOnWeb": "Remove on Web",
+    "error.removalMissing": "This item is no longer available. Refresh the workspace.",
+    "error.removalUpgrade": "Update Web to open its removal confirmation."
   },
   "ko": {
     "nav.overview": "개요",
@@ -902,7 +905,10 @@
     "accounts.kind.manual": "직접 지정한 이름",
     "accounts.profile": "프로필 상세",
     "accounts.observed": "마지막 계정 확인: {time}",
-    "accounts.usageUnavailable": "사용량을 갱신하지 못했습니다. 해당 프로필을 열어 로그인 상태를 확인하세요. 활동 모니터링은 계속 사용할 수 있습니다."
+    "accounts.usageUnavailable": "사용량을 갱신하지 못했습니다. 해당 프로필을 열어 로그인 상태를 확인하세요. 활동 모니터링은 계속 사용할 수 있습니다.",
+    "detail.removeOnWeb": "Web에서 삭제",
+    "error.removalMissing": "항목을 찾을 수 없습니다. 화면을 새로고침하세요.",
+    "error.removalUpgrade": "삭제 확인창을 열려면 Web을 업데이트하세요."
   },
   "ja": {
     "nav.overview": "概要",
@@ -1347,6 +1353,9 @@
     "accounts.kind.manual": "手動ラベル",
     "accounts.profile": "プロファイルの詳細",
     "accounts.observed": "最終確認: {time}",
-    "accounts.usageUnavailable": "使用量を更新できませんでした。このプロファイルのログインを確認してください。アクティビティの監視は引き続き利用できます。"
+    "accounts.usageUnavailable": "使用量を更新できませんでした。このプロファイルのログインを確認してください。アクティビティの監視は引き続き利用できます。",
+    "detail.removeOnWeb": "Web で削除",
+    "error.removalMissing": "項目が見つかりません。画面を更新してください。",
+    "error.removalUpgrade": "削除確認を開くには Web を更新してください。"
   }
 }
