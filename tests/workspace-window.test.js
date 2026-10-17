@@ -42,7 +42,8 @@ beforeEach(() => {
     monitoring,
     settings: { getSnapshot: jest.fn(() => ({ version: 'test', hooks: [], vibemonConfig: { status: {} }, cloudDelivery: { status: 'verified' }, update: { status: 'current', version: null } })), invoke: jest.fn() },
     getActivity: jest.fn(() => [{ id: 'local' }]), getUsage: jest.fn(() => ({ codex: {} })),
-    showCompanion: jest.fn(), reportError: jest.fn(), openExternal: jest.fn()
+    showCompanion: jest.fn(), reportError: jest.fn(), openExternal: jest.fn(),
+    signIn: { signIn: jest.fn(async (_url, scope) => `token-for-${scope}`), cancel: jest.fn() }
   };
   view = new WorkspaceWindow(ports);
   invoke = ipcMain.handle.mock.calls[0][1];
@@ -225,4 +226,20 @@ test('preload exposes narrow requests and removable subscriptions without Electr
   stopChanged(); stopVisibility();
   expect(ipcRenderer.removeListener).toHaveBeenCalledWith(channel, listener);
   expect(ipcRenderer.removeListener).toHaveBeenCalledWith(visibilityChannel, visibilityListener);
+});
+
+test('signs in through Web: a read token connects the workspace, a write token goes to hook delivery', async () => {
+  open();
+  ports.monitoring.configure.mockResolvedValue({ status: 'connected' });
+  await expect(invoke(event, 'sign-in', ['https://vibemon.io'])).resolves.toEqual({ ok: true, value: { status: 'connected' } });
+  expect(ports.signIn.signIn).toHaveBeenCalledWith('https://vibemon.io', 'read');
+  expect(ports.monitoring.configure).toHaveBeenCalledWith({ url: 'https://vibemon.io', token: 'token-for-read' });
+  await invoke(event, 'sign-in-cloud-delivery', ['https://vibemon.io']);
+  expect(ports.signIn.signIn).toHaveBeenCalledWith('https://vibemon.io', 'write');
+  expect(ports.settings.invoke).toHaveBeenCalledWith('configure-cloud-delivery', { url: 'https://vibemon.io', token: 'token-for-write' });
+  await invoke(event, 'cancel-sign-in', []);
+  expect(ports.signIn.cancel).toHaveBeenCalled();
+  // A sign-in failure reaches the page as a sentence, without token values.
+  ports.signIn.signIn.mockRejectedValueOnce(Object.assign(new Error('You selected Deny on VibeMon Web.'), { reason: 'denied' }));
+  await expect(invoke(event, 'sign-in', ['https://vibemon.io'])).resolves.toEqual({ ok: false, error: 'You selected Deny on VibeMon Web.' });
 });

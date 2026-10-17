@@ -486,3 +486,26 @@ describe('HttpServer request boundaries', () => {
     expect(res.statusCode).toBe(400);
   });
 });
+
+describe('sign-in callback', () => {
+  test('passes the query to the waiting sign-in and never echoes it into the page', async () => {
+    const { server } = createServer();
+    server.webSignIn = { complete: jest.fn(() => ({ ok: true, message: 'Signed in.' })) };
+    const res = response();
+    await server.handleRequest(request('GET', '/auth/callback?code=abc&state=<script>', { headers: { host: '127.0.0.1:19280' } }), res);
+    expect(server.webSignIn.complete.mock.calls[0][0].get('code')).toBe('abc');
+    expect(res.statusCode).toBe(200);
+    expect(res.headers['Referrer-Policy']).toBe('no-referrer');
+    expect(res.headers['Cache-Control']).toBe('no-store');
+    expect(res.body).toContain('Signed in.');
+    expect(res.body).not.toContain('<script>');
+    expect(res.body).not.toContain('abc');
+  });
+
+  test('answers 400 when no sign-in waits', async () => {
+    const { server } = createServer();
+    const res = response();
+    await server.handleRequest(request('GET', '/auth/callback?code=abc&state=s', { headers: { host: '127.0.0.1:19280' } }), res);
+    expect(res.statusCode).toBe(400);
+  });
+});

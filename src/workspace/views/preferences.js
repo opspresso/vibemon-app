@@ -87,6 +87,26 @@ export function setupPreferences({ getFrame, request, run, notify }) {
     await save('disconnect-cloud-delivery');
     notify('Saved write token removed. Local delivery stays connected');
   }));
+  $('sign-in').addEventListener('click', () =>
+    run($('sign-in'), async () => {
+      text($('connection-saved'), 'Finish the sign-in in your browser…');
+      try {
+        const cloud = await request('sign-in', $('web-url').value.trim());
+        delete $('web-url').dataset.dirty;
+        text($('connection-saved'), cloud.status === 'connected' ? 'Connected successfully' : connection(cloud.status)[1]);
+        if (cloud.status === 'connected') notify('Workspace connected');
+      } catch (error) {
+        text($('connection-saved'), '');
+        throw error;
+      }
+    })
+  );
+  $('sign-in-cloud-delivery').addEventListener('click', () => runDelivery($('sign-in-cloud-delivery'), async () => {
+    $('cloud-delivery-help').textContent = 'Finish the sign-in in your browser…';
+    await request('sign-in-cloud-delivery', $('cloud-delivery-url').value.trim());
+    delete $('cloud-delivery-url').dataset.dirty;
+    notify('Signed in. Local hooks now send activity to Web');
+  }));
   $('connect-form').addEventListener('submit', (event) => {
     event.preventDefault();
     run($('save-connection'), async () => {
