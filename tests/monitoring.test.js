@@ -1,3 +1,4 @@
+const { URL } = require('node:url');
 const { MonitoringClient } = require('../src/monitoring/client.cjs');
 const { CredentialStore } = require('../src/monitoring/credential-store.cjs');
 const { validateSources, validateTrend, webOrigin } = require('../src/monitoring/domain.cjs');
@@ -465,5 +466,36 @@ describe('disconnect deletes the token on Web', () => {
     credentials.get = () => { throw Object.assign(new Error('locked'), { code: 'secure-storage-unavailable' }); };
     expect((await locked.client.disconnect()).tokenDeleted).toBe(false);
     expect(locked.fetchImpl).not.toHaveBeenCalled();
+  });
+});
+
+
+describe('removal handoff', () => {
+  test('checks the reader workspace and keeps credentials out of the browser URL', async () => {
+    const { client, fetchImpl } = fixture();
+    await client.poll(true);
+    fetchImpl.mockResolvedValue(okResponse({ connected: true, scope: 'read', ownerId: 'fixture-owner' }));
+    const url = new URL(await client.removalUrl({ kind: 'source', id: 'spark' }));
+    expect(url.origin).toBe('https://web.example');
+    expect(Object.fromEntries(url.searchParams)).toEqual({ view: 'resources', remove: 'source', id: 'spark', owner: 'fixture-owner' });
+    expect(url.href).not.toContain(rawToken);
+    expect(fetchImpl.mock.calls.at(-1)[1].method).toBeUndefined();
+  });
+  test('keeps full generated account IDs in the request while labels can be short', async () => {
+    const { client, fetchImpl } = fixture();
+    const id = `codex:auto:${'a'.repeat(64)}`;
+    client.accountCatalog = [{ accountId: id }];
+    fetchImpl.mockResolvedValue(okResponse({ connected: true, scope: 'read', ownerId: 'fixture-owner' }));
+    expect(new URL(await client.removalUrl({ kind: 'account', id })).searchParams.get('id')).toBe(id);
+    await expect(client.removalUrl({ kind: 'account', id: 'codex:unknown' })).rejects.toThrow('no longer');
+    await expect(client.removalUrl({ kind: 'source', id: '../bad' })).rejects.toThrow('Invalid');
+  });
+  test('rejects an older Web server or a changed connection before opening the browser', async () => {
+    const { client, fetchImpl } = fixture();
+    await client.poll(true);
+    fetchImpl.mockResolvedValue(okResponse({ connected: true }));
+    await expect(client.removalUrl({ kind: 'source', id: 'spark' })).rejects.toThrow('Update Web');
+    fetchImpl.mockImplementation(async () => { client.generation++; return okResponse({ connected: true, scope: 'read', ownerId: 'other-owner' }); });
+    await expect(client.removalUrl({ kind: 'source', id: 'spark' })).rejects.toThrow('connection');
   });
 });

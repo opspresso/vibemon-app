@@ -3,6 +3,7 @@ const { app, Menu, nativeTheme } = require('electron');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
+const { URL } = require('node:url');
 const { startFixture, TOKEN, WRITE_TOKEN } = require('./workspace-fixture.cjs');
 const { AGENT_TEXT_LIMITS } = require('../../src/shared/resource-schema.cjs');
 const output = process.env.VIBEMON_TEST_ARTIFACTS || path.join(__dirname, '../../out/workspace-tests');
@@ -156,6 +157,8 @@ startFixture().then(async fixture => {
   assert.ok((await text('#detail-message')).includes('Latency is above'));
   assert.equal(await ui('document.activeElement.getAttribute("aria-label")'), 'Close source details');
   await screenshot('resource-detail');
+  await click('#remove-monitor');
+  await until(() => ports.calls.some(call => call[0] === 'external' && call[1].includes('remove=source') && call[1].includes('id=cache') && call[1].includes('owner=fixture-owner')), 'resource removal opens the matching Web confirmation');
   await ui('document.querySelector(\'[data-close-dialog="detail-dialog"]\').click(); document.querySelector(\'[aria-label="View Cache service details"]\').click();');
   await until(() => ui('document.querySelectorAll("#chart circle").length > 0'), 'reopening details before the queued close event preserves the new history');
   assert.equal(await ui('document.querySelectorAll("#chart path.average, #chart path.maximum").length'), 2, 'history renders averages and maxima');
@@ -538,6 +541,21 @@ startFixture().then(async fixture => {
   await screenshot('disconnected');
 
   view.window.setSize(820, 600);
+  const beforeGeneratedAccount = state.sources;
+  const generatedId = `auto:27e702a8${'a'.repeat(56)}`;
+  state.sources = () => beforeGeneratedAccount().map(source => source.sourceId === 'codex-team' ? { ...source, account: { ...source.account, id: generatedId } } : source);
+  await client.poll(true); await published(); await navigate('agents');
+  assert.ok((await text('#agent-cards')).includes('Codex · 27e702a8'));
+  assert.ok(!(await text('#agent-cards')).includes(generatedId));
+  await ui(`[...document.querySelectorAll('#agent-cards .card')].find(card => card._source.sourceId === ${JSON.stringify(`codex:${generatedId}`)}).querySelector('footer button').click()`);
+  await until(() => visible('#detail-dialog'), 'generated account detail');
+  assert.equal(await text('#detail-type'), 'Codex · 27e702a8');
+  await click('#remove-monitor');
+  await until(() => ports.calls.some(call => call[0] === 'external' && new URL(call[1]).searchParams.get('id') === `codex:${generatedId}`), 'account removal keeps the full ID');
+  await screenshot('account-short-label');
+  await click('[data-close-dialog="detail-dialog"]');
+  state.sources = beforeGeneratedAccount;
+  await client.poll(true); await published();
   for (const route of ['overview', 'resources', 'agents', 'connections', 'companion', 'integrations', 'about']) {
     await navigate(route);
     assert.equal(await ui('document.getElementById("main").scrollWidth <= document.getElementById("main").clientWidth'), true, `${route} fits the minimum window width`);

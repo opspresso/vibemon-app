@@ -41,6 +41,7 @@ async function startFixture() {
     if (request.headers.authorization !== `Bearer ${TOKEN}`) { response.writeHead(401); response.end('{}'); return; }
     if (state.status !== 200) { response.writeHead(state.status); response.end('{}'); return; }
     const url = new URL(request.url, 'http://localhost');
+    if (url.pathname === '/api/v1/connection' && url.searchParams.get('scope') === 'read') { response.end(JSON.stringify({ connected: true, scope: 'read', ownerId: 'fixture-owner' })); return; }
     const data = state.sources();
     if (url.pathname.endsWith('/trend')) {
       if (state.trendStatus !== 200) { response.writeHead(state.trendStatus); response.end('{}'); return; }

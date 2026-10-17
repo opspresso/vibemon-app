@@ -37,7 +37,7 @@ beforeEach(() => {
   BrowserWindow.mockImplementation(() => native);
   const monitoring = Object.assign(new EventEmitter(), {
     snapshot: jest.fn(() => ({ url: 'https://vibemon.io', status: 'connected', sources: [], accounts: [] })),
-    configure: jest.fn(), disconnect: jest.fn(), poll: jest.fn(), select: jest.fn(), trend: jest.fn()
+    configure: jest.fn(), disconnect: jest.fn(), poll: jest.fn(), select: jest.fn(), trend: jest.fn(), removalUrl: jest.fn()
   });
   ports = {
     monitoring,
@@ -266,4 +266,15 @@ test('signs in through Web: a read token connects the workspace, a write token g
   // A sign-in failure reaches the page as a sentence, without token values.
   ports.signIn.signIn.mockRejectedValueOnce(Object.assign(new Error('You selected Deny on VibeMon Web.'), { reason: 'denied' }));
   await expect(invoke(event, 'sign-in', ['https://vibemon.io'])).resolves.toEqual({ ok: false, error: 'You selected Deny on VibeMon Web.' });
+});
+
+
+test('removal opens only the owner-bound URL provided by the monitoring client', async () => {
+  open();
+  ports.monitoring.removalUrl.mockResolvedValue('https://vibemon.io/dashboard?remove=source&id=spark&owner=fixture');
+  expect(await invoke(event, 'remove-monitor', [{ kind: 'source', id: 'spark' }])).toEqual({ ok: true, value: true });
+  expect(ports.openExternal).toHaveBeenLastCalledWith('https://vibemon.io/dashboard?remove=source&id=spark&owner=fixture');
+  ports.monitoring.removalUrl.mockRejectedValue(new Error('Connection changed'));
+  expect((await invoke(event, 'remove-monitor', [{ kind: 'account', id: 'codex:work' }])).ok).toBe(false);
+  expect(ports.openExternal).toHaveBeenCalledTimes(1);
 });
