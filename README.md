@@ -8,7 +8,7 @@
 Monitor selected resources and coding accounts from your desktop. VibeMon combines cloud summaries with local coding-agent activity, a floating character, and a speech bubble.
 
 - Monitor custom resources, servers, DGX Spark hosts, and Kubernetes clusters.
-- Select multiple Codex, Claude, Kiro, or other provider accounts independently.
+- Automatically distinguish supported coding logins and monitor several profiles on one machine. [Setup and limits](https://vibemon.io/docs/coding-agents#keep-several-accounts-apart).
 - Choose visible metrics and view recent-hour trends. Web edits to resource labels, ranges, and order appear on the next poll.
 - Receive local tool events without a cloud connection. Hooks support Claude Code, Codex, Kiro, OpenClaw, and OpenCode.
 - Add macOS widgets: each one shows the state and metrics of one resource or one coding agent.

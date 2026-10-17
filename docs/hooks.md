@@ -46,9 +46,30 @@ After installation, edit `~/.vibemon/config.json` to configure your targets:
 
 Claude Code's statusline reads a separate `~/.vibemon/statusline.json` for display toggles (e.g. `show_cost`, `show_git`, `show_model`, `show_tokens`) — see [statusline.example.json](../public/install/vibemon/statusline.example.json) for the full set of defaults. This file is optional; statusline.py falls back to sensible defaults (and to any matching keys still in `config.json`) when it's absent.
 
-The Claude Code installer also places a standalone refresher at `~/.vibemon/usage.py`. For Claude, it fetches plan usage directly from Anthropic's OAuth usage API using the local Claude Code login token (no active session required), falling back to a `claude -p "/usage"` subprocess when a token isn't available or the API call fails. For Codex, it queries the same account-level usage API Codex CLI's own `/status` polls using the local Codex login token, falling back to a recent local session snapshot. This fallback reads at most the newest 1 MiB of up to eight recent logs, preserves the observation timestamp, and does not renew stale usage by rewriting the cache. Either way it writes the shared `~/.vibemon/cache/usage.json`, so the Desktop app can run it (`python3 ~/.vibemon/usage.py --max-age 600`) on startup or on a schedule to keep usage data fresh even when no Claude Code or Codex session is active. Since the `claude -p "/usage"` fallback is itself a real Claude Code session, the Desktop app sets `VIBEMON_SUPPRESS_HOOKS=1` in its environment so the spawned session's own hooks don't report status back. Independently of that env var, the hooks also skip any session whose cwd is `~/.vibemon` itself, so spawners that don't set the variable (older Desktop app versions, manual `usage.py` runs) can't surface a phantom `.vibemon` project either.
+The installer places `~/.vibemon/usage.py` alongside the shared hooks. Desktop runs it with `--all-profiles --max-age 90` to refresh registered Claude and Codex profiles in separate child environments. A bounded two-worker scheduler gives older attempts priority. Each profile retains its own login directory, instance, explicit monitoring ID, and cache path. Provider credentials are not copied to a different profile.
 
-The reset-countdown fields the hooks attach (`usage5hResetsIn`/`usageWeekResetsIn`/`usageWeekModelResetsIn`) are populated whenever the cache was refreshed via a `resets_at` epoch — either an active Claude Code session's statusline (the official `rate_limits` path), `usage.py`'s direct Anthropic/Codex API queries, or a Codex session log. Only the last-resort `claude -p "/usage"` text fallback lacks a machine-parseable reset time, so the reset countdown is omitted in that case while the usage percentages still update.
+Claude usage is accepted only after the token's OAuth profile matches the current locally verified account. Official statusline measurements are also cached under that session's identity. VibeMon never starts a model conversation to obtain quota text. Codex uses the CLI-selected credential, including keyring storage, and checks its identity before querying usage. Its bounded session-log fallback accepts only transcripts bound to the same verified account and preserves their observation times. Unknown or ambiguous usage stays unavailable.
+
+The reset countdown fields (`usage5hResetsIn`, `usageWeekResetsIn`, `usageWeekModelResetsIn`) are derived from the measured reset epoch. Re-reading an old cache does not make the observation fresh.
+
+## Multiple accounts
+
+Follow the [profile setup guide](https://vibemon.io/docs/coding-agents#keep-several-accounts-apart) to sign in and install hooks separately for each account.
+
+| Integration | Automatic identity | Limit |
+| --- | --- | --- |
+| Codex | ChatGPT user + workspace from active CLI auth | Another host's in-memory auth is not visible to a fresh CLI process. |
+| Claude | Account UUID + organization UUID, checked against CLI auth status | External/API auth may identify only a credential or profile. |
+| Kiro CLI | Email + auth authority from `whoami --format json` | Email changes can create a new ID. |
+| Kiro IDE | Isolated local profile | CLI login does not establish IDE identity. |
+| OpenCode 2.x | Model provider + selected saved connection | Connection identity is not verified human identity. |
+| OpenClaw | Isolated local agent | Channel account IDs are not model credentials. |
+
+Explicit `VIBEMON_<PROVIDER>_ACCOUNT_ID` takes precedence over `VIBEMON_ACCOUNT_ID`; either overrides detection. The corresponding `_ACCOUNT_NAME` sets a label. A name alone keeps automatic identity. Equal explicit provider/ID pairs intentionally combine across machines. Unidentified profiles and saved credentials are machine/profile scoped instead of sharing `default`.
+
+`~/.vibemon/accounts.json` contains only derived identities, profile paths, binding times, and refresh results. POSIX writes use mode `0600`. Session bindings keep a running session's account stable. Process generation and profile identity prevent reused PIDs or session strings from borrowing another account. A new session start rechecks the login; slow older lookups cannot replace a newer binding. Local, cloud, heartbeat, and usage payloads use the same identity. Restart tools after installing new hooks or changing a profile's login. Existing `default` history cannot be reassigned reliably and is preserved.
+
+Desktop shows the registry in **Settings → Integrations → Accounts on this machine**. It aggregates fresh usage from registered cache paths without merging different account IDs. A missing usage reading does not stop activity delivery.
 
 Context and plan-usage percentages retain their measured precision in the cache and both local and Web payloads. The statusline and dashboards format percentages to at most two decimal places. Formatting never becomes the input to a later cache write. Missing or invalid readings stay unavailable; a measured zero remains zero.
 
@@ -82,7 +103,7 @@ The OpenClaw plugin reads transmission settings (`http_urls`, `serial_port`, `vi
 }
 ```
 
-To override the shared settings for OpenClaw only, add a `config` object to the entry (`projectName`, `character`, `httpEnabled`, `httpUrls`, `serialEnabled`, `vibemonUrl`, `vibemonToken`, `autoLaunch`, `debug`) — plugin config always wins over `~/.vibemon/config.json`.
+To override the shared settings for OpenClaw only, add a `config` object to the entry (`projectName`, `character`, `httpEnabled`, `httpUrls`, `serialEnabled`, `vibemonUrl`, `vibemonToken`, `autoLaunch`, `debug`, `accounts`) — plugin config always wins over `~/.vibemon/config.json`.
 
 Serial output from OpenClaw needs a port setting: `serialPort` in the plugin config or `serial_port` in `~/.vibemon/config.json`. The plugin does not search for devices. `vibemon_core.py` resolves the setting the same way for every tool.
 
@@ -272,7 +293,7 @@ Then start V2 with `kiro-cli --v2 chat --agent my-agent`, or make it the default
 | message_sent | done fallback (only with no active run) |
 | session_end / gateway_stop | done |
 
-OpenClaw reads the active model and context usage from `llm_output`, resets them per run, and tracks parallel runs and tools. The plugin runs inside the gateway, so it needs no watcher process: while a run is active, it repeats the newest active state with `heartbeat: true` 60 seconds after the last report. Local HTTP targets serialize updates, keep the newest pending state, and have a 2.5-second request deadline. USB and cloud delivery use the shared Python transport with a five-second process limit. Cloud reports use the gateway's `VIBEMON_OPENCLAW_ACCOUNT_ID` / `VIBEMON_OPENCLAW_ACCOUNT_NAME` (or common account variables), instance identity, and working directory. Changing the displayed character does not change the OpenClaw account provider.
+OpenClaw reads the active model and context usage from `llm_output`, resets them per run, and tracks parallel runs and tools. The plugin runs inside the gateway, so it needs no watcher process: while a run is active, it repeats the newest active state with `heartbeat: true` 60 seconds after the last report. Local HTTP targets serialize updates, keep the newest pending state, and have a 2.5-second request deadline. USB and cloud delivery use the shared Python transport with a five-second process limit. Each agent/workspace has independent delivery, heartbeat, and run state. The optional `accounts` map assigns explicit `{id, displayName}` values by OpenClaw agent ID; these take precedence over gateway environment labels. Without a mapping or explicit environment ID, each agent uses an isolated local profile. The plugin's channel `accountId` is never treated as a model-provider login. Changing the displayed character does not change the OpenClaw account provider.
 
 ### opencode
 

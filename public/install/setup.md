@@ -90,13 +90,13 @@ Set `vibemon_token` to the generated write token. Cloud transport requires HTTPS
 
 Upgrades reject saved legacy tokens that do not use the server-generated format. Supply `VIBEMON_WRITE_TOKEN` or enter a replacement at the hidden prompt. Format validation does not check revocation or permissions. Hooks report Web delivery failures on stderr even with `debug: false`: HTTP 401 requires an active token, and HTTP 403 requires write permission. Local delivery can succeed while Web delivery fails; verify a recent receipt in the Web dashboard after a real hook event.
 
-Launch each monitored account with a stable `VIBEMON_ACCOUNT_ID` and a human-readable `VIBEMON_ACCOUNT_NAME`. Set `CLAUDE_CONFIG_DIR` or `CODEX_HOME` to the corresponding logged-in profile. These values must reach both the tool process and any App process refreshing that profile's usage. Two profiles with the same project label remain separate sources.
+Codex and Claude subscription logins are identified automatically. Install the integration in each signed-in `CODEX_HOME` or `CLAUDE_CONFIG_DIR`, then start a new coding session. Desktop discovers those profiles from hook reports and refreshes their usage separately. See [multiple-account setup](https://vibemon.io/docs/coding-agents#keep-several-accounts-apart) for commands, tool-specific limits, and verification.
 
-Use [Connect coding account](https://vibemon.io/coding-accounts/new) to generate settings for Codex, Claude, Kiro, OpenClaw, OpenCode, or another provider. Each provider can have several account IDs, such as `work` and `personal`. Provider-specific variables, including `VIBEMON_KIRO_ACCOUNT_ID` / `VIBEMON_KIRO_ACCOUNT_NAME`, override the common variables. Launch each agent in its matching signed-in environment; these labels do not switch provider logins. The first report connects the account. Unsupported usage stays unavailable.
+Use [Connect coding account](https://vibemon.io/coding-accounts/new) for an explicit ID when detection is unavailable or you want to group sources deliberately. `VIBEMON_<PROVIDER>_ACCOUNT_ID` overrides the common `VIBEMON_ACCOUNT_ID` and automatic detection. `_ACCOUNT_NAME` changes the display label. These values do not switch provider logins. Different logins using the same explicit provider and ID are combined. Unidentified profiles stay isolated; unsupported usage stays unavailable.
 
 The installer honors `CLAUDE_CONFIG_DIR`, `CODEX_HOME`, `KIRO_HOME`, and `OPENCODE_CONFIG_DIR`. OpenCode otherwise uses `$XDG_CONFIG_HOME/opencode` or `~/.config/opencode`. Re-run installation after moving a profile or Python interpreter so generated commands match the new paths.
 
-The shared directory contains eight required helpers: `vibemon_core.py`, `session_activity.py`, `project_context.py`, `usage.py`, `usage_cache.py`, `account_context.py`, `cache_io.py`, and `http_client.py`. Use `--vibemon` to repair them together. Installing only one helper can leave imports unresolved.
+The shared directory contains the transport, session, account-identity, and usage helpers. Use `--vibemon` to repair them together. Installing only one helper can leave imports unresolved.
 
 ## 4. Activate and verify
 
