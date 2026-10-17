@@ -8,11 +8,13 @@ The tray menu provides Dashboard, Settings, Show companion, Integrations, About,
 
 ## Connect your cloud workspace
 
-1. Sign in to [Web Account](https://vibemon.io/account) with Google. Create a token with read permission. **Show token** retrieves an existing token.
-2. Open **Settings → Connections** in Desktop. Enter the Web address and read token, then select **Save and connect**.
+1. Open **Settings → Connections** in Desktop and select **Sign in with VibeMon**. Your browser opens the Web address.
+2. Sign in with Google or an invited email account and select **Allow**. The browser returns to the App on `http://127.0.0.1:19280/auth/callback`, and the App receives a read token named **VibeMon Desktop (host name) · read**.
 3. Open **Customize view**. Select resources, provider accounts, and visible metrics, then select **Save view**. **Discover sources** refreshes the available list without discarding unsaved choices. When every listed item in a group is selected, the view follows that whole group, including accounts, resources, and metrics that appear later. A partial selection shows only the chosen items; open **Customize view** to add new ones. Selections saved by Desktop 3.7.2 or earlier reset to all accounts, resources, and metrics once, because those versions saved a full selection as a fixed list.
 
-A replacement read token is verified before it replaces the saved connection. Failed checks preserve the current workspace and credential. The read token is encrypted with Electron `safeStorage`, backed by the operating system keychain or secret service. The saved value never returns to the renderer. Linux `basic_text` storage is rejected. Unlock or configure secure storage if the App cannot save a token. **Disconnect this device** removes the local credential and displayed cloud data. Delete the token in Web Account to revoke it for every client. Dashboard read tokens are never copied to hook configuration.
+Sign-in uses OAuth authorization code with PKCE and a loopback redirect: the code works once, and only this App holds the verifier that exchanges it. To use a token that you created on Web Account instead, open **Use a read token instead**, paste it, and select **Save and connect**. Sign-in needs the local HTTP server; if another program uses port 19280, use a token.
+
+A replacement read token is verified before it replaces the saved connection. Failed checks preserve the current workspace and credential. The read token is encrypted with Electron `safeStorage`, backed by the operating system keychain or secret service. The saved value never returns to the renderer. Linux `basic_text` storage is rejected. Unlock or configure secure storage if the App cannot save a token. **Disconnect this device** removes the local credential and displayed cloud data, then deletes that token on Web (`DELETE /api/v1/connection`). When Web cannot be reached, the App says so; delete the token in Web Account. Dashboard read tokens are never copied to hook configuration.
 
 Latest state is polled every 30 seconds, restricted to the saved selection. Selecting no sources pauses data requests and preserves the connection result. The local project and usage panels work without a cloud connection. HTTPS is required; an unpackaged development App also accepts loopback HTTP for isolated tests.
 
@@ -38,7 +40,7 @@ History details show minute averages and maxima with gaps for unavailable observ
 
 ## Send local activity to Web
 
-Open **Settings → Integrations → Send activity to Web**. Enter the Web origin and a token with **write** permission from the same Google account as your dashboard, then select **Save and verify**. Verification checks permissions without creating a source or test observation. Only a successful check replaces the saved connection; the next real hook event sends data.
+Open **Settings → Integrations → Send activity to Web** and select **Sign in to send activity**. After you allow it on Web, the App saves a write token named **VibeMon Desktop (host name) · write** for the local hooks. To paste a write token instead, open **Use a write token instead** and select **Save and verify**. Verification checks permissions without creating a source or test observation. Only a successful check replaces the saved connection; the next real hook event sends data.
 
 **Check saved connection** checks the current token again. Rejected, read-only, unreachable, and unsupported servers have separate messages. The displayed check time is explicit; it is not a continuous delivery guarantee. A different Web origin requires a new write token. **Remove saved write token** removes the shared hook credential while preserving local delivery and the independent read connection. Agent environment variables and OpenClaw plugin settings can override these shared defaults. Stored write tokens never return to the settings renderer.
 
@@ -70,7 +72,7 @@ Preference changes save automatically. Connection and selection forms save only 
 | `—` | No supported measurement was reported. This is not zero. |
 | **Stale** | A resource has no accepted receipt for 120 seconds. Check the collector; displayed values are the last known observation. |
 | **Inactive** | A coding project's last report has aged to `sleep`: its turn ended or its hooks stopped reporting. No action is required. |
-| **Token not accepted** | Retrieve an active read token from Web Account. |
+| **Token not accepted** | Select **Sign in with VibeMon** again, or paste an active read token from Web Account. |
 | **Read access required** | Replace the token with one that has read permission. |
 | **Replace saved token** | The local credential cannot be decrypted. Enter it again from Web Account. |
 | **Connection interrupted** | Check the Web address and connectivity. Retained readings remain visible and become stale. |

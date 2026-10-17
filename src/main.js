@@ -19,8 +19,10 @@ for (const name of ['.env.local', '.env']) {
 }
 
 const { app, ipcMain, dialog, powerMonitor, screen, safeStorage, shell } = require('electron');
+const os = require('node:os');
 const { MonitoringClient } = require('./monitoring/client.cjs');
 const { CredentialStore } = require('./monitoring/credential-store.cjs');
+const { WebSignIn } = require('./monitoring/web-sign-in.cjs');
 const { WorkspaceWindow } = require('./workspace/window.cjs');
 const { WorkspaceSettings } = require('./workspace/settings.cjs');
 const { localActivity } = require('./workspace/activity.cjs');
@@ -82,6 +84,7 @@ let workspaceSettings = null;
 let httpServer = null;
 let monitoringClient = null;
 let workspaceWindow = null;
+let webSignIn = null;
 let widgetPublisher = null;
 let hookCheckTimer = null;
 let updateCheckTimer = null;
@@ -419,9 +422,11 @@ app.whenReady().then(() => {
   workspaceSettings = new WorkspaceSettings({ windowManager, app, hookInstaller, vibemonConfigManager, updateChecker, cloudDelivery, openExternal: url => shell.openExternal(url) });
   const monitoringStore = new Store({ name: 'monitoring' });
   monitoringClient = new MonitoringClient({ preferences: monitoringStore, credentials: new CredentialStore(monitoringStore, safeStorage), allowLocalHttp: !app.isPackaged });
+  webSignIn = new WebSignIn({ port: HTTP_PORT, openExternal: url => shell.openExternal(url), allowLocalHttp: !app.isPackaged, deviceName: os.hostname().split('.')[0] });
   workspaceWindow = new WorkspaceWindow({
     monitoring: monitoringClient,
     settings: workspaceSettings,
+    signIn: webSignIn,
     getActivity: () => localActivity(windowManager.getRegisteredStates(), windowManager.getWindowCount() ? windowManager.getFocusedProjectId() : null),
     getUsage: () => getUsageSnapshot(),
     showCompanion: showCharacterAgain,
@@ -469,6 +474,7 @@ app.whenReady().then(() => {
   // Start HTTP server
   httpServer = new HttpServer(stateManager, windowManager, app, statusIngress);
   httpServer.onStateUpdate = notifyStatusChange;
+  httpServer.webSignIn = webSignIn;
   httpServer.onError = (err) => {
     if (err.code === 'EADDRINUSE') {
       dialog.showErrorBox(

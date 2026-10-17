@@ -1,5 +1,5 @@
 {
-  "installer": "ed54c5536e298315a5fa2f32a4ed8250d0c79d824a3128ff684281929969d201",
+  "installer": "7d31365c49a7b8fff523d35477815f857e09b7ca7ec2b3a78696d253b30a2886",
   "files": {
     "claude/settings.json": "16364280f11c2e94a7c70d01b0f019aaf736ea82c8b0d8a2a9936072d0cfe009",
     "codex/hooks.json": "b7e5e486400a0b289a789f4f6ecc9d04188192ef031b7e6c1dcbc60d3d8ad2f8",
@@ -22,6 +22,17 @@
     "openclaw/extensions/index.mjs": "a6a150071984d435e11d441d17c0b87a95a10181e8c11f66fd50114346f73a5e",
     "openclaw/extensions/openclaw.plugin.json": "128a5d1b57649575b25764614e5d8a8e93f68ab2b63d69ae759f244f125d49b0",
     "opencode/plugin/vibemon.js": "94e77897400629555448d5d5ba438d0d04716ee84c79d6bc33adc63ee9582e5b",
-    "opencode/hooks/vibemon.py": "da432f78fc9f31d75dcfb9d1bbb5bfe6542de80583314cd574d265c501fb837c"
+    "opencode/hooks/vibemon.py": "da432f78fc9f31d75dcfb9d1bbb5bfe6542de80583314cd574d265c501fb837c",
+    "collector/vibemon_collector/__init__.py": "26effa5a5c29344cc6735202dc619a5b37c3944854ca10da036043b3acf7c22c",
+    "collector/vibemon_collector/__main__.py": "035c98af5c6aabbf76ceb12a552d13bf91523be647c8e9b665a4ce7dfa798a7b",
+    "collector/vibemon_collector/application.py": "33fffb27519f26c3f779dba407b1fda1f045b7867a7717581ec03697860488a0",
+    "collector/vibemon_collector/disk.py": "870e75da7bdddb243e1bc274ac9183fe139d0031868dcaf7261746a148599fdc",
+    "collector/vibemon_collector/domain.py": "2dd71b916aecf01d7967d70b3eedcdecf3fc0bf8efcd2850d9a0b40fe9ba3db6",
+    "collector/vibemon_collector/health.py": "edecdd4623273688ae141a59a23be71b35b46f45d078e3c2b68d28c66a215d88",
+    "collector/vibemon_collector/host.py": "71d07e395704a9a28be9ce4ff28c67972a1d524c45244d9741fe468d0b09bdbd",
+    "collector/vibemon_collector/kubelet.py": "78f26dcfd5b4cd9ec3a6dc55f216ad62aaff83c9b82a6601cdffe9be70d076db",
+    "collector/vibemon_collector/kubernetes.py": "11863b69332d4cf54fdf18ded078878823f6e8134d8f80ce158490d41facd1c2",
+    "collector/vibemon_collector/prometheus.py": "dc4dda8cb95488a4084d2d2e8e8885c953f0e29ffd52341faa10e0b3c16a23dd",
+    "collector/vibemon_collector/transport.py": "ab4576ec02f28e846e0288b249fb66d8a7a5646dee7b1b612b22704434f2ad0d"
   }
 }

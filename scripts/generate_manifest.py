@@ -45,7 +45,19 @@ MANIFEST_FILES = [
     "openclaw/extensions/openclaw.plugin.json",
     "opencode/plugin/vibemon.js",
     "opencode/hooks/vibemon.py",
+    *(f"collector/vibemon_collector/{name}" for name in (
+        "__init__.py", "__main__.py", "application.py", "disk.py", "domain.py", "health.py",
+        "host.py", "kubelet.py", "kubernetes.py", "prometheus.py", "transport.py",
+    )),
 ]
+
+# The collector package is served from public/install/collector/ on Web, but
+# its source stays at the repository root (web-distribution.json maps it).
+REPO_ROOT = DOCS_DIR.parents[1]
+
+
+def source_path(rel: str) -> Path:
+    return REPO_ROOT / rel if rel.startswith("collector/") else DOCS_DIR / rel
 
 
 def file_sha256(path: Path) -> str:
@@ -55,7 +67,7 @@ def file_sha256(path: Path) -> str:
 def build_manifest() -> dict:
     return {
         "installer": file_sha256(DOCS_DIR / "install.py"),
-        "files": {rel: file_sha256(DOCS_DIR / rel) for rel in MANIFEST_FILES},
+        "files": {rel: file_sha256(source_path(rel)) for rel in MANIFEST_FILES},
     }
 
 

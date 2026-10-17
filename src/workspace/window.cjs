@@ -11,8 +11,8 @@ const CHANNEL = 'workspace:request';
 const WEB_PATHS = { account: '/account', resources: '/resources/new', agents: '/coding-accounts/new', docs: '/docs', dashboard: '/dashboard' };
 
 class WorkspaceWindow {
-  constructor({ monitoring, settings, getActivity, getUsage, showCompanion, reportError, openExternal = url => shell.openExternal(url) }) {
-    Object.assign(this, { monitoring, settings, getActivity, getUsage, showCompanion, reportError, openExternal });
+  constructor({ monitoring, settings, signIn, getActivity, getUsage, showCompanion, reportError, openExternal = url => shell.openExternal(url) }) {
+    Object.assign(this, { monitoring, settings, signIn, getActivity, getUsage, showCompanion, reportError, openExternal });
     this.window = null;
     this.route = 'overview';
     this.timer = null;
@@ -73,6 +73,18 @@ class WorkspaceWindow {
       case 'snapshot': return this.snapshot();
       case 'navigate': this.navigate(args[0]); return this.snapshot();
       case 'configure': return this.monitoring.configure(args[0]);
+      // Sign in through Web; the browser returns to the local HTTP server.
+      case 'sign-in': {
+        const url = String(args[0] ?? '');
+        return this.monitoring.configure({ url, token: await this.signIn.signIn(url, 'read') });
+      }
+      case 'sign-in-cloud-delivery': {
+        const url = String(args[0] ?? '');
+        const result = await this.settings.invoke('configure-cloud-delivery', { url, token: await this.signIn.signIn(url, 'write') });
+        this.notify('settings');
+        return result;
+      }
+      case 'cancel-sign-in': this.signIn.cancel(); return true;
       case 'disconnect': return this.monitoring.disconnect();
       case 'refresh': return this.monitoring.poll(true);
       case 'select': return this.monitoring.select(args[0]);

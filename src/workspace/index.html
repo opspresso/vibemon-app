@@ -223,14 +223,16 @@
             <span class="large-symbol teal" data-icon="cloud"></span>
             <div>
               <h2>Your cloud workspace</h2>
-              <p class="muted">Connect resources and coding accounts with a read token.</p>
+              <p class="muted">Sign in to see your resources and coding accounts.</p>
             </div>
           </div>
           <form id="connect-form" class="panel settings-panel">
             <div class="panel-heading">
               <div>
-                <h3>Connection</h3>
-                <p class="muted">Get a token from Account on your Web instance.</p>
+                <h3>Connection <span id="token-state" class="small muted"></span></h3>
+                <p class="muted">
+                  Your browser opens VibeMon Web. Sign in with Google or an invited email, then allow this desktop.
+                </p>
               </div>
               <button type="button" class="text-button" data-web="account">
                 Open Account<span data-icon="external"></span>
@@ -243,24 +245,31 @@
               required
               autocomplete="url"
               placeholder="https://vibemon.io"
-            /><label class="form-label" for="read-token"
-              >Read token<span id="token-state" class="small muted"></span></label
-            ><input
-              id="read-token"
-              type="password"
-              autocomplete="off"
-              spellcheck="false"
-              placeholder="Paste your read token"
             />
             <p class="field-help">
-              <span data-icon="lock"></span>Stored securely on this device. Never sent to coding tools.
+              <span data-icon="lock"></span>The read token is stored securely on this device. Never sent to coding tools.
             </p>
             <div class="form-actions">
-              <button class="button" id="save-connection">Save and connect</button
+              <button type="button" class="button" id="sign-in">Sign in with VibeMon</button
+              ><button type="button" class="button secondary" id="cancel-sign-in" hidden>Cancel sign-in</button
               ><button type="button" class="button quiet-danger" id="disconnect">
                 Disconnect this device</button
               ><span id="connection-saved" class="small muted" role="status"></span>
             </div>
+            <details class="advanced" id="read-token-option">
+              <summary>Use a read token instead</summary>
+              <label class="form-label" for="read-token">Read token</label
+              ><input
+                id="read-token"
+                type="password"
+                autocomplete="off"
+                spellcheck="false"
+                placeholder="Paste a read token from Web Account"
+              />
+              <div class="form-actions">
+                <button class="button secondary" id="save-connection">Save and connect</button>
+              </div>
+            </details>
           </form>
           <div class="panel settings-panel inline-panel">
             <div>
@@ -382,20 +391,25 @@
           </div>
           <form id="cloud-delivery-form" class="panel settings-panel">
             <div class="panel-heading">
-              <div><h3>Send activity to Web</h3><p class="muted">Connect local coding hooks to the same Google workspace you follow in the dashboard.</p></div>
+              <div><h3>Send activity to Web <span id="cloud-token-state" class="small muted"></span></h3><p class="muted">Connect local coding hooks to the workspace you follow in the dashboard. Sign in to give them their own write access.</p></div>
               <span id="cloud-delivery-status" class="chip neutral" role="status">No saved write token</span>
             </div>
             <label class="form-label" for="cloud-delivery-url">Web address</label>
             <input id="cloud-delivery-url" type="url" required autocomplete="url" placeholder="https://vibemon.io" />
-            <label class="form-label" for="cloud-write-token">Write token<span id="cloud-token-state" class="small muted"></span></label>
-            <input id="cloud-write-token" type="password" autocomplete="off" spellcheck="false" placeholder="Paste a write token from Web Account" />
             <p class="field-help">Shared defaults for local hooks. Agent environment or plugin settings can override them.</p>
             <p id="cloud-delivery-error" class="notice danger" role="alert" hidden></p>
             <div class="form-actions">
-              <button id="save-cloud-delivery" class="button">Save and verify</button>
+              <button id="sign-in-cloud-delivery" type="button" class="button">Sign in to send activity</button>
+              <button id="cancel-cloud-sign-in" type="button" class="button secondary" hidden>Cancel sign-in</button>
               <button id="check-cloud-delivery" type="button" class="button secondary">Check saved connection</button>
               <button id="disconnect-cloud-delivery" type="button" class="button quiet-danger">Remove saved write token</button>
             </div>
+            <details class="advanced" id="write-token-option">
+              <summary>Use a write token instead</summary>
+              <label class="form-label" for="cloud-write-token">Write token</label>
+              <input id="cloud-write-token" type="password" autocomplete="off" spellcheck="false" placeholder="Paste a write token from Web Account" />
+              <div class="form-actions"><button id="save-cloud-delivery" class="button secondary">Save and verify</button></div>
+            </details>
             <div class="field-help cloud-delivery-help"><span id="cloud-delivery-help">Local activity stays available in the App.</span><button type="button" class="text-button" id="open-write-token-account">Open Web Account<span data-icon="external"></span></button></div>
           </form>
           <p id="integration-progress" class="field-help" role="status" hidden>Installation in progress. Other install actions will be available when it finishes.</p>

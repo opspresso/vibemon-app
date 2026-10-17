@@ -172,6 +172,9 @@ class HttpServer {
       case 'GET /health':
         this.handleGetHealth(res);
         break;
+      case 'GET /auth/callback':
+        this.handleSignInCallback(req, res);
+        break;
       case 'POST /show':
         await this.handlePostShow(req, res);
         break;
@@ -191,6 +194,26 @@ class HttpServer {
         res.writeHead(404);
         res.end('Not Found');
     }
+  }
+
+  /**
+   * The browser returns here after VibeMon Web sign-in (see web-sign-in.cjs).
+   * The page shows fixed text only; it never echoes the query.
+   */
+  handleSignInCallback(req, res) {
+    const params = new URL(req.url, 'http://127.0.0.1').searchParams;
+    const { ok, message } = this.webSignIn
+      ? this.webSignIn.complete(params)
+      : { ok: false, message: 'VibeMon is not waiting for a sign-in.' };
+    const color = ok ? '#047857' : '#b91c1c';
+    res.writeHead(ok ? 200 : 400, {
+      'Content-Type': 'text/html; charset=utf-8',
+      'Cache-Control': 'no-store',
+      // The one-time code is in this page's URL; never send it onward.
+      'Referrer-Policy': 'no-referrer',
+      'Content-Security-Policy': "default-src 'none'; style-src 'unsafe-inline'"
+    });
+    res.end(`<!doctype html><meta charset="utf-8"><title>VibeMon</title><body style="font:16px system-ui;margin:15vh auto;max-width:28rem;text-align:center"><h1 style="font-size:1.4rem;color:${color}">VibeMon</h1><p>${message}</p></body>`);
   }
 
   /**

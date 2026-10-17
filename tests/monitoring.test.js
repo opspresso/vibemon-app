@@ -94,7 +94,8 @@ describe('cloud monitoring', () => {
     complete(okResponse({ sources: [source(1000000)] }));
     await selected;
     expect(await discovery).toMatchObject({ status: 'not-configured', catalog: [], lastSyncedAt: null });
-    expect(fetchImpl).toHaveBeenCalledTimes(1);
+    // Only the token deletion follows the cancelled discovery.
+    expect(fetchImpl.mock.calls.map(([, options]) => options.method ?? 'GET')).toEqual(['GET', 'DELETE']);
   });
   test('last sync records successful reads rather than attempts or selection changes', async () => {
     let now = 1000000;
@@ -178,7 +179,7 @@ describe('cloud monitoring', () => {
   test('late responses cannot restore data after disconnect', async () => {
     const { client, fetchImpl } = fixture();
     let resolve;
-    fetchImpl.mockReturnValue(new Promise(done => { resolve = done; }));
+    fetchImpl.mockReturnValueOnce(new Promise(done => { resolve = done; }));
     const pending = client.poll(); await client.disconnect();
     resolve(okResponse({ sources: [source(1000000)] }));
     await pending; expect(client.snapshot().sources).toEqual([]); expect(client.snapshot().tokenConfigured).toBe(false);
@@ -442,5 +443,27 @@ describe('selection saved before version 2', () => {
     preferences.set('selectedAccounts', ['codex:default']);
     new MonitoringClient({ preferences, credentials: { has: () => true, get: () => rawToken }, fetchImpl });
     expect(preferences.get('selectedAccounts')).toEqual(['codex:default']);
+  });
+});
+
+describe('disconnect deletes the token on Web', () => {
+  test('sends DELETE with the saved token after removing it locally, and reports a failure', async () => {
+    const { client, fetchImpl } = fixture();
+    fetchImpl.mockResolvedValueOnce({ status: 204, ok: true });
+    const result = await client.disconnect();
+    expect(result.tokenDeleted).toBe(true);
+    expect(result.tokenConfigured).toBe(false);
+    const [url, options] = fetchImpl.mock.calls.at(-1);
+    expect([url, options.method, options.headers.Authorization, options.redirect]).toEqual(['https://web.example/api/v1/connection', 'DELETE', `Bearer ${rawToken}`, 'error']);
+    const offline = fixture();
+    offline.fetchImpl.mockRejectedValueOnce(new Error('offline'));
+    expect((await offline.client.disconnect()).tokenDeleted).toBe(false);
+    expect(offline.client.snapshot().tokenConfigured).toBe(false);
+    // A locked keychain: the token exists but cannot be read, so Web still has it.
+    const locked = fixture();
+    const credentials = locked.client.credentials;
+    credentials.get = () => { throw Object.assign(new Error('locked'), { code: 'secure-storage-unavailable' }); };
+    expect((await locked.client.disconnect()).tokenDeleted).toBe(false);
+    expect(locked.fetchImpl).not.toHaveBeenCalled();
   });
 });

@@ -1,6 +1,7 @@
 import copy
 import hashlib
 import io
+import base64
 import json
 import os
 import re
@@ -182,7 +183,7 @@ class AskYesNoTest(unittest.TestCase):
 class SelectedPlatformsTest(unittest.TestCase):
     class Args:
         def __init__(self, **kw):
-            for key in ("claude", "codex", "kiro", "openclaw", "opencode", "vibemon", "all"):
+            for key in ("claude", "codex", "kiro", "openclaw", "opencode", "vibemon", "collector", "kubernetes", "all"):
                 setattr(self, key, kw.get(key, False))
 
     def test_all_expands_to_the_five_tools(self):
@@ -1187,11 +1188,31 @@ class TokenEnvironmentTest(unittest.TestCase):
                 self.assertEqual(config['vibemon_token'], 'old_arbitrary_token')
                 self.assertNotIn('old_arbitrary_token', output.getvalue())
 
-    def test_interactive_upgrade_replaces_legacy_credential_with_hidden_input(self):
+    def test_login_replaces_a_saved_credential_through_web_sign_in(self):
         token = 'vm_' + 'b' * 60
-        with mock.patch.dict(os.environ, {}, clear=True), mock.patch.object(install, 'AUTO_APPROVE', False), mock.patch.object(install, 'NON_INTERACTIVE', False), mock.patch.object(install.getpass, 'getpass', return_value=token), mock.patch('sys.stdout', io.StringIO()):
-            configured = install.configure_token({'vibemon_token': 'old_arbitrary_token'})
-        self.assertEqual(configured['vibemon_token'], token)
+        for saved in ['old_arbitrary_token', 'vm_' + 'c' * 60, '']:
+            with self.subTest(saved=saved), mock.patch.dict(os.environ, {}, clear=True), mock.patch.object(install, 'SIGN_IN', True), \
+                    mock.patch.object(install, 'sign_in_to_web', return_value=token) as sign_in, mock.patch('sys.stdout', io.StringIO()):
+                configured = install.configure_token({'vibemon_token': saved, 'vibemon_url': 'https://web.example'})
+            self.assertEqual(configured['vibemon_token'], token)
+            sign_in.assert_called_once_with('https://web.example', 'vibemon-hooks')
+
+    def test_a_terminal_without_a_token_signs_in_and_a_failure_keeps_local_delivery(self):
+        output = io.StringIO()
+        output.isatty = lambda: True
+        with mock.patch.dict(os.environ, {}, clear=True), mock.patch('sys.stdout', output), \
+                mock.patch.object(install, 'sign_in_to_web', side_effect=install.SignInError('The request was denied on Web')):
+            self.assertEqual(install.configure_token({'vibemon_token': ''})['vibemon_token'], '')
+        self.assertIn('Activity stays local', output.getvalue())
+        with mock.patch.dict(os.environ, {}, clear=True), mock.patch.object(install, 'SIGN_IN', True), mock.patch('sys.stdout', io.StringIO()), \
+                mock.patch.object(install, 'sign_in_to_web', side_effect=install.SignInError('The request was denied on Web')), self.assertRaises(ValueError):
+            install.configure_token({'vibemon_token': ''})
+
+    def test_app_updates_never_wait_for_a_sign_in(self):
+        # The App runs the installer with pipes: stdout is not a terminal.
+        with mock.patch.dict(os.environ, {}, clear=True), mock.patch('sys.stdout', io.StringIO()), \
+                mock.patch.object(install, 'sign_in_to_web', side_effect=AssertionError('must not sign in')):
+            self.assertEqual(install.configure_token({'vibemon_token': ''})['vibemon_token'], '')
 
     def test_unattended_upgrade_preserves_generated_credential_and_local_only_setup(self):
         with mock.patch.dict(os.environ, {}, clear=True), mock.patch.object(install, 'NON_INTERACTIVE', True), mock.patch('sys.stdout', io.StringIO()):
@@ -1209,6 +1230,179 @@ class TokenEnvironmentTest(unittest.TestCase):
     def test_legacy_arbitrary_token_cannot_be_saved_as_a_new_credential(self):
         with mock.patch.dict(os.environ, {'VIBEMON_WRITE_TOKEN': 'old_arbitrary_token'}), self.assertRaises(ValueError):
             install.configure_token({})
+
+
+class WebSignInTest(unittest.TestCase):
+    def replies(self, *answers):
+        calls = []
+        def post(url, fields):
+            calls.append((url, fields))
+            return answers[len(calls) - 1]
+        return calls, post
+
+    def test_polls_until_approval_and_backs_off_when_asked(self):
+        token = 'vm_' + 'd' * 60
+        calls, post = self.replies(
+            (200, {'device_code': 'dc', 'user_code': 'BCDF-GHJK', 'verification_uri': 'https://web.example/device',
+                   'verification_uri_complete': 'https://web.example/device?code=BCDF-GHJK', 'expires_in': 600, 'interval': 5}),
+            (400, {'error': 'authorization_pending'}), (400, {'error': 'slow_down'}), (200, {'access_token': token, 'token_type': 'Bearer', 'scope': 'write'}))
+        sleeps = []
+        output = io.StringIO()
+        with mock.patch.object(install, 'post_form', post), mock.patch('sys.stdout', output):
+            self.assertEqual(install.sign_in_to_web('https://web.example', 'vibemon-hooks', 'box', sleep=sleeps.append, now=lambda: 0), token)
+        self.assertEqual(sleeps, [5, 5, 10])
+        self.assertEqual(calls[0], ('https://web.example/api/oauth/device', {'client_id': 'vibemon-hooks', 'device_name': 'box'}))
+        self.assertEqual(calls[1][1], {'grant_type': install.DEVICE_GRANT, 'client_id': 'vibemon-hooks', 'device_code': 'dc'})
+        self.assertIn('BCDF-GHJK', output.getvalue())
+        self.assertNotIn(token, output.getvalue())
+
+    def test_reports_denial_expiry_and_an_unusable_answer(self):
+        start = (200, {'device_code': 'dc', 'user_code': 'BCDF-GHJK', 'verification_uri': 'https://web.example/device', 'interval': 1})
+        for answer, message in [((400, {'error': 'access_denied'}), 'denied'), ((400, {'error': 'expired_token'}), 'expired'),
+                                ((503, {}), 'HTTP 503'), ((200, {'access_token': 'not-a-token'}), 'HTTP 200')]:
+            _, post = self.replies(start, answer)
+            with self.subTest(message=message), mock.patch.object(install, 'post_form', post), mock.patch('sys.stdout', io.StringIO()):
+                with self.assertRaisesRegex(install.SignInError, message):
+                    install.sign_in_to_web('https://web.example', 'vibemon-hooks', 'box', sleep=lambda _: None, now=lambda: 0)
+
+    def test_refuses_an_insecure_origin(self):
+        with self.assertRaises(ValueError):
+            install.sign_in_to_web('http://web.example', 'vibemon-hooks')
+
+
+class CollectorInstallTest(unittest.TestCase):
+    def test_source_ids_are_stable_and_valid(self):
+        self.assertEqual(install.source_id('host', 'DGX Spark #1'), 'host-dgx-spark-1')
+        self.assertEqual(install.source_id('k8s', 'arn:aws:eks:us-east-1:1:cluster/demo'), 'k8s-arn-aws-eks-us-east-1-1-cluster-demo')
+        self.assertEqual(install.source_id('host', '한글'), 'host-default')
+
+    def test_the_unit_reads_the_token_from_a_file_and_stops_on_permanent_rejection(self):
+        paths = install.CollectorPaths(system=True)
+        unit = install.collector_unit(paths, 'https://vibemon.io', 'DGX Spark', 'host-dgx-spark')
+        self.assertIn('EnvironmentFile=/etc/vibemon/collector.env', unit)
+        self.assertIn('RestartPreventExitStatus=2', unit)
+        self.assertIn('"--name" "DGX Spark"', unit)
+        self.assertIn('"--memory-type" "auto" "--disk"', unit)
+        # systemd expands $NAME; a literal dollar sign is written as $$.
+        self.assertIn('"Cost $$5"', install.collector_unit(paths, 'https://vibemon.io', 'Cost $5', 'host-cost-5'))
+        self.assertNotIn('vm_', unit)
+        with self.assertRaises(ValueError):
+            install.collector_unit(paths, 'https://vibemon.io', 'bad"name', 'host-bad')
+
+    def test_a_saved_token_is_reused_for_its_own_origin_unless_login_is_asked(self):
+        saved = 'vm_' + 'e' * 60
+        fresh = 'vm_' + 'f' * 60
+        with mock.patch.dict(os.environ, {}, clear=True), mock.patch('sys.stdout', io.StringIO()), \
+                mock.patch.object(install, 'sign_in_to_web', return_value=fresh) as sign_in:
+            self.assertEqual(install.collector_token(None, saved, 'https://vibemon.io', 'https://vibemon.io', 'box'), saved)
+            sign_in.assert_not_called()
+            with mock.patch.object(install, 'SIGN_IN', True):
+                self.assertEqual(install.collector_token(None, saved, 'https://vibemon.io', 'https://vibemon.io', 'box'), fresh)
+            # The saved token never goes to another Web origin.
+            self.assertEqual(install.collector_token(None, saved, 'https://vibemon.io', 'https://other.example', 'box'), fresh)
+            self.assertEqual(sign_in.call_args_list[-1], mock.call('https://other.example', 'vibemon-collector', 'box'))
+
+    def test_saved_collector_token_accepts_only_a_single_assignment(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / 'collector.env'
+            path.write_text('VIBEMON_WRITE_TOKEN=vm_' + 'a' * 60 + '\nVIBEMON_URL=https://vibemon.io\n', encoding='utf-8')
+            self.assertEqual(install.saved_collector_token(path), ('vm_' + 'a' * 60, 'https://vibemon.io'))
+            # A token without its origin is not reused.
+            path.write_text('VIBEMON_WRITE_TOKEN=vm_' + 'a' * 60 + '\n', encoding='utf-8')
+            self.assertEqual(install.saved_collector_token(path), ('', ''))
+            self.assertEqual(install.saved_collector_token(Path(directory) / 'missing'), ('', ''))
+
+    @unittest.skipIf(os.name == 'nt', 'systemd paths are POSIX')
+    def test_uninstall_removes_the_service_files_state_and_token(self):
+        with tempfile.TemporaryDirectory() as directory, mock.patch.dict(os.environ, {
+                'XDG_DATA_HOME': f'{directory}/data', 'XDG_CONFIG_HOME': f'{directory}/config', 'XDG_STATE_HOME': f'{directory}/state'}), \
+                mock.patch.object(install.os, 'geteuid', return_value=1000), mock.patch.object(install.shutil, 'which', return_value='/bin/systemctl'), \
+                mock.patch.object(install.subprocess, 'run') as run, mock.patch('sys.stdout', io.StringIO()):
+            paths = install.CollectorPaths(system=False)
+            for path in (paths.base / 'app' / 'vibemon_collector', paths.base / 'venv', paths.state):
+                path.mkdir(parents=True)
+            paths.env_file.parent.mkdir(parents=True)
+            paths.env_file.write_text('secret', encoding='utf-8')
+            paths.unit.parent.mkdir(parents=True)
+            paths.unit.write_text('# Managed by the VibeMon installer\n', encoding='utf-8')
+            self.assertTrue(install.uninstall_collector())
+            for path in (paths.base, paths.state, paths.env_file, paths.unit):
+                self.assertFalse(path.exists(), path)
+            run.assert_any_call(['systemctl', '--user', 'disable', '--now', 'vibemon-collector.service'], capture_output=True)
+
+    def test_the_token_file_is_created_owner_only(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / 'collector.env'
+            seen = []
+            real_open = os.open
+            def recording_open(file, flags, mode=0o777, *args, **kwargs):
+                seen.append(mode)
+                return real_open(file, flags, mode, *args, **kwargs)
+            with mock.patch.object(install.os, 'open', recording_open):
+                install.write_text_atomic(path, 'secret', mode=0o600)
+            self.assertEqual(seen, [0o600])
+            if os.name != 'nt':
+                self.assertEqual(path.stat().st_mode & 0o777, 0o600)
+
+    def test_the_kubernetes_manifest_is_read_only_and_pinned(self):
+        token = 'vm_' + 'a' * 60
+        documents = json.loads(install.kubernetes_manifest('Demo', 'k8s-demo', 'https://vibemon.io', token))['items']
+        kinds = [document['kind'] for document in documents]
+        self.assertEqual(kinds, ['Namespace', 'ServiceAccount', 'ClusterRole', 'ClusterRoleBinding', 'Secret', 'Deployment'])
+        role = documents[2]['rules']
+        self.assertTrue(all(set(rule['verbs']) <= {'get', 'list'} for rule in role))
+        container = documents[5]['spec']['template']['spec']['containers'][0]
+        self.assertRegex(container['image'], r'@sha256:[0-9a-f]{64}$')
+        self.assertNotIn(token, json.dumps(container))
+        self.assertEqual(documents[4]['stringData'], {'VIBEMON_WRITE_TOKEN': token, 'VIBEMON_URL': 'https://vibemon.io'})
+        self.assertTrue(container['securityContext']['readOnlyRootFilesystem'])
+
+
+class KubernetesSafetyTest(unittest.TestCase):
+    def result(self, returncode=0, stdout='', stderr=''):
+        return subprocess.CompletedProcess([], returncode, stdout, stderr)
+
+    def test_namespace_owner_tells_the_installer_namespace_from_others(self):
+        for reply, owner in [(self.result(stdout='vibemon-installer'), 'installer'), (self.result(stdout=''), 'other'),
+                             (self.result(1, stderr='Error from server (NotFound): namespaces "vibemon" not found'), 'none')]:
+            with self.subTest(owner=owner), mock.patch.object(install.subprocess, 'run', return_value=reply):
+                self.assertEqual(install.namespace_owner(), owner)
+        with mock.patch.object(install.subprocess, 'run', return_value=self.result(1, stderr='Unauthorized')), self.assertRaises(RuntimeError):
+            install.namespace_owner()
+
+    def test_uninstall_removes_only_labeled_objects_and_refuses_a_foreign_namespace(self):
+        calls = []
+        def run(command, **kwargs):
+            calls.append(command)
+            if command[:3] == ['kubectl', 'config', 'current-context']:
+                return self.result(stdout='kind-test\n')
+            if command[:3] == ['kubectl', 'get', 'namespace']:
+                return self.result(stdout=owner)
+            return self.result()
+        for owner, removes_namespace in [('vibemon-installer', True), ('', False)]:
+            calls.clear()
+            with self.subTest(owner=owner), mock.patch.object(install.subprocess, 'run', side_effect=run), \
+                    mock.patch.object(install.shutil, 'which', return_value='/usr/bin/kubectl'), mock.patch('sys.stdout', io.StringIO()), \
+                    mock.patch.object(install, 'NON_INTERACTIVE', True):
+                if removes_namespace:
+                    self.assertTrue(install.uninstall_kubernetes())
+                    self.assertIn(['kubectl', 'delete', 'clusterrolebinding,clusterrole', '-l', 'app.kubernetes.io/managed-by=vibemon-installer', '--ignore-not-found'], calls)
+                    self.assertIn(['kubectl', 'delete', 'namespace', 'vibemon', '--ignore-not-found'], calls)
+                else:
+                    with self.assertRaises(RuntimeError):
+                        install.uninstall_kubernetes()
+                    self.assertFalse(any(command[:2] == ['kubectl', 'delete'] for command in calls))
+
+    def test_a_saved_secret_without_its_origin_is_not_reused(self):
+        token = base64.b64encode(('vm_' + 'a' * 60).encode()).decode()
+        replies = iter([self.result(stdout=token), self.result(stdout='')])
+        with mock.patch.object(install.subprocess, 'run', side_effect=lambda *a, **k: next(replies)):
+            saved, origin = install.saved_secret()
+        self.assertEqual((saved, origin), ('vm_' + 'a' * 60, ''))
+        with mock.patch.dict(os.environ, {}, clear=True), mock.patch('sys.stdout', io.StringIO()), \
+                mock.patch.object(install, 'sign_in_to_web', return_value='vm_' + 'b' * 60) as sign_in:
+            self.assertEqual(install.collector_token(None, saved, origin, 'https://vibemon.io', 'ctx'), 'vm_' + 'b' * 60)
+            sign_in.assert_called_once()
 
 
 class ManifestAvailabilityTest(unittest.TestCase):

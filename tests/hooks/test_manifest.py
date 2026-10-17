@@ -9,6 +9,7 @@ from generate_manifest import (  # noqa: E402
     MANIFEST_FILES,
     MANIFEST_PATH,
     build_manifest,
+    source_path,
 )
 import install  # noqa: E402
 
@@ -23,13 +24,15 @@ def downloaded_paths() -> set:
     paths.update(f"vibemon/{name}" for name in install.SHARED_SCRIPTS)
     # Kiro's hook configs are fetched in one loop over KIRO_HOOK_CONFIG_FILES.
     paths.update(install.KIRO_HOOK_CONFIG_FILES)
+    # The collector package is fetched in one loop over COLLECTOR_FILES.
+    paths.update(install.COLLECTOR_FILES)
     return paths
 
 
 class ManifestTest(unittest.TestCase):
     def test_manifest_files_exist(self):
         for rel in MANIFEST_FILES:
-            self.assertTrue((DOCS_DIR / rel).is_file(), f"missing manifest source file: {rel}")
+            self.assertTrue(source_path(rel).is_file(), f"missing manifest source file: {rel}")
 
     def test_manifest_matches_files(self):
         """public/install/manifest.json must be regenerated whenever a listed file changes.

@@ -92,9 +92,18 @@ class MonitoringClient extends EventEmitter {
     this.emit('change', this.snapshot());
     return this.snapshot();
   }
+  /**
+   * Removes the connection on this device, then deletes its token on Web.
+   * `tokenDeleted` is false when Web could not delete it (for example offline);
+   * the token then stays valid until it is deleted on Web Account.
+   */
   async disconnect() {
     this.configurationAttempt++;
     this.generation++;
+    const origin = this.snapshot().url;
+    const saved = this.credentials.has();
+    let token = null;
+    try { token = saved ? this.credentials.get() : null; } catch { token = null; }
     this.credentials.clear();
     this.sources = [];
     this.catalog = [];
@@ -104,7 +113,19 @@ class MonitoringClient extends EventEmitter {
     this.status = 'not-configured';
     this.emit('sources', []);
     this.emit('change', this.snapshot());
-    return this.snapshot();
+    // A saved token that cannot be read cannot be deleted on Web either.
+    return { ...this.snapshot(), tokenDeleted: token ? await this.deleteToken(origin, token) : !saved };
+  }
+  async deleteToken(origin, token) {
+    try {
+      const response = await this.fetch(`${origin}/api/v1/connection`, {
+        method: 'DELETE', headers: { Authorization: `Bearer ${token}` }, redirect: 'error', signal: AbortSignal.timeout(CLOUD_REQUEST_TIMEOUT_MS)
+      });
+      // A token that Web no longer accepts is already gone.
+      return response.status === 204 || response.status === 401;
+    } catch {
+      return false;
+    }
   }
   async select({ sources, accounts = null, metrics }) {
     if (accounts !== null && (!Array.isArray(accounts) || accounts.length > 100 || !accounts.every(validAccountId))) throw new Error('Invalid account selection');

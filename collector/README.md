@@ -2,7 +2,20 @@
 
 A headless collector sends display summaries from Linux servers, DGX Spark, macOS hosts, or an existing Prometheus service. It does not send logs or per-pod/per-GPU series.
 
-## Install and run
+## Install with sign-in
+
+The VibeMon installer installs the collector and signs in through Web; no token is copied:
+
+```sh
+# Linux host or DGX Spark (systemd service)
+curl -fsSL https://vibemon.io/install/install.py | python3 - --collector
+# Kubernetes: the current kubectl context, Kubernetes Metrics API backend
+curl -fsSL https://vibemon.io/install/install.py | python3 - --kubernetes
+```
+
+See [setup](https://vibemon.io/install/setup.md#resource-collectors) for paths, names, and removal. Use the manual steps below for other backends or supervisors.
+
+## Install and run manually
 
 Use Python 3.10+ and the public [VibeMon App repository](https://github.com/opspresso/vibemon-app). The collector is included in that repository and is not published as a standalone Python package. From the App repository root:
 

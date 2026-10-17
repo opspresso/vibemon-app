@@ -87,6 +87,32 @@ export function setupPreferences({ getFrame, request, run, notify }) {
     await save('disconnect-cloud-delivery');
     notify('Saved write token removed. Local delivery stays connected');
   }));
+  // While the browser is open, Cancel stops waiting so the person can start again.
+  const waiting = async (cancel, action) => {
+    $(cancel).hidden = false;
+    try { return await action(); } finally { $(cancel).hidden = true; }
+  };
+  for (const id of ['cancel-sign-in', 'cancel-cloud-sign-in']) $(id).addEventListener('click', () => request('cancel-sign-in'));
+  $('sign-in').addEventListener('click', () =>
+    run($('sign-in'), () => waiting('cancel-sign-in', async () => {
+      text($('connection-saved'), 'Finish the sign-in in your browser…');
+      try {
+        const cloud = await request('sign-in', $('web-url').value.trim());
+        delete $('web-url').dataset.dirty;
+        text($('connection-saved'), cloud.status === 'connected' ? 'Connected successfully' : connection(cloud.status)[1]);
+        if (cloud.status === 'connected') notify('Workspace connected');
+      } catch (error) {
+        text($('connection-saved'), '');
+        throw error;
+      }
+    }))
+  );
+  $('sign-in-cloud-delivery').addEventListener('click', () => runDelivery($('sign-in-cloud-delivery'), () => waiting('cancel-cloud-sign-in', async () => {
+    $('cloud-delivery-help').textContent = 'Finish the sign-in in your browser…';
+    await request('sign-in-cloud-delivery', $('cloud-delivery-url').value.trim());
+    delete $('cloud-delivery-url').dataset.dirty;
+    notify('Signed in. Local hooks now send activity to Web');
+  })));
   $('connect-form').addEventListener('submit', (event) => {
     event.preventDefault();
     run($('save-connection'), async () => {
@@ -104,8 +130,10 @@ export function setupPreferences({ getFrame, request, run, notify }) {
   $('disconnect').addEventListener('click', () =>
     run($('disconnect'), async () => {
       $('read-token').value = '';
-      await request('disconnect');
-      text($('connection-saved'), 'This desktop is disconnected');
+      const result = await request('disconnect');
+      text($('connection-saved'), result.tokenDeleted
+        ? 'This desktop is disconnected and its token is deleted on Web'
+        : 'This desktop is disconnected. Delete its token on Web Account');
     })
   );
   $('preview-companion').addEventListener('click', () =>
