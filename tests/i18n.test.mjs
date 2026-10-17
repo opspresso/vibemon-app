@@ -3,8 +3,8 @@ import { test } from 'node:test';
 import { createTranslator, mergeCatalogs, resolveLocale } from '../src/shared/i18n/translate.mjs';
 import messages from '../src/shared/i18n/shared-messages.mjs';
 import { readFileSync } from 'node:fs';
-import { validateCatalog } from '../scripts/generate-monitoring.mjs';
-import { describeReset, formatResetTime, metricLabel, observationAge, resetCountdown, resourceType, sharedTranslator, stateLabel } from '../src/shared/design/presentation.mjs';
+import { validateCatalog, validateWidgetStrings } from '../scripts/generate-monitoring.mjs';
+import { describeReset, formatResetTime, metricLabel, observationAge, resetCountdown, resetMinutes, resourceType, sharedTranslator, stateLabel } from '../src/shared/design/presentation.mjs';
 
 test('resolves the first supported language and falls back to English', () => {
   assert.equal(resolveLocale(['ko-KR', 'en-US']), 'ko');
@@ -31,15 +31,10 @@ test('translates with placeholders, plurals, and English fallback', () => {
   assert.deepEqual(mergeCatalogs({ en: { a: '1' } }, { en: { b: '2' } }), { en: { a: '1', b: '2' } });
 });
 
-test('every shared message exists in every locale', () => {
-  for (const locale of ['ko', 'ja']) assert.deepEqual(Object.keys(messages[locale]).sort(), Object.keys(messages.en).sort(), locale);
-});
-
 const desktop = JSON.parse(readFileSync(new URL('../src/shared/i18n/desktop.json', import.meta.url), 'utf8'));
 
-test('every Desktop message exists in every locale with the English placeholders', () => {
+test('Desktop messages pass the catalog check and do not redefine shared keys', () => {
   assert.doesNotThrow(() => validateCatalog('desktop.json', desktop));
-  for (const locale of ['ko', 'ja']) assert.deepEqual(Object.keys(desktop[locale]).sort(), Object.keys(desktop.en).sort(), locale);
   assert.deepEqual(Object.keys(desktop.en).filter(key => Object.hasOwn(messages.en, key)), [], 'Desktop keys do not redefine shared keys');
   assert.throws(() => validateCatalog('broken.json', { en: { a: 'Hi {name}' }, ko: { a: '안녕' } }), /placeholders/);
   assert.throws(() => validateCatalog('broken.json', { en: { a: 'A', b: 'B' }, ja: { a: 'A' } }), /missing b/);
@@ -57,11 +52,20 @@ test('shared display rules use the reader language', () => {
   assert.equal(formatResetTime(125), '2h5m');
   assert.equal(formatResetTime(125, ko), '2시간 5분');
   assert.equal(formatResetTime(1500, ja), '1日1時間');
-  assert.equal(describeReset(resetCountdown(now + 125 * 60000, now, ko), ko), '2시간 5분 후 초기화');
-  assert.equal(describeReset(formatResetTime(0, ja), ja), 'まもなくリセット');
+  assert.equal(describeReset(resetMinutes(now + 125 * 60000, now), ko), '2시간 5분 후 초기화');
+  assert.equal(describeReset(0, ja), 'まもなくリセット');
+  assert.equal(describeReset(0, ko), '곧 초기화');
+  assert.equal(describeReset(null, ko), null);
   assert.equal(resourceType({ kind: 'host' }, ko), '호스트');
   assert.equal(resourceType({ kind: 'host', resourceType: 'Freezer' }, ko), 'Freezer');
   assert.equal(metricLabel('memoryPercent', 'Memory', ja), 'メモリ');
   assert.equal(metricLabel('memoryPercent', 'Unified memory', ko), '통합 메모리');
   assert.equal(metricLabel('temperature', 'Temperature', ko), 'Temperature', 'custom labels stay as reported');
+});
+
+test('widget strings with shared English use the shared translations', () => {
+  const catalog = { en: { 'reset.now': 'Resets now', 'reset.in': 'Resets in {time}' }, ko: { 'reset.now': '곧 초기화', 'reset.in': '{time} 후 초기화' }, ja: { 'reset.now': 'まもなくリセット', 'reset.in': '{time}後にリセット' } };
+  const widget = (ko, ja) => ({ strings: { 'Resets in %@': { localizations: { ko: { stringUnit: { value: ko } }, ja: { stringUnit: { value: ja } } } } } });
+  assert.doesNotThrow(() => validateWidgetStrings(catalog, widget('%@ 후 초기화', '%@後にリセット')));
+  assert.throws(() => validateWidgetStrings(catalog, widget('%@ 뒤 초기화', '%@後にリセット')), /must equal shared.json reset.in/);
 });

@@ -1,5 +1,5 @@
 import { compareCards } from './card-order.mjs';
-import { accountName, describeReset, measurementUnit, metricLabel, metricTone, resetCountdown, resourceType, stateTone } from '../../shared/design/presentation.mjs';
+import { accountName, describeReset, formatResetTime, measurementUnit, metricLabel, metricTone, resetMinutes, resourceType, stateTone } from '../../shared/design/presentation.mjs';
 import { t, locale } from '../i18n.js';
 import {
   el,
@@ -73,12 +73,13 @@ export function updateMetric(node, { metric, value, label, precise = false, now 
     bar.setAttribute('aria-valuetext', reading(value, metric.unit, precise));
     bar.dataset.tone = metricTone(metric.key, value);
   }
-  const countdown = available ? resetCountdown(metric.resetAt, now, t) : null;
+  const minutes = available ? resetMinutes(metric.resetAt, now) : null;
+  const countdown = formatResetTime(minutes, t);
   reset.hidden = countdown === null;
   if (countdown === null) node.removeAttribute('title');
   else {
     // The countdown keeps its own element wherever the language places it.
-    const sentence = describeReset(countdown, t);
+    const sentence = describeReset(minutes, t);
     const at = sentence.indexOf(countdown);
     const parts = at < 0 ? [sentence, '', ''] : [sentence.slice(0, at), countdown, sentence.slice(at + countdown.length)];
     for (const [part, value] of [[resetPrefix, parts[0]], [resetTime, parts[1]], [resetSuffix, parts[2]]]) {

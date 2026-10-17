@@ -732,7 +732,7 @@
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "지금 초기화"
+            "value" : "곧 초기화"
           }
         }
       }
@@ -956,13 +956,13 @@
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "利用できません"
+            "value" : "情報なし"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "사용할 수 없음"
+            "value" : "정보 없음"
           }
         }
       }
@@ -1054,7 +1054,7 @@
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "지금"
+            "value" : "곧"
           }
         }
       }

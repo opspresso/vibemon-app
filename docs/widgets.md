@@ -69,7 +69,8 @@ pnpm exec jest tests/widget-publisher.test.js tests/deep-link.test.js
 Rules for changes:
 
 - Keep state, label, and format rules in the App. The Swift code only lays out the feed.
-- The feed carries labels in the App language. The widget's own text (notices, ages, countdowns, configuration) is in `native/macos/Widgets/Localizable.xcstrings`; keep its words equal to `src/shared/i18n/shared.json`.
+- The feed carries labels in the App language. The widget's own text (notices, ages, countdowns, configuration) is in `native/macos/Widgets/Localizable.xcstrings`; `node scripts/generate-monitoring.mjs` fails when a widget string with the English of a `src/shared/i18n/shared.json` message has other translations.
+- The App reads the OS language once at startup; the widget follows the OS language at once. After a language change, the widget shows its own text in the new language and the feed labels in the old one until the App restarts.
 - A breaking feed change increases `WIDGET_FEED_VERSION` in `feed.mjs` and `WidgetFeed.supportedVersion` in `native/macos/Shared/Feed.swift`.
 - `native/macos/Shared/Palette.swift` is generated from `src/shared/design/tokens.css`. After a token change, run `node scripts/generate-widget-palette.mjs --write`.
 - WidgetKit accepts reload requests only from the main executable of the App that contains the widgets. For this reason the reload request comes from a Node-API module (`widget-center.node`) loaded by the Electron main process, not from a helper executable. An unpackaged `pnpm start` session writes the feed but does not request reloads.

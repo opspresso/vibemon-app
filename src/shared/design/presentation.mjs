@@ -70,15 +70,20 @@ export function formatResetTime(minutes, t = english) {
   const [days, hours] = [Math.floor(minutes / 1440), Math.floor((minutes % 1440) / 60)];
   return hours ? t('duration.daysHours', { days, hours }) : t('duration.days', { days });
 }
-// The countdown text for a reset time in milliseconds (see usageResetAt), or
+// Whole minutes until a reset time in milliseconds (see usageResetAt), or
 // null when the reset time is not reported.
-export function resetCountdown(resetAt, now = Date.now(), t = english) {
+export function resetMinutes(resetAt, now = Date.now()) {
   if (typeof resetAt !== 'number' || !Number.isFinite(resetAt) || !Number.isFinite(now)) return null;
-  return formatResetTime(Math.max(0, Math.ceil((resetAt - now) / 60000)), t);
+  return Math.max(0, Math.ceil((resetAt - now) / 60000));
 }
-// The countdown as a sentence for labels and assistive technology.
-export const describeReset = (countdown, t = english) => countdown === null ? null
-  : countdown === t('duration.now') ? t('reset.now') : t('reset.in', { time: countdown });
+// The countdown text for a reset time in milliseconds, or null.
+export const resetCountdown = (resetAt, now = Date.now(), t = english) => formatResetTime(resetMinutes(resetAt, now), t);
+// The countdown in `minutes` (see resetMinutes) as a sentence for labels and
+// assistive technology.
+export function describeReset(minutes, t = english) {
+  const countdown = formatResetTime(minutes, t);
+  return countdown === null ? null : minutes === 0 ? t('reset.now') : t('reset.in', { time: countdown });
+}
 
 export function formatAxisValue(value) {
   if (typeof value !== 'number' || !Number.isFinite(value)) return '—';
