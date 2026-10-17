@@ -89,7 +89,6 @@ def test_percentage_cache_and_transport_keep_measured_precision():
     assert vibemon_core._usage_fields(buckets) == {
         'usage5h': 1.005, 'usageWeek': 12.3456, 'usageWeekModel': 22.4, 'usageWeekModelLabel': 'Second'
     }
-    assert usage_cache.parse_usage_output('Current session: 12.3456% used')['session']['pct'] == 12.3456
 
 
 def test_terminal_percentages_follow_the_shared_measurement_cases():

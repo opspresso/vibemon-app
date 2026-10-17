@@ -13,11 +13,12 @@ const HOOK_SETTINGS = ['debug', 'auto_launch', 'http_urls', 'serial_port'];
 // crosses the IPC boundary.
 const EXTERNAL_LINKS = {
   docs: 'https://vibemon.io/docs',
+  accounts: 'https://vibemon.io/docs/coding-agents#keep-several-accounts-apart',
   releases: 'https://github.com/opspresso/vibemon-app/releases'
 };
 
 class WorkspaceSettings {
-  constructor({ windowManager, app, hookInstaller, vibemonConfigManager, updateChecker, openExternal, cloudDelivery }) {
+  constructor({ windowManager, app, hookInstaller, vibemonConfigManager, updateChecker, openExternal, cloudDelivery, getAccountProfiles = () => [] }) {
     this.windowManager = windowManager;
     this.app = app;
     this.hookInstaller = hookInstaller;
@@ -25,6 +26,7 @@ class WorkspaceSettings {
     this.updateChecker = updateChecker;
     this.openExternal = openExternal;
     this.cloudDelivery = cloudDelivery;
+    this.getAccountProfiles = getAccountProfiles;
     // The composition root subscribes without coupling settings to a window.
     this.onSettingsChanged = null;
 
@@ -83,6 +85,7 @@ class WorkspaceSettings {
       edgeMargin: this.windowManager.getEdgeMargin(),
       devMode: this.windowManager.getDevMode(),
       openAtLogin: this.app.getLoginItemSettings().openAtLogin,
+      accountProfiles: this.getAccountProfiles(),
       hooks: this.toHookView(this.hookInstaller.getCachedStatuses()),
       installing: Boolean(this.hookInstaller.isRunning),
       vibemonConfig: this.getVibemonConfigView(),

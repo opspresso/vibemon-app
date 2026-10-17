@@ -6,6 +6,7 @@ const bubbleFields = new Set(['status', 'project', 'model', 'memory', 'usage5h',
 const hookFlags = new Set(['--claude', '--codex', '--kiro', '--openclaw', '--opencode', '--vibemon']);
 
 export function setupPreferences({ getFrame, request, run, notify }) {
+  $('accounts-guide').addEventListener('click', () => run($('accounts-guide'), () => save('open-external', 'accounts')));
   let latest = null;
   let deliveryError = '';
   const runDelivery = (control, action) => {
@@ -337,6 +338,33 @@ export function setupPreferences({ getFrame, request, run, notify }) {
         detail.hidden = !detail.textContent;
       }
     );
+    const profiles = settings.accountProfiles || [];
+    $('account-profiles-empty').hidden = profiles.length > 0;
+    keyed($('account-profiles'), profiles, profile => profile.key, () => {
+      const card = el('article', undefined, 'integration-card');
+      const title = el('h4');
+      const kind = el('span', undefined, 'chip neutral');
+      const scope = el('p', undefined, 'small muted');
+      const details = el('details', undefined, 'advanced');
+      const summary = el('summary', t('accounts.profile'));
+      const root = el('p', undefined, 'small muted');
+      const checked = el('p', undefined, 'small muted');
+      const usage = el('p', undefined, 'small muted');
+      details.append(summary, root, checked);
+      card.append(title, kind, scope, usage, details);
+      card._parts = { title, kind, scope, root, checked, usage };
+      return card;
+    }, (card, profile) => {
+      const { title, kind, scope, root, checked, usage } = card._parts;
+      text(title, profile.account.displayName);
+      text(kind, t(`accounts.kind.${profile.account.kind}`));
+      kind.className = `chip ${profile.account.kind === 'account' ? 'good' : 'neutral'}`;
+      text(scope, [profile.provider, profile.instance, profile.context].filter(Boolean).join(' · '));
+      text(root, profile.root);
+      text(checked, profile.checkedAt ? t('accounts.observed', { time: new Date(profile.checkedAt * 1000).toLocaleString(locale) }) : '');
+      text(usage, profile.usageRefreshFailed ? t('accounts.usageUnavailable') : '');
+      usage.hidden = !profile.usageRefreshFailed;
+    });
     $('hooks-reset-prompts').hidden = !settings.hooks.some((tool) => tool.dismissed);
     const config = settings.vibemonConfig;
     text($('routing-status'), t(config.status.error ? 'routing.status.error' : config.status.hasDesktopUrl ? 'routing.status.connected' : 'routing.status.setup'));

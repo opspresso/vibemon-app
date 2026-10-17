@@ -71,10 +71,10 @@ describe('UsageRefresher', () => {
     expect(result).toMatchObject({ ok: true, code: 0 });
     const [command, args] = spawn.mock.calls[0];
     expect(command).toBe(process.platform === 'win32' ? 'py' : 'python3');
-    expect(args.slice(-3)).toEqual([USAGE_SCRIPT_PATH, '--max-age', '90']);
+    expect(args.slice(-4)).toEqual([USAGE_SCRIPT_PATH, '--all-profiles', '--max-age', '90']);
   });
 
-  test('forces a refresh when Codex auth changed after the cached usage', async () => {
+  test('delegates active account selection to Python without reading credentials', async () => {
     fs.statSync.mockReturnValue({ mtimeMs: 200000 });
     fs.readFileSync.mockReturnValue(JSON.stringify({ codex: { updated_at: 100 } }));
     const child = mockSpawnedChild();
@@ -85,10 +85,11 @@ describe('UsageRefresher', () => {
     await promise;
 
     const args = spawn.mock.calls[0][1];
-    expect(args.slice(-3)).toEqual([USAGE_SCRIPT_PATH, '--max-age', '0']);
+    expect(args.slice(-4)).toEqual([USAGE_SCRIPT_PATH, '--all-profiles', '--max-age', '90']);
+    expect(fs.statSync).not.toHaveBeenCalled();
   });
 
-  test('checks the selected Codex profile and passes resolved paths to the subprocess', async () => {
+  test('passes the selected profile and cache paths to the account refresher', async () => {
     const previous = { ...process.env };
     try {
       process.env.CODEX_HOME = '~/codex-work';
@@ -102,8 +103,8 @@ describe('UsageRefresher', () => {
       await flush();
       child.emit('close', 0);
       await pending;
-      expect(fs.statSync).toHaveBeenCalledWith(path.join(os.homedir(), 'codex-work', 'auth.json'));
-      expect(spawn.mock.calls[0][1].slice(-1)).toEqual(['0']);
+      expect(fs.statSync).not.toHaveBeenCalled();
+      expect(spawn.mock.calls[0][1].slice(-1)).toEqual(['90']);
       expect(spawn.mock.calls[0][2].env.CODEX_HOME).toBe(path.join(os.homedir(), 'codex-work'));
       expect(spawn.mock.calls[0][2].env.VIBEMON_CACHE_PATH).toBe(path.join(os.homedir(), 'cache-work', 'projects.json'));
     } finally { process.env = previous; }

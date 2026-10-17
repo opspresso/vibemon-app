@@ -302,8 +302,10 @@ def test_the_agent_is_the_nearest_ancestor_outside_wrappers(monkeypatch):
     tree = {100: (90, "/bin/sh"), 90: (80, "/usr/local/bin/python3.12"), 80: (70, "/opt/homebrew/bin/claude"), 70: (1, "zsh")}
     monkeypatch.setattr(activity.os, "getppid", lambda: 100)
     monkeypatch.setattr(activity, "_process_info", tree.get)
-    assert activity.agent_process() == {"pid": 80, "name": "/opt/homebrew/bin/claude"}
+    monkeypatch.setattr(activity, "process_generation", lambda pid: "fixture-start")
+    assert activity.agent_process() == {"pid": 80, "name": "/opt/homebrew/bin/claude", "generation": "fixture-start"}
     monkeypatch.setattr(activity, "_process_info", {100: (1, "bash")}.get)
+    activity.agent_process.cache_clear()
     assert activity.agent_process() is None
 
 
@@ -348,8 +350,10 @@ def run_hook(tmp_path, payload, agent):
 
 def test_the_opening_hook_starts_the_watcher_with_the_agent(tmp_path):
     sent, started = run_hook(tmp_path, {"hook_event_name": "UserPromptSubmit"}, AGENT)
-    assert started == [(str(DOCS / "vibemon" / "vibemon_core.py"), "s1")]
-    entry = cache(tmp_path / "activity.json")["sessions"]["s1"]
+    tracked_session, = cache(tmp_path / "activity.json")["sessions"]
+    assert tracked_session != "s1"
+    assert started == [(str(DOCS / "vibemon" / "vibemon_core.py"), tracked_session)]
+    entry = cache(tmp_path / "activity.json")["sessions"][tracked_session]
     assert entry["agent"] == AGENT and entry["payload"]["state"] == "thinking" and entry["cwd"] == str(tmp_path)
     assert "heartbeat" not in sent[0][1]
 
@@ -357,7 +361,8 @@ def test_the_opening_hook_starts_the_watcher_with_the_agent(tmp_path):
 def test_no_watcher_starts_without_an_identified_agent(tmp_path):
     _, started = run_hook(tmp_path, {"hook_event_name": "UserPromptSubmit"}, None)
     assert started == []
-    assert "agent" not in cache(tmp_path / "activity.json")["sessions"]["s1"]
+    tracked_session, = cache(tmp_path / "activity.json")["sessions"]
+    assert "agent" not in cache(tmp_path / "activity.json")["sessions"][tracked_session]
 
 
 @pytest.mark.parametrize("payload,state", [
@@ -474,10 +479,11 @@ def test_a_turn_stays_active_from_prompt_to_its_end(tmp_path, display, ending):
         hook("UserPromptSubmit")
         hook("PreToolUse", tool_name="Bash", tool_use_id="t1")
         hook("PostToolUse", tool_name="Bash", tool_use_id="t1")
-        entry = cache(path)["sessions"]["s1"]
+        tracked_session, = cache(path)["sessions"]
+        entry = cache(path)["sessions"][tracked_session]
         assert entry["open"] is True and entry["agent"]["pid"] == agent.pid
-        wait_until(lambda: "watcher" in cache(path)["sessions"]["s1"], 10)
-        watcher = cache(path)["sessions"]["s1"]["watcher"]["pid"]
+        wait_until(lambda: "watcher" in cache(path)["sessions"][tracked_session], 10)
+        watcher = cache(path)["sessions"][tracked_session]["watcher"]["pid"]
         # A finished tool does not end the turn: the watcher keeps it visible.
         assert activity.pid_exists(watcher)
         if ending == "Stop":
@@ -493,7 +499,7 @@ def test_a_turn_stays_active_from_prompt_to_its_end(tmp_path, display, ending):
         agent.wait()
     assert [report["state"] for report in received] == ["thinking", "working", "thinking", "done"]
     assert not any(report.get("heartbeat") for report in received)
-    assert cache(path)["sessions"]["s1"]["open"] is False
+    assert cache(path)["sessions"][tracked_session]["open"] is False
 
 
 def test_plugin_heartbeats_reach_the_cloud_marked():
@@ -506,3 +512,50 @@ def test_plugin_heartbeats_reach_the_cloud_marked():
     ):
         assert core.send_cloud_status("openclaw")
     assert send.call_args.args[3]["heartbeat"] is True
+
+
+def test_slow_identity_lookup_cannot_replace_a_newer_heartbeat_payload(path, clock):
+    old = activity.record(path, event('UserPromptSubmit'), Transition('thinking'))
+    clock.ms += 1
+    new = activity.record(path, event('PreToolUse', tool_use_id='new-tool'), Transition('working'))
+    assert activity.remember_payload(path, 's1', {'state':'working','model':'new'}, '/work', AGENT,
+        account={'id':'new-account'}, event_stamp_ms=new.event_stamp_ms)
+    assert not activity.remember_payload(path, 's1', {'state':'thinking','model':'old'}, '/work', AGENT,
+        account={'id':'old-account'}, event_stamp_ms=old.event_stamp_ms)
+    entry = cache(path)['sessions']['s1']
+    assert entry['payload']['model'] == 'new'
+    assert entry['account']['id'] == 'new-account'
+
+
+def test_resuming_a_session_releases_the_previous_process_watcher(path, clock, alive):
+    open_turn(path)
+    assert activity.claim(path, 's1', ME)
+    clock.ms += 1
+    activity.record(path, event('SessionStart'), Transition('start'))
+    assert activity.tick(path, 's1', ME) is False
+    report = activity.record(path, event('UserPromptSubmit'), Transition('thinking'))
+    assert report.watch is True
+    assert activity.needs_agent(path, 's1') is True
+
+
+def test_an_old_process_exit_check_cannot_close_a_resumed_turn(path, clock, alive, monkeypatch):
+    open_turn(path)
+    assert activity.claim(path, 's1', ME)
+    next_agent = {'pid': AGENT['pid'] + 1, 'name': 'new-agent'}
+    def check(pid, name):
+        if pid == AGENT['pid']:
+            clock.ms += 1
+            update = activity.record(path, event('PreToolUse', tool_use_id='new-tool'), Transition('working'))
+            activity.remember_payload(path, 's1', {'state':'working'}, '/work', next_agent, event_stamp_ms=update.event_stamp_ms)
+            return False
+        return True
+    monkeypatch.setattr(activity, 'process_alive', check)
+    assert activity.tick(path, 's1', ME) is None
+    assert cache(path)['sessions']['s1']['open'] is True
+    assert cache(path)['sessions']['s1']['agent'] == next_agent
+
+
+def test_process_generation_is_stable_for_the_current_process():
+    first = activity.process_generation(os.getpid())
+    assert first
+    assert activity.process_generation(os.getpid()) == first

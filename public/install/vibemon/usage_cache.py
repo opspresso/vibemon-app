@@ -11,7 +11,7 @@ from datetime import datetime
 from decimal import Decimal, ROUND_HALF_UP
 from typing import Any
 
-from account_context import cache_key
+from account_context import cache_key, current_account
 from cache_io import update_json_cache
 
 MAX_CLOCK_SKEW_SECONDS = 30
@@ -189,39 +189,6 @@ def usage_from_rate_limits(data: dict[str, Any]) -> dict[str, Any] | None:
     return result
 
 
-def parse_usage_output(text: str) -> dict[str, Any]:
-    result: dict[str, Any] = {}
-    if not text:
-        return result
-
-    for raw in text.splitlines():
-        line = raw.strip()
-        low = line.lower()
-        match = re.search(r"(\d+(?:\.\d+)?)%\s+used", line)
-        pct = normalize_percent(match.group(1)) if match else None
-        if pct is None:
-            continue
-        entry: dict[str, Any] = {"pct": pct}
-        reset_match = re.search(r"resets\s+(.+?)\s*$", line)
-        if reset_match:
-            entry["resets"] = reset_match.group(1).strip()
-        if "current session:" in low:
-            result["session"] = entry
-            continue
-        week_match = re.search(r"current week \(([^)]+)\):", line, re.IGNORECASE)
-        if not week_match:
-            continue
-        scope = week_match.group(1).strip()
-        if scope.lower() == "all models":
-            result["week_all"] = entry
-            continue
-        key = week_bucket_key(scope)
-        if key:
-            label = re.sub(r"\s+only$", "", scope, flags=re.IGNORECASE).strip()
-            result[key] = {**entry, "label": label}
-    return result
-
-
 def load_usage_cache(cache_path: str) -> dict[str, Any] | None:
     try:
         with open(cache_path, encoding="utf-8") as f:
@@ -300,6 +267,8 @@ def save_usage_cache(
     def update(payload):
         updated_at = int(time.time() if now is None else now)
         for provider, value in updates.items():
+            tool = provider.split(':', 1)[0]
+            identity = current_account(tool) if tool in ('claude', 'codex') else None
             provider = cache_key(provider)
             if not isinstance(value, dict):
                 continue
@@ -322,6 +291,8 @@ def save_usage_cache(
                 resets_at = parse_epoch(bucket.get("resets_at")) if isinstance(bucket, dict) else None
                 if resets_at is not None and resets_at <= updated_at:
                     merged.pop(key)
+            if identity and identity.id != 'default' and provider == cache_key(identity.provider):
+                merged['account'] = identity.public()
             payload[provider] = {**merged, "updated_at": observed_at}
         # Retain ts for older installed hooks; freshness decisions use the
         # provider-level updated_at above.

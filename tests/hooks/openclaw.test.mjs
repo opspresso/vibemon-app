@@ -47,7 +47,8 @@ test("cloud delivery uses shared account identity without putting credentials in
   assert.equal(sent.state, "thinking");
   const local = h.requests.find(request => request.payload?.state === "thinking").payload;
   assert.deepEqual(sent.account, local.account);
-  assert.equal(sent.sourceId, "agent:84718e3543c37148d811992cd3a6f77d4fdae75b02dff7d410b6b43c30dd536b");
+  assert.equal(sent.sourceId, h.identities[0].sourceId);
+  assert.deepEqual(sent.account, h.identities[0].account);
   assert.equal(sent.sourceId, local.sourceId);
   assert.equal(sent.observedAt, local.observedAt);
   assert.equal(cloud.options.timeout, 5000);
@@ -316,4 +317,54 @@ test("a spawned subagent keeps the run's model on the working state", async () =
   assert.equal(last.state, "working");
   assert.equal(last.model, "fixture-model");
   assert.equal(last.tool, "subagent");
+});
+
+test("two agents keep their accounts, completion and heartbeats independent", async () => {
+  const h = await openclaw({ pluginConfig: { accounts: {
+    work: { id: "work", displayName: "Work account" }, personal: { id: "personal", displayName: "Personal account" },
+  } } });
+  const work = { agentId: "work", runId: "w", sessionId: "ws", workspaceDir: "/work" };
+  const personal = { agentId: "personal", runId: "p", sessionId: "ps", workspaceDir: "/personal" };
+  await h.emit("before_agent_run", {}, work);
+  await h.emit("before_agent_run", {}, personal);
+  await h.emit("before_tool_call", { toolName: "read", toolCallId: "wt" }, work);
+  await h.emit("agent_end", { success: true }, personal);
+  await h.advance(3000);
+  let reports = h.requests.filter(r => r.payload).map(r => r.payload);
+  assert.equal(reports.filter(p => p.account.id === "personal").at(-1).state, "done");
+  assert.equal(reports.filter(p => p.account.id === "work").at(-1).state, "working");
+  await h.advance(60000);
+  reports = h.requests.filter(r => r.payload).map(r => r.payload);
+  assert.equal(reports.at(-1).account.id, "work");
+  assert.equal(reports.at(-1).heartbeat, true);
+  assert.equal(h.identityChildren.length, 2);
+  assert.notEqual(reports.find(p => p.account.id === "work").sourceId, reports.find(p => p.account.id === "personal").sourceId);
+});
+
+test("messaging channel account IDs never become model account IDs", async () => {
+  const h = await openclaw();
+  await h.emit("before_agent_run", {}, { agentId: "work", runId: "w", accountId: "telegram-private-account" });
+  assert.equal(h.requests.at(-1).payload.account.id, "profile-work");
+  assert.ok(!JSON.stringify(h.identityChildren.map(c => c.child.raw)).includes("telegram-private-account"));
+});
+
+test("identity lookup failure does not publish a guessed account or expose details", async () => {
+  const h = await openclaw({ identityFailure: true });
+  await h.emit("before_agent_run", {}, ctx);
+  assert.equal(h.requests.length, 0);
+  assert.ok(h.logs.some(line => line.includes("Account identity unavailable")));
+});
+
+test("identical run and session IDs from different agents never share lifecycle state", async () => {
+  const h = await openclaw();
+  const a = { runId: "same", sessionId: "same", agentId: "a" };
+  const b = { runId: "same", sessionId: "same", agentId: "b" };
+  await h.emit("before_agent_run", {}, a);
+  await h.emit("before_agent_run", {}, b);
+  await h.emit("before_tool_call", { toolName: "read" }, b);
+  await h.emit("agent_end", {}, a);
+  await h.advance(3000);
+  const reports = h.requests.filter(r => r.payload).map(r => r.payload);
+  assert.equal(reports.filter(p => p.account.id === "profile-a").at(-1).state, "done");
+  assert.equal(reports.filter(p => p.account.id === "profile-b").at(-1).state, "working");
 });

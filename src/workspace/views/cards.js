@@ -278,7 +278,7 @@ export function renderActivity(container, activity, compact = false) {
 }
 
 export function renderUsage(container, usage) {
-  const providers = Object.entries(usage || {}).filter(([, buckets]) => Object.values(buckets).some(Boolean));
+  const providers = Object.entries(usage || {}).filter(([, buckets]) => ['session', 'week', 'modelWeek'].some(key => buckets[key]));
   if (!providers.length) {
     if (!container._empty) {
       container.replaceChildren(
@@ -312,8 +312,8 @@ export function renderUsage(container, usage) {
       return row;
     },
     (row, [provider, buckets]) => {
-      text(row._parts.title, t('usage.thisDevice', { provider: providerName(provider) }));
-      const entries = Object.entries(buckets).filter(([, value]) => value);
+      text(row._parts.title, t('usage.thisDevice', { provider: buckets.account?.displayName || providerName(provider) }));
+      const entries = ['session', 'week', 'modelWeek'].filter(key => buckets[key]).map(key => [key, buckets[key]]);
       keyed(
         row._parts.values,
         entries,

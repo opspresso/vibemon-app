@@ -1095,7 +1095,7 @@ def is_tool_installed(commands: str | tuple[str, ...], home_dir: Path) -> bool:
 # Shared ~/.vibemon scripts, installed for every platform and removed by
 # --uninstall --vibemon. vibemon_core.py imports the others, so it comes last.
 SHARED_SCRIPTS = (
-    "http_client.py", "cache_io.py", "account_context.py", "usage.py",
+    "http_client.py", "cache_io.py", "account_identity.py", "account_parsers.py", "account_sources.py", "account_store.py", "account_service.py", "account_refresh.py", "account_context.py", "usage.py",
     "usage_cache.py", "project_context.py", "session_activity.py", "vibemon_core.py",
 )
 

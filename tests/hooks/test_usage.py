@@ -24,9 +24,15 @@ def _fake_urlopen(payload):
 
 
 def _claude_live(payload):
+    from account_identity import authenticated
+    expected = authenticated('claude','fixture-user','fixture-org','Fixture','fixture')
+    def response(request, **kwargs):
+        data = {'account':{'uuid':'fixture-user'},'organization':{'uuid':'fixture-org'}} if request.full_url == usage.CLAUDE_PROFILE_API_URL else payload
+        return _fake_urlopen(data)(request)
     with (
-        patch.object(usage, "read_claude_token", return_value="token"),
-        patch.object(usage, "open_credential_request", _fake_urlopen(payload)),
+        patch.object(usage, 'active_claude_account', return_value=expected),
+        patch.object(usage, 'read_claude_token', return_value='token'),
+        patch.object(usage, 'open_credential_request', response),
     ):
         return usage.fetch_claude_usage_live()
 
@@ -265,23 +271,33 @@ class UsageTest(unittest.TestCase):
                 os.path.join("/tmp/custom", "usage.json"),
             )
 
-    def test_claude_fallback_spawn_suppresses_hooks(self):
-        captured = {}
-
-        def fake_run(cmd, **kwargs):
-            captured.update(kwargs)
-            return subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")
-
+    def test_unavailable_claude_quota_never_starts_a_model_conversation(self):
         with tempfile.TemporaryDirectory() as directory:
             with (
-                patch.object(
-                    usage,
-                    "get_usage_cache_path",
-                    return_value=str(Path(directory) / "usage.json"),
-                ),
-                patch.object(usage, "fetch_claude_usage_live", return_value=None),
-                patch.object(usage.subprocess, "run", side_effect=fake_run),
+                patch.object(usage, 'get_usage_cache_path', return_value=str(Path(directory)/'usage.json')),
+                patch.object(usage, 'fetch_claude_usage_live', return_value=None),
+                patch.object(usage.subprocess, 'run') as command,
             ):
-                usage.refresh_usage({"claude"})
+                self.assertEqual(usage.refresh_usage({'claude'}), 'failed')
+        command.assert_not_called()
 
-        self.assertEqual(captured.get("env", {}).get("VIBEMON_SUPPRESS_HOOKS"), "1")
+
+class AccountUsageSafetyTest(unittest.TestCase):
+    def test_a_claude_token_from_another_account_cannot_populate_the_active_cache(self):
+        from account_identity import authenticated
+        expected = authenticated('claude','current','org','Current','fixture')
+        with (
+            patch.object(usage,'active_claude_account',return_value=expected),
+            patch.object(usage,'read_claude_token',return_value='fixture-token'),
+            patch.object(usage,'open_credential_request',_fake_urlopen({'account':{'uuid':'other'},'organization':{'uuid':'org'}})) as transport,
+        ):
+            self.assertIsNone(usage.fetch_claude_usage_live())
+
+    def test_unknown_or_different_account_transcripts_are_not_quota_fallbacks(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory)/'session.jsonl'
+            path.write_text(json.dumps({'type':'session_meta','payload':{'id':'session-a'}})+'\n'+json.dumps({'payload':{'rate_limits':{'primary':{'used_percent':20,'window_minutes':300,'resets_at':90000}}}})+'\n')
+            with patch.object(usage,'CODEX_SESSIONS_DIR',directory), patch.object(usage,'known_session_account',return_value='other'):
+                self.assertIsNone(usage.get_codex_usage_from_sessions('expected'))
+            with patch.object(usage,'CODEX_SESSIONS_DIR',directory), patch.object(usage,'known_session_account',return_value='expected'):
+                self.assertEqual(usage.get_codex_usage_from_sessions('expected')['session']['pct'],20)

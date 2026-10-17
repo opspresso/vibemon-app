@@ -28,7 +28,9 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import urlsplit
 from urllib.request import Request, urlopen
 
-from account_context import cloud_context, project_cache_key
+from account_context import cloud_context, project_cache_key, prepare_account, using_account, activity_key, event_context
+from account_identity import AccountIdentity
+from account_service import identity_hint
 from project_context import get_project_name, parse_json, read_input
 import session_activity
 from session_activity import Transition
@@ -983,17 +985,23 @@ def get_desktop_url(http_urls: tuple[str, ...]) -> str | None:
     return None
 
 
-def send_to_all(payload: dict[str, Any], is_start: bool = False, context: dict | bool | None = None) -> None:
-    """Send payload to all configured targets concurrently."""
+def prepare_desktop() -> None:
+    """Start the configured local viewer without creating a placeholder account."""
     config = get_config()
-
-    # Launch Desktop App if not running (on start) - must be sequential
     desktop_url = get_desktop_url(config.http_urls)
-    if desktop_url and is_start and config.auto_launch:
+    if desktop_url and config.auto_launch:
         if not is_monitor_running(desktop_url):
             debug_log("Desktop App not running, launching...")
             launch_desktop()
         show_monitor_window(desktop_url)
+
+
+def send_to_all(payload: dict[str, Any], is_start: bool = False, context: dict | bool | None = None) -> None:
+    """Send payload to all configured targets concurrently."""
+    config = get_config()
+
+    if is_start:
+        prepare_desktop()
 
     # Every display receives the same non-secret provider/workspace identity.
     payload_str = json.dumps({**payload, **context} if isinstance(context, dict) else payload)
@@ -1059,6 +1067,28 @@ def send_serial_input(args: list[str]) -> bool:
     return bool(port and data) and send_serial(port, json.dumps(data))
 
 
+def plugin_source_scope(data: dict) -> str | None:
+    agent = identity_hint(data.get('account_hint')).get('agent_id')
+    return 'openclaw-agent:' + agent if agent and agent != 'main' else None
+
+
+def resolve_plugin_account(provider: str) -> bool:
+    """Return only the shared non-credential identity to a local plugin."""
+    if provider != 'openclaw':
+        return False
+    data = parse_json(read_input())
+    project, cwd = data.get('project'), data.get('cwd')
+    if not isinstance(project, str) or not project or not isinstance(cwd, str):
+        return False
+    try:
+        identity = prepare_account(provider, data)
+        print(json.dumps(cloud_context(provider, project, cwd, identity=identity, source_scope=plugin_source_scope(data))))
+        return True
+    except (OSError, ValueError):
+        print('[vibemon] Could not resolve the plugin account.', file=sys.stderr)
+        return False
+
+
 def send_cloud_status(provider: str) -> bool:
     """Send a plugin status with shared account identity and credential rules."""
     config = get_config()
@@ -1071,7 +1101,8 @@ def send_cloud_status(provider: str) -> bool:
     if not config.vibemon_url or not config.vibemon_token:
         return False
     try:
-        context = cloud_context(provider, payload["project"])
+        identity = prepare_account(provider, payload)
+        context = cloud_context(provider, payload["project"], payload.get("cwd"), identity=identity, source_scope=plugin_source_scope(payload))
         if "sourceId" in payload or "account" in payload:
             if payload.get("sourceId") != context["sourceId"] or payload.get("account") != context["account"]:
                 raise ValueError("Plugin account identity changed before delivery")
@@ -1081,13 +1112,14 @@ def send_cloud_status(provider: str) -> bool:
         if payload.get("heartbeat") is True:
             context["heartbeat"] = True
         return send_vibemon_api(config.vibemon_url, config.vibemon_token, payload, context)
-    except ValueError:
+    except (OSError, ValueError):
         print("[vibemon] Invalid cloud account configuration", file=sys.stderr)
         return False
 
 
 # Command-line entry points, dispatched before hook input is read.
 COMMAND_HANDLERS: dict[str, Any] = {
+    "--resolve-plugin-account": lambda args: resolve_plugin_account(args[0]) if len(args) == 1 else False,
     "--send-cloud": lambda args: send_cloud_status(args[0]) if len(args) == 1 else False,
     "--launch-desktop": lambda args: launch_desktop(),
     "--send-serial": send_serial_input,
@@ -1120,10 +1152,10 @@ def activity_path() -> str:
     return os.path.join(os.path.dirname(get_config().cache_path), "activity.json")
 
 
-def deliver_report(payload: dict[str, Any], cwd: str, observed_at: str, *, is_start: bool = False, heartbeat: bool = False) -> None:
+def deliver_report(payload: dict[str, Any], cwd: str, observed_at: str, *, is_start: bool = False, heartbeat: bool = False, account: dict | None = None) -> None:
     """Send one report to every display with its cloud identity."""
     try:
-        context: dict | bool = cloud_context(str(payload.get("character", "vibemon")), str(payload.get("project", "")), cwd, observed_at=observed_at)
+        context: dict | bool = cloud_context(str(payload.get("character", "vibemon")), str(payload.get("project", "")), cwd, observed_at=observed_at, identity=AccountIdentity.restore(account) if account else None)
         if heartbeat:
             # A heartbeat repeats the current state: it refreshes liveness but
             # is not new activity and does not compete for display focus.
@@ -1140,7 +1172,7 @@ def watch_session(args: list[str]) -> bool:
         return False
     session_activity.watch(
         activity_path(), args[0],
-        lambda beat: deliver_report(beat.payload, beat.cwd, beat.observed_at, heartbeat=beat.heartbeat),
+        lambda beat: deliver_report(beat.payload, beat.cwd, beat.observed_at, heartbeat=beat.heartbeat, account=beat.account),
     )
     return True
 
@@ -1153,6 +1185,8 @@ def run(
     event_aliases: dict[str, str] | None = None,
     refine: Callable[[str, dict[str, Any], str], Transition | None] | None = None,
     locate_transcript: Callable[[dict[str, Any]], str] | None = None,
+    account_provider: str | None = None,
+    profile_root: str | None = None,
 ) -> None:
     """Hook entry point, driven by a per-tool adapter.
 
@@ -1199,6 +1233,19 @@ def run(
     if event_aliases:
         event_name = event_aliases.get(event_name, event_name)
     data = {**data, "hook_event_name": event_name}
+    if account_provider:
+        data = event_context(account_provider, data)
+    if account_provider == 'opencode' and event_name == start_event:
+        hint = data.get('account_hint')
+        known_backend = isinstance(hint, dict) and isinstance(hint.get('provider'), str) and hint['provider'].strip()
+        explicit_account = os.environ.get('VIBEMON_OPENCODE_ACCOUNT_ID') or os.environ.get('VIBEMON_ACCOUNT_ID')
+        if not known_backend and not explicit_account:
+            prepare_desktop()
+            return
+    return process_event(data, event_name, event_state_map, build_payload, start_event, refine, locate_transcript, account_provider, profile_root)
+
+
+def process_event(data, event_name, event_state_map, build_payload, start_event, refine, locate_transcript, account_provider=None, profile_root=None):
     tool_name = data.get("tool_name", "")
     cwd = data.get("cwd", "")
     transcript_path = data.get("transcript_path", "")
@@ -1226,7 +1273,10 @@ def run(
     # Stamp before git discovery and usage metadata, which can finish after a
     # newer hook; late delivery then cannot replace newer activity.
     path = activity_path()
-    report = session_activity.record(path, data, transition)
+    session = data.get('session_id')
+    tracked_session = activity_key(account_provider, session, profile_root, data.get('account_hint')) if account_provider and isinstance(session, str) and session else session
+    activity_data = {**data, 'session_id': tracked_session} if tracked_session else data
+    report = session_activity.record(path, activity_data, transition)
     if report is None:
         debug_log(f"Event settles no open turn, skipping: {event_name}")
         return
@@ -1234,16 +1284,30 @@ def run(
 
     debug_log(f"Event: {event_name}, Tool: {tool_name}, Project: {project_name}")
 
-    payload = build_payload(report.state, tool_name, project_name, data)
-    session = data.get("session_id")
-    if isinstance(session, str) and session and report.state in session_activity.ACTIVE_STATES:
-        # Only an open turn needs what a heartbeat repeats.
-        agent = session_activity.agent_process() if report.watch else None
-        session_activity.remember_payload(path, session, payload, cwd, agent)
-        if agent is not None:
-            session_activity.start_watcher(os.path.abspath(__file__), session)
+    def emit(identity):
+        payload = build_payload(report.state, tool_name, project_name, data)
+        session = tracked_session
+        if isinstance(session, str) and session and report.state in session_activity.ACTIVE_STATES:
+            needs_agent = report.watch or session_activity.needs_agent(path, session)
+            agent = session_activity.agent_process() if needs_agent else None
+            remembered = session_activity.remember_payload(path, session, payload, cwd, agent,
+                account=identity.record() if identity else None, event_stamp_ms=report.event_stamp_ms)
+            if remembered and agent is not None:
+                session_activity.start_watcher(os.path.abspath(__file__), session)
+        deliver_report(payload, cwd, report.observed_at, is_start=event_name == start_event,
+            account=identity.record() if identity else None)
 
-    deliver_report(payload, cwd, report.observed_at, is_start=event_name == start_event)
+    if account_provider:
+        try:
+            identity = prepare_account(account_provider, data, profile_root)
+        except (OSError, ValueError):
+            print("[vibemon] Could not bind this session to its account; no report was sent.", file=sys.stderr)
+            return
+        with using_account(identity):
+            emit(identity)
+    else:
+        emit(None)
+
 
 
 if __name__ == "__main__":

@@ -410,6 +410,17 @@ startFixture().then(async fixture => {
   assert.equal(await value('#character-scale'), '80');
   await screenshot('companion-settings');
   await navigate('integrations');
+  assert.equal(await visible('#account-profiles-empty'), false);
+  assert.equal(await ui('document.querySelectorAll("#account-profiles article").length'), 2);
+  assert.ok((await text('#account-profiles')).includes('Detected account'));
+  assert.ok((await text('#account-profiles')).includes('Unidentified profile'));
+  assert.ok((await text('#account-profiles')).includes('Usage could not be refreshed'));
+  await click('#account-profiles summary');
+  assert.equal(await ui('document.querySelector("#account-profiles details").open'), true);
+  await click('#accounts-guide');
+  await until(() => ports.calls.some(call => call[0] === 'external' && call[1].includes('/docs/coding-agents#keep-several-accounts-apart')), 'account guide opened');
+  await ui('document.getElementById("account-profiles-title").scrollIntoView({ block: "start" })');
+  await screenshot('integration-accounts');
   assert.equal(await value('#cloud-write-token'), '');
   await input('#cloud-write-token', TOKEN);
   await click('#save-cloud-delivery');

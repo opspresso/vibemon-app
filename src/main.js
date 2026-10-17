@@ -24,13 +24,14 @@ const { MonitoringClient } = require('./monitoring/client.cjs');
 const { CredentialStore } = require('./monitoring/credential-store.cjs');
 const { WebSignIn } = require('./monitoring/web-sign-in.cjs');
 const { WorkspaceWindow } = require('./workspace/window.cjs');
+const { getAccountProfiles } = require('./modules/account-profiles.cjs');
 const { WorkspaceSettings } = require('./workspace/settings.cjs');
 const { localActivity } = require('./workspace/activity.cjs');
 const { attentionAreas, attentionNotices } = require('./shared/attention.cjs');
 const { installWorkspaceMenu } = require('./workspace/menu.cjs');
 const { t, initLocale, currentLocale } = require('./shared/i18n/locale.cjs');
 const { dashboardPage } = require('./workspace/deep-link.cjs');
-const { getUsageSnapshot, providerCacheKey } = require('./modules/usage-cache-reader.cjs');
+const { getUsageSnapshot } = require('./modules/usage-cache-reader.cjs');
 const { WidgetPublisher, usageByAccount, widgetsSupported } = require('./widgets/publisher.cjs');
 const { execFile } = require('child_process');
 
@@ -422,7 +423,7 @@ app.whenReady().then(() => {
   trayManager = new TrayManager(windowManager, app);
 
   const cloudDelivery = new HookCloudDelivery({ configManager: vibemonConfigManager, allowLocalHttp: !app.isPackaged });
-  workspaceSettings = new WorkspaceSettings({ windowManager, app, hookInstaller, vibemonConfigManager, updateChecker, cloudDelivery, openExternal: url => shell.openExternal(url) });
+  workspaceSettings = new WorkspaceSettings({ windowManager, app, hookInstaller, vibemonConfigManager, updateChecker, cloudDelivery, getAccountProfiles, openExternal: url => shell.openExternal(url) });
   const monitoringStore = new Store({ name: 'monitoring' });
   monitoringClient = new MonitoringClient({ preferences: monitoringStore, credentials: new CredentialStore(monitoringStore, safeStorage), allowLocalHttp: !app.isPackaged });
   webSignIn = new WebSignIn({ port: HTTP_PORT, openExternal: url => shell.openExternal(url), allowLocalHttp: !app.isPackaged, deviceName: os.hostname().split('.')[0] });
@@ -465,7 +466,7 @@ app.whenReady().then(() => {
     // feed.mjs is an ES module that shares the renderer's display rules.
     const { buildWidgetFeed } = require('./widgets/feed.mjs');
     widgetPublisher = new WidgetPublisher({
-      collect: () => ({ cloud: monitoringClient.snapshot(), states: windowManager.getRegisteredStates(), usage: usageByAccount(getUsageSnapshot(), providerCacheKey) }),
+      collect: () => ({ cloud: monitoringClient.snapshot(), states: windowManager.getRegisteredStates(), usage: usageByAccount(getUsageSnapshot()) }),
       build: input => buildWidgetFeed({ ...input, locale: currentLocale() }),
       reload: widgetReloader(),
       artwork: character => CHARACTER_CONFIG[character]?.image
@@ -525,12 +526,11 @@ app.whenReady().then(() => {
   // Refresh the shared plan-usage cache (~/.vibemon/cache/usage.json) via
   // ~/.vibemon/usage.py: once shortly after startup, then periodically, so
   // usage data stays fresh even when no Claude Code session is running.
-  // A successful refresh invalidates the visible workspace's usage snapshot.
-  const refreshUsage = () => usageRefresher.refresh().then((result) => {
-    if (result.ok) {
-      workspaceWindow?.notify('usage');
-      widgetPublisher?.schedule();
-    }
+  // A partial refresh can update some accounts while others need login.
+  const refreshUsage = () => usageRefresher.refresh().then(() => {
+    workspaceWindow?.notify('usage');
+    workspaceWindow?.notify('settings');
+    widgetPublisher?.schedule();
   });
   setTimeout(refreshUsage, USAGE_REFRESH_INITIAL_DELAY_MS);
   usageRefreshTimer = setInterval(refreshUsage, USAGE_REFRESH_INTERVAL_MS);

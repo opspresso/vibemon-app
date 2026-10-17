@@ -30,7 +30,7 @@ class AccountIsolationTest(unittest.TestCase):
                     with patch.dict(os.environ, {'VIBEMON_ACCOUNT_ID': identity}, clear=True):
                         fresh = usage_cache.get_fresh_provider(data, provider, 60, now=120)
                         self.assertEqual(fresh['session']['pct'], percent)
-            with patch.dict(os.environ, {}, clear=True):
+            with patch.dict(os.environ, {'HOME': directory, 'USERPROFILE': directory}, clear=True):
                 self.assertIsNone(usage_cache.get_fresh_provider(data, 'claude', 60, now=120))
 
     def test_named_account_never_reads_default_account_cache(self):
@@ -50,7 +50,7 @@ class AccountIsolationTest(unittest.TestCase):
     def test_same_basename_in_different_workspaces_never_shares_context(self):
         with tempfile.TemporaryDirectory() as directory:
             path = str(Path(directory) / 'projects.json')
-            with patch.dict(os.environ, {'VIBEMON_CACHE_PATH': path}, clear=True), patch.object(vibemon_core, 'get_config', return_value=SimpleNamespace(cache_path=path)):
+            with patch.dict(os.environ, {'VIBEMON_CACHE_PATH': path, 'HOME': directory, 'USERPROFILE': directory}, clear=True), patch.object(vibemon_core, 'get_config', return_value=SimpleNamespace(cache_path=path)):
                 statusline.save_to_cache('project', 'model-a', 10, '/workspace/a/project')
                 statusline.save_to_cache('project', 'model-b', 80, '/workspace/b/project')
                 self.assertEqual(vibemon_core.get_project_metadata('project', '/workspace/a/project')['memory'], 10)
@@ -68,15 +68,15 @@ class AccountIsolationTest(unittest.TestCase):
                         identities.add(result['sourceId'])
         self.assertEqual(len(identities), 12)
 
-    def test_openclaw_javascript_and_python_share_the_identity_tuple(self):
-        # plugin_harness.mjs supplies a POSIX /server workspace on every OS.
+    def test_explicit_openclaw_source_ids_remain_wire_compatible(self):
+        # Existing OpenClaw installations used this POSIX workspace identity.
         # Keep that exact input here instead of resolving it onto a CI drive.
         with patch.dict(os.environ, {'VIBEMON_OPENCLAW_ACCOUNT_ID': 'work', 'VIBEMON_INSTANCE_ID': 'test-machine'}, clear=True), patch.object(account_context.Path, 'resolve', return_value=PurePosixPath('/server')):
             result = account_context.cloud_context('openclaw', 'OpenClaw', '/server')
         self.assertEqual(result['sourceId'], 'agent:84718e3543c37148d811992cd3a6f77d4fdae75b02dff7d410b6b43c30dd536b')
 
     def test_plugin_cloud_delivery_keeps_the_local_event_timestamp(self):
-        with patch.dict(os.environ, {'VIBEMON_OPENCLAW_ACCOUNT_ID': 'work'}, clear=True):
+        with patch.dict(os.environ, {'VIBEMON_OPENCLAW_ACCOUNT_ID': 'work', 'HOME': str(Path.home()), 'USERPROFILE': str(Path.home())}, clear=True):
             context = account_context.cloud_context('openclaw', 'Project')
             payload = {'project': 'Project', 'state': 'working', **context}
             config = SimpleNamespace(vibemon_url='https://web.example', vibemon_token='fixture-write')

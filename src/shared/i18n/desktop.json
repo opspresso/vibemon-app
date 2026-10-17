@@ -446,7 +446,18 @@
     "menu.front": "Bring All to Front",
     "error.emptyJson": "Empty JSON response",
     "error.jsonTooLarge": "JSON response exceeds the size limit",
-    "error.invalidJson": "Invalid JSON response"
+    "error.invalidJson": "Invalid JSON response",
+    "accounts.title": "Accounts on this machine",
+    "accounts.help": "Start a new coding session after installing hooks. VibeMon detects its account when the tool exposes a verifiable identity.",
+    "accounts.guide": "Set up multiple accounts",
+    "accounts.empty": "No profiles observed yet. Install an integration above, then start a coding session.",
+    "accounts.kind.account": "Detected account",
+    "accounts.kind.credential": "Saved credential",
+    "accounts.kind.profile": "Unidentified profile",
+    "accounts.kind.manual": "Manual label",
+    "accounts.profile": "Profile details",
+    "accounts.observed": "Last identified: {time}",
+    "accounts.usageUnavailable": "Usage could not be refreshed. Open this profile and check its login; activity monitoring remains available."
   },
   "ko": {
     "nav.overview": "개요",
@@ -880,7 +891,18 @@
     "menu.front": "모두 앞으로 가져오기",
     "error.emptyJson": "빈 JSON 응답",
     "error.jsonTooLarge": "JSON 응답이 크기 제한을 초과합니다",
-    "error.invalidJson": "잘못된 JSON 응답"
+    "error.invalidJson": "잘못된 JSON 응답",
+    "accounts.title": "이 머신의 계정",
+    "accounts.help": "훅을 설치한 뒤 새 코딩 세션을 시작하세요. 도구가 확인 가능한 정보를 제공하면 VibeMon이 계정을 자동으로 구분합니다.",
+    "accounts.guide": "여러 계정 설정하기",
+    "accounts.empty": "아직 확인된 프로필이 없습니다. 위에서 도구를 연동한 뒤 코딩 세션을 시작하세요.",
+    "accounts.kind.account": "확인된 계정",
+    "accounts.kind.credential": "저장된 인증 정보",
+    "accounts.kind.profile": "계정 미확인 프로필",
+    "accounts.kind.manual": "직접 지정한 이름",
+    "accounts.profile": "프로필 상세",
+    "accounts.observed": "마지막 계정 확인: {time}",
+    "accounts.usageUnavailable": "사용량을 갱신하지 못했습니다. 해당 프로필을 열어 로그인 상태를 확인하세요. 활동 모니터링은 계속 사용할 수 있습니다."
   },
   "ja": {
     "nav.overview": "概要",
@@ -1314,6 +1336,17 @@
     "menu.front": "すべてを手前に移動",
     "error.emptyJson": "空のJSON応答",
     "error.jsonTooLarge": "JSON応答がサイズ上限を超えています",
-    "error.invalidJson": "無効なJSON応答"
+    "error.invalidJson": "無効なJSON応答",
+    "accounts.title": "このマシンのアカウント",
+    "accounts.help": "フックをインストールしてから新しいコーディングセッションを開始してください。ツールが確認可能な情報を提供する場合、VibeMon がアカウントを識別します。",
+    "accounts.guide": "複数アカウントを設定",
+    "accounts.empty": "確認されたプロファイルはまだありません。上でツールを連携してからセッションを開始してください。",
+    "accounts.kind.account": "確認済みアカウント",
+    "accounts.kind.credential": "保存された認証情報",
+    "accounts.kind.profile": "アカウント未確認のプロファイル",
+    "accounts.kind.manual": "手動ラベル",
+    "accounts.profile": "プロファイルの詳細",
+    "accounts.observed": "最終確認: {time}",
+    "accounts.usageUnavailable": "使用量を更新できませんでした。このプロファイルのログインを確認してください。アクティビティの監視は引き続き利用できます。"
   }
 }
