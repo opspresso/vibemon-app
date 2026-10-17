@@ -30,7 +30,7 @@ class StatuslineCacheTest(unittest.TestCase):
                 cache = {'claude': {'updated_at': observed_at, 'session': {'pct': 0, 'resets_at': resets_at}}}
                 output = io.StringIO()
                 with (
-                    patch.dict(os.environ, {'VIBEMON_ACCOUNT_ID': 'default'}, clear=True),
+                    patch.dict(os.environ, {'VIBEMON_ACCOUNT_ID': 'default', 'HOME': str(Path.home()), 'USERPROFILE': str(Path.home())}, clear=True),
                     patch.object(statusline, 'read_input', return_value='{}'),
                     patch.object(statusline, 'load_usage_cache', return_value=cache),
                     patch.object(statusline, 'save_cache_background'),

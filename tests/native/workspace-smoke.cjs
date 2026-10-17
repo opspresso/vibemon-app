@@ -417,6 +417,8 @@ startFixture().then(async fixture => {
   assert.ok((await text('#account-profiles')).includes('Usage could not be refreshed'));
   await click('#account-profiles summary');
   assert.equal(await ui('document.querySelector("#account-profiles details").open'), true);
+  await click('#accounts-guide');
+  assert.ok(ports.calls.some(call => call[0] === 'external' && call[1].includes('/docs/coding-agents#keep-several-accounts-apart')));
   await screenshot('integration-accounts');
   assert.equal(await value('#cloud-write-token'), '');
   await input('#cloud-write-token', TOKEN);

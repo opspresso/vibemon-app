@@ -38,7 +38,7 @@ def test_codex_must_not_label_api_key_or_inconsistent_tokens_as_chatgpt_account(
     assert codex_account({'tokens': {'id_token': token()}}) is None
 
 
-@pytest.mark.parametrize('value', [None, '', 'not.jwt', 'x.!invalid!.x', 'x.W10.x', 'x.' + 'a' * 70000 + '.x'])
+@pytest.mark.parametrize('value', [None, '', 'not.jwt', 'x.!invalid!.x', 'x.W10.x', 'x.' + 'a' * 70000 + '.x'], ids=['missing', 'empty', 'malformed', 'invalid-base64', 'array', 'oversized'])
 def test_invalid_identity_claims_are_not_accounts(value):
     assert jwt_claims(value) == {}
 

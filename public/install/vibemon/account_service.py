@@ -6,7 +6,7 @@ import time
 from dataclasses import asdict
 from account_identity import AccountIdentity, fingerprint, named, text
 
-SESSION_AGE_SECONDS = 86400
+SESSION_TOUCH_SECONDS = 3600
 MAX_SESSIONS = 1024
 
 
@@ -51,15 +51,22 @@ class AccountService:
         before = self.store.read()
         existing = before.get('sessions', {}).get(key) if key else None
         now = self.now()
-        if event != 'SessionStart' and isinstance(existing, dict) and isinstance(existing.get('expiresAt'), (int, float)) and existing['expiresAt'] > now:
-            try: return AccountIdentity.restore(existing.get('account'))
+        identity = None
+        if event != 'SessionStart' and isinstance(existing, dict):
+            try: identity = AccountIdentity.restore(existing.get('account'))
             except ValueError: pass
-        identity = self.resolve(target, environment, cwd, hint)
+            seen = existing.get('seenAt', existing.get('boundAt', 0))
+            if identity and isinstance(seen, (int, float)) and now - seen < SESSION_TOUCH_SECONDS:
+                return identity
+        # Elapsed time cannot change a running session's owner. Retain the
+        # bounded registry by last activity, and re-identify only a new start.
+        probed = identity is None
+        identity = identity or self.resolve(target, environment, cwd, hint)
         chosen = {'identity': identity}
 
         def save(current):
             sessions = {k: v for k, v in current.get('sessions', {}).items()
-                if isinstance(v, dict) and isinstance(v.get('expiresAt'), (int, float)) and v['expiresAt'] > now}
+                if isinstance(v, dict) and isinstance(v.get('boundAt'), (int, float))}
             # Two first hooks can probe concurrently. The first committed
             # binding owns that session; subsequent activity must use it.
             winner = sessions.get(key) if key else None
@@ -70,12 +77,14 @@ class AccountService:
                 except ValueError: pass
             identity = chosen['identity']
             if key and not isinstance(winner, dict):
-                sessions[key] = {'account': identity.record(), 'profile': target.key, 'sessionId': session, 'boundAt': now, 'expiresAt': now + SESSION_AGE_SECONDS}
-            sessions = dict(sorted(sessions.items(), key=lambda item: item[1]['expiresAt'], reverse=True)[:MAX_SESSIONS])
+                sessions[key] = {'account': identity.record(), 'profile': target.key, 'sessionId': session, 'boundAt': now, 'seenAt': now}
+            if key and key in sessions:
+                sessions[key] = {**sessions[key], 'seenAt': max(now, sessions[key].get('seenAt', now))}
+            sessions = dict(sorted(sessions.items(), key=lambda item: item[1].get('seenAt', item[1]['boundAt']), reverse=True)[:MAX_SESSIONS])
             profiles = dict(current.get('profiles', {}))
             previous = profiles.get(target.key, {})
             previous = previous if isinstance(previous, dict) else {}
-            if not isinstance(previous.get('checkedAt'), (int, float)) or previous['checkedAt'] <= now:
+            if probed and (not isinstance(previous.get('checkedAt'), (int, float)) or previous['checkedAt'] <= now):
                 profiles[target.key] = {**asdict(target), 'key': target.key, 'account': identity.record(), 'checkedAt': now, 'cachePath': cache_path}
             return {**current, 'version': 1, 'profiles': profiles, 'sessions': sessions}
 

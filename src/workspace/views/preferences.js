@@ -6,7 +6,7 @@ const bubbleFields = new Set(['status', 'project', 'model', 'memory', 'usage5h',
 const hookFlags = new Set(['--claude', '--codex', '--kiro', '--openclaw', '--opencode', '--vibemon']);
 
 export function setupPreferences({ getFrame, request, run, notify }) {
-  $('accounts-guide').addEventListener('click', () => run($('accounts-guide'), () => request('open-web', 'accounts')));
+  $('accounts-guide').addEventListener('click', () => run($('accounts-guide'), () => save('open-external', 'accounts')));
   let latest = null;
   let deliveryError = '';
   const runDelivery = (control, action) => {

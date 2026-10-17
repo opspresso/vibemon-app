@@ -526,12 +526,11 @@ app.whenReady().then(() => {
   // Refresh the shared plan-usage cache (~/.vibemon/cache/usage.json) via
   // ~/.vibemon/usage.py: once shortly after startup, then periodically, so
   // usage data stays fresh even when no Claude Code session is running.
-  // A successful refresh invalidates the visible workspace's usage snapshot.
-  const refreshUsage = () => usageRefresher.refresh().then((result) => {
-    if (result.ok) {
-      workspaceWindow?.notify('usage');
-      widgetPublisher?.schedule();
-    }
+  // A partial refresh can update some accounts while others need login.
+  const refreshUsage = () => usageRefresher.refresh().then(() => {
+    workspaceWindow?.notify('usage');
+    workspaceWindow?.notify('settings');
+    widgetPublisher?.schedule();
   });
   setTimeout(refreshUsage, USAGE_REFRESH_INITIAL_DELAY_MS);
   usageRefreshTimer = setInterval(refreshUsage, USAGE_REFRESH_INTERVAL_MS);

@@ -53,12 +53,13 @@ def test_explicit_ids_do_not_inspect_provider_credentials(tmp_path):
     source.resolve.assert_not_called()
 
 
-def test_expired_bindings_are_replaced_and_cache_has_no_credentials(tmp_path):
+def test_long_running_session_keeps_ownership_and_cache_has_no_credentials(tmp_path):
     service, source, target, env = fixture(tmp_path)
     a = service.bind(target, env, 'session', 'SessionStart')
     service.now = lambda: 90000
     source.resolve.return_value = authenticated('codex', 'user-b', 'org-b', 'B', 'fixture')
-    assert service.bind(target, env, 'session', 'PreToolUse').id != a.id
+    assert service.bind(target, env, 'session', 'PreToolUse').id == a.id
+    assert service.bind(target, env, 'session', 'SessionStart').id != a.id
     raw = (tmp_path / 'accounts.json').read_text()
     assert 'user-a' not in raw and 'user-b' not in raw and 'org-b' not in raw
     if __import__('os').name != 'nt':
