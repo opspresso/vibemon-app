@@ -1280,30 +1280,68 @@ class CollectorInstallTest(unittest.TestCase):
         unit = install.collector_unit(paths, 'https://vibemon.io', 'DGX Spark', 'host-dgx-spark')
         self.assertIn('EnvironmentFile=/etc/vibemon/collector.env', unit)
         self.assertIn('RestartPreventExitStatus=2', unit)
-        self.assertIn('--name "DGX Spark"', unit)
-        self.assertIn('--memory-type auto --disk', unit)
+        self.assertIn('"--name" "DGX Spark"', unit)
+        self.assertIn('"--memory-type" "auto" "--disk"', unit)
+        # systemd expands $NAME; a literal dollar sign is written as $$.
+        self.assertIn('"Cost $$5"', install.collector_unit(paths, 'https://vibemon.io', 'Cost $5', 'host-cost-5'))
         self.assertNotIn('vm_', unit)
         with self.assertRaises(ValueError):
             install.collector_unit(paths, 'https://vibemon.io', 'bad"name', 'host-bad')
 
-    def test_a_saved_token_is_reused_unless_login_is_asked(self):
+    def test_a_saved_token_is_reused_for_its_own_origin_unless_login_is_asked(self):
         saved = 'vm_' + 'e' * 60
+        fresh = 'vm_' + 'f' * 60
         with mock.patch.dict(os.environ, {}, clear=True), mock.patch('sys.stdout', io.StringIO()), \
-                mock.patch.object(install, 'sign_in_to_web', return_value='vm_' + 'f' * 60) as sign_in:
-            self.assertEqual(install.collector_token(None, saved, 'https://vibemon.io', 'box'), saved)
+                mock.patch.object(install, 'sign_in_to_web', return_value=fresh) as sign_in:
+            self.assertEqual(install.collector_token(None, saved, 'https://vibemon.io', 'https://vibemon.io', 'box'), saved)
             sign_in.assert_not_called()
             with mock.patch.object(install, 'SIGN_IN', True):
-                self.assertEqual(install.collector_token(None, saved, 'https://vibemon.io', 'box'), 'vm_' + 'f' * 60)
-            sign_in.assert_called_once_with('https://vibemon.io', 'vibemon-collector', 'box')
+                self.assertEqual(install.collector_token(None, saved, 'https://vibemon.io', 'https://vibemon.io', 'box'), fresh)
+            # The saved token never goes to another Web origin.
+            self.assertEqual(install.collector_token(None, saved, 'https://vibemon.io', 'https://other.example', 'box'), fresh)
+            self.assertEqual(sign_in.call_args_list[-1], mock.call('https://other.example', 'vibemon-collector', 'box'))
 
     def test_saved_collector_token_accepts_only_a_single_assignment(self):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / 'collector.env'
+            path.write_text('VIBEMON_WRITE_TOKEN=vm_' + 'a' * 60 + '\nVIBEMON_URL=https://vibemon.io\n', encoding='utf-8')
+            self.assertEqual(install.saved_collector_token(path), ('vm_' + 'a' * 60, 'https://vibemon.io'))
+            # A token without its origin is not reused.
             path.write_text('VIBEMON_WRITE_TOKEN=vm_' + 'a' * 60 + '\n', encoding='utf-8')
-            self.assertEqual(install.saved_collector_token(path), 'vm_' + 'a' * 60)
-            path.write_text('VIBEMON_WRITE_TOKEN=vm_' + 'a' * 60 + '\nOTHER=1\n', encoding='utf-8')
-            self.assertEqual(install.saved_collector_token(path), '')
-            self.assertEqual(install.saved_collector_token(Path(directory) / 'missing'), '')
+            self.assertEqual(install.saved_collector_token(path), ('', ''))
+            self.assertEqual(install.saved_collector_token(Path(directory) / 'missing'), ('', ''))
+
+    @unittest.skipIf(os.name == 'nt', 'systemd paths are POSIX')
+    def test_uninstall_removes_the_service_files_state_and_token(self):
+        with tempfile.TemporaryDirectory() as directory, mock.patch.dict(os.environ, {
+                'XDG_DATA_HOME': f'{directory}/data', 'XDG_CONFIG_HOME': f'{directory}/config', 'XDG_STATE_HOME': f'{directory}/state'}), \
+                mock.patch.object(install.os, 'geteuid', return_value=1000), mock.patch.object(install.shutil, 'which', return_value='/bin/systemctl'), \
+                mock.patch.object(install.subprocess, 'run') as run, mock.patch('sys.stdout', io.StringIO()):
+            paths = install.CollectorPaths(system=False)
+            for path in (paths.base / 'app' / 'vibemon_collector', paths.base / 'venv', paths.state):
+                path.mkdir(parents=True)
+            paths.env_file.parent.mkdir(parents=True)
+            paths.env_file.write_text('secret', encoding='utf-8')
+            paths.unit.parent.mkdir(parents=True)
+            paths.unit.write_text('# Managed by the VibeMon installer\n', encoding='utf-8')
+            self.assertTrue(install.uninstall_collector())
+            for path in (paths.base, paths.state, paths.env_file, paths.unit):
+                self.assertFalse(path.exists(), path)
+            run.assert_any_call(['systemctl', '--user', 'disable', '--now', 'vibemon-collector.service'], capture_output=True)
+
+    def test_the_token_file_is_created_owner_only(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / 'collector.env'
+            seen = []
+            real_open = os.open
+            def recording_open(file, flags, mode=0o777, *args, **kwargs):
+                seen.append(mode)
+                return real_open(file, flags, mode, *args, **kwargs)
+            with mock.patch.object(install.os, 'open', recording_open):
+                install.write_text_atomic(path, 'secret', mode=0o600)
+            self.assertEqual(seen, [0o600])
+            if os.name != 'nt':
+                self.assertEqual(path.stat().st_mode & 0o777, 0o600)
 
     def test_the_kubernetes_manifest_is_read_only_and_pinned(self):
         token = 'vm_' + 'a' * 60
@@ -1315,7 +1353,7 @@ class CollectorInstallTest(unittest.TestCase):
         container = documents[5]['spec']['template']['spec']['containers'][0]
         self.assertRegex(container['image'], r'@sha256:[0-9a-f]{64}$')
         self.assertNotIn(token, json.dumps(container))
-        self.assertEqual(documents[4]['stringData'], {'VIBEMON_WRITE_TOKEN': token})
+        self.assertEqual(documents[4]['stringData'], {'VIBEMON_WRITE_TOKEN': token, 'VIBEMON_URL': 'https://vibemon.io'})
         self.assertTrue(container['securityContext']['readOnlyRootFilesystem'])
 
 

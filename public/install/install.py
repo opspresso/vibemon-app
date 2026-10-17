@@ -408,7 +408,9 @@ def write_text_atomic(path: Path, content: str, mode: int = None) -> None:
         mode = path.stat().st_mode & 0o777
     tmp = path.with_name(f".{path.name}.tmp.{os.getpid()}")
     try:
-        with open(tmp, "w", encoding="utf-8", newline="") as f:
+        # Create the temp file with its final mode, so a secret is never readable by others.
+        descriptor = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600 if mode is None else mode)
+        with os.fdopen(descriptor, "w", encoding="utf-8", newline="") as f:
             f.write(content)
         if mode is not None:
             os.chmod(tmp, mode)
@@ -1730,13 +1732,16 @@ def source_id(prefix: str, name: str) -> str:
     return value
 
 
-def collector_token(cli_token: str, saved: str, origin: str, name: str) -> str:
-    """The write token: supplied, saved (unless --login), or from a Web sign-in."""
+def collector_token(cli_token: str, saved: str, saved_origin: str, origin: str, name: str) -> str:
+    """The write token: supplied, saved for the same origin (unless --login), or from a Web sign-in.
+
+    A saved token never moves to another Web origin: a new origin signs in again.
+    """
     supplied = cli_token or os.environ.get("VIBEMON_WRITE_TOKEN")
     if supplied:
         validate_token(supplied)
         return supplied
-    if saved and TOKEN_PATTERN.fullmatch(saved) and not SIGN_IN:
+    if saved and TOKEN_PATTERN.fullmatch(saved) and saved_origin == origin and not SIGN_IN:
         print(f"  {colored('✓', 'green')} Saved write token kept. Run with --login to sign in again.")
         return saved
     try:
@@ -1776,12 +1781,13 @@ class CollectorPaths:
             self.systemctl = ["systemctl", "--user"]
 
 
-def saved_collector_token(env_file: Path) -> str:
+def saved_collector_token(env_file: Path) -> tuple[str, str]:
+    """The saved token and the Web origin that it belongs to, or empty strings."""
     try:
-        match = re.fullmatch(r"VIBEMON_WRITE_TOKEN=(vm_[a-f0-9]{60})\n?", env_file.read_text(encoding="utf-8"))
+        match = re.fullmatch(r"VIBEMON_WRITE_TOKEN=(vm_[a-f0-9]{60})\nVIBEMON_URL=(\S+)\n?", env_file.read_text(encoding="utf-8"))
     except OSError:
-        return ""
-    return match.group(1) if match else ""
+        return "", ""
+    return (match.group(1), match.group(2)) if match else ("", "")
 
 
 def collector_unit(paths: CollectorPaths, origin: str, name: str, ident: str) -> str:
@@ -1793,6 +1799,8 @@ def collector_unit(paths: CollectorPaths, origin: str, name: str, ident: str) ->
     for value in arguments + [str(paths.env_file), str(paths.base)]:
         if any(character in value for character in '\n\r"%\\'):
             raise ValueError("A collector path or name contains a character that systemd cannot use")
+    # systemd: double quotes keep each argument whole; $$ is a literal dollar sign.
+    command = " ".join('"' + value.replace("$", "$$") + '"' for value in arguments)
     return "\n".join([
         "# Managed by the VibeMon installer",
         "[Unit]",
@@ -1801,7 +1809,7 @@ def collector_unit(paths: CollectorPaths, origin: str, name: str, ident: str) ->
         "Wants=network-online.target",
         "",
         "[Service]",
-        f"ExecStart={' '.join(f'"{value}"' if ' ' in value else value for value in arguments)}",
+        f"ExecStart={command}",
         f"Environment=PYTHONPATH={paths.base / 'app'}",
         f"EnvironmentFile={paths.env_file}",
         "Restart=on-failure",
@@ -1831,7 +1839,7 @@ def install_collector(source: FileSource, cli_token: str = None) -> bool:
     if paths.unit.exists() and "# Managed by the VibeMon installer" not in paths.unit.read_text(encoding="utf-8"):
         raise RuntimeError(f"{display_path(paths.unit)} exists and was not created by this installer")
 
-    token = collector_token(cli_token, saved_collector_token(paths.env_file), origin, name)
+    token = collector_token(cli_token, *saved_collector_token(paths.env_file), origin, name)
 
     app_dir = paths.base / "app" / "vibemon_collector"
     staged = paths.base / "app" / ".staged"
@@ -1852,7 +1860,7 @@ def install_collector(source: FileSource, cli_token: str = None) -> bool:
 
     paths.env_file.parent.mkdir(parents=True, exist_ok=True)
     paths.state.mkdir(parents=True, exist_ok=True)
-    write_text_atomic(paths.env_file, f"VIBEMON_WRITE_TOKEN={token}\n", mode=0o600)
+    write_text_atomic(paths.env_file, f"VIBEMON_WRITE_TOKEN={token}\nVIBEMON_URL={origin}\n", mode=0o600)
     paths.unit.parent.mkdir(parents=True, exist_ok=True)
     write_text_atomic(paths.unit, collector_unit(paths, origin, name, ident))
     run_checked(paths.systemctl + ["daemon-reload"], "Reloading systemd")
@@ -1885,7 +1893,7 @@ def kubernetes_manifest(name: str, ident: str, origin: str, token: str) -> str:
          "roleRef": {"apiGroup": "rbac.authorization.k8s.io", "kind": "ClusterRole", "name": "vibemon-collector"},
          "subjects": [{"kind": "ServiceAccount", "name": "vibemon-collector", "namespace": namespace}]},
         {"apiVersion": "v1", "kind": "Secret", "metadata": {"name": "vibemon-collector", "namespace": namespace, "labels": labels},
-         "type": "Opaque", "stringData": {"VIBEMON_WRITE_TOKEN": token}},
+         "type": "Opaque", "stringData": {"VIBEMON_WRITE_TOKEN": token, "VIBEMON_URL": origin}},
         {"apiVersion": "apps/v1", "kind": "Deployment", "metadata": {"name": "vibemon-collector", "namespace": namespace, "labels": labels},
          "spec": {"replicas": 1, "strategy": {"type": "Recreate"}, "selector": {"matchLabels": {"app.kubernetes.io/name": "vibemon-collector"}},
                   "template": {"metadata": {"labels": labels}, "spec": {
@@ -1914,23 +1922,18 @@ def install_kubernetes(source: FileSource, cli_token: str = None) -> bool:
         print(f"  {colored('!', 'yellow')} kubectl is required. Select the cluster with kubectl first.")
         return False
     context = run_checked(["kubectl", "config", "current-context"], "Reading the kubectl context").strip()
-    if not ask_yes_no(f"  Install into the kubectl context {colored(context, 'yellow')}?", default=True, unattended=True):
+    print(f"  kubectl context: {colored(context, 'yellow')}")
+    if not ask_yes_no(f"  Install into {context}?", default=True, unattended=True):
         print("  Skipped.")
         return SKIPPED
+    if namespace_owner() == "other":
+        raise RuntimeError(f"The namespace {KUBERNETES_NAMESPACE!r} exists and was not created by this installer")
     if subprocess.run(["kubectl", "get", "apiservice", "v1beta1.metrics.k8s.io"], capture_output=True).returncode != 0:
         print(f"  {colored('!', 'yellow')} metrics-server is not installed. Node and pod counts work; CPU and memory stay unavailable until it is installed.")
     origin = web_origin()
     name = SOURCE_NAME or context
     ident = source_id("k8s", name)
-    saved = ""
-    existing = subprocess.run(["kubectl", "-n", KUBERNETES_NAMESPACE, "get", "secret", "vibemon-collector", "-o", "jsonpath={.data.VIBEMON_WRITE_TOKEN}"],
-                              capture_output=True, text=True)
-    if existing.returncode == 0 and existing.stdout:
-        try:
-            saved = base64.b64decode(existing.stdout).decode()
-        except ValueError:
-            saved = ""
-    token = collector_token(cli_token, saved, origin, name)
+    token = collector_token(cli_token, *saved_secret(), origin, name)
     run_checked(["kubectl", "apply", "-f", "-"], "Applying the collector", kubernetes_manifest(name, ident, origin, token))
     # A new token or image needs a new pod.
     run_checked(["kubectl", "-n", KUBERNETES_NAMESPACE, "rollout", "restart", "deployment/vibemon-collector"], "Restarting the collector")
@@ -1944,6 +1947,30 @@ def install_kubernetes(source: FileSource, cli_token: str = None) -> bool:
     return True
 
 
+def namespace_owner() -> str:
+    """'none' when the namespace is absent, 'installer' when this installer created it, else 'other'."""
+    result = subprocess.run(["kubectl", "get", "namespace", KUBERNETES_NAMESPACE, "-o", "jsonpath={.metadata.labels.app\\.kubernetes\\.io/managed-by}"],
+                            capture_output=True, text=True)
+    if result.returncode != 0:
+        if "NotFound" in result.stderr:
+            return "none"
+        raise RuntimeError(f"Reading the namespace failed: {result.stderr.strip() or 'no output'}")
+    return "installer" if result.stdout.strip() == "vibemon-installer" else "other"
+
+
+def saved_secret() -> tuple[str, str]:
+    """The token and Web origin in the collector Secret, or empty strings."""
+    values = []
+    for key in ("VIBEMON_WRITE_TOKEN", "VIBEMON_URL"):
+        result = subprocess.run(["kubectl", "-n", KUBERNETES_NAMESPACE, "get", "secret", "vibemon-collector", "-o", f"jsonpath={{.data.{key}}}"],
+                                capture_output=True, text=True)
+        try:
+            values.append(base64.b64decode(result.stdout).decode() if result.returncode == 0 and result.stdout else "")
+        except ValueError:
+            values.append("")
+    return values[0], values[1]
+
+
 def uninstall_collector(source: FileSource = None, cli_token: str = None) -> bool:
     paths = CollectorPaths(system=os.geteuid() == 0) if hasattr(os, "geteuid") else None
     if paths is None or not shutil.which("systemctl"):
@@ -1953,6 +1980,7 @@ def uninstall_collector(source: FileSource = None, cli_token: str = None) -> boo
         remove_path(paths.unit, "collector service")
         subprocess.run(paths.systemctl + ["daemon-reload"], capture_output=True)
     remove_path(paths.base, "collector files")
+    remove_path(paths.state, "collector state")
     remove_path(paths.env_file, "collector token file")
     print("  The token stays valid on Web until you delete it on Account.")
     return True
@@ -1961,9 +1989,19 @@ def uninstall_collector(source: FileSource = None, cli_token: str = None) -> boo
 def uninstall_kubernetes(source: FileSource = None, cli_token: str = None) -> bool:
     if not shutil.which("kubectl"):
         return SKIPPED
-    for kind in (["namespace", KUBERNETES_NAMESPACE], ["clusterrolebinding", "vibemon-collector"], ["clusterrole", "vibemon-collector"]):
-        subprocess.run(["kubectl", "delete", "--ignore-not-found", *kind], capture_output=True)
-    print(f"  {colored('✓', 'green')} Removed the collector from the current kubectl context")
+    context = run_checked(["kubectl", "config", "current-context"], "Reading the kubectl context").strip()
+    print(f"  kubectl context: {colored(context, 'yellow')}")
+    if not ask_yes_no(f"  Remove the collector from {context}?", default=True, unattended=True):
+        return SKIPPED
+    owner = namespace_owner()
+    if owner == "other":
+        raise RuntimeError(f"The namespace {KUBERNETES_NAMESPACE!r} was not created by this installer; nothing was removed")
+    # Only objects that carry the installer's label are removed.
+    selector = "app.kubernetes.io/managed-by=vibemon-installer"
+    run_checked(["kubectl", "delete", "clusterrolebinding,clusterrole", "-l", selector, "--ignore-not-found"], "Removing the collector RBAC")
+    if owner == "installer":
+        run_checked(["kubectl", "delete", "namespace", KUBERNETES_NAMESPACE, "--ignore-not-found"], "Removing the collector namespace")
+    print(f"  {colored('✓', 'green')} Removed the collector from {context}")
     print("  The token stays valid on Web until you delete it on Account.")
     return True
 
@@ -1973,7 +2011,10 @@ def remove_path(path: Path, description: str) -> None:
     if not path.exists():
         return
     try:
-        path.unlink()
+        if path.is_dir() and not path.is_symlink():
+            shutil.rmtree(path)
+        else:
+            path.unlink()
         print(f"  {colored('✓', 'green')} removed {description}")
     except OSError as e:
         raise RuntimeError(f"Could not remove {description}") from e

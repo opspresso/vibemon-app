@@ -56,27 +56,6 @@ All remote scripts and configuration templates require a matching [manifest.json
 
 The installer backs up modified configuration to `.bak`, writes atomically, and preserves unrelated hooks. Exit code `0` means every attempted installation succeeded. Undetected tools are skipped; a failure or a run with no installed tool returns `1`.
 
-## 3. Install a resource collector
-
-A collector sends CPU, memory, GPU, and disk summaries of a server or cluster. It signs in through Web the same way.
-
-| Target | Command |
-| --- | --- |
-| Linux host or DGX Spark | `curl -fsSL https://vibemon.io/install/install.py \| python3 - --collector` |
-| Kubernetes (current kubectl context) | `curl -fsSL https://vibemon.io/install/install.py \| python3 - --kubernetes` |
-
-Add `--name "Display name"` to choose the name on Web. The default is the host name or the kubectl context name. The source ID derives from it, such as `host-dgx-spark`.
-
-**Linux host or DGX Spark** needs Python 3.10 or later and systemd. The installer downloads the collector files checked against the manifest, installs `psutil` in its own Python environment, and starts the `vibemon-collector` service. DGX Spark unified memory and NVIDIA GPU measurements are detected automatically.
-
-- As root: the service is system-wide. Files are in `/opt/vibemon-collector`, and the token is in `/etc/vibemon/collector.env` (mode 600).
-- As another user: the service is a user service, with files in `~/.local/share/vibemon-collector` and the token in `~/.config/vibemon/collector.env`. Run `sudo loginctl enable-linger $USER` so that it keeps running after you log out.
-- Check it with `systemctl status vibemon-collector` (add `--user` for a user service).
-
-**Kubernetes** needs `kubectl` with the target cluster as the current context. The installer creates the `vibemon` namespace, read-only RBAC (list nodes and pods, read node metrics), a Secret with the token, and a Deployment of the published multi-arch collector image. CPU and memory need [metrics-server](https://github.com/kubernetes-sigs/metrics-server); without it, node and pod counts still work. The installer waits until Web accepts the first summary and otherwise shows the collector's last message.
-
-To remove a collector, run the same command with `--uninstall`. The token stays valid until you delete it on Account. For Prometheus-based clusters and other options, see the [collector guide](https://github.com/opspresso/vibemon-app/tree/main/collector).
-
 ## Self-hosted installation
 
 `VIBEMON_DOCS_URL` selects the installer file base, including its manifest and every helper/template. `VIBEMON_URL` selects the Web API origin and is saved in hook configuration when supplied. The two can use different hosts, for example when installation files are served by a CDN.
@@ -134,6 +113,27 @@ The shared directory contains eight required helpers: `vibemon_core.py`, `sessio
 5. Confirm that the same account's source appears. Missing measurements remain unavailable; they do not appear as zero.
 
 Read and write tokens must belong to the same Google owner. Resource collection is separate from hooks; see the [collector guide](https://vibemon.io/docs/collector) and [monitoring API](https://vibemon.io/docs/api/monitoring).
+
+## Resource collectors
+
+A collector sends CPU, memory, GPU, and disk summaries of a server or cluster. It signs in through Web the same way.
+
+| Target | Command |
+| --- | --- |
+| Linux host or DGX Spark | `curl -fsSL https://vibemon.io/install/install.py \| python3 - --collector` |
+| Kubernetes (current kubectl context) | `curl -fsSL https://vibemon.io/install/install.py \| python3 - --kubernetes` |
+
+A run with a saved token reuses it only for the same Web origin; another origin, or `--login`, signs in again. Add `--name "Display name"` to choose the name on Web. The default is the host name or the kubectl context name. The source ID derives from it, such as `host-dgx-spark`.
+
+**Linux host or DGX Spark** needs Python 3.10 or later and systemd. The installer downloads the collector files checked against the manifest, installs `psutil` in its own Python environment, and starts the `vibemon-collector` service. DGX Spark unified memory and NVIDIA GPU measurements are detected automatically.
+
+- As root: the service is system-wide. Files are in `/opt/vibemon-collector`, and the token is in `/etc/vibemon/collector.env` (mode 600).
+- As another user: the service is a user service, with files in `~/.local/share/vibemon-collector` and the token in `~/.config/vibemon/collector.env`. Run `sudo loginctl enable-linger $USER` so that it keeps running after you log out.
+- Check it with `systemctl status vibemon-collector` (add `--user` for a user service).
+
+**Kubernetes** needs `kubectl` with the target cluster as the current context. The installer creates the `vibemon` namespace, read-only RBAC (list nodes and pods, read node metrics), a Secret with the token, and a Deployment of the published multi-arch collector image. CPU and memory need [metrics-server](https://github.com/kubernetes-sigs/metrics-server); without it, node and pod counts still work. The installer waits until Web accepts the first summary and otherwise shows the collector's last message.
+
+To remove a collector, run the same command with `--uninstall`. On Kubernetes, it removes only objects that the installer labeled; it refuses an existing `vibemon` namespace that the installer did not create. The token stays valid until you delete it on Account. For Prometheus-based clusters and other options, see the [collector guide](https://github.com/opspresso/vibemon-app/tree/main/collector).
 
 ## Custom resources
 

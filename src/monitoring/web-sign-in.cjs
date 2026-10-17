@@ -71,7 +71,7 @@ class WebSignIn {
 
   /** Stops a waiting sign-in. */
   cancel() {
-    if (this.pending) this.finish(this.pending.state, new SignInError('cancelled', 'Sign-in was replaced by a new one.'));
+    if (this.pending) this.finish(this.pending.state, new SignInError('cancelled', 'Sign-in was canceled.'));
   }
 
   /**

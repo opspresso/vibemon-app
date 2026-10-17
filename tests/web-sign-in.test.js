@@ -1,4 +1,6 @@
 const { createHash } = require('node:crypto');
+const { URL, URLSearchParams } = require('node:url');
+const { setImmediate } = require('node:timers');
 const { WebSignIn, SignInError } = require('../src/monitoring/web-sign-in.cjs');
 
 const TOKEN = `vm_${'a'.repeat(60)}`;
