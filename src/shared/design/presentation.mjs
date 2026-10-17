@@ -16,8 +16,13 @@ export const codingProviders = Object.freeze([
   { id: 'opencode', name: 'OpenCode', character: 'vibemon' }
 ].map(Object.freeze));
 export const providerLabel = provider => codingProviders.find(item => item.id === provider)?.name ?? provider;
-// An account key is `provider:id`; people know the account by its ID.
-export const accountName = accountKey => accountKey.slice(accountKey.indexOf(':') + 1);
+// Compact labels never change the full identity used for selection or API calls.
+export function accountName(accountKey) {
+  const id = accountKey.slice(accountKey.indexOf(':') + 1);
+  const generated = /^(?:auto|profile|credential):([a-f0-9]{64})$/.exec(id);
+  if (generated) return generated[1].slice(0, 8);
+  return id.length > 24 ? `${id.slice(0, 15)}…${id.slice(-6)}` : id;
+}
 export const statePresentation = (state, t = english) => Object.hasOwn(states, state)
   ? [t(`state.${state}`), states[state][1]] : [state, 'neutral'];
 export const stateLabel = (state, t = english) => statePresentation(state, t)[0];
