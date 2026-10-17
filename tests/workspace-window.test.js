@@ -4,10 +4,10 @@ const path = require('node:path');
 jest.mock('electron', () => ({
   BrowserWindow: jest.fn(),
   autoUpdater: new (require('node:events').EventEmitter)(),
-  ipcMain: { handle: jest.fn(), removeHandler: jest.fn() },
+  ipcMain: { handle: jest.fn(), removeHandler: jest.fn(), on: jest.fn(), off: jest.fn() },
   shell: { openExternal: jest.fn() },
   contextBridge: { exposeInMainWorld: jest.fn() },
-  ipcRenderer: { invoke: jest.fn(), on: jest.fn(), removeListener: jest.fn() }
+  ipcRenderer: { invoke: jest.fn(), on: jest.fn(), removeListener: jest.fn(), sendSync: jest.fn(() => ({ locale: 'en', messages: { en: {} } })) }
 }));
 jest.mock('../src/modules/window-position.cjs', () => ({ centerOnCursorDisplay: jest.fn() }));
 
@@ -15,6 +15,7 @@ const { BrowserWindow, ipcMain, contextBridge, ipcRenderer, autoUpdater } = requ
 const { centerOnCursorDisplay } = require('../src/modules/window-position.cjs');
 const { WorkspaceWindow } = require('../src/workspace/window.cjs');
 const { WORKSPACE_UPDATE_MS } = require('../src/shared/constants.cjs');
+const { setLocale } = require('../src/shared/i18n/locale.cjs');
 
 let ports, view, native, invoke, event;
 beforeEach(() => {
@@ -208,6 +209,7 @@ test('cleanup stops updates, removes IPC and listeners, and prevents reopening',
   expect(native.webContents.send).not.toHaveBeenCalled();
   expect(ports.monitoring.listenerCount('change')).toBe(0);
   expect(ipcMain.removeHandler).toHaveBeenCalledWith('workspace:request');
+  expect(ipcMain.off).toHaveBeenCalledWith('workspace:language', ipcMain.on.mock.calls[0][1]);
   expect(native.destroy).toHaveBeenCalledTimes(1);
   view.open(); expect(BrowserWindow).toHaveBeenCalledTimes(1);
 });
@@ -226,6 +228,28 @@ test('preload exposes narrow requests and removable subscriptions without Electr
   stopChanged(); stopVisibility();
   expect(ipcRenderer.removeListener).toHaveBeenCalledWith(channel, listener);
   expect(ipcRenderer.removeListener).toHaveBeenCalledWith(visibilityChannel, visibilityListener);
+  expect(ipcRenderer.sendSync).toHaveBeenCalledWith('workspace:language');
+  expect(api.language).toEqual({ locale: 'en', messages: { en: {} } });
+});
+
+test('only the workspace main frame receives the App language and its messages', () => {
+  const [channel, reply] = ipcMain.on.mock.calls[0];
+  expect(channel).toBe('workspace:language');
+  open();
+  setLocale('ko');
+  try {
+    const trusted = { ...event };
+    reply(trusted);
+    expect(trusted.returnValue.locale).toBe('ko');
+    expect(trusted.returnValue.messages.ko['nav.overview']).toBe('개요');
+    expect(trusted.returnValue.messages.en['nav.overview']).toBe('Overview');
+    expect(trusted.returnValue.messages.ko['state.inactive']).toBe('비활성');
+    const frame = { sender: native.webContents, senderFrame: {} };
+    reply(frame);
+    expect(frame.returnValue).toBeNull();
+  } finally {
+    setLocale('en');
+  }
 });
 
 test('signs in through Web: a read token connects the workspace, a write token goes to hook delivery', async () => {

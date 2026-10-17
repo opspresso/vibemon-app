@@ -13,6 +13,7 @@ const { placeBubble } = require('./bubble-layout.cjs');
 const { remainingResetMinutes } = require('../shared/monitoring/clock.cjs');
 const { ALWAYS_ON_TOP_LEVEL } = require('./window-position.cjs');
 const { STATE_COLORS, STATE_TEXTS, TOOL_TEXTS, LOADING_STATES, BUBBLE_LOAD_TIMEOUT_MS } = require('../shared/config.cjs');
+const { t, currentLocale } = require('../shared/i18n/locale.cjs');
 
 const METRIC_ICONS = {
   memory: '🧠',
@@ -49,11 +50,12 @@ function buildFieldPayload(state, speechBubbleFields, { observedAt = state?.obse
 
   if (speechBubbleFields && speechBubbleFields.status && state && state.state) {
     const stateKey = String(state.state);
-    // State/tool -> text mapping from constants.json (STATE_TEXTS/TOOL_TEXTS).
+    // Registry states and tools (STATE_TEXTS/TOOL_TEXTS) use the shared
+    // bubble.* and tool.* messages in the App language.
     const toolKey = String(state.tool || '').toLowerCase();
     const text = stateKey === 'working'
-      ? (Object.hasOwn(TOOL_TEXTS, toolKey) ? TOOL_TEXTS[toolKey] : TOOL_TEXTS.default)
-      : (Object.hasOwn(STATE_TEXTS, stateKey) ? STATE_TEXTS[stateKey] : stateKey.charAt(0).toUpperCase() + stateKey.slice(1));
+      ? t(`tool.${Object.hasOwn(TOOL_TEXTS, toolKey) ? toolKey : 'default'}`)
+      : (Object.hasOwn(STATE_TEXTS, stateKey) ? t(`bubble.${stateKey}`) : stateKey.charAt(0).toUpperCase() + stateKey.slice(1));
     payload.status = { type: 'text', text };
     if (LOADING_STATES.includes(stateKey)) {
       // Loading dots beside the text; thinking-style states animate slower
@@ -110,8 +112,8 @@ function resolveBgColor(state) {
 // content with a bottom tail and leaves the current scale unchanged.
 function bubbleContent(fields, bgColor, placement = null) {
   const args = placement
-    ? [fields, placement.tailOffset, placement.tailSide, bgColor, placement.scale || 1]
-    : [fields, 0, 'bottom', bgColor];
+    ? [fields, placement.tailOffset, placement.tailSide, bgColor, placement.scale || 1, currentLocale()]
+    : [fields, 0, 'bottom', bgColor, null, currentLocale()];
   return `window.__setBubbleContent(${args.map(value => JSON.stringify(value)).join(', ')})`;
 }
 

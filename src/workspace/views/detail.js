@@ -1,6 +1,7 @@
-import { describeReset, formatAxisValue, resetCountdown } from '../../shared/design/presentation.mjs';
+import { describeReset, formatAxisValue, resetMinutes } from '../../shared/design/presentation.mjs';
 import { $, el, text, choices, keyed, svg, reading, badge, stateLabel, ago } from '../dom.js';
-import { accountCard, sourceState, sourceType } from './cards.js';
+import { accountCard, metricName, sourceState, sourceType } from './cards.js';
+import { t, locale } from '../i18n.js';
 
 export function setupDetail({ getFrame, cloudTime, request, run }) {
   const dialog = $('detail-dialog');
@@ -18,7 +19,7 @@ export function setupDetail({ getFrame, cloudTime, request, run }) {
   function chooseMetric(options, choice) {
     choices(
       $('trend-metric'),
-      options.map((metric) => [metric.key, metric.unit ? `${metric.label} (${metric.unit})` : metric.label]),
+      options.map((metric) => [metric.key, metric.unit ? t('detail.metricUnit', { metric: metricName(metric), unit: metric.unit }) : metricName(metric)]),
       options.some((metric) => metric.key === choice) ? choice : options[0]?.key || ''
     );
   }
@@ -30,7 +31,7 @@ export function setupDetail({ getFrame, cloudTime, request, run }) {
     if (!metric) {
       chart.hidden = true;
       $('chart-legend').hidden = true;
-      text($('trend-state'), 'Choose a visible metric in Customize view.');
+      text($('trend-state'), t('detail.chooseMetric'));
       return;
     }
     const precise = metric.selectionKey.startsWith('resource:');
@@ -43,7 +44,7 @@ export function setupDetail({ getFrame, cloudTime, request, run }) {
     chart.hidden = !values.length;
     $('chart-legend').hidden = !values.length;
     if (!values.length) {
-      text($('trend-state'), 'No measurements recorded for this metric in the last hour.');
+      text($('trend-state'), t('detail.noMeasurements'));
       return;
     }
     const minimum = Math.min(metric.display === 'gauge' ? metric.min : 0, ...values.map(point => point.average));
@@ -51,8 +52,8 @@ export function setupDetail({ getFrame, cloudTime, request, run }) {
     const maximum = top === minimum ? minimum + 1 : top;
     for (const y of [30, 110, 190]) chart.append(svg('line', { x1: 72, y1: y, x2: 582, y2: y, class: 'grid' }));
     chart.append(svg('text', { x: 0, y: 25 }, formatAxisValue(maximum)), svg('text', { x: 0, y: 195 }, formatAxisValue(minimum)));
-    for (const [label, x] of [['−60 min', 72], ['−30 min', 300], ['Now', 560]]) chart.append(svg('text', { x, y: 225 }, label));
-    for (const [series, label] of [['average', 'Average'], ['maximum', 'Maximum']]) {
+    for (const [label, x] of [[t('detail.minutesAgo', { minutes: 60 }), 72], [t('detail.minutesAgo', { minutes: 30 }), 300], [t('detail.now'), 560]]) chart.append(svg('text', { x, y: 225 }, label));
+    for (const [series, label] of [['average', t('detail.average')], ['maximum', t('detail.maximum')]]) {
       let path = '', previous = null;
       for (const point of samples) {
         const value = point[series];
@@ -61,13 +62,17 @@ export function setupDetail({ getFrame, cloudTime, request, run }) {
         const y = 190 - ((value - minimum) / (maximum - minimum)) * 160;
         path += `${previous !== null && point.time - previous <= 90000 ? 'L' : 'M'}${x.toFixed(2)},${y.toFixed(2)} `;
         const circle = svg('circle', { cx: x, cy: y, r: 2.5, class: series });
-        circle.append(svg('title', {}, `${new Date(point.time).toLocaleTimeString()} · ${label} ${reading(value, metric.unit, precise)}`));
+        circle.append(svg('title', {}, t('detail.point', { time: new Date(point.time).toLocaleTimeString(locale), series: label, value: reading(value, metric.unit, precise) })));
         chart.append(circle);
         previous = point.time;
       }
       chart.append(svg('path', { d: path, class: series }));
     }
-    text($('trend-state'), `${values.length} recorded minutes · latest average ${reading(values.at(-1).average, metric.unit, precise)} · peak ${reading(Math.max(...values.map(point => point.maximum)), metric.unit, precise)}`);
+    text($('trend-state'), t('detail.summary', {
+      count: values.length,
+      average: reading(values.at(-1).average, metric.unit, precise),
+      peak: reading(Math.max(...values.map(point => point.maximum)), metric.unit, precise)
+    }));
   }
   async function refresh() {
     if (!selected || !metrics(selected).length || !dialog.open || !visible || document.hidden) return;
@@ -116,7 +121,7 @@ export function setupDetail({ getFrame, cloudTime, request, run }) {
     $('detail-status').replaceChildren(status);
     text($('detail-message'), source.statusMessage || '');
     $('detail-message').hidden = !source.statusMessage;
-    text($('detail-received'), `Received ${ago(source.receivedAt, now).toLowerCase()}`);
+    text($('detail-received'), t('detail.received', { age: ago(source.receivedAt, now).toLocaleLowerCase(locale) }));
     const selectedMetrics = metrics(source);
     keyed(
       $('detail-readings'),
@@ -129,9 +134,9 @@ export function setupDetail({ getFrame, cloudTime, request, run }) {
       },
       (node, metric) => {
         const value = source.metrics[metric.key];
-        text(node.children[0], metric.label);
+        text(node.children[0], metricName(metric));
         text(node.children[1], reading(value, metric.unit, metric.selectionKey.startsWith('resource:')));
-        const reset = typeof value === 'number' ? describeReset(resetCountdown(metric.resetAt, now)) : null;
+        const reset = typeof value === 'number' ? describeReset(resetMinutes(metric.resetAt, now), t) : null;
         text(node.children[2], reset);
         node.children[2].hidden = reset === null;
       }
@@ -167,7 +172,7 @@ export function setupDetail({ getFrame, cloudTime, request, run }) {
     $('chart-legend').hidden = true;
     $('trend-error').hidden = true;
     $('retry-trend').hidden = true;
-    text($('trend-state'), 'Loading recorded measurements…');
+    text($('trend-state'), t('detail.loading'));
     if (!dialog.open) dialog.showModal();
     start();
   }

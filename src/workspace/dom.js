@@ -1,5 +1,8 @@
-import { formatMeasurement, observationAge, providerLabel, stateLabel, stateTone } from '../shared/design/presentation.mjs';
-export { formatMeasurement as reading, observationAge as ago, providerLabel as providerName, stateLabel, stateTone };
+import { formatMeasurement, observationAge, providerLabel, stateLabel as sharedStateLabel, stateTone } from '../shared/design/presentation.mjs';
+import { t } from './i18n.js';
+export { formatMeasurement as reading, providerLabel as providerName, stateTone };
+export const ago = (timestamp, now) => observationAge(timestamp, now, t);
+export const stateLabel = state => sharedStateLabel(state, t);
 
 const paths = {
   overview: ['M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3zM14 14h7v7h-7z'],
@@ -120,18 +123,20 @@ export function badge(node, state) {
   node.className = `chip ${stateTone(state)}`;
   text(node, stateLabel(state));
 }
+// Connection status → [message key, tone]; the key names connection.<key>.label and .description.
 const CONNECTION = {
-  connected: ['Connected', 'Your workspace is connected.', 'good'],
-  connecting: ['Connecting', 'Checking your workspace connection…', 'neutral'],
-  'not-configured': ['Not connected', 'Connect a workspace to follow resources and cloud accounts.', 'neutral'],
-  'token-expired': ['Token not accepted', 'Retrieve an active read token from your Web Account.', 'danger'],
-  'permission-denied': ['Read access required', 'This token cannot read monitoring data. Use a token with read permission.', 'danger'],
-  'credential-unavailable': ['Replace saved token', 'The saved token cannot be unlocked. Enter it again from Web Account.', 'warning'],
-  'secure-storage-unavailable': ['Unlock secure storage', 'Unlock your operating system secure storage, then try again.', 'warning'],
-  'connection-error': ['Connection interrupted', 'Showing last received readings. Check your Web address and connection.', 'warning']
+  connected: ['connected', 'good'],
+  connecting: ['connecting', 'neutral'],
+  'not-configured': ['notConfigured', 'neutral'],
+  'token-expired': ['tokenExpired', 'danger'],
+  'permission-denied': ['permissionDenied', 'danger'],
+  'credential-unavailable': ['credentialUnavailable', 'warning'],
+  'secure-storage-unavailable': ['secureStorageUnavailable', 'warning'],
+  'connection-error': ['connectionError', 'warning']
 };
 export const isConnectionStatus = status => Object.hasOwn(CONNECTION, status);
 /** @returns {[label: string, description: string, tone: string]} */
 export function connection(status) {
-  return CONNECTION[status] || ['Connection problem', 'Check your Web address and saved read token.', 'warning'];
+  const [key, tone] = CONNECTION[status] || ['problem', 'warning'];
+  return [t(`connection.${key}.label`), t(`connection.${key}.description`), tone];
 }

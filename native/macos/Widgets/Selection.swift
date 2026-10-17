@@ -74,7 +74,7 @@ private enum Catalog {
     /// widget can say that it is unavailable instead of silently switching.
     static func resolve(_ identifiers: [String], kind: FeedItem.Kind) -> [Entry] {
         let known = Dictionary(items(kind).map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
-        return identifiers.map { known[$0] ?? Entry(id: $0, title: "Unavailable", subtitle: "Choose another item") }
+        return identifiers.map { known[$0] ?? Entry(id: $0, title: Localization.text("Unavailable"), subtitle: Localization.text("Choose another item")) }
     }
 }
 

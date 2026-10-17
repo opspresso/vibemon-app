@@ -15,6 +15,18 @@ The tray's orange-red dot shows that something needs you. The same dot marks whe
 
 A marked menu item shows the cause below its name on macOS and after its name on Windows and Linux. The icon tooltip lists every cause. In the workspace, hover over a dot to read its cause; screen readers announce it. **Need attention** in Overview counts the affected resources and accounts. Inactive coding agents do not turn on a dot. `src/shared/attention.cjs` assigns each issue to its location for the tray and the workspace.
 
+## Languages
+
+The App shows English, Korean, and Japanese. At startup it uses the first of these languages in the macOS, Windows, or Linux language list. Any other language shows English. The tray, menus, dialogs, workspace, speech bubble, and macOS widgets use that language. To change it, change the OS language order and restart the App. Character, provider, and product names are not translated, and installer and hook output stays in English.
+
+To add or change text:
+
+1. Add the message to `src/shared/i18n/desktop.json` in `en`, `ko`, and `ja`. Messages that Web and iPhone also show belong in `src/shared/i18n/shared.json`; use its terms in Desktop text too. Every locale needs the same keys and `{placeholder}` names. A count message can have `{ "one": …, "other": … }` forms.
+2. In main-process code, call `t(key, params)` from `src/shared/i18n/locale.cjs`. In the workspace, call `t` from `src/workspace/i18n.js`, or add `data-i18n="key"` or `data-i18n-attr="aria-label:key"` to `index.html` and keep the English text there.
+3. For the macOS widgets' own words, edit `native/macos/Widgets/Localizable.xcstrings`. A widget string with the English of a `shared.json` message must use its translations.
+4. Run `node scripts/generate-monitoring.mjs --write` after a `shared.json` change, then `pnpm test:design`. The generator checks both catalogs.
+
+`VIBEMON_LOCALE=ko pnpm preview:workspace` and `VIBEMON_LOCALE=ja pnpm preview:widgets` preview a translation.
 
 ## Agent Support
 

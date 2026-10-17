@@ -1,4 +1,5 @@
 const { webOrigin } = require('../shared/web-origin.cjs');
+const { t } = require('../shared/i18n/locale.cjs');
 const { usageResetAt } = require('../shared/monitoring/clock.cjs');
 const { accountKey: accountId, groupAccounts } = require('../shared/monitoring/state.cjs');
 const { BUILTIN_METRICS: METRICS, AGENT_TEXT_LIMITS, validPercentage, validateDefinitions, validateValues, validateOrder, validText, definitionsFor, selectionKey, metricCatalog } = require('../shared/resource-schema.cjs');
@@ -16,31 +17,31 @@ function displayMetrics(source, now) {
 }
 function validTime(value) { return typeof value === 'string' && Number.isFinite(Date.parse(value)); }
 function validateSources(value) {
-  if (!Array.isArray(value) || value.length > 1000) throw new Error('Invalid source response');
+  if (!Array.isArray(value) || value.length > 1000) throw new Error(t('error.invalidSourceResponse'));
   const ids = new Set();
   return value.map(source => {
-    if (!source || !validId(source.sourceId) || ids.has(source.sourceId) || !['agent', 'host', 'cluster', 'resource'].includes(source.kind) || !validText(source.displayName, 128) || !validTime(source.receivedAt) || !validTime(source.observedAt) || !['ok', 'warning', 'error', 'unknown'].includes(source.health) || typeof source.stale !== 'boolean' || (source.heartbeat !== undefined && typeof source.heartbeat !== 'boolean') || (source.memoryType != null && !['ram', 'unified'].includes(source.memoryType))) throw new Error('Invalid source response');
+    if (!source || !validId(source.sourceId) || ids.has(source.sourceId) || !['agent', 'host', 'cluster', 'resource'].includes(source.kind) || !validText(source.displayName, 128) || !validTime(source.receivedAt) || !validTime(source.observedAt) || !['ok', 'warning', 'error', 'unknown'].includes(source.health) || typeof source.stale !== 'boolean' || (source.heartbeat !== undefined && typeof source.heartbeat !== 'boolean') || (source.memoryType != null && !['ram', 'unified'].includes(source.memoryType))) throw new Error(t('error.invalidSourceResponse'));
     ids.add(source.sourceId);
     let resource = {};
     if (source.kind === 'resource' || source.metricDefinitions !== undefined) {
-      if (!validText(source.resourceType, 64) || (source.statusMessage !== undefined && !validText(source.statusMessage, 160, true)) || source.agent != null || source.account != null) throw new Error('Invalid custom resource response');
+      if (!validText(source.resourceType, 64) || (source.statusMessage !== undefined && !validText(source.statusMessage, 160, true)) || source.agent != null || source.account != null) throw new Error(t('error.invalidCustomResponse'));
       const metricDefinitions = validateDefinitions(source.metricDefinitions);
       resource = { resourceType: source.resourceType, metricDefinitions, metricOrder: validateOrder(source.metricOrder, metricDefinitions), ...(source.statusMessage === undefined ? {} : { statusMessage: source.statusMessage }) };
     }
     let agent = null;
     let account = null;
     if (source.kind === 'agent') {
-      if (!source.agent || !['state', 'character', 'project'].every(key => validText(source.agent[key], AGENT_TEXT_LIMITS[key]))) throw new Error('Invalid agent response');
-      if (!source.account || !validAccountId(accountId(source.account)) || !validText(source.account.displayName, 128)) throw new Error('Invalid account response');
+      if (!source.agent || !['state', 'character', 'project'].every(key => validText(source.agent[key], AGENT_TEXT_LIMITS[key]))) throw new Error(t('error.invalidAgentResponse'));
+      if (!source.account || !validAccountId(accountId(source.account)) || !validText(source.account.displayName, 128)) throw new Error(t('error.invalidAccountResponse'));
       agent = Object.fromEntries(['state', 'character', 'project'].map(key => [key, source.agent[key]]));
       for (const key of ['tool', 'model', 'usageWeekModelLabel']) {
         const text = source.agent[key];
-        if (text !== undefined && !validText(text, AGENT_TEXT_LIMITS[key], true)) throw new Error('Invalid agent response');
+        if (text !== undefined && !validText(text, AGENT_TEXT_LIMITS[key], true)) throw new Error(t('error.invalidAgentResponse'));
         if (text !== undefined) agent[key] = text;
       }
       for (const key of ['usage5hResetsIn', 'usageWeekResetsIn', 'usageWeekModelResetsIn', 'usageWeekModel']) {
         const number = source.agent[key];
-        if (number !== undefined && (key === 'usageWeekModel' ? !validPercentage(number) : !Number.isSafeInteger(number) || number < 0)) throw new Error('Invalid agent response');
+        if (number !== undefined && (key === 'usageWeekModel' ? !validPercentage(number) : !Number.isSafeInteger(number) || number < 0)) throw new Error(t('error.invalidAgentResponse'));
         if (number !== undefined) agent[key] = number;
       }
       account = { id: source.account.id, provider: source.account.provider, displayName: source.account.displayName };
@@ -49,14 +50,14 @@ function validateSources(value) {
   });
 }
 function validateTrend(value, definitions = METRICS) {
-  if (!Array.isArray(value) || value.length > 61) throw new Error('Invalid trend response');
+  if (!Array.isArray(value) || value.length > 61) throw new Error(t('error.invalidTrendResponse'));
   let previous = -Infinity;
   return value.map(point => {
-    if (!point || !validTime(point.timestamp) || Date.parse(point.timestamp) <= previous || !Number.isSafeInteger(point.samples) || point.samples < 1 || !Number.isFinite(point.expiresAt) || point.expiresAt < 0) throw new Error('Invalid trend response');
+    if (!point || !validTime(point.timestamp) || Date.parse(point.timestamp) <= previous || !Number.isSafeInteger(point.samples) || point.samples < 1 || !Number.isFinite(point.expiresAt) || point.expiresAt < 0) throw new Error(t('error.invalidTrendResponse'));
     previous = Date.parse(point.timestamp);
     const average = metrics(point.average, definitions);
     const maximum = metrics(point.maximum, definitions);
-    for (const key of Object.keys(definitions)) if ((average[key] === null) !== (maximum[key] === null) || (average[key] !== null && maximum[key] < average[key])) throw new Error('Invalid trend response');
+    for (const key of Object.keys(definitions)) if ((average[key] === null) !== (maximum[key] === null) || (average[key] !== null && maximum[key] < average[key])) throw new Error(t('error.invalidTrendResponse'));
     return { timestamp: point.timestamp, samples: point.samples, expiresAt: point.expiresAt, average, maximum };
   });
 }

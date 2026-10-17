@@ -140,3 +140,14 @@ test('local projects appear without a cloud connection, sorted after resources',
   assert.deepEqual(feed.items.map(item => item.id), ['resource:mac-studio', 'agent:claude:default', 'agent:codex:default']);
   assert.deepEqual(feed.items.map(item => item.link), ['vibemon://dashboard/resources', 'vibemon://dashboard/agents', 'vibemon://dashboard/agents']);
 });
+
+test('labels follow the App language', () => {
+  const feed = build({ cloud: cloud([host(), agentSource()]), locale: 'ko' });
+  const [resource, agent] = feed.items;
+  assert.equal(resource.subtitle, '호스트');
+  assert.deepEqual(resource.metrics.map(metric => metric.label), ['CPU', '통합 메모리', 'GPU']);
+  assert.equal(resource.timeline[0].label, '정상');
+  assert.deepEqual(agent.metrics.map(metric => metric.label), ['컨텍스트', '세션', '주간']);
+  assert.equal(agent.timeline[0].label, '작업 중');
+  assert.equal(build({ cloud: cloud([agentSource()]) }).items[0].metrics[1].label, 'Session');
+});

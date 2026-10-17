@@ -1,7 +1,8 @@
 const { TextDecoder } = require('node:util');
+const { t } = require('./i18n/locale.cjs');
 
 async function readJsonResponse(response, maximumBytes) {
-  if (!response.body) throw new Error('Empty JSON response');
+  if (!response.body) throw new Error(t('error.emptyJson'));
   const reader = response.body.getReader();
   const decoder = new TextDecoder('utf-8', { fatal: true });
   let bytes = 0;
@@ -13,13 +14,13 @@ async function readJsonResponse(response, maximumBytes) {
       bytes += value.byteLength;
       if (bytes > maximumBytes) {
         await reader.cancel();
-        throw new Error('JSON response exceeds the size limit');
+        throw new Error(t('error.jsonTooLarge'));
       }
       text += decoder.decode(value, { stream: true });
     }
     text += decoder.decode();
     try { return JSON.parse(text); }
-    catch { throw new Error('Invalid JSON response'); }
+    catch { throw new Error(t('error.invalidJson')); }
   } finally {
     reader.releaseLock();
   }

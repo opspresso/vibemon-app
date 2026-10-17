@@ -13,6 +13,7 @@ const path = require('path');
 const { HTTP_PORT } = require('../shared/config.cjs');
 const { webOrigin, sameWebOrigin } = require('../shared/web-origin.cjs');
 const { writeFileAtomic } = require('../shared/atomic-file.cjs');
+const { t } = require('../shared/i18n/locale.cjs');
 
 const VIBEMON_HOME = path.join(os.homedir(), '.vibemon');
 const VIBEMON_CONFIG_PATH = path.join(VIBEMON_HOME, 'config.json');
@@ -66,11 +67,11 @@ class VibemonConfigManager {
       return { exists: false, hasDesktopUrl: false };
     }
     if (raw === undefined) {
-      return { exists: true, hasDesktopUrl: false, error: 'Fix ~/.vibemon/config.json: expected a valid JSON object.' };
+      return { exists: true, hasDesktopUrl: false, error: t('config.invalidJson') };
     }
     const urls = Array.isArray(raw.http_urls) ? raw.http_urls : [];
     const invalid = invalidFields(raw);
-    return { exists: true, hasDesktopUrl: urls.includes(DESKTOP_HTTP_URL), ...(invalid.length ? { error: `Invalid field types in ~/.vibemon/config.json: ${invalid.join(', ')}.` } : {}) };
+    return { exists: true, hasDesktopUrl: urls.includes(DESKTOP_HTTP_URL), ...(invalid.length ? { error: t('config.invalidFields', { fields: invalid.join(', ') }) } : {}) };
   }
 
   /**
@@ -97,9 +98,9 @@ class VibemonConfigManager {
    * @returns {object} the fresh config after writing (same shape as read())
    */
   write(partial) {
-    if (!partial || typeof partial !== 'object' || Array.isArray(partial)) throw new Error('Config changes must be a JSON object');
+    if (!partial || typeof partial !== 'object' || Array.isArray(partial)) throw new Error(t('error.configObject'));
     const raw = readRawConfig();
-    if (raw === undefined) throw new Error('Fix ~/.vibemon/config.json: expected a valid JSON object before saving changes');
+    if (raw === undefined) throw new Error(t('config.invalidBeforeSave'));
     const current = { ...VIBEMON_CONFIG_DEFAULTS, ...(raw || {}) };
     const next = { ...current };
 
@@ -133,9 +134,9 @@ class VibemonConfigManager {
 
     if (Object.hasOwn(partial, 'vibemon_url')) {
       next.vibemon_url = webOrigin(next.vibemon_url, this.allowLocalHttp);
-      if (current.vibemon_token && !sameWebOrigin(next.vibemon_url, current.vibemon_url, this.allowLocalHttp) && !String(partial.vibemon_token || '').trim()) throw new Error('Enter a new write token when changing the Web address');
+      if (current.vibemon_token && !sameWebOrigin(next.vibemon_url, current.vibemon_url, this.allowLocalHttp) && !String(partial.vibemon_token || '').trim()) throw new Error(t('delivery.tokenForNewAddress'));
     }
-    if (!this.persist(next)) throw new Error('Unable to save ~/.vibemon/config.json');
+    if (!this.persist(next)) throw new Error(t('config.saveFailed'));
     return next;
   }
 

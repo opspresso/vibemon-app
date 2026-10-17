@@ -10,10 +10,13 @@ const { HookCloudDelivery } = require('../../src/modules/hook-cloud-delivery.cjs
 const { TrayManager } = require('../../src/modules/tray-manager.cjs');
 const { attentionAreas, attentionNotices } = require('../../src/shared/attention.cjs');
 const { TOKEN, memoryStore, sources, createPorts, trend } = require('../fixtures/workspace.cjs');
+const { setLocale, t } = require('../../src/shared/i18n/locale.cjs');
 
 const directory = process.env.VIBEMON_TEST_USER_DATA;
 if (!directory) throw new Error('Launch this fixture with pnpm test:workspace or pnpm preview:workspace');
 app.setPath('userData', directory);
+// Tests run in English. VIBEMON_LOCALE=ko or ja previews a translation.
+setLocale(process.env.VIBEMON_LOCALE || 'en');
 // The smoke test waits for animation frames and captures the window. Chromium
 // stops painting a window that other windows hide, so keep it rendering.
 for (const name of ['disable-renderer-backgrounding', 'disable-backgrounding-occluded-windows', 'disable-background-timer-throttling']) {
@@ -92,7 +95,7 @@ async function startFixture() {
   await client.configure({ url: 'https://vibemon.io', token: TOKEN });
   installWorkspaceMenu({ open: page => view.open(page), showCompanion: ports.showCompanion });
   // Selecting the native menu action creates the workspace; the tray alone does not.
-  const selectDashboard = () => Menu.buildFromTemplate(trayManager.buildMenuTemplate()).items.find(item => item.label.startsWith('Dashboard')).click();
+  const selectDashboard = () => Menu.buildFromTemplate(trayManager.buildMenuTemplate()).items.find(item => item.label.startsWith(t('nav.dashboard'))).click();
   assert.equal(view.window, null, 'creating the tray does not open the workspace');
   selectDashboard();
   view.window.webContents.on('console-message', details => {

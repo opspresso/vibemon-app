@@ -13,11 +13,12 @@ const { createHash, randomBytes } = require('node:crypto');
 const { URL, URLSearchParams } = require('node:url');
 const { webOrigin } = require('./domain.cjs');
 const { CLOUD_REQUEST_TIMEOUT_MS, WEB_SIGN_IN_TIMEOUT_MS } = require('../shared/constants.cjs');
+const { t } = require('../shared/i18n/locale.cjs');
 
 const CLIENT_ID = 'vibemon-desktop';
 const TOKEN = /^vm_[a-f0-9]{60}$/;
 
-// `reason` names the failure; the message is the sentence shown to people.
+// `reason` names the failure; the message is the sentence shown to people, in the App language.
 // (The workspace IPC shows `error.code` as a connection status, so it is not set.)
 class SignInError extends Error {
   constructor(reason, message) {
@@ -52,7 +53,7 @@ class WebSignIn {
    */
   async signIn(url, scope) {
     const origin = webOrigin(url, this.allowLocalHttp);
-    if (!['read', 'write'].includes(scope)) throw new SignInError('invalid-scope', 'Unknown permission');
+    if (!['read', 'write'].includes(scope)) throw new SignInError('invalid-scope', t('signIn.unknownScope'));
     this.cancel();
     const verifier = base64url(randomBytes(32));
     const state = base64url(randomBytes(16));
@@ -62,16 +63,16 @@ class WebSignIn {
       code_challenge: base64url(createHash('sha256').update(verifier).digest()), code_challenge_method: 'S256'
     })) authorize.searchParams.set(key, value);
     const code = await new Promise((resolve, reject) => {
-      const timer = setTimeout(() => this.finish(state, new SignInError('timeout', 'Sign-in timed out. Try again.')), this.timeoutMs);
+      const timer = setTimeout(() => this.finish(state, new SignInError('timeout', t('signIn.timeout'))), this.timeoutMs);
       this.pending = { state, resolve, reject, timer };
-      Promise.resolve(this.openExternal(authorize.href)).catch(error => this.finish(state, new SignInError('browser', `Could not open the browser: ${error.message}`)));
+      Promise.resolve(this.openExternal(authorize.href)).catch(error => this.finish(state, new SignInError('browser', t('signIn.browser', { error: error.message }))));
     });
     return this.exchange(origin, code, verifier);
   }
 
   /** Stops a waiting sign-in. */
   cancel() {
-    if (this.pending) this.finish(this.pending.state, new SignInError('cancelled', 'Sign-in was canceled.'));
+    if (this.pending) this.finish(this.pending.state, new SignInError('cancelled', t('signIn.cancelled')));
   }
 
   /**
@@ -82,19 +83,19 @@ class WebSignIn {
   complete(params) {
     const state = params.get('state');
     if (!this.pending || !state || state !== this.pending.state) {
-      return { ok: false, message: 'This sign-in is not waiting anymore. Start it again in VibeMon.' };
+      return { ok: false, message: t('signIn.page.notWaiting') };
     }
     if (params.get('error') === 'access_denied') {
-      this.finish(state, new SignInError('denied', 'You selected Deny on VibeMon Web.'));
-      return { ok: false, message: 'Sign-in was denied. You can close this tab.' };
+      this.finish(state, new SignInError('denied', t('signIn.denied')));
+      return { ok: false, message: t('signIn.page.denied') };
     }
     const code = params.get('code');
     if (!code || code.length > 100) {
-      this.finish(state, new SignInError('invalid-callback', 'The sign-in did not finish. Try again.'));
-      return { ok: false, message: 'The sign-in did not finish. Start it again in VibeMon.' };
+      this.finish(state, new SignInError('invalid-callback', t('signIn.unfinished')));
+      return { ok: false, message: t('signIn.page.unfinished') };
     }
     this.finish(state, null, code);
-    return { ok: true, message: 'Signed in. Return to VibeMon; you can close this tab.' };
+    return { ok: true, message: t('signIn.page.done') };
   }
 
   finish(state, error, code) {
@@ -114,12 +115,12 @@ class WebSignIn {
         body: new URLSearchParams({ grant_type: 'authorization_code', client_id: CLIENT_ID, code, code_verifier: verifier, redirect_uri: this.redirectUri })
       });
     } catch {
-      throw new SignInError('unreachable', 'Cannot reach VibeMon Web. Check the network and try again.');
+      throw new SignInError('unreachable', t('signIn.unreachable'));
     }
     const body = await response.json().catch(() => ({}));
     if (response.ok && typeof body.access_token === 'string' && TOKEN.test(body.access_token)) return body.access_token;
-    if (body.error === 'invalid_grant') throw new SignInError('expired', 'The sign-in expired. Try again.');
-    throw new SignInError('rejected', `VibeMon Web did not finish the sign-in (HTTP ${response.status}).`);
+    if (body.error === 'invalid_grant') throw new SignInError('expired', t('signIn.expired'));
+    throw new SignInError('rejected', t('signIn.rejected', { status: response.status }));
   }
 }
 

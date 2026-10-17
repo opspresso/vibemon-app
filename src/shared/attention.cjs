@@ -5,6 +5,8 @@
  * areas, so every badge names the place that resolves it. Inputs are the
  * workspace frame sections: the monitoring snapshot and the settings snapshot.
  */
+const { t } = require('./i18n/locale.cjs');
+
 const QUIET_CONNECTIONS = new Set(['connected', 'connecting', 'not-configured']);
 const ACTIONABLE_UPDATES = new Set(['available', 'downloaded']);
 
@@ -33,42 +35,46 @@ function attentionAreas(cloud, settings) {
   };
 }
 
-const count = (n, noun) => `${n} ${noun}${n === 1 ? '' : 's'}`;
-const needs = (n, noun) => n ? `${count(n, noun)} ${n === 1 ? 'needs' : 'need'} attention` : null;
 const CONNECTION_NOTICES = {
-  'token-expired': 'Read token rejected',
-  'permission-denied': 'Read permission required',
-  'credential-unavailable': 'Saved token unavailable',
-  'secure-storage-unavailable': 'Secure storage is locked'
+  'token-expired': 'notice.tokenExpired',
+  'permission-denied': 'notice.permissionDenied',
+  'credential-unavailable': 'notice.credentialUnavailable',
+  'secure-storage-unavailable': 'notice.secureStorageLocked'
 };
+const names = list => list.join(t('list.separator'));
 
 /**
- * One short sentence per area that needs the user, or null when it is quiet.
+ * One short sentence per area that needs the user, or null when it is quiet,
+ * in the App language (see i18n/locale.cjs). Web words these the same way
+ * with the shared attention.* and count.* messages.
  * @param {ReturnType<typeof attentionAreas>} areas
  * `resources`, `accounts`, and `where` describe the parts of `dashboard`.
  * @returns {{dashboard: string|null, resources: string|null, accounts: string|null, where: string,
  *            connection: string|null, integrations: string|null, update: string|null}}
  */
 function attentionNotices(areas) {
-  const total = areas.resources + areas.accounts;
-  const sources = noun => [areas.resources && count(areas.resources, 'resource'), areas.accounts && count(areas.accounts, noun)].filter(Boolean).join(' · ');
+  const { resources, accounts } = areas;
   const { repairs, config, delivery } = areas.integrations;
   const broken = repairs.filter(tool => tool.broken).map(tool => tool.name);
   const outdated = repairs.filter(tool => !tool.broken).map(tool => tool.name);
   const integrations = [
-    broken.length && `${broken.join(', ')} ${broken.length === 1 ? 'needs' : 'need'} repair`,
-    outdated.length && `${outdated.join(', ')} ${outdated.length === 1 ? 'has an update' : 'have updates'}`,
-    config && 'Local delivery settings need repair',
-    delivery && 'Cloud delivery check failed'
+    broken.length && t('notice.needsRepair', { count: broken.length, names: names(broken) }),
+    outdated.length && t('notice.hasUpdates', { count: outdated.length, names: names(outdated) }),
+    config && t('notice.configRepair'),
+    delivery && t('notice.deliveryFailed')
   ].filter(Boolean);
+  const resourceNotice = resources ? t('attention.resources', { count: resources }) : null;
+  const accountNotice = accounts ? t('attention.accounts', { count: accounts }) : null;
   return {
-    dashboard: total ? `${sources('coding account')} ${total === 1 ? 'needs' : 'need'} attention` : null,
-    resources: needs(areas.resources, 'resource'),
-    accounts: needs(areas.accounts, 'coding account'),
-    where: sources('account'),
-    connection: areas.connection ? CONNECTION_NOTICES[areas.connection] || 'Cloud connection interrupted' : null,
+    dashboard: resources && accounts
+      ? t('attention.mixed', { resources: t('count.resources', { count: resources }), accounts: t('count.codingAccounts', { count: accounts }) })
+      : resourceNotice || accountNotice,
+    resources: resourceNotice,
+    accounts: accountNotice,
+    where: [resources && t('count.resources', { count: resources }), accounts && t('count.accounts', { count: accounts })].filter(Boolean).join(' · '),
+    connection: areas.connection ? t(CONNECTION_NOTICES[areas.connection] || 'notice.connectionInterrupted') : null,
     integrations: integrations.length ? integrations.join(' · ') : null,
-    update: areas.update ? `Version ${areas.update.version} ${areas.update.status === 'downloaded' ? 'is ready to install' : 'is available'}` : null
+    update: areas.update ? t(areas.update.status === 'downloaded' ? 'notice.updateReady' : 'notice.updateAvailable', { version: areas.update.version }) : null
   };
 }
 

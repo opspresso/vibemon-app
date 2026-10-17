@@ -1,12 +1,13 @@
 const { URL } = require('node:url');
+const { t } = require('./i18n/locale.cjs');
 
 function webOrigin(value, allowLocalHttp = false) {
   let url;
   try { url = new URL(value); }
-  catch { throw new Error('Use an HTTPS Web origin without a path or credentials'); }
+  catch { throw new Error(t('error.webOrigin')); }
   const local = allowLocalHttp && url.protocol === 'http:' && ['localhost', '127.0.0.1', '[::1]'].includes(url.hostname);
   if ((!local && url.protocol !== 'https:') || url.username || url.password || url.search || url.hash || url.pathname !== '/') {
-    throw new Error('Use an HTTPS Web origin without a path or credentials');
+    throw new Error(t('error.webOrigin'));
   }
   return url.origin;
 }

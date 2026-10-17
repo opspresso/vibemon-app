@@ -3,16 +3,18 @@ import { renderCards, renderActivity, renderUsage, accountCard, needsAttention }
 import { setupPreferences } from './views/preferences.js';
 import { setupSelection } from './views/selection.js';
 import { setupDetail } from './views/detail.js';
+import { t, locale, localizeDocument } from './i18n.js';
 
 const api = window.workspace;
+// Route → [title key, description key].
 const pages = {
-  overview: ['Overview', 'A clear view of your systems and coding activity.'],
-  resources: ['Resources', 'Follow the systems that keep your work running.'],
-  agents: ['Coding agents', 'Your accounts, usage, and local activity in one place.'],
-  connections: ['Settings', 'A workspace that fits the way you work.'],
-  companion: ['Settings', 'A workspace that fits the way you work.'],
-  integrations: ['Settings', 'A workspace that fits the way you work.'],
-  about: ['Settings', 'A workspace that fits the way you work.']
+  overview: ['nav.overview', 'page.overview'],
+  resources: ['nav.resources', 'page.resources'],
+  agents: ['nav.agents', 'page.agents'],
+  connections: ['nav.settings', 'page.settings'],
+  companion: ['nav.settings', 'page.settings'],
+  integrations: ['nav.settings', 'page.settings'],
+  about: ['nav.settings', 'page.settings']
 };
 const settingsPages = new Set(['connections', 'companion', 'integrations', 'about']);
 let frame = null;
@@ -24,6 +26,7 @@ let pageFocusPending = false;
 let overviewAttention = false;
 let preferences, selection, detail;
 document.documentElement.dataset.platform = api.platform;
+localizeDocument();
 hydrateIcons();
 
 async function request(command, ...args) {
@@ -37,7 +40,7 @@ async function request(command, ...args) {
   return response.value;
 }
 function fail(error) {
-  const message = error.message || 'The request could not be completed.';
+  const message = error.message || t('error.requestIncomplete');
   const dialogError = document.querySelector('dialog[open] .dialog-error');
   if (dialogError) {
     text(dialogError, message);
@@ -162,9 +165,10 @@ function render(value) {
   const route = pages[value.route] ? value.route : 'overview';
   document.documentElement.dataset.page = route;
   configureSprites(settings.options.characters);
-  text($('page-title'), pages[route][0]);
-  $('page-title').setAttribute('aria-label', settingsPages.has(route) ? `Settings: ${route.charAt(0).toUpperCase()}${route.slice(1)}` : pages[route][0]);
-  text($('page-description'), pages[route][1]);
+  const title = t(pages[route][0]);
+  text($('page-title'), title);
+  $('page-title').setAttribute('aria-label', settingsPages.has(route) ? t('page.settingsLabel', { page: t(`nav.${route}`) }) : title);
+  text($('page-description'), t(pages[route][1]));
   for (const section of document.querySelectorAll('[data-page]'))
     section.hidden = section.dataset.page !== route;
   for (const button of document.querySelectorAll('[data-page-link]')) {
@@ -181,17 +185,17 @@ function render(value) {
   $('connection-chip').className = `chip ${tone}`;
   text($('sidebar-status'), label);
   $('sidebar-dot').className = `status-dot ${tone}`;
-  let host = 'Your cloud workspace';
+  let host = t('sidebar.host');
   try {
     host = new URL(cloud.url).host;
   } catch {
-    host = 'Check Web address';
+    host = t('sidebar.checkAddress');
   }
   text($('sidebar-host'), host);
   $('connection-notice').hidden = cloud.status === 'connected' || route === 'connections';
   text(
     $('connection-notice-title'),
-    cloud.status === 'not-configured' ? 'Connect your cloud workspace' : label
+    cloud.status === 'not-configured' ? t('connection.notice') : label
   );
   text($('connection-notice-description'), description);
   const resources = cloud.sources.filter((source) => source.kind !== 'agent');
@@ -208,57 +212,57 @@ function render(value) {
   text(
     $('summary-resource-note'),
     resources.length
-      ? `${resources.filter((item) => !needsAttention(item) && item.health === 'ok').length} healthy · ${resources.filter(needsAttention).length} need attention`
-      : 'Choose the systems you follow'
+      ? t('summary.resourcesNote', {
+        healthy: resources.filter((item) => !needsAttention(item) && item.health === 'ok').length,
+        attention: resources.filter(needsAttention).length
+      })
+      : t('summary.resourcesEmpty')
   );
   text(
     $('summary-account-note'),
     accounts.length
-      ? `${new Set(accounts.map((item) => item.provider)).size} providers connected`
-      : 'Connect an account to get started'
+      ? t('summary.providers', { count: new Set(accounts.map((item) => item.provider)).size })
+      : t('summary.accountsEmpty')
   );
-  text($('summary-local-note'), `${active.length} active on this device`);
+  text($('summary-local-note'), t('summary.localActive', { count: active.length }));
   // The tile already says "Need attention"; its note names where.
-  text($('summary-attention-note'), overviewAttention ? 'Showing sources to review' : value.attention.notices.where || 'No reported issues');
+  text($('summary-attention-note'), overviewAttention ? t('summary.reviewing') : value.attention.notices.where || t('summary.noIssues'));
   $('overview-attention').setAttribute('aria-pressed', String(overviewAttention));
   document.documentElement.dataset.overviewFilter = overviewAttention ? 'attention' : 'all';
   markAttention(value.attention);
   text(
     $('last-sync'),
     cloud.lastSyncedAt
-      ? `Cloud checked ${ago(cloud.lastSyncedAt).toLowerCase()} · local activity on this device`
-      : 'Local activity works without a cloud connection.'
+      ? t('footer.checked', { age: ago(cloud.lastSyncedAt).toLocaleLowerCase(locale) })
+      : t('footer.localOnly')
   );
   text($('footer-version'), settings.version);
   const selectedMetrics = new Set(cloud.selectedMetrics);
   const canChoose = cloud.status === 'connected' || cloud.catalog.length > 0;
   const choose = () => (canChoose ? selection.open() : navigate('connections'));
   const resourceEmpty = {
-    emptyTitle:
-      cloud.status === 'not-configured' ? 'Bring your resources into view' : 'No resources in this view',
-    emptyDescription: cloud.tokenConfigured
-      ? 'Select resources, or start a collector in this workspace.'
-      : 'Connect your Web workspace to follow servers, clusters, and any custom resource.',
-    emptyAction: cloud.tokenConfigured ? 'Choose resources' : 'Connect workspace'
+    emptyTitle: t(cloud.status === 'not-configured' ? 'empty.resources.welcome' : 'empty.resources.title'),
+    emptyDescription: t(cloud.tokenConfigured ? 'empty.resources.description' : 'empty.resources.connect'),
+    emptyAction: t(cloud.tokenConfigured ? 'empty.resources.action' : 'empty.connect')
   };
   const accountEmpty = {
-    emptyTitle: 'No cloud accounts selected',
-    emptyDescription: 'Connect provider accounts on Web, then choose the ones to follow here.',
-    emptyAction: cloud.tokenConfigured ? 'Choose accounts' : 'Connect workspace'
+    emptyTitle: t('empty.accounts.title'),
+    emptyDescription: t('empty.accounts.description'),
+    emptyAction: t(cloud.tokenConfigured ? 'empty.accounts.action' : 'empty.connect')
   };
   if (!canChoose && cloud.tokenConfigured) {
     for (const emptyState of [resourceEmpty, accountEmpty]) Object.assign(emptyState, {
-      emptyTitle: cloud.status === 'connecting' ? 'Connecting your workspace' : 'Workspace data is unavailable',
+      emptyTitle: t(cloud.status === 'connecting' ? 'empty.connecting' : 'empty.unavailable'),
       emptyDescription: connection(cloud.status)[1],
-      emptyAction: 'Connection settings'
+      emptyAction: t('action.connectionSettings')
     });
   }
   if (route === 'overview') {
     const clearAttention = () => { overviewAttention = false; render(frame); };
     const attentionEmpty = (kind) => ({
-      emptyTitle: `No ${kind} need attention`,
-      emptyDescription: 'Your selected cloud sources have no reported issues.',
-      emptyAction: 'Show all sources'
+      emptyTitle: t(`empty.attention.${kind}`),
+      emptyDescription: t('empty.attention.description'),
+      emptyAction: t('empty.attention.action')
     });
     renderCards($('overview-resources'), overviewAttention ? resources.filter(needsAttention) : resources, selectedMetrics, detail.open, overviewAttention ? clearAttention : choose, {
       ...(overviewAttention ? attentionEmpty('resources') : resourceEmpty),
@@ -282,7 +286,7 @@ function render(value) {
         (filter === 'all' ||
           (filter === 'attention' ? needsAttention(item) : !needsAttention(item) && item.health === 'ok'))
     );
-    text($('resources-heading'), `Your resources · ${matches.length}`);
+    text($('resources-heading'), t('resources.headingCount', { count: matches.length }));
     const filtered = search || filter !== 'all';
     const clear = () => {
       $('resource-search').value = '';
@@ -297,9 +301,9 @@ function render(value) {
       filtered ? clear : choose,
       filtered
         ? {
-          emptyTitle: 'No matching resources',
-          emptyDescription: 'Try a different name or status filter.',
-          emptyAction: 'Clear filters'
+          emptyTitle: t('empty.noResourceMatch'),
+          emptyDescription: t('empty.noResourceMatchHelp'),
+          emptyAction: t('empty.clearFilters')
         }
         : resourceEmpty,
       cloudTime()
@@ -312,7 +316,7 @@ function render(value) {
     choices(
       $('agent-filter'),
       [
-        ['all', 'All providers'],
+        ['all', t('agents.allProviders')],
         ...providers.map((provider) => [provider, providerName(provider)])
       ],
       previous === 'all' || providers.includes(previous) ? previous : 'all'
@@ -339,9 +343,9 @@ function render(value) {
       filtered ? clear : choose,
       filtered
         ? {
-          emptyTitle: 'No matching accounts',
-          emptyDescription: 'Try a different account, project, or provider.',
-          emptyAction: 'Clear filters'
+          emptyTitle: t('empty.noAccountMatch'),
+          emptyDescription: t('empty.noAccountMatchHelp'),
+          emptyAction: t('empty.clearFilters')
         }
         : accountEmpty,
       cloudTime()
@@ -379,7 +383,7 @@ $('overview-attention').addEventListener('click', () => {
 $('refresh').addEventListener('click', () =>
   run($('refresh'), async () => {
     const cloud = await request('refresh');
-    if (cloud.status === 'connected') notify('Workspace refreshed');
+    if (cloud.status === 'connected') notify(t('toast.refreshed'));
   })
 );
 $('show-companion').addEventListener('click', () =>

@@ -28,6 +28,7 @@ const { WorkspaceSettings } = require('./workspace/settings.cjs');
 const { localActivity } = require('./workspace/activity.cjs');
 const { attentionAreas, attentionNotices } = require('./shared/attention.cjs');
 const { installWorkspaceMenu } = require('./workspace/menu.cjs');
+const { t, initLocale, currentLocale } = require('./shared/i18n/locale.cjs');
 const { dashboardPage } = require('./workspace/deep-link.cjs');
 const { getUsageSnapshot, providerCacheKey } = require('./modules/usage-cache-reader.cjs');
 const { WidgetPublisher, usageByAccount, widgetsSupported } = require('./widgets/publisher.cjs');
@@ -410,6 +411,8 @@ function widgetReloader() {
 
 // App lifecycle
 app.whenReady().then(() => {
+  // The OS languages are complete only after 'ready'; every later text uses them.
+  initLocale(app);
   // Hide Dock icon on macOS (tray-only app)
   if (process.platform === 'darwin' && app.dock) {
     app.dock.hide();
@@ -430,7 +433,7 @@ app.whenReady().then(() => {
     getActivity: () => localActivity(windowManager.getRegisteredStates(), windowManager.getWindowCount() ? windowManager.getFocusedProjectId() : null),
     getUsage: () => getUsageSnapshot(),
     showCompanion: showCharacterAgain,
-    reportError: error => dialog.showErrorBox('VibeMon workspace could not open', error.message)
+    reportError: error => dialog.showErrorBox(t('dialog.workspaceFailed'), error.message)
   });
   // Every source of an issue lands here: cloud polls, settings, hooks, updates.
   const refreshAttention = () => trayManager.setAttention(attentionNotices(attentionAreas(monitoringClient.snapshot(), workspaceSettings.getSnapshot())));
@@ -463,7 +466,7 @@ app.whenReady().then(() => {
     const { buildWidgetFeed } = require('./widgets/feed.mjs');
     widgetPublisher = new WidgetPublisher({
       collect: () => ({ cloud: monitoringClient.snapshot(), states: windowManager.getRegisteredStates(), usage: usageByAccount(getUsageSnapshot(), providerCacheKey) }),
-      build: buildWidgetFeed,
+      build: input => buildWidgetFeed({ ...input, locale: currentLocale() }),
       reload: widgetReloader(),
       artwork: character => CHARACTER_CONFIG[character]?.image
     });
@@ -477,10 +480,7 @@ app.whenReady().then(() => {
   httpServer.webSignIn = webSignIn;
   httpServer.onError = (err) => {
     if (err.code === 'EADDRINUSE') {
-      dialog.showErrorBox(
-        'VibeMon - Port Conflict',
-        `Port ${HTTP_PORT} is already in use.\nAnother instance may be running.\n\nThe app will continue but HTTP API won't work.`
-      );
+      dialog.showErrorBox(t('dialog.portConflict.title'), t('dialog.portConflict.message', { port: HTTP_PORT }));
     }
   };
   httpServer.start();

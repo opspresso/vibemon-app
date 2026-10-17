@@ -4,7 +4,7 @@
 // the widget only lays the result out. One item is one resource or one coding
 // agent account. Each item carries a timeline of its future display states,
 // so a widget keeps aging correctly between App writes.
-import { accountName, formatMeasurement, measurementUnit, metricTone, providerLabel, resourceType, stateLabel, stateTone } from '../shared/design/presentation.mjs';
+import { accountName, formatMeasurement, measurementUnit, metricLabel, metricTone, providerLabel, resourceType, sharedTranslator, stateLabel, stateTone } from '../shared/design/presentation.mjs';
 import monitoring from '../shared/monitoring/state.cjs';
 import clock from '../shared/monitoring/clock.cjs';
 import constants from '../shared/constants.cjs';
@@ -17,10 +17,11 @@ export const WIDGET_FEED_VERSION = 1;
 const METRIC_LIMIT = 3;
 // Every agent state chain ends within this window; resources turn stale sooner.
 const HORIZON_MS = 60 * 60 * 1000;
+// `label` is a shared message key; agent rows use the short usage labels.
 const AGENT_METRICS = [
-  { key: 'contextPercent', label: 'Context' },
-  { key: 'usageSessionPercent', label: 'Session', usage: 'session' },
-  { key: 'usageWeekPercent', label: 'Weekly', usage: 'week' }
+  { key: 'contextPercent', label: 'metric.contextPercent' },
+  { key: 'usageSessionPercent', label: 'metric.short.usageSessionPercent', usage: 'session' },
+  { key: 'usageWeekPercent', label: 'metric.short.usageWeekPercent', usage: 'week' }
 ];
 const GAUGE = { unit: '%', display: 'gauge', min: 0, max: 100 };
 const LINKS = { resource: 'vibemon://dashboard/resources', agent: 'vibemon://dashboard/agents' };
@@ -35,8 +36,10 @@ const LINKS = { resource: 'vibemon://dashboard/resources', agent: 'vibemon://das
  * @param {(character: string) => string|undefined} [input.artwork] Character image file name.
  * @param {number} input.now Wall-clock time in milliseconds.
  * @param {boolean} [input.running] False for the last feed before the App quits.
+ * @param {string} [input.locale] The App language ('en', 'ko', or 'ja') of every label.
  */
-export function buildWidgetFeed({ cloud, local = [], usage = {}, artwork = () => undefined, now, running = true }) {
+export function buildWidgetFeed({ cloud, local = [], usage = {}, artwork = () => undefined, now, running = true, locale = 'en' }) {
+  const t = sharedTranslator(locale);
   // Cloud times follow the server clock. Widgets compare times with the wall
   // clock, so every time is moved by the current difference between the two.
   const reportNow = cloud.evaluatedAt;
@@ -45,9 +48,9 @@ export function buildWidgetFeed({ cloud, local = [], usage = {}, artwork = () =>
   const selected = new Set(cloud.selectedMetrics);
   const resources = cloud.sources
     .filter(source => source.kind !== 'agent')
-    .map(source => resourceItem(source, selected, reportNow, wall));
+    .map(source => resourceItem(source, selected, reportNow, wall, t));
   const agents = agentAccounts(cloud.sources, local, offset, now)
-    .map(account => agentItem(account, usage[account.accountId], artwork, reportNow, wall, offset));
+    .map(account => agentItem(account, usage[account.accountId], artwork, reportNow, wall, offset, t));
   const byTitle = (a, b) => a.title.localeCompare(b.title) || a.subtitle.localeCompare(b.subtitle) || (a.id < b.id ? -1 : 1);
   return {
     version: WIDGET_FEED_VERSION,
@@ -57,22 +60,22 @@ export function buildWidgetFeed({ cloud, local = [], usage = {}, artwork = () =>
   };
 }
 
-function resourceItem(source, selected, now, wall) {
+function resourceItem(source, selected, now, wall, t) {
   const receivedAt = Date.parse(source.receivedAt);
   const symbol = source.kind === 'cluster' ? 'cluster' : source.memoryType === 'unified' ? 'unified' : source.kind;
   return {
     id: `resource:${source.sourceId}`,
     kind: 'resource',
     title: source.displayName,
-    subtitle: resourceType(source),
+    subtitle: resourceType(source, t),
     symbol,
     observedAt: wall(receivedAt),
     ...(source.statusMessage ? { message: source.statusMessage } : {}),
     metrics: source.displayMetrics
       .filter(metric => selected.has(metric.selectionKey))
       .slice(0, METRIC_LIMIT)
-      .map(metric => metricEntry(metric, source.metrics[metric.key])),
-    timeline: timeline([receivedAt + constants.CLOUD_STALE_MS], now, wall, time => status(sourceState(source, time))),
+      .map(metric => metricEntry({ ...metric, label: metricLabel(metric.key, metric.label, t) }, source.metrics[metric.key])),
+    timeline: timeline([receivedAt + constants.CLOUD_STALE_MS], now, wall, time => status(sourceState(source, time), t)),
     link: LINKS.resource
   };
 }
@@ -102,9 +105,10 @@ function localSource({ id, since, status }, offset, now) {
   };
 }
 
-function agentItem(account, usage, artwork, now, wall, offset) {
+function agentItem(account, usage, artwork, now, wall, offset, t) {
   const latest = account.latest;
-  const metrics = AGENT_METRICS.map(({ key, label, usage: bucket }) => {
+  const metrics = AGENT_METRICS.map(({ key, label: message, usage: bucket }) => {
+    const label = t(message);
     if (typeof latest.metrics[key] === 'number') {
       const resetAt = latest.resets ? latest.resets[key] : usageResetAt(key, latest.agent, latest.observedAt, now);
       return metricEntry({ key, label, ...GAUGE }, latest.metrics[key], resetAt === null ? null : isoTime(resetAt - offset));
@@ -122,7 +126,7 @@ function agentItem(account, usage, artwork, now, wall, offset) {
     artwork: artwork(latest.agent.character),
     observedAt: wall(Date.parse(latest.observedAt)),
     metrics,
-    timeline: timeline(changes, now, wall, time => status(accountActivity(account, time).state)),
+    timeline: timeline(changes, now, wall, time => status(accountActivity(account, time).state, t)),
     link: LINKS.agent
   };
 }
@@ -151,7 +155,7 @@ function timeline(changes, now, wall, evaluate) {
   return entries;
 }
 
-const status = state => ({ state, label: stateLabel(state), tone: stateTone(state) });
+const status = (state, t) => ({ state, label: stateLabel(state, t), tone: stateTone(state) });
 // An ISO time, or null when `time` is not a representable Date.
 const isoTime = time => Number.isNaN(new Date(time).getTime()) ? null : new Date(time).toISOString();
 

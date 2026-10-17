@@ -25,5 +25,5 @@ export declare function renderBubble(
   fields: Record<string, BubbleTextField | BubbleMetricField>,
   tailSide: 'top' | 'bottom' | 'left' | 'right',
   bgColor: string,
-  opts?: { opaque?: boolean }
+  opts?: { opaque?: boolean; t?: (key: string, params?: Record<string, string | number>) => string }
 ): void;

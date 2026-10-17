@@ -99,7 +99,8 @@ function setDots(dotsEl, show, slow) {
  * 'top'/'bottom'/'left'/'right'; `bgColor` is the current state's hex color,
  * used for both the bubble's background and its text/tail color. `opts.opaque`
  * (default false) picks a solid vs. translucent background — see the module
- * docstring above.
+ * docstring above. `opts.t` (default English) is the translator for reset
+ * times (see ../design/presentation.mjs sharedTranslator).
  */
 export function renderBubble(bubbleEl, fields, tailSide, bgColor, opts) {
   const opaque = Boolean(opts && opts.opaque);
@@ -133,7 +134,7 @@ export function renderBubble(bubbleEl, fields, tailSide, bgColor, opts) {
       icon.textContent = data.icon;
       fill.style.width = pct + '%';
       fill.style.background = barColor(pct);
-      const reset = formatResetTime(data.resetIn);
+      const reset = formatResetTime(data.resetIn, opts && opts.t ? opts.t : undefined);
       const pctText = reset ? `${formatMeasurement(pct, '%')} · ${reset}` : formatMeasurement(pct, '%');
       value.textContent = data.label ? `${data.label} ${pctText}` : pctText;
       row.style.display = 'flex';

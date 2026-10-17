@@ -7,6 +7,7 @@ const { URL } = require('url');
 const { HTTP_PORT, MAX_PAYLOAD_SIZE, RATE_LIMIT, RATE_WINDOW_MS, HTTP_CLOSE_TIMEOUT_MS, CHARACTER_NAMES } = require('../shared/config.cjs');
 const { setCorsHeaders, isAllowedOrigin, isAllowedHost, hasJsonContentType, sendJson, sendError, parseJsonBody } = require('./http-utils.cjs');
 const { StatusIngress } = require('../application/status-ingress.cjs');
+const { t, currentLocale } = require('../shared/i18n/locale.cjs');
 
 // Rate limiting: cleanup when the per-IP map exceeds this size
 const RATE_CLEANUP_THRESHOLD = 100;
@@ -204,7 +205,7 @@ class HttpServer {
     const params = new URL(req.url, 'http://127.0.0.1').searchParams;
     const { ok, message } = this.webSignIn
       ? this.webSignIn.complete(params)
-      : { ok: false, message: 'VibeMon is not waiting for a sign-in.' };
+      : { ok: false, message: t('signIn.page.idle') };
     const color = ok ? '#047857' : '#b91c1c';
     res.writeHead(ok ? 200 : 400, {
       'Content-Type': 'text/html; charset=utf-8',
@@ -213,7 +214,7 @@ class HttpServer {
       'Referrer-Policy': 'no-referrer',
       'Content-Security-Policy': "default-src 'none'; style-src 'unsafe-inline'"
     });
-    res.end(`<!doctype html><meta charset="utf-8"><title>VibeMon</title><body style="font:16px system-ui;margin:15vh auto;max-width:28rem;text-align:center"><h1 style="font-size:1.4rem;color:${color}">VibeMon</h1><p>${message}</p></body>`);
+    res.end(`<!doctype html><html lang="${currentLocale()}"><meta charset="utf-8"><title>VibeMon</title><body style="font:16px system-ui;margin:15vh auto;max-width:28rem;text-align:center"><h1 style="font-size:1.4rem;color:${color}">VibeMon</h1><p>${message}</p></body>`);
   }
 
   /**

@@ -20,25 +20,31 @@ struct Notice: Sendable, Equatable {
     static let resources = URL(string: "vibemon://dashboard/resources")!
     static let agents = URL(string: "vibemon://dashboard/agents")!
 
-    static let appMissing = Notice(symbol: "app.badge", title: "Open VibeMon", detail: "Widgets show data after VibeMon starts.", link: dashboard)
-    static let appUnsupported = Notice(symbol: "arrow.clockwise", title: "Restart VibeMon", detail: "The running App and this widget are different versions.", link: dashboard)
-    static let feedUnreadable = Notice(symbol: "exclamationmark.triangle", title: "Data unavailable", detail: "Quit and reopen VibeMon to write the widget data again.", link: dashboard)
+    static var appMissing: Notice {
+        Notice(symbol: "app.badge", title: Localization.text("Open VibeMon"), detail: Localization.text("Widgets show data after VibeMon starts."), link: dashboard)
+    }
+    static var appUnsupported: Notice {
+        Notice(symbol: "arrow.clockwise", title: Localization.text("Restart VibeMon"), detail: Localization.text("The running App and this widget are different versions."), link: dashboard)
+    }
+    static var feedUnreadable: Notice {
+        Notice(symbol: "exclamationmark.triangle", title: Localization.text("Data unavailable"), detail: Localization.text("Quit and reopen VibeMon to write the widget data again."), link: dashboard)
+    }
 
     static func empty(_ kind: FeedItem.Kind) -> Notice {
         switch kind {
         case .resource:
-            Notice(symbol: "server.rack", title: "No resources", detail: "Connect to Web in VibeMon Settings, then choose resources in Customize view.", link: resources)
+            Notice(symbol: "server.rack", title: Localization.text("No resources"), detail: Localization.text("Connect to Web in VibeMon Settings, then choose resources in Customize view."), link: resources)
         case .agent:
-            Notice(symbol: "sparkles", title: "No coding agents", detail: "Agents appear after an integration reports activity.", link: agents)
+            Notice(symbol: "sparkles", title: Localization.text("No coding agents"), detail: Localization.text("Agents appear after an integration reports activity."), link: agents)
         }
     }
 
     static func unavailable(_ kind: FeedItem.Kind) -> Notice {
         switch kind {
         case .resource:
-            Notice(symbol: "questionmark.square.dashed", title: "Resource unavailable", detail: "It is no longer selected in VibeMon. Edit the widget to choose another.", link: resources)
+            Notice(symbol: "questionmark.square.dashed", title: Localization.text("Resource unavailable"), detail: Localization.text("It is no longer selected in VibeMon. Edit the widget to choose another."), link: resources)
         case .agent:
-            Notice(symbol: "questionmark.square.dashed", title: "Agent unavailable", detail: "It has stopped reporting. Edit the widget to choose another.", link: agents)
+            Notice(symbol: "questionmark.square.dashed", title: Localization.text("Agent unavailable"), detail: Localization.text("It has stopped reporting. Edit the widget to choose another."), link: agents)
         }
     }
 }
@@ -159,7 +165,7 @@ private struct StatusLine: View {
                 Image(systemName: "powersleep")
                     .font(.system(size: 9, weight: .semibold))
                     .foregroundStyle(Palette.muted)
-                    .accessibilityLabel("App closed")
+                    .accessibilityLabel(Localization.text("App closed"))
             }
             Text(age)
                 .font(.system(size: 10))
@@ -188,7 +194,7 @@ private struct MetricRow: View {
         }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(metric.label)
-        .accessibilityValue(countdown.map { "\(metric.value)\(metric.unit), \(Countdown.sentence($0))" } ?? "\(metric.value)\(metric.unit)")
+        .accessibilityValue(metric.resetsAt.map { "\(metric.value)\(metric.unit), \(Countdown.sentence(until: $0, now: date))" } ?? "\(metric.value)\(metric.unit)")
     }
 
     private func header(countdown: String?) -> some View {
@@ -346,21 +352,23 @@ private struct NoticeView: View {
     }
 }
 
-/// Report age at minute precision, worded like the iPhone widgets.
+/// Report age at minute precision, worded like age.* in
+/// src/shared/i18n/shared.json and the iPhone widgets.
 enum Age {
     static func text(since date: Date, now: Date) -> String {
         let seconds = max(0, Int(now.timeIntervalSince(date)))
         switch seconds {
-        case ..<60: return "Just now"
-        case ..<3600: return "\(seconds / 60)m ago"
-        case ..<86400: return "\(seconds / 3600)h ago"
-        default: return "\(seconds / 86400)d ago"
+        case ..<60: return Localization.text("Just now")
+        case ..<3600: return Localization.text("\(seconds / 60)m ago")
+        case ..<86400: return Localization.text("\(seconds / 3600)h ago")
+        default: return Localization.text("\(seconds / 86400)d ago")
         }
     }
 }
 
 /// Time left until a plan usage limit resets. It matches `formatResetTime` in
-/// `src/shared/design/presentation.mjs`: "now", "24m", "2h5m", or "3d4h".
+/// `src/shared/design/presentation.mjs` and duration.* and reset.* in
+/// src/shared/i18n/shared.json: in English "now", "24m", "2h5m", or "3d4h".
 enum Countdown {
     static func minutes(until date: Date, now: Date) -> Int {
         max(0, Int((date.timeIntervalSince(now) / 60).rounded(.up)))
@@ -369,16 +377,19 @@ enum Countdown {
     static func text(until date: Date, now: Date) -> String {
         let minutes = minutes(until: date, now: now)
         switch minutes {
-        case 0: return "now"
-        case ..<60: return "\(minutes)m"
-        case ..<1440: return minutes % 60 == 0 ? "\(minutes / 60)h" : "\(minutes / 60)h\(minutes % 60)m"
+        case 0: return Localization.text("now")
+        case ..<60: return Localization.text("\(minutes)m")
+        case ..<1440:
+            let (hours, rest) = (minutes / 60, minutes % 60)
+            return rest == 0 ? Localization.text("\(hours)h") : Localization.text("\(hours)h\(rest)m")
         default:
-            let hours = minutes % 1440 / 60
-            return hours == 0 ? "\(minutes / 1440)d" : "\(minutes / 1440)d\(hours)h"
+            let (days, hours) = (minutes / 1440, minutes % 1440 / 60)
+            return hours == 0 ? Localization.text("\(days)d") : Localization.text("\(days)d\(hours)h")
         }
     }
 
-    static func sentence(_ text: String) -> String {
-        text == "now" ? "Resets now" : "Resets in \(text)"
+    /// The countdown as a sentence for assistive technology.
+    static func sentence(until date: Date, now: Date) -> String {
+        minutes(until: date, now: now) == 0 ? Localization.text("Resets now") : Localization.text("Resets in \(text(until: date, now: now))")
     }
 }

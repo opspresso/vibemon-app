@@ -324,14 +324,14 @@ describe('bubble movement ordering', () => {
     manager.reposition('a');
     await flush();
     expect(bubble.getBounds()).toEqual({ x: 72, y: 1054, width: 73, height: 26 });
-    expect(render).toHaveBeenLastCalledWith(expect.stringContaining(', 0.5)'));
+    expect(render).toHaveBeenLastCalledWith(expect.stringContaining(', 0.5, "en")'));
     expect(manager.lastSizes.get('a')).toEqual({ width: 146, height: 52 });
     dock = null;
     manager.computePlacement = jest.fn().mockResolvedValue({ x: 400, y: 500, tailSide: 'bottom', tailOffset: 40 });
     manager.reposition('a');
     await flush();
     expect(bubble.getBounds()).toEqual({ x: 400, y: 500, width: 146, height: 52 });
-    expect(render).toHaveBeenLastCalledWith(expect.stringContaining(', 1)'));
+    expect(render).toHaveBeenLastCalledWith(expect.stringContaining(', 1, "en")'));
   });
 
   test('hiding a bubble releases its share of the Dock corner', () => {

@@ -5,9 +5,12 @@ const { centerOnCursorDisplay } = require('../modules/window-position.cjs');
 const { webOrigin, validId } = require('../monitoring/domain.cjs');
 const { WORKSPACE_UPDATE_MS } = require('../shared/constants.cjs');
 const { attentionAreas, attentionNotices } = require('../shared/attention.cjs');
+const { t, rendererLanguage } = require('../shared/i18n/locale.cjs');
 
 const ROUTES = ['overview', 'resources', 'agents', 'connections', 'companion', 'integrations', 'about'];
 const CHANNEL = 'workspace:request';
+// The preload reads the App language synchronously, before the page renders text.
+const LANGUAGE_CHANNEL = 'workspace:language';
 const WEB_PATHS = { account: '/account', resources: '/resources/new', agents: '/coding-accounts/new', docs: '/docs', dashboard: '/dashboard' };
 
 class WorkspaceWindow {
@@ -28,12 +31,19 @@ class WorkspaceWindow {
     // Release hide-on-close before that sequence can cancel the update.
     this.onBeforeUpdate = () => this.cleanup();
     autoUpdater.on('before-quit-for-update', this.onBeforeUpdate);
+    this.onLanguage = event => { event.returnValue = this.trusted(event) ? rendererLanguage() : null; };
+    ipcMain.on(LANGUAGE_CHANNEL, this.onLanguage);
     ipcMain.handle(CHANNEL, async (event, command, args = []) => {
-      if (!this.window || this.window.isDestroyed() || event.sender !== this.window.webContents || event.senderFrame !== this.window.webContents.mainFrame) throw new Error('Untrusted workspace request');
+      if (!this.trusted(event)) throw new Error('Untrusted workspace request');
       if (!Array.isArray(args) || args.length > 3) throw new Error('Invalid workspace arguments');
       try { return { ok: true, value: await this.request(command, args) }; }
-      catch (error) { return { ok: false, error: String(error.code || error.message || 'Request failed').replace(/vm_[a-f0-9]{60}/g, '[redacted]') }; }
+      catch (error) { return { ok: false, error: String(error.code || error.message || t('error.requestFailed')).replace(/vm_[a-f0-9]{60}/g, '[redacted]') }; }
     });
+  }
+
+  /** Only this window's main frame may call the workspace channels. */
+  trusted(event) {
+    return Boolean(this.window) && !this.window.isDestroyed() && event.sender === this.window.webContents && event.senderFrame === this.window.webContents.mainFrame;
   }
 
   snapshot() {
@@ -98,7 +108,7 @@ class WorkspaceWindow {
       }
       case 'show-companion': this.showCompanion(); return true;
       case 'open-write-token-account': {
-        if (typeof args[0] !== 'string') throw new Error('Enter a valid Web address');
+        if (typeof args[0] !== 'string') throw new Error(t('error.webAddress'));
         const origin = webOrigin(args[0], this.monitoring.allowLocalHttp);
         await this.openExternal(new URL('/account?purpose=write', origin).href);
         return true;
@@ -167,6 +177,7 @@ class WorkspaceWindow {
     this.monitoring.off('change', this.onCloudChange);
     autoUpdater.off('before-quit-for-update', this.onBeforeUpdate);
     ipcMain.removeHandler(CHANNEL);
+    ipcMain.off(LANGUAGE_CHANNEL, this.onLanguage);
     if (this.window && !this.window.isDestroyed()) this.window.destroy();
     this.window = null;
   }

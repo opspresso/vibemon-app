@@ -1,6 +1,7 @@
 // Speech-bubble window: installs input hit-testing and the content entry point
 // the main process calls through webContents.executeJavaScript().
 import { renderBubble } from './shared/bubble/vibemon-bubble.js';
+import { sharedTranslator } from './shared/design/presentation.mjs';
 import { installWindowInteraction, hitTestBubble } from './shared/window-interaction.js';
 const cleanupInteraction = installWindowInteraction({
   hitTest: (x, y) => hitTestBubble(document.getElementById('bubble'), x, y)
@@ -15,12 +16,17 @@ window.addEventListener('unload', cleanupInteraction);
 // offset for top/bottom, top offset for left/right) — both computed by
 // the main process from the bubble's final position relative to the
 // character (see modules/bubble-window-manager.cjs). bgColor is the
-// current state's hex color.
-window.__setBubbleContent = function (fields, tailOffset, tailSide, bgColor, scale) {
+// current state's hex color. locale is the App language for reset times.
+let translator = sharedTranslator('en');
+window.__setBubbleContent = function (fields, tailOffset, tailSide, bgColor, scale, locale) {
+  if (typeof locale === 'string' && locale !== translator.locale) {
+    translator = sharedTranslator(locale);
+    document.documentElement.lang = translator.locale;
+  }
   if (typeof scale === 'number') document.body.style.transform = `scale(${scale})`;
   const bubble = document.getElementById('bubble');
   // An opaque state color keeps text contrast independent of the desktop behind it.
-  renderBubble(bubble, fields, tailSide, bgColor, { opaque: true });
+  renderBubble(bubble, fields, tailSide, bgColor, { opaque: true, t: translator });
 
   const tail = document.getElementById('bubble-tail');
   if (typeof tailOffset === 'number') {

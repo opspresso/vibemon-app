@@ -1,6 +1,7 @@
 /** Native updater adapter. Downloading never quits the application. */
 const { app } = require('electron');
 const { autoUpdater } = require('electron-updater');
+const { t } = require('../shared/i18n/locale.cjs');
 
 class UpdateChecker {
   constructor() {
@@ -59,7 +60,7 @@ class UpdateChecker {
   }
 
   installDownloaded() {
-    if (this.state.status !== 'downloaded') throw new Error('Download the update before installing it');
+    if (this.state.status !== 'downloaded') throw new Error(t('error.downloadFirst'));
     autoUpdater.quitAndInstall(false, true);
   }
 }
