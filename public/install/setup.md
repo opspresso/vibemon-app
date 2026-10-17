@@ -112,7 +112,7 @@ The shared directory contains eight required helpers: `vibemon_core.py`, `sessio
 4. Open **Settings → Connections** in the App, enter the Web origin and read token, and select **Save and connect**. Use **Customize view** to select resources, accounts, and metrics.
 5. Confirm that the same account's source appears. Missing measurements remain unavailable; they do not appear as zero.
 
-Read and write tokens must belong to the same Google owner. Resource collection is separate from hooks; see the [collector guide](https://vibemon.io/docs/collector) and [monitoring API](https://vibemon.io/docs/api/monitoring).
+Read and write tokens must belong to the same Google owner. Resource collection is separate from hooks; see [Monitor servers and clusters](https://vibemon.io/docs/servers) and [Send your own data](https://vibemon.io/docs/api).
 
 ## Resource collectors
 
@@ -139,7 +139,7 @@ To remove a collector, run the same command with `--uninstall`. On Kubernetes, i
 
 Open [Custom resource](https://vibemon.io/resources/new) to define any resource type and up to 32 numeric measurements. Choose each metric's label, unit, and number or gauge display. Download the definition and use it in your collector. Its first authenticated observation registers the resource; generating the definition alone does not connect a source.
 
-Send measurements with `kind: "resource"` to `/api/v1/ingest` using a write token. Web and App display the supplied definitions and status message. Use null for unavailable measurements. See the [custom-resource contract](https://vibemon.io/docs/api/monitoring#custom-resources) for JSON, limits, and history rules.
+Send measurements with `kind: "resource"` to `/api/v1/ingest` using a write token. Web and App display the supplied definitions and status message. Use null for unavailable measurements. See [Send a resource](https://vibemon.io/docs/api#send-a-resource) for JSON and limits.
 
 On the Web dashboard, open resource **Details → Edit resource and metrics** to change labels, units, display ranges, and order, including Spark and Kubernetes presets. In Desktop, open **Details → Edit resource on Web** to reach the editor. Reorder with the handles, arrow buttons, or Alt+Up/Down on a handle, then select **Save changes**. Both clients use the saved order; later collection does not overwrite it. New keys or units remain unavailable until the collector supplies matching definitions. Display-only edits do not change receipt time or erase retained measurements.
 
@@ -162,7 +162,7 @@ curl -fsSL https://vibemon.io/install/install.py | python3 - --uninstall --claud
 
 The Windows wrapper accepts the same flags. `--uninstall --all` removes tool integrations; `--uninstall --vibemon` removes shared scripts. Configuration and unrelated hooks remain. A removal failure returns a failing exit code.
 
-For hook event mappings and configuration details, see the [hook reference](https://vibemon.io/docs/hooks).
+For hook event mappings and configuration details, see the [hook reference](https://github.com/opspresso/vibemon-app/blob/main/docs/hooks.md).
 
 ## VibeMon Touch and legacy devices
 

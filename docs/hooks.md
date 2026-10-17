@@ -145,7 +145,7 @@ Existing ESP32-C6 devices use the [previous firmware](https://github.com/opspres
 
 ## API
 
-Hooks deliver coding activity to the [Status API](https://vibemon.io/docs/api/status). Cloud calls require a generated write token. The [Monitoring API](https://vibemon.io/docs/api/monitoring) defines account identity, resource summaries, selected-source reads, and trends. Local Desktop endpoints use a separate [HTTP API](https://github.com/opspresso/vibemon-app/blob/main/docs/api.md).
+Hooks deliver coding activity to Web with a generated write token. The [Web API](https://vibemon.io/docs/api) defines account identity, resource summaries, selected-source reads, and trends. Local Desktop endpoints use a separate [HTTP API](https://github.com/opspresso/vibemon-app/blob/main/docs/api.md).
 
 ## State Mapping
 
