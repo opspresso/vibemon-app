@@ -1,6 +1,7 @@
 import copy
 import hashlib
 import io
+import base64
 import json
 import os
 import re
@@ -1355,6 +1356,53 @@ class CollectorInstallTest(unittest.TestCase):
         self.assertNotIn(token, json.dumps(container))
         self.assertEqual(documents[4]['stringData'], {'VIBEMON_WRITE_TOKEN': token, 'VIBEMON_URL': 'https://vibemon.io'})
         self.assertTrue(container['securityContext']['readOnlyRootFilesystem'])
+
+
+class KubernetesSafetyTest(unittest.TestCase):
+    def result(self, returncode=0, stdout='', stderr=''):
+        return subprocess.CompletedProcess([], returncode, stdout, stderr)
+
+    def test_namespace_owner_tells_the_installer_namespace_from_others(self):
+        for reply, owner in [(self.result(stdout='vibemon-installer'), 'installer'), (self.result(stdout=''), 'other'),
+                             (self.result(1, stderr='Error from server (NotFound): namespaces "vibemon" not found'), 'none')]:
+            with self.subTest(owner=owner), mock.patch.object(install.subprocess, 'run', return_value=reply):
+                self.assertEqual(install.namespace_owner(), owner)
+        with mock.patch.object(install.subprocess, 'run', return_value=self.result(1, stderr='Unauthorized')), self.assertRaises(RuntimeError):
+            install.namespace_owner()
+
+    def test_uninstall_removes_only_labeled_objects_and_refuses_a_foreign_namespace(self):
+        calls = []
+        def run(command, **kwargs):
+            calls.append(command)
+            if command[:3] == ['kubectl', 'config', 'current-context']:
+                return self.result(stdout='kind-test\n')
+            if command[:3] == ['kubectl', 'get', 'namespace']:
+                return self.result(stdout=owner)
+            return self.result()
+        for owner, removes_namespace in [('vibemon-installer', True), ('', False)]:
+            calls.clear()
+            with self.subTest(owner=owner), mock.patch.object(install.subprocess, 'run', side_effect=run), \
+                    mock.patch.object(install.shutil, 'which', return_value='/usr/bin/kubectl'), mock.patch('sys.stdout', io.StringIO()), \
+                    mock.patch.object(install, 'NON_INTERACTIVE', True):
+                if removes_namespace:
+                    self.assertTrue(install.uninstall_kubernetes())
+                    self.assertIn(['kubectl', 'delete', 'clusterrolebinding,clusterrole', '-l', 'app.kubernetes.io/managed-by=vibemon-installer', '--ignore-not-found'], calls)
+                    self.assertIn(['kubectl', 'delete', 'namespace', 'vibemon', '--ignore-not-found'], calls)
+                else:
+                    with self.assertRaises(RuntimeError):
+                        install.uninstall_kubernetes()
+                    self.assertFalse(any(command[:2] == ['kubectl', 'delete'] for command in calls))
+
+    def test_a_saved_secret_without_its_origin_is_not_reused(self):
+        token = base64.b64encode(('vm_' + 'a' * 60).encode()).decode()
+        replies = iter([self.result(stdout=token), self.result(stdout='')])
+        with mock.patch.object(install.subprocess, 'run', side_effect=lambda *a, **k: next(replies)):
+            saved, origin = install.saved_secret()
+        self.assertEqual((saved, origin), ('vm_' + 'a' * 60, ''))
+        with mock.patch.dict(os.environ, {}, clear=True), mock.patch('sys.stdout', io.StringIO()), \
+                mock.patch.object(install, 'sign_in_to_web', return_value='vm_' + 'b' * 60) as sign_in:
+            self.assertEqual(install.collector_token(None, saved, origin, 'https://vibemon.io', 'ctx'), 'vm_' + 'b' * 60)
+            sign_in.assert_called_once()
 
 
 class ManifestAvailabilityTest(unittest.TestCase):

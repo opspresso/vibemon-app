@@ -101,8 +101,9 @@ class MonitoringClient extends EventEmitter {
     this.configurationAttempt++;
     this.generation++;
     const origin = this.snapshot().url;
+    const saved = this.credentials.has();
     let token = null;
-    try { token = this.credentials.has() ? this.credentials.get() : null; } catch { token = null; }
+    try { token = saved ? this.credentials.get() : null; } catch { token = null; }
     this.credentials.clear();
     this.sources = [];
     this.catalog = [];
@@ -112,7 +113,8 @@ class MonitoringClient extends EventEmitter {
     this.status = 'not-configured';
     this.emit('sources', []);
     this.emit('change', this.snapshot());
-    return { ...this.snapshot(), tokenDeleted: token ? await this.deleteToken(origin, token) : true };
+    // A saved token that cannot be read cannot be deleted on Web either.
+    return { ...this.snapshot(), tokenDeleted: token ? await this.deleteToken(origin, token) : !saved };
   }
   async deleteToken(origin, token) {
     try {

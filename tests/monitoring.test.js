@@ -459,5 +459,11 @@ describe('disconnect deletes the token on Web', () => {
     offline.fetchImpl.mockRejectedValueOnce(new Error('offline'));
     expect((await offline.client.disconnect()).tokenDeleted).toBe(false);
     expect(offline.client.snapshot().tokenConfigured).toBe(false);
+    // A locked keychain: the token exists but cannot be read, so Web still has it.
+    const locked = fixture();
+    const credentials = locked.client.credentials;
+    credentials.get = () => { throw Object.assign(new Error('locked'), { code: 'secure-storage-unavailable' }); };
+    expect((await locked.client.disconnect()).tokenDeleted).toBe(false);
+    expect(locked.fetchImpl).not.toHaveBeenCalled();
   });
 });
