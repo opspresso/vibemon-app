@@ -9,7 +9,7 @@ The tray menu provides Dashboard, Settings, Show companion, Integrations, About,
 ## Connect your cloud workspace
 
 1. Open **Settings → Connections** in Desktop and select **Sign in with VibeMon**. Your browser opens the Web address.
-2. Sign in with Google or an invited email account and select **Allow**. The browser returns to the App on `http://127.0.0.1:19280/auth/callback`, and the App receives a read token named **VibeMon Desktop (host name)**.
+2. Sign in with Google or an invited email account and select **Allow**. The browser returns to the App on `http://127.0.0.1:19280/auth/callback`, and the App receives a read token named **VibeMon Desktop (host name) · read**.
 3. Open **Customize view**. Select resources, provider accounts, and visible metrics, then select **Save view**. **Discover sources** refreshes the available list without discarding unsaved choices. When every listed item in a group is selected, the view follows that whole group, including accounts, resources, and metrics that appear later. A partial selection shows only the chosen items; open **Customize view** to add new ones. Selections saved by Desktop 3.7.2 or earlier reset to all accounts, resources, and metrics once, because those versions saved a full selection as a fixed list.
 
 Sign-in uses OAuth authorization code with PKCE and a loopback redirect: the code works once, and only this App holds the verifier that exchanges it. To use a token that you created on Web Account instead, open **Use a read token instead**, paste it, and select **Save and connect**. Sign-in needs the local HTTP server; if another program uses port 19280, use a token.
@@ -40,7 +40,7 @@ History details show minute averages and maxima with gaps for unavailable observ
 
 ## Send local activity to Web
 
-Open **Settings → Integrations → Send activity to Web** and select **Sign in to send activity**. After you allow it on Web, the App saves a write token named **VibeMon Desktop (host name)** for the local hooks. To paste a write token instead, open **Use a write token instead** and select **Save and verify**. Verification checks permissions without creating a source or test observation. Only a successful check replaces the saved connection; the next real hook event sends data.
+Open **Settings → Integrations → Send activity to Web** and select **Sign in to send activity**. After you allow it on Web, the App saves a write token named **VibeMon Desktop (host name) · write** for the local hooks. To paste a write token instead, open **Use a write token instead** and select **Save and verify**. Verification checks permissions without creating a source or test observation. Only a successful check replaces the saved connection; the next real hook event sends data.
 
 **Check saved connection** checks the current token again. Rejected, read-only, unreachable, and unsupported servers have separate messages. The displayed check time is explicit; it is not a continuous delivery guarantee. A different Web origin requires a new write token. **Remove saved write token** removes the shared hook credential while preserving local delivery and the independent read connection. Agent environment variables and OpenClaw plugin settings can override these shared defaults. Stored write tokens never return to the settings renderer.
 
