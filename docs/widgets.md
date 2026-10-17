@@ -16,7 +16,7 @@ Add as many widgets as you need, for example one per server and one per coding a
 1. Start VibeMon. The widgets read data that the App writes.
 2. Control-click the desktop and select **Edit Widgets**, or open Notification Center and select **Edit Widgets**.
 3. Search for **VibeMon**. Drag **Resource** or **Coding Agent** to the desktop or Notification Center.
-4. Control-click the new widget and select **Edit "Resource"** or **Edit "Coding Agent"**. Choose the item to show.
+4. Control-click the new widget and select **Edit "Resource"** or **Edit "Coding Agent"**. Choose the item to show. Coding accounts are listed as provider plus short account ID, for example `Codex · 27e702a8`, with the account name and project names below. Each choice keeps its original full ID.
 
 A new widget shows the first item until you choose one. Click a widget to open its page in the Dashboard.
 
