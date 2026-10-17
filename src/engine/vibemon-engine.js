@@ -1,8 +1,9 @@
 /**
  * VibeMon rendering engine
  *
- * Canonical shared module for drawing the floating pixel-art character onto
- * a 128x128 canvas: the character sprite image, state-driven eyes/effects,
+ * Canonical shared module for drawing the floating character onto a canvas
+ * of 128 drawing units with at least 2x backing pixels: the character sprite
+ * image (smoothly scaled), state-driven pixel-art eyes/effects,
  * the idle blink cycle, and a cosine/sine floating offset. The canvas
  * background stays fully transparent — state color and status/metric text
  * live in the speech bubble module (vibemon-bubble.js), not here.
