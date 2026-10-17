@@ -1,15 +1,22 @@
 const { Menu } = require('electron');
 const { t } = require('../shared/i18n/locale.cjs');
 
-// Role items (Edit, Window, Hide, Quit) keep the labels that Electron gives them.
+// Electron gives role items English labels, so every role item sets its label.
+const item = (role, key) => ({ role, label: t(key) });
 
 function installWorkspaceMenu({ open, showCompanion }) {
   const mac = process.platform === 'darwin';
   const settings = { label: t('action.settingsMenu'), accelerator: 'CmdOrCtrl+,', click: () => open('companion') };
   const about = { label: t('action.aboutApp'), click: () => open('about') };
   const application = mac
-    ? [about, { type: 'separator' }, settings, { type: 'separator' }, { role: 'services' }, { type: 'separator' }, { role: 'hide' }, { role: 'hideOthers' }, { role: 'unhide' }, { type: 'separator' }, { role: 'quit' }]
-    : [settings, about, { type: 'separator' }, { role: 'quit' }];
+    ? [about, { type: 'separator' }, settings, { type: 'separator' }, item('services', 'menu.services'), { type: 'separator' },
+      item('hide', 'menu.hide'), item('hideOthers', 'menu.hideOthers'), item('unhide', 'menu.unhide'), { type: 'separator' }, item('quit', 'action.quitApp')]
+    : [settings, about, { type: 'separator' }, item('quit', 'action.quitApp')];
+  const edit = [
+    item('undo', 'menu.undo'), item('redo', 'menu.redo'), { type: 'separator' },
+    item('cut', 'menu.cut'), item('copy', 'menu.copy'), item('paste', 'menu.paste'), item('selectAll', 'menu.selectAll')
+  ];
+  const windows = [item('minimize', 'menu.minimize'), item('zoom', 'menu.zoom'), { type: 'separator' }, item('front', 'menu.front')];
   const workspace = [
     ...['overview', 'resources', 'agents'].map((route, index) => ({ label: t(`nav.${route}`), accelerator: `CmdOrCtrl+${index + 1}`, click: () => open(route) })),
     { type: 'separator' },
@@ -21,9 +28,10 @@ function installWorkspaceMenu({ open, showCompanion }) {
   ];
   const menu = Menu.buildFromTemplate([
     { label: 'VibeMon', submenu: application },
-    { role: 'editMenu' },
+    { role: 'editMenu', label: t('menu.edit'), submenu: edit },
     { label: t('nav.workspace'), submenu: workspace },
-    ...(mac ? [{ role: 'windowMenu' }] : [])
+    // The windowMenu role keeps the macOS window list in this menu.
+    ...(mac ? [{ role: 'windowMenu', label: t('menu.window'), submenu: windows }] : [])
   ]);
   Menu.setApplicationMenu(menu);
   return menu;

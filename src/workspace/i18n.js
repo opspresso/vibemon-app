@@ -3,7 +3,9 @@
 // because this sandboxed page cannot read the catalog files.
 import { createTranslator } from '../shared/i18n/translate.mjs';
 
-const language = window.workspace?.language ?? { locale: 'en', messages: {} };
+const language = window.workspace?.language;
+// Without the catalog the page would show message keys; fail visibly instead.
+if (!language) throw new Error('The workspace preload did not pass the App language');
 /** t(key, params) in the App language, with English for missing messages. */
 export const t = createTranslator(language.locale, language.messages);
 /** The BCP 47 tag for Intl and toLocale* calls. */
