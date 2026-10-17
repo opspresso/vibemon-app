@@ -18,39 +18,39 @@
       <aside class="sidebar">
         <a class="brand" href="#overview" data-page-link="overview"
           ><span class="brand-mark vm-brand-mark" aria-hidden="true"></span
-          ><span>VibeMon<span class="brand-caption">Your workspace, in view</span></span></a
+          ><span>VibeMon<span class="brand-caption" data-i18n="sidebar.caption">Your workspace, in view</span></span></a
         >
-        <div class="nav-label">WORKSPACE</div>
-        <nav aria-label="Primary navigation">
+        <div class="nav-label" data-i18n="sidebar.workspace">WORKSPACE</div>
+        <nav aria-label="Primary navigation" data-i18n-attr="aria-label:sidebar.primary">
           <button data-page-link="overview" aria-current="page">
-            <span data-icon="overview"></span><span>Overview</span>
+            <span data-icon="overview"></span><span data-i18n="nav.overview">Overview</span>
           </button>
           <button data-page-link="resources">
-            <span data-icon="resources"></span><span>Resources</span
+            <span data-icon="resources"></span><span data-i18n="nav.resources">Resources</span
             ><span class="attention-dot" data-attention="resources" role="img" hidden></span><span id="nav-resources" class="nav-count">0</span>
           </button>
           <button data-page-link="agents">
-            <span data-icon="agents"></span><span>Coding agents</span
+            <span data-icon="agents"></span><span data-i18n="nav.agents">Coding agents</span
             ><span class="attention-dot" data-attention="agents" role="img" hidden></span><span id="nav-agents" class="nav-count">0</span>
           </button>
         </nav>
         <div class="sidebar-bottom">
           <button class="companion-shortcut" id="show-companion">
-            <img src="../assets/characters/vibemon-v2.png" alt="" /><span
-              >Show companion<span class="small muted">A little company while you work</span></span
+            <img src="../assets/characters/vibemon-v2.png" alt="" /><span data-i18n="action.showCompanion"
+              >Show companion<span class="small muted" data-i18n="sidebar.companionCaption">A little company while you work</span></span
             ><span data-icon="external"></span>
           </button>
-          <nav aria-label="Application navigation">
+          <nav aria-label="Application navigation" data-i18n-attr="aria-label:sidebar.application">
             <button data-page-link="companion" data-settings-nav>
-              <span data-icon="settings"></span><span>Settings</span
+              <span data-icon="settings"></span><span data-i18n="nav.settings">Settings</span
               ><span class="attention-dot" data-attention="settings" role="img" hidden></span>
             </button>
           </nav>
           <button class="workspace-connection" data-page-link="connections">
             <span id="sidebar-dot" class="status-dot"></span
             ><span
-              ><strong id="sidebar-host">Your cloud workspace</strong
-              ><span id="sidebar-status" class="small muted">Not connected</span></span
+              ><strong id="sidebar-host" data-i18n="sidebar.host">Your cloud workspace</strong
+              ><span id="sidebar-status" class="small muted" data-i18n="connection.notConfigured.label">Not connected</span></span
             ><span data-icon="chevron"></span>
           </button>
         </div>
@@ -58,17 +58,18 @@
       <main class="main" id="main">
         <header class="page-header">
           <div>
-            <h1 id="page-title" tabindex="-1">Overview</h1>
-            <p id="page-description" class="muted">A clear view of your systems and coding activity.</p>
+            <h1 id="page-title" tabindex="-1" data-i18n="nav.overview">Overview</h1>
+            <p id="page-description" class="muted" data-i18n="page.overview">A clear view of your systems and coding activity.</p>
           </div>
           <div class="header-actions">
-            <button id="header-customize" class="button secondary" data-selection>Customize view</button>
-            <span id="connection-chip" class="chip neutral" role="status">Not connected</span
+            <button id="header-customize" class="button secondary" data-selection data-i18n="action.customize">Customize view</button>
+            <span id="connection-chip" class="chip neutral" role="status" data-i18n="connection.notConfigured.label">Not connected</span
             ><button
               id="refresh"
               class="icon-button"
               aria-label="Refresh workspace"
               title="Refresh workspace"
+              data-i18n-attr="aria-label:header.refresh;title:header.refresh"
             >
               <span data-icon="refresh"></span>
             </button>
@@ -76,7 +77,7 @@
         </header>
         <div id="error" class="notice danger" role="alert" hidden>
           <span id="error-message"></span
-          ><button id="dismiss-error" class="icon-button" aria-label="Dismiss error">
+          ><button id="dismiss-error" class="icon-button" aria-label="Dismiss error" data-i18n-attr="aria-label:header.dismissError">
             <span data-icon="close"></span>
           </button>
         </div>
@@ -85,7 +86,7 @@
             <strong id="connection-notice-title"></strong>
             <p id="connection-notice-description"></p>
           </div>
-          <button class="button small-button" data-page-link="connections">
+          <button class="button small-button" data-page-link="connections" data-i18n="action.connectionSettings">
             Connection settings<span data-icon="arrow"></span>
           </button>
         </div>
@@ -93,56 +94,56 @@
           <div class="summary-grid">
             <div class="summary">
               <span class="summary-symbol teal" data-icon="resources"></span
-              ><span class="muted">Resources</span><strong id="summary-resources">0</strong
-              ><span id="summary-resource-note" class="small muted">Choose the systems you follow</span>
+              ><span class="muted" data-i18n="nav.resources">Resources</span><strong id="summary-resources">0</strong
+              ><span id="summary-resource-note" class="small muted" data-i18n="summary.resourcesEmpty">Choose the systems you follow</span>
             </div>
             <div class="summary">
               <span class="summary-symbol violet" data-icon="agents"></span
-              ><span class="muted">Cloud accounts</span><strong id="summary-accounts">0</strong
-              ><span id="summary-account-note" class="small muted">Distinct accounts, one view</span>
+              ><span class="muted" data-i18n="summary.accounts">Cloud accounts</span><strong id="summary-accounts">0</strong
+              ><span id="summary-account-note" class="small muted" data-i18n="summary.accountsCaption">Distinct accounts, one view</span>
             </div>
             <div class="summary">
               <span class="summary-symbol blue" data-icon="activity"></span
-              ><span class="muted">Local projects</span><strong id="summary-local">0</strong
-              ><span id="summary-local-note" class="small muted">Activity on this device</span>
+              ><span class="muted" data-i18n="summary.local">Local projects</span><strong id="summary-local">0</strong
+              ><span id="summary-local-note" class="small muted" data-i18n="summary.localCaption">Activity on this device</span>
             </div>
-            <button class="summary" id="overview-attention" aria-pressed="false" title="Filter cloud sources needing attention">
+            <button class="summary" id="overview-attention" aria-pressed="false" title="Filter cloud sources needing attention" data-i18n-attr="title:summary.attentionFilter">
               <span class="summary-symbol amber" data-icon="attention"></span
-              ><span class="muted">Need attention</span><strong id="summary-attention">0</strong
-              ><span id="summary-attention-note" class="small muted">No reported issues</span>
+              ><span class="muted" data-i18n="summary.attention">Need attention</span><strong id="summary-attention">0</strong
+              ><span id="summary-attention-note" class="small muted" data-i18n="summary.noIssues">No reported issues</span>
             </button>
           </div>
           <div class="section-heading">
             <div>
-              <h2>Resources</h2>
-              <span class="muted small">The latest measurements from your infrastructure</span>
+              <h2 data-i18n="nav.resources">Resources</h2>
+              <span class="muted small" data-i18n="overview.resourcesCaption">The latest measurements from your infrastructure</span>
             </div>
             <button class="text-button" data-page-link="resources">
-              View all<span data-icon="arrow"></span>
+              <span data-i18n="action.viewAll">View all</span><span data-icon="arrow"></span>
             </button>
           </div>
           <div id="overview-resources" class="card-grid"></div>
           <div class="section-heading">
             <div>
-              <h2>Coding agents</h2>
-              <span class="muted small">Account usage and the work happening now</span>
+              <h2 data-i18n="nav.agents">Coding agents</h2>
+              <span class="muted small" data-i18n="overview.agentsCaption">Account usage and the work happening now</span>
             </div>
             <button class="text-button" data-page-link="agents">
-              View all<span data-icon="arrow"></span>
+              <span data-i18n="action.viewAll">View all</span><span data-icon="arrow"></span>
             </button>
           </div>
           <div id="overview-accounts" class="card-grid"></div>
           <div class="overview-bottom">
             <section class="panel">
               <div class="section-heading inside">
-                <h2>On this device</h2>
-                <span class="chip neutral">Local activity</span>
+                <h2 data-i18n="local.title">On this device</h2>
+                <span class="chip neutral" data-i18n="local.activity">Local activity</span>
               </div>
               <div id="overview-activity"></div>
             </section>
             <section class="panel">
               <div class="section-heading inside">
-                <h2>Local usage</h2>
+                <h2 data-i18n="local.usage">Local usage</h2>
                 <span data-icon="gauge"></span>
               </div>
               <div id="overview-usage"></div>
@@ -157,17 +158,18 @@
                 id="resource-search"
                 type="search"
                 placeholder="Search resources"
-                aria-label="Search resources" /></label
-            ><select id="resource-filter" aria-label="Resource status">
-              <option value="all">All statuses</option>
-              <option value="attention">Needs attention</option>
-              <option value="healthy">Healthy</option></select
-            ><button class="button secondary" data-selection>Customize view</button
-            ><button class="button" data-web="resources"><span data-icon="plus"></span>Add resource</button>
+                aria-label="Search resources"
+                data-i18n-attr="placeholder:resources.search;aria-label:resources.search" /></label
+            ><select id="resource-filter" aria-label="Resource status" data-i18n-attr="aria-label:resources.statusFilter">
+              <option value="all" data-i18n="resources.allStatuses">All statuses</option>
+              <option value="attention" data-i18n="state.alert">Needs attention</option>
+              <option value="healthy" data-i18n="state.ok">Healthy</option></select
+            ><button class="button secondary" data-selection data-i18n="action.customize">Customize view</button
+            ><button class="button" data-web="resources" data-i18n="resources.add"><span data-icon="plus"></span>Add resource</button>
           </div>
           <div class="section-heading">
-            <h2 id="resources-heading">Your resources</h2>
-            <span class="small muted">Labels and metric order are managed on Web</span>
+            <h2 id="resources-heading" data-i18n="resources.heading">Your resources</h2>
+            <span class="small muted" data-i18n="resources.caption">Labels and metric order are managed on Web</span>
           </div>
           <div id="resource-cards" class="card-grid"></div>
         </section>
@@ -179,66 +181,67 @@
                 id="agent-search"
                 type="search"
                 placeholder="Search accounts or projects"
-                aria-label="Search accounts or projects" /></label
-            ><select id="agent-filter" aria-label="Agent provider">
-              <option value="all">All providers</option></select
-            ><button class="button secondary" data-selection>Customize view</button
-            ><button class="button" data-web="agents"><span data-icon="plus"></span>Connect account</button>
+                aria-label="Search accounts or projects"
+                data-i18n-attr="placeholder:agents.search;aria-label:agents.search" /></label
+            ><select id="agent-filter" aria-label="Agent provider" data-i18n-attr="aria-label:agents.providerFilter">
+              <option value="all" data-i18n="agents.allProviders">All providers</option></select
+            ><button class="button secondary" data-selection data-i18n="action.customize">Customize view</button
+            ><button class="button" data-web="agents" data-i18n="agents.connect"><span data-icon="plus"></span>Connect account</button>
           </div>
           <div class="section-heading">
             <div>
-              <h2>Cloud accounts</h2>
-              <span class="small muted">Each provider account keeps its own usage and projects</span>
+              <h2 data-i18n="summary.accounts">Cloud accounts</h2>
+              <span class="small muted" data-i18n="agents.accountsCaption">Each provider account keeps its own usage and projects</span>
             </div>
           </div>
           <div id="agent-cards" class="card-grid"></div>
           <div class="section-heading">
             <div>
-              <h2>On this device</h2>
-              <span class="small muted">Local activity works independently of your cloud connection</span>
+              <h2 data-i18n="local.title">On this device</h2>
+              <span class="small muted" data-i18n="agents.localCaption">Local activity works independently of your cloud connection</span>
             </div>
             <button class="text-button" data-page-link="integrations">
-              Manage integrations<span data-icon="arrow"></span>
+              <span data-i18n="agents.manageIntegrations">Manage integrations</span><span data-icon="arrow"></span>
             </button>
           </div>
           <div class="overview-bottom">
             <section class="panel">
-              <h3 class="panel-title">Projects</h3>
+              <h3 class="panel-title" data-i18n="agents.projects">Projects</h3>
               <div id="agent-activity"></div>
             </section>
             <section class="panel">
-              <h3 class="panel-title">Local usage</h3>
+              <h3 class="panel-title" data-i18n="local.usage">Local usage</h3>
               <div id="agent-usage"></div>
             </section>
           </div>
         </section>
-        <nav id="settings-tabs" class="settings-tabs" aria-label="Settings categories" hidden>
-          <button data-page-link="connections">Connections<span class="attention-dot" data-attention="connections" role="img" hidden></span></button
-          ><button data-page-link="companion">Companion</button
-          ><button data-page-link="integrations">Integrations<span class="attention-dot" data-attention="integrations" role="img" hidden></span></button
-          ><button data-page-link="about">About<span class="attention-dot" data-attention="about" role="img" hidden></span></button>
+        <nav id="settings-tabs" class="settings-tabs" aria-label="Settings categories" data-i18n-attr="aria-label:settings.categories" hidden>
+          <button data-page-link="connections" data-i18n="nav.connections">Connections<span class="attention-dot" data-attention="connections" role="img" hidden></span></button
+          ><button data-page-link="companion" data-i18n="nav.companion">Companion</button
+          ><button data-page-link="integrations" data-i18n="nav.integrations">Integrations<span class="attention-dot" data-attention="integrations" role="img" hidden></span></button
+          ><button data-page-link="about" data-i18n="nav.about">About<span class="attention-dot" data-attention="about" role="img" hidden></span></button>
         </nav>
         <section data-page="connections" hidden>
           <div class="settings-intro">
             <span class="large-symbol teal" data-icon="cloud"></span>
             <div>
-              <h2>Your cloud workspace</h2>
-              <p class="muted">Sign in to see your resources and coding accounts.</p>
+              <h2 data-i18n="sidebar.host">Your cloud workspace</h2>
+              <p class="muted" data-i18n="connections.intro">Sign in to see your resources and coding accounts.</p>
             </div>
           </div>
           <form id="connect-form" class="panel settings-panel">
             <div class="panel-heading">
               <div>
-                <h3>Connection <span id="token-state" class="small muted"></span></h3>
-                <p class="muted">
+                <h3 data-i18n="connections.connection">Connection <span id="token-state" class="small muted"></span></h3>
+                <p class="muted" data-i18n="connections.help">
                   Your browser opens VibeMon Web. Sign in with Google or an invited email, then allow this desktop.
                 </p>
               </div>
-              <button type="button" class="text-button" data-web="account">
+              <button type="button" class="text-button" data-web="account" data-i18n="connections.openAccount">
                 Open Account<span data-icon="external"></span>
               </button>
             </div>
-            <label class="form-label" for="web-url">Web address</label
+            <label class="form-label" for="web-url" data-i18n="common.webAddress">Web address</label
             ><input
               id="web-url"
               type="url"
@@ -247,131 +250,132 @@
               placeholder="https://vibemon.io"
             />
             <p class="field-help">
-              <span data-icon="lock"></span>The read token is stored securely on this device. Never sent to coding tools.
+              <span data-icon="lock"></span><span data-i18n="connections.tokenSafety">The read token is stored securely on this device. Never sent to coding tools.</span>
             </p>
             <div class="form-actions">
-              <button type="button" class="button" id="sign-in">Sign in with VibeMon</button
-              ><button type="button" class="button secondary" id="cancel-sign-in" hidden>Cancel sign-in</button
-              ><button type="button" class="button quiet-danger" id="disconnect">
+              <button type="button" class="button" id="sign-in" data-i18n="connections.signIn">Sign in with VibeMon</button
+              ><button type="button" class="button secondary" id="cancel-sign-in" data-i18n="common.cancelSignIn" hidden>Cancel sign-in</button
+              ><button type="button" class="button quiet-danger" id="disconnect" data-i18n="connections.disconnect">
                 Disconnect this device</button
               ><span id="connection-saved" class="small muted" role="status"></span>
             </div>
             <details class="advanced" id="read-token-option">
-              <summary>Use a read token instead</summary>
-              <label class="form-label" for="read-token">Read token</label
+              <summary data-i18n="connections.useReadToken">Use a read token instead</summary>
+              <label class="form-label" for="read-token" data-i18n="connections.readToken">Read token</label
               ><input
                 id="read-token"
                 type="password"
                 autocomplete="off"
                 spellcheck="false"
                 placeholder="Paste a read token from Web Account"
+                data-i18n-attr="placeholder:connections.readTokenPlaceholder"
               />
               <div class="form-actions">
-                <button class="button secondary" id="save-connection">Save and connect</button>
+                <button class="button secondary" id="save-connection" data-i18n="connections.save">Save and connect</button>
               </div>
             </details>
           </form>
           <div class="panel settings-panel inline-panel">
             <div>
-              <h3>What appears in your dashboard</h3>
-              <p class="muted">Choose resources, provider accounts, and visible metrics.</p>
+              <h3 data-i18n="connections.dashboardTitle">What appears in your dashboard</h3>
+              <p class="muted" data-i18n="connections.dashboardHelp">Choose resources, provider accounts, and visible metrics.</p>
             </div>
-            <button class="button secondary" data-selection>Customize view</button>
+            <button class="button secondary" data-selection data-i18n="action.customize">Customize view</button>
           </div>
         </section>
         <section data-page="companion" hidden>
           <div class="settings-intro">
             <span class="large-symbol violet" data-icon="companion"></span>
             <div>
-              <h2>Make it yours</h2>
-              <p class="muted">Your companion stays with you while the workspace is closed.</p>
+              <h2 data-i18n="companion.title">Make it yours</h2>
+              <p class="muted" data-i18n="companion.intro">Your companion stays with you while the workspace is closed.</p>
             </div>
-            <button class="button secondary" id="preview-companion">
+            <button class="button secondary" id="preview-companion" data-i18n="companion.preview">
               Show on desktop<span data-icon="external"></span>
             </button>
           </div>
           <div class="panel settings-panel">
             <div class="panel-heading">
-              <h3>Companion</h3>
-              <span class="chip neutral">Changes save automatically</span>
+              <h3 data-i18n="nav.companion">Companion</h3>
+              <span class="chip neutral" data-i18n="companion.autosave">Changes save automatically</span>
             </div>
             <div class="setting-row">
               <div>
-                <label for="render-mode">Render style</label>
-                <p class="muted small">Keep your pixel character or switch to the 3D pet.</p>
+                <label for="render-mode" data-i18n="companion.renderStyle">Render style</label>
+                <p class="muted small" data-i18n="companion.renderStyleHelp">Keep your pixel character or switch to the 3D pet.</p>
               </div>
               <select id="render-mode">
-                <option value="3d">3D pet</option>
-                <option value="2d">Pixel art</option>
+                <option value="3d" data-i18n="companion.render3d">3D pet</option>
+                <option value="2d" data-i18n="companion.render2d">Pixel art</option>
               </select>
             </div>
             <div class="setting-row">
               <div>
-                <label for="character-lock">Character</label>
-                <p class="muted small">Follow the active tool, or choose a favorite.</p>
+                <label for="character-lock" data-i18n="companion.character">Character</label>
+                <p class="muted small" data-i18n="companion.characterHelp">Follow the active tool, or choose a favorite.</p>
               </div>
               <select id="character-lock"></select>
             </div>
-            <div id="character-gallery" class="character-gallery" aria-label="Choose a character"></div>
+            <div id="character-gallery" class="character-gallery" aria-label="Choose a character" data-i18n-attr="aria-label:companion.gallery"></div>
             <div class="setting-row">
               <div>
-                <label for="character-scale">Size</label>
-                <p class="muted small">Choose the size of your desktop character.</p>
+                <label for="character-scale" data-i18n="companion.size">Size</label>
+                <p class="muted small" data-i18n="companion.sizeHelp">Choose the size of your desktop character.</p>
               </div>
               <select id="character-scale"></select>
             </div>
           </div>
           <div class="panel settings-panel">
-            <h3>On your desktop</h3>
+            <h3 data-i18n="companion.desktop">On your desktop</h3>
             <div class="setting-row">
               <div>
-                <label for="always-on-top">Stay on top</label>
-                <p class="muted small">Choose when the companion appears above other windows.</p>
+                <label for="always-on-top" data-i18n="companion.onTop">Stay on top</label>
+                <p class="muted small" data-i18n="companion.onTopHelp">Choose when the companion appears above other windows.</p>
               </div>
               <select id="always-on-top"></select>
             </div>
             <div class="setting-row">
-              <label for="edge-margin">Distance from screen edges</label
+              <label for="edge-margin" data-i18n="companion.edgeMargin">Distance from screen edges</label
               ><select id="edge-margin"></select>
             </div>
             <div class="setting-row" id="dock-corner-size-row">
               <div>
-                <label for="dock-corner-size">Dock corner size</label>
-                <p class="muted small">Fit neatly beside the macOS Dock.</p>
+                <label for="dock-corner-size" data-i18n="companion.dockSize">Dock corner size</label>
+                <p class="muted small" data-i18n="companion.dockSizeHelp">Fit neatly beside the macOS Dock.</p>
               </div>
               <select id="dock-corner-size">
-                <option value="keep">Keep current size</option>
-                <option value="shrink">Auto shrink</option>
+                <option value="keep" data-i18n="companion.dockKeep">Keep current size</option>
+                <option value="shrink" data-i18n="companion.dockShrink">Auto shrink</option>
               </select>
             </div>
             <div class="setting-row">
               <div>
-                <span class="setting-label">Speech bubble</span>
-                <p class="muted small">Choose the information displayed beside your companion.</p>
+                <span class="setting-label" data-i18n="companion.bubble">Speech bubble</span>
+                <p class="muted small" data-i18n="companion.bubbleHelp">Choose the information displayed beside your companion.</p>
               </div>
             </div>
             <div id="speech-bubble-fields" class="choice-grid"></div>
           </div>
           <div class="panel settings-panel">
-            <h3>Application</h3>
+            <h3 data-i18n="companion.application">Application</h3>
             <div class="setting-row">
-              <div><label for="theme">Workspace appearance</label><p id="theme-storage-status" class="small muted" role="status" hidden></p></div>
+              <div><label for="theme" data-i18n="companion.theme">Workspace appearance</label><p id="theme-storage-status" class="small muted" role="status" hidden></p></div>
               <select id="theme">
-                <option value="system">Use system setting</option>
-                <option value="light">Light</option>
-                <option value="dark">Dark</option>
+                <option value="system" data-i18n="companion.themeSystem">Use system setting</option>
+                <option value="light" data-i18n="companion.themeLight">Light</option>
+                <option value="dark" data-i18n="companion.themeDark">Dark</option>
               </select>
             </div>
             <div class="setting-row">
-              <label for="open-at-login">Open VibeMon at login</label
+              <label for="open-at-login" data-i18n="companion.openAtLogin">Open VibeMon at login</label
               ><input id="open-at-login" type="checkbox" class="switch" />
             </div>
             <details class="advanced">
-              <summary>Advanced display options</summary>
+              <summary data-i18n="companion.advanced">Advanced display options</summary>
               <div class="setting-row">
                 <div>
-                  <label for="dev-mode">Show companion window bounds</label>
-                  <p class="muted small">Useful when checking size and placement.</p>
+                  <label for="dev-mode" data-i18n="companion.bounds">Show companion window bounds</label>
+                  <p class="muted small" data-i18n="companion.boundsHelp">Useful when checking size and placement.</p>
                 </div>
                 <input id="dev-mode" type="checkbox" class="switch" />
               </div>
@@ -382,49 +386,49 @@
           <div class="settings-intro">
             <span class="large-symbol blue" data-icon="plug"></span>
             <div>
-              <h2>Bring your tools along</h2>
-              <p class="muted">Install hooks to bring local coding activity into VibeMon.</p>
+              <h2 data-i18n="integrations.title">Bring your tools along</h2>
+              <p class="muted" data-i18n="integrations.intro">Install hooks to bring local coding activity into VibeMon.</p>
             </div>
             <button id="hooks-refresh" class="button secondary">
-              <span data-icon="refresh"></span>Check installations
+              <span data-icon="refresh"></span><span data-i18n="integrations.check">Check installations</span>
             </button>
           </div>
           <form id="cloud-delivery-form" class="panel settings-panel">
             <div class="panel-heading">
-              <div><h3>Send activity to Web <span id="cloud-token-state" class="small muted"></span></h3><p class="muted">Connect local coding hooks to the workspace you follow in the dashboard. Sign in to give them their own write access.</p></div>
-              <span id="cloud-delivery-status" class="chip neutral" role="status">No saved write token</span>
+              <div><h3 data-i18n="cloudDelivery.title">Send activity to Web <span id="cloud-token-state" class="small muted"></span></h3><p class="muted" data-i18n="cloudDelivery.help">Connect local coding hooks to the workspace you follow in the dashboard. Sign in to give them their own write access.</p></div>
+              <span id="cloud-delivery-status" class="chip neutral" role="status" data-i18n="cloudDelivery.status.notConfigured">No saved write token</span>
             </div>
-            <label class="form-label" for="cloud-delivery-url">Web address</label>
+            <label class="form-label" for="cloud-delivery-url" data-i18n="common.webAddress">Web address</label>
             <input id="cloud-delivery-url" type="url" required autocomplete="url" placeholder="https://vibemon.io" />
-            <p class="field-help">Shared defaults for local hooks. Agent environment or plugin settings can override them.</p>
+            <p class="field-help" data-i18n="cloudDelivery.defaults">Shared defaults for local hooks. Agent environment or plugin settings can override them.</p>
             <p id="cloud-delivery-error" class="notice danger" role="alert" hidden></p>
             <div class="form-actions">
-              <button id="sign-in-cloud-delivery" type="button" class="button">Sign in to send activity</button>
-              <button id="cancel-cloud-sign-in" type="button" class="button secondary" hidden>Cancel sign-in</button>
-              <button id="check-cloud-delivery" type="button" class="button secondary">Check saved connection</button>
-              <button id="disconnect-cloud-delivery" type="button" class="button quiet-danger">Remove saved write token</button>
+              <button id="sign-in-cloud-delivery" type="button" class="button" data-i18n="cloudDelivery.signIn">Sign in to send activity</button>
+              <button id="cancel-cloud-sign-in" type="button" class="button secondary" data-i18n="common.cancelSignIn" hidden>Cancel sign-in</button>
+              <button id="check-cloud-delivery" type="button" class="button secondary" data-i18n="cloudDelivery.check">Check saved connection</button>
+              <button id="disconnect-cloud-delivery" type="button" class="button quiet-danger" data-i18n="cloudDelivery.remove">Remove saved write token</button>
             </div>
             <details class="advanced" id="write-token-option">
-              <summary>Use a write token instead</summary>
-              <label class="form-label" for="cloud-write-token">Write token</label>
-              <input id="cloud-write-token" type="password" autocomplete="off" spellcheck="false" placeholder="Paste a write token from Web Account" />
-              <div class="form-actions"><button id="save-cloud-delivery" class="button secondary">Save and verify</button></div>
+              <summary data-i18n="cloudDelivery.useWriteToken">Use a write token instead</summary>
+              <label class="form-label" for="cloud-write-token" data-i18n="cloudDelivery.writeToken">Write token</label>
+              <input id="cloud-write-token" type="password" autocomplete="off" spellcheck="false" placeholder="Paste a write token from Web Account" data-i18n-attr="placeholder:cloudDelivery.writeTokenPlaceholder" />
+              <div class="form-actions"><button id="save-cloud-delivery" class="button secondary" data-i18n="cloudDelivery.save">Save and verify</button></div>
             </details>
-            <div class="field-help cloud-delivery-help"><span id="cloud-delivery-help">Local activity stays available in the App.</span><button type="button" class="text-button" id="open-write-token-account">Open Web Account<span data-icon="external"></span></button></div>
+            <div class="field-help cloud-delivery-help"><span id="cloud-delivery-help" data-i18n="cloudDelivery.localStays">Local activity stays available in the App.</span><button type="button" class="text-button" id="open-write-token-account" data-i18n="cloudDelivery.openAccount">Open Web Account<span data-icon="external"></span></button></div>
           </form>
-          <p id="integration-progress" class="field-help" role="status" hidden>Installation in progress. Other install actions will be available when it finishes.</p>
+          <p id="integration-progress" class="field-help" role="status" data-i18n="integrations.progress" hidden>Installation in progress. Other install actions will be available when it finishes.</p>
           <div id="hook-list" class="integration-grid"></div>
-          <button id="hooks-reset-prompts" class="text-button" hidden>Re-enable installation prompts</button>
+          <button id="hooks-reset-prompts" class="text-button" data-i18n="integrations.resetPrompts" hidden>Re-enable installation prompts</button>
           <details class="panel settings-panel advanced" id="local-routing">
-            <summary>Local delivery settings<span id="routing-status" class="chip neutral"></span></summary>
+            <summary data-i18n="routing.title">Local delivery settings<span id="routing-status" class="chip neutral"></span></summary>
             <p id="routing-error" class="field-help" role="alert" hidden></p>
-            <p class="muted small">
+            <p class="muted small" data-i18n="routing.help">
               Forward local tool events to the desktop or a legacy C6 device. These settings do not contain your
               dashboard read token.
             </p>
             <div class="section-heading">
-              <h3>HTTP destinations</h3>
-              <button class="text-button" id="repair-routing">Repair desktop connection</button>
+              <h3 data-i18n="routing.destinations">HTTP destinations</h3>
+              <button class="text-button" id="repair-routing" data-i18n="routing.repair">Repair desktop connection</button>
             </div>
             <div id="http-destinations"></div>
             <form id="add-http-form" class="inline-form">
@@ -433,50 +437,51 @@
                 type="url"
                 placeholder="http://127.0.0.1:19280"
                 aria-label="New HTTP destination"
+                data-i18n-attr="aria-label:routing.newDestination"
                 required
-              /><button class="button secondary">Add destination</button>
+              /><button class="button secondary" data-i18n="routing.add">Add destination</button>
             </form>
             <div class="setting-row">
-              <label for="vibemon-serial-port">Legacy C6 serial device</label
-              ><input id="vibemon-serial-port" type="text" placeholder="No serial device" aria-describedby="touch-delivery-help" />
+              <label for="vibemon-serial-port" data-i18n="routing.serial">Legacy C6 serial device</label
+              ><input id="vibemon-serial-port" type="text" placeholder="No serial device" aria-describedby="touch-delivery-help" data-i18n-attr="placeholder:routing.noSerial" />
             </div>
-            <p id="touch-delivery-help" class="field-help">VibeMon Touch reads Web data directly. Set up Wi-Fi and a read token on its screen; these HTTP and serial destinations apply only to local status-push clients.</p>
+            <p id="touch-delivery-help" class="field-help" data-i18n="routing.touchHelp">VibeMon Touch reads Web data directly. Set up Wi-Fi and a read token on its screen; these HTTP and serial destinations apply only to local status-push clients.</p>
             <div class="setting-row">
-              <label for="vibemon-auto-launch">Open the installed App on session start</label
+              <label for="vibemon-auto-launch" data-i18n="routing.autoLaunch">Open the installed App on session start</label
               ><input id="vibemon-auto-launch" type="checkbox" class="switch" />
             </div>
             <div class="setting-row">
-              <label for="vibemon-debug">Enable detailed collector diagnostics</label
+              <label for="vibemon-debug" data-i18n="routing.debug">Enable detailed collector diagnostics</label
               ><input id="vibemon-debug" type="checkbox" class="switch" />
             </div>
           </details>
         </section>
         <section data-page="about" hidden>
           <div class="about-hero">
-            <img src="../assets/characters/vibemon-v2.png" alt="VibeMon companion" />
-            <div class="eyebrow">A LITTLE MORE AWARE</div>
+            <img src="../assets/characters/vibemon-v2.png" alt="VibeMon companion" data-i18n-attr="alt:about.imageAlt" />
+            <div class="eyebrow" data-i18n="about.eyebrow">A LITTLE MORE AWARE</div>
             <h2>VibeMon</h2>
-            <p class="muted">Your infrastructure and coding activity, together.</p>
+            <p class="muted" data-i18n="about.tagline">Your infrastructure and coding activity, together.</p>
             <span class="chip neutral" id="app-version"></span>
           </div>
           <div class="panel settings-panel inline-panel">
             <div>
-              <h3>App updates</h3>
+              <h3 data-i18n="about.updates">App updates</h3>
               <p id="update-status" class="muted" role="status"></p>
             </div>
-            <button id="check-updates" class="button secondary">Check for updates</button
+            <button id="check-updates" class="button secondary" data-i18n="about.checkUpdates">Check for updates</button
             ><button id="update-action" class="button" hidden></button>
           </div>
           <div class="about-links">
             <button class="button secondary" data-web="docs">
-              <span data-icon="book"></span>Documentation</button
+              <span data-icon="book"></span><span data-i18n="about.docs">Documentation</span></button
             ><button class="button secondary" id="open-releases">
-              <span data-icon="external"></span>Release notes
+              <span data-icon="external"></span><span data-i18n="about.releases">Release notes</span>
             </button>
           </div>
         </section>
         <footer class="page-footer">
-          <span id="last-sync">Your data stays in its workspace.</span
+          <span id="last-sync" data-i18n="footer.dataStays">Your data stays in its workspace.</span
           ><span>VibeMon <span id="footer-version"></span></span>
         </footer>
       </main>
@@ -484,43 +489,43 @@
     <dialog id="selection-dialog" class="selection-dialog" aria-labelledby="selection-title">
       <div class="dialog-heading">
         <div>
-          <div class="eyebrow">PERSONALIZE</div>
-          <h2 id="selection-title">Choose what you follow</h2>
+          <div class="eyebrow" data-i18n="selection.eyebrow">PERSONALIZE</div>
+          <h2 id="selection-title" data-i18n="selection.title">Choose what you follow</h2>
         </div>
-        <button class="icon-button" data-close-dialog="selection-dialog" aria-label="Close display selection">
+        <button class="icon-button" data-close-dialog="selection-dialog" aria-label="Close display selection" data-i18n-attr="aria-label:selection.close">
           <span data-icon="close"></span>
         </button>
       </div>
       <p class="notice danger dialog-error" role="alert" hidden></p>
-      <p class="muted">Your choices only affect this desktop.</p>
+      <p class="muted" data-i18n="selection.help">Your choices only affect this desktop.</p>
       <div class="selection-toolbar">
-        <button id="select-all" class="text-button">All sources</button
-        ><button id="select-none" class="text-button">Clear sources</button
-        ><button id="discover" class="text-button"><span data-icon="refresh"></span>Discover sources</button>
+        <button id="select-all" class="text-button" data-i18n="selection.all">All sources</button
+        ><button id="select-none" class="text-button" data-i18n="selection.none">Clear sources</button
+        ><button id="discover" class="text-button" data-i18n="selection.discover"><span data-icon="refresh"></span>Discover sources</button>
       </div>
       <form id="selection-form">
         <div class="selection-columns">
           <fieldset>
-            <legend>Resources</legend>
+            <legend data-i18n="nav.resources">Resources</legend>
             <div id="source-choices"></div>
           </fieldset>
           <fieldset>
-            <legend>Coding accounts</legend>
+            <legend data-i18n="selection.accounts">Coding accounts</legend>
             <div id="account-choices"></div>
           </fieldset>
         </div>
         <details class="advanced">
-          <summary>Visible metrics</summary>
+          <summary data-i18n="selection.metrics">Visible metrics</summary>
           <div class="selection-toolbar">
-            <button type="button" id="all-metrics" class="text-button">All metrics</button>
-            <button type="button" id="clear-metrics" class="text-button">Clear metrics</button>
+            <button type="button" id="all-metrics" class="text-button" data-i18n="selection.allMetrics">All metrics</button>
+            <button type="button" id="clear-metrics" class="text-button" data-i18n="selection.clearMetrics">Clear metrics</button>
           </div>
           <div id="metric-choices" class="choice-grid"></div>
         </details>
         <div class="dialog-footer">
           <span id="selection-count" class="small muted"></span
-          ><button type="button" class="button secondary" data-close-dialog="selection-dialog">Cancel</button
-          ><button class="button" id="save-selection">Save view</button>
+          ><button type="button" class="button secondary" data-close-dialog="selection-dialog" data-i18n="common.cancel">Cancel</button
+          ><button class="button" id="save-selection" data-i18n="selection.save">Save view</button>
         </div>
       </form>
     </dialog>
@@ -530,7 +535,7 @@
           <div id="detail-type" class="eyebrow"></div>
           <h2 id="detail-title"></h2>
         </div>
-        <button class="icon-button" data-close-dialog="detail-dialog" aria-label="Close source details">
+        <button class="icon-button" data-close-dialog="detail-dialog" aria-label="Close source details" data-i18n-attr="aria-label:detail.close">
           <span data-icon="close"></span>
         </button>
       </div>
@@ -544,19 +549,19 @@
       <div id="detail-members"></div>
       <div id="detail-history">
         <div class="section-heading">
-          <h3>Recent hour</h3>
-          <select id="trend-metric" aria-label="History metric"></select>
+          <h3 data-i18n="detail.recentHour">Recent hour</h3>
+          <select id="trend-metric" aria-label="History metric" data-i18n-attr="aria-label:detail.historyMetric"></select>
         </div>
         <p id="trend-error" class="notice danger" role="alert" hidden></p>
-        <button id="retry-trend" class="text-button" hidden>Retry history<span data-icon="refresh"></span></button>
+        <button id="retry-trend" class="text-button" data-i18n="detail.retry" hidden>Retry history<span data-icon="refresh"></span></button>
         <p id="trend-state" class="small muted" role="status"></p>
         <div class="history-chart-frame">
-          <div id="chart-legend" class="chart-legend" hidden><span>Average</span><span class="maximum">Maximum</span></div>
-          <svg id="chart" viewBox="0 0 600 240" role="img" aria-label="Average and maximum over the recent hour" aria-describedby="trend-state"></svg>
+          <div id="chart-legend" class="chart-legend" hidden><span data-i18n="detail.average">Average</span><span class="maximum" data-i18n="detail.maximum">Maximum</span></div>
+          <svg id="chart" viewBox="0 0 600 240" role="img" aria-label="Average and maximum over the recent hour" data-i18n-attr="aria-label:detail.chart" aria-describedby="trend-state"></svg>
         </div>
-        <p class="small muted">Minute averages and maxima. Gaps mean no recorded measurement.</p>
+        <p class="small muted" data-i18n="detail.chartHelp">Minute averages and maxima. Gaps mean no recorded measurement.</p>
       </div>
-      <button id="edit-resource" class="button secondary">
+      <button id="edit-resource" class="button secondary" data-i18n="detail.edit">
         Edit resource on Web<span data-icon="external"></span>
       </button>
     </dialog>

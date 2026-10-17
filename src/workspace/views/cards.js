@@ -1,5 +1,6 @@
 import { compareCards } from './card-order.mjs';
-import { accountName, describeReset, measurementUnit, metricTone, resetCountdown, resourceType, stateTone } from '../../shared/design/presentation.mjs';
+import { accountName, describeReset, measurementUnit, metricLabel, metricTone, resetCountdown, resourceType, stateTone } from '../../shared/design/presentation.mjs';
+import { t, locale } from '../i18n.js';
 import {
   el,
   text,
@@ -25,7 +26,9 @@ export const accountCard = (account) => ({
   members: account.sources
 });
 export const sourceState = source => source.displayState;
-export const sourceType = source => source.isAccount ? `${providerName(source.provider)} · ${accountName(source.sourceId)}` : resourceType(source);
+export const sourceType = source => source.isAccount ? `${providerName(source.provider)} · ${accountName(source.sourceId)}` : resourceType(source, t);
+/** A metric label in the App language; reported custom labels stay as they are. */
+export const metricName = metric => metricLabel(metric.key, metric.label, t);
 export const needsAttention = source => source.needsAttention;
 
 export function createMetric() {
@@ -44,15 +47,16 @@ export function createMetric() {
   const reset = el('p', undefined, 'metric-reset');
   const resetPrefix = el('span');
   const resetTime = el('span');
-  reset.append(icon('refresh'), resetPrefix, resetTime);
+  const resetSuffix = el('span');
+  reset.append(icon('refresh'), resetPrefix, resetTime, resetSuffix);
   node.append(label, bar, reset);
-  node._parts = { name, value, amount, unit, bar, fill, reset, resetPrefix, resetTime };
+  node._parts = { name, value, amount, unit, bar, fill, reset, resetPrefix, resetTime, resetSuffix };
   return node;
 }
 /** `metric.resetAt` is the time at which a plan usage limit resets, on the same clock as `now`. */
 export function updateMetric(node, { metric, value, label, precise = false, now = Date.now() }) {
-  const { name, value: output, amount, unit, bar, fill, reset, resetPrefix, resetTime } = node._parts;
-  text(name, label || metric.label);
+  const { name, value: output, amount, unit, bar, fill, reset, resetPrefix, resetTime, resetSuffix } = node._parts;
+  text(name, label || metricName(metric));
   text(amount, reading(value, metric.unit, precise, '—', false));
   text(unit, typeof value === 'number' && Number.isFinite(value) ? measurementUnit(metric.unit) : '');
   output.title = reading(value, metric.unit, true);
@@ -62,21 +66,26 @@ export function updateMetric(node, { metric, value, label, precise = false, now 
     const percent = Math.max(0, Math.min(100, ((value - metric.min) / (metric.max - metric.min)) * 100));
     fill.style.width = `${percent}%`;
     bar.setAttribute('role', 'meter');
-    bar.setAttribute('aria-label', label || metric.label);
+    bar.setAttribute('aria-label', label || metricName(metric));
     bar.setAttribute('aria-valuemin', metric.min);
     bar.setAttribute('aria-valuemax', metric.max);
     bar.setAttribute('aria-valuenow', Math.max(metric.min, Math.min(metric.max, value)));
     bar.setAttribute('aria-valuetext', reading(value, metric.unit, precise));
     bar.dataset.tone = metricTone(metric.key, value);
   }
-  const countdown = available ? resetCountdown(metric.resetAt, now) : null;
+  const countdown = available ? resetCountdown(metric.resetAt, now, t) : null;
   reset.hidden = countdown === null;
   if (countdown === null) node.removeAttribute('title');
   else {
-    const sentence = describeReset(countdown);
-    text(resetPrefix, sentence.slice(0, -countdown.length));
-    text(resetTime, countdown);
-    node.title = `${sentence} · ${new Date(Date.now() + metric.resetAt - now).toLocaleString()}`;
+    // The countdown keeps its own element wherever the language places it.
+    const sentence = describeReset(countdown, t);
+    const at = sentence.indexOf(countdown);
+    const parts = at < 0 ? [sentence, '', ''] : [sentence.slice(0, at), countdown, sentence.slice(at + countdown.length)];
+    for (const [part, value] of [[resetPrefix, parts[0]], [resetTime, parts[1]], [resetSuffix, parts[2]]]) {
+      text(part, value);
+      part.hidden = !value.trim();
+    }
+    node.title = `${sentence} · ${new Date(Date.now() + metric.resetAt - now).toLocaleString(locale)}`;
   }
 }
 
@@ -89,9 +98,9 @@ export function renderCards(
   {
     limit,
     compact = false,
-    emptyTitle = 'Nothing to show yet',
-    emptyDescription = 'Choose sources from your workspace to see their latest readings.',
-    emptyAction = 'Customize view'
+    emptyTitle = t('empty.default.title'),
+    emptyDescription = t('empty.default.description'),
+    emptyAction = t('action.customize')
   } = {},
   now = Date.now()
 ) {
@@ -139,7 +148,7 @@ export function renderCards(
       const members = el('div', undefined, 'card-members');
       const footer = el('div', undefined, 'card-footer');
       const received = el('time');
-      const details = button('Details', () => openDetail(card._source), '');
+      const details = button(t('cards.details'), () => openDetail(card._source), '');
       details.append(icon('arrow'));
       footer.append(received, details);
       card.append(edge, heading, message, metrics, members, footer);
@@ -181,7 +190,7 @@ export function renderCards(
       const message =
         source.statusMessage ||
         (source.isAccount
-          ? `${source.members.length} reporting ${source.members.length === 1 ? 'project' : 'projects'}`
+          ? t('cards.reporting', { count: source.members.length })
           : '');
       text(parts.message, message);
       parts.message.hidden = !message;
@@ -205,8 +214,8 @@ export function renderCards(
       parts.members.hidden = !projects.length;
       text(parts.received, ago(source.receivedAt, now));
       parts.received.dateTime = source.receivedAt;
-      parts.received.title = new Date(source.receivedAt).toLocaleString();
-      parts.details.setAttribute('aria-label', `View ${card.getAttribute('aria-label')} details`);
+      parts.received.title = new Date(source.receivedAt).toLocaleString(locale);
+      parts.details.setAttribute('aria-label', t('cards.viewDetails', { name: card.getAttribute('aria-label') }));
     }
   );
 }
@@ -217,8 +226,8 @@ export function renderActivity(container, activity, compact = false) {
     if (!container._empty) {
       container.replaceChildren(
         empty(
-          'Ready when you are',
-          'Local coding activity appears here when an integration reports a project.',
+          t('empty.activity.title'),
+          t('empty.activity.description'),
           null,
           null,
           true
@@ -259,8 +268,8 @@ export function renderActivity(container, activity, compact = false) {
       text(title, item.project || item.id);
       text(
         subtitle,
-        [item.account ? `${providerName(item.account.provider)} · ${item.account.displayName}` : null, item.model, item.tool, item.focused ? 'Following on desktop' : null].filter(Boolean).join(' · ') ||
-          'Local project'
+        [item.account ? `${providerName(item.account.provider)} · ${item.account.displayName}` : null, item.model, item.tool, item.focused ? t('activity.following') : null].filter(Boolean).join(' · ') ||
+          t('activity.local')
       );
       badge(status, item.state || 'idle');
     }
@@ -273,8 +282,8 @@ export function renderUsage(container, usage) {
     if (!container._empty) {
       container.replaceChildren(
         empty(
-          'No usage reported',
-          'Available plan limits appear after your local tools refresh their usage.',
+          t('empty.usage.title'),
+          t('empty.usage.description'),
           null,
           null,
           true
@@ -302,7 +311,7 @@ export function renderUsage(container, usage) {
       return row;
     },
     (row, [provider, buckets]) => {
-      text(row._parts.title, `${providerName(provider)} · this device`);
+      text(row._parts.title, t('usage.thisDevice', { provider: providerName(provider) }));
       const entries = Object.entries(buckets).filter(([, value]) => value);
       keyed(
         row._parts.values,
@@ -317,7 +326,7 @@ export function renderUsage(container, usage) {
           updateMetric(item, {
             metric: {
               key: `usage-${key}`,
-              label: key === 'session' ? 'Session' : key === 'week' ? 'Weekly' : value.label || 'Model limit',
+              label: key === 'session' ? t('metric.short.usageSessionPercent') : key === 'week' ? t('metric.short.usageWeekPercent') : value.label || t('usage.modelLimit'),
               unit: '%',
               display: 'gauge',
               min: 0,

@@ -1,22 +1,9 @@
 import { $, el, text, icon, keyed, choices, sprite, button, connection } from '../dom.js';
+import { t, locale } from '../i18n.js';
 
-const fieldLabels = {
-  status: 'Activity',
-  project: 'Project name',
-  model: 'Model',
-  memory: 'Context usage',
-  usage5h: 'Session usage',
-  usageWeek: 'Weekly usage',
-  usageWeekModel: 'Model usage'
-};
-const descriptions = {
-  '--claude': 'Session activity, context, and available plan usage from Claude Code.',
-  '--codex': 'Activity from Codex CLI. Review new or changed hooks with /hooks in Codex.',
-  '--kiro': 'Activity from Kiro. Usage is shown only when the tool reports it.',
-  '--openclaw': 'Project and tool activity from your OpenClaw gateway.',
-  '--opencode': 'Session and tool events from OpenCode.',
-  '--vibemon': 'Shared collection and native App launch support for your integrations.'
-};
+// Speech bubble fields and installer flags with a message in the catalog.
+const bubbleFields = new Set(['status', 'project', 'model', 'memory', 'usage5h', 'usageWeek', 'usageWeekModel']);
+const hookFlags = new Set(['--claude', '--codex', '--kiro', '--openclaw', '--opencode', '--vibemon']);
 
 export function setupPreferences({ getFrame, request, run, notify }) {
   let latest = null;
@@ -75,17 +62,17 @@ export function setupPreferences({ getFrame, request, run, notify }) {
       $('cloud-write-token').value = '';
       await save('configure-cloud-delivery', { url: $('cloud-delivery-url').value.trim(), token });
       delete $('cloud-delivery-url').dataset.dirty;
-      notify('Cloud delivery saved and verified');
+      notify(t('toast.deliverySaved'));
     });
   });
   $('check-cloud-delivery').addEventListener('click', () => runDelivery($('check-cloud-delivery'), async () => {
     await save('check-cloud-delivery');
-    notify('Write access verified');
+    notify(t('toast.writeVerified'));
   }));
   $('disconnect-cloud-delivery').addEventListener('click', () => runDelivery($('disconnect-cloud-delivery'), async () => {
     $('cloud-write-token').value = '';
     await save('disconnect-cloud-delivery');
-    notify('Saved write token removed. Local delivery stays connected');
+    notify(t('toast.writeTokenRemoved'));
   }));
   // While the browser is open, Cancel stops waiting so the person can start again.
   const waiting = async (cancel, action) => {
@@ -95,12 +82,12 @@ export function setupPreferences({ getFrame, request, run, notify }) {
   for (const id of ['cancel-sign-in', 'cancel-cloud-sign-in']) $(id).addEventListener('click', () => request('cancel-sign-in'));
   $('sign-in').addEventListener('click', () =>
     run($('sign-in'), () => waiting('cancel-sign-in', async () => {
-      text($('connection-saved'), 'Finish the sign-in in your browser…');
+      text($('connection-saved'), t('connections.finishInBrowser'));
       try {
         const cloud = await request('sign-in', $('web-url').value.trim());
         delete $('web-url').dataset.dirty;
-        text($('connection-saved'), cloud.status === 'connected' ? 'Connected successfully' : connection(cloud.status)[1]);
-        if (cloud.status === 'connected') notify('Workspace connected');
+        text($('connection-saved'), cloud.status === 'connected' ? t('connections.connected') : connection(cloud.status)[1]);
+        if (cloud.status === 'connected') notify(t('toast.connected'));
       } catch (error) {
         text($('connection-saved'), '');
         throw error;
@@ -108,10 +95,10 @@ export function setupPreferences({ getFrame, request, run, notify }) {
     }))
   );
   $('sign-in-cloud-delivery').addEventListener('click', () => runDelivery($('sign-in-cloud-delivery'), () => waiting('cancel-cloud-sign-in', async () => {
-    $('cloud-delivery-help').textContent = 'Finish the sign-in in your browser…';
+    $('cloud-delivery-help').textContent = t('connections.finishInBrowser');
     await request('sign-in-cloud-delivery', $('cloud-delivery-url').value.trim());
     delete $('cloud-delivery-url').dataset.dirty;
-    notify('Signed in. Local hooks now send activity to Web');
+    notify(t('toast.deliverySignedIn'));
   })));
   $('connect-form').addEventListener('submit', (event) => {
     event.preventDefault();
@@ -122,18 +109,16 @@ export function setupPreferences({ getFrame, request, run, notify }) {
       delete $('web-url').dataset.dirty;
       text(
         $('connection-saved'),
-        cloud.status === 'connected' ? 'Connected successfully' : connection(cloud.status)[1]
+        cloud.status === 'connected' ? t('connections.connected') : connection(cloud.status)[1]
       );
-      if (cloud.status === 'connected') notify('Workspace connected');
+      if (cloud.status === 'connected') notify(t('toast.connected'));
     });
   });
   $('disconnect').addEventListener('click', () =>
     run($('disconnect'), async () => {
       $('read-token').value = '';
       const result = await request('disconnect');
-      text($('connection-saved'), result.tokenDeleted
-        ? 'This desktop is disconnected and its token is deleted on Web'
-        : 'This desktop is disconnected. Delete its token on Web Account');
+      text($('connection-saved'), t(result.tokenDeleted ? 'connections.disconnectedDeleted' : 'connections.disconnectedKept'));
     })
   );
   $('preview-companion').addEventListener('click', () =>
@@ -142,7 +127,7 @@ export function setupPreferences({ getFrame, request, run, notify }) {
   $('hooks-refresh').addEventListener('click', () =>
     run($('hooks-refresh'), async () => {
       await save('refresh-hook-statuses');
-      notify('Integration status refreshed');
+      notify(t('toast.integrationsRefreshed'));
     })
   );
   $('hooks-reset-prompts').addEventListener('click', () =>
@@ -174,11 +159,11 @@ export function setupPreferences({ getFrame, request, run, notify }) {
     $('theme-storage-status').hidden = !message;
   };
   const themes = ['light', 'dark', 'system'];
-  const sessionOnly = 'Appearance changes apply to this session. Local storage is unavailable.';
+  const sessionOnly = t('companion.themeSessionOnly');
   let storedTheme = null;
   try { storedTheme = window.localStorage.getItem('vibemon.workspace.theme'); }
   catch { appearanceNotice(sessionOnly); }
-  if (storedTheme !== null && !themes.includes(storedTheme)) appearanceNotice('The saved appearance was invalid. Choose an appearance to replace it.');
+  if (storedTheme !== null && !themes.includes(storedTheme)) appearanceNotice(t('companion.themeInvalid'));
   const theme = themes.includes(storedTheme) ? storedTheme : 'system';
   document.documentElement.dataset.theme = theme;
   $('theme').value = theme;
@@ -197,44 +182,42 @@ export function setupPreferences({ getFrame, request, run, notify }) {
     $('integration-progress').hidden = !settings.installing;
     $('hooks-refresh').disabled = Boolean($('hooks-refresh').dataset.busy) || settings.installing;
     field('web-url', cloud.url);
-    text($('token-state'), cloud.tokenConfigured ? 'A token is saved securely' : 'No token saved');
-    $('read-token').placeholder = cloud.tokenConfigured
-      ? 'Enter a new token to replace the saved one'
-      : 'Paste your read token';
+    text($('token-state'), t(cloud.tokenConfigured ? 'connections.tokenSaved' : 'connections.noToken'));
+    $('read-token').placeholder = t(cloud.tokenConfigured ? 'connections.replaceToken' : 'connections.pasteToken');
     $('disconnect').disabled = Boolean($('disconnect').dataset.busy) || !cloud.tokenConfigured;
     choices(
       $('render-mode'),
       [
-        ['3d', '3D pet'],
-        ['2d', 'Pixel art']
+        ['3d', t('companion.render3d')],
+        ['2d', t('companion.render2d')]
       ],
       settings.renderMode
     );
     choices(
       $('character-lock'),
       [
-        ['auto', 'Follow the active tool'],
+        ['auto', t('companion.followTool')],
         ...settings.options.characters.map((item) => [item.name, item.displayName])
       ],
       settings.characterLock
     );
     choices(
       $('character-scale'),
-      settings.options.characterScales.map((value) => [value, `${value}%`]),
+      settings.options.characterScales.map((value) => [value, t('companion.scale', { value })]),
       settings.characterScale
     );
-    choices($('always-on-top'), Object.entries(settings.options.alwaysOnTopModes), settings.alwaysOnTopMode);
+    choices($('always-on-top'), Object.entries(settings.options.alwaysOnTopModes).map(([mode, label]) => [mode, t.has(`companion.onTopMode.${mode}`) ? t(`companion.onTopMode.${mode}`) : label]), settings.alwaysOnTopMode);
     choices(
       $('edge-margin'),
-      settings.options.edgeMargins.map((value) => [value, `${value} px`]),
+      settings.options.edgeMargins.map((value) => [value, t('companion.pixels', { value })]),
       settings.edgeMargin
     );
     $('dock-corner-size-row').hidden = !settings.supportsDockCorners;
     choices(
       $('dock-corner-size'),
       [
-        ['keep', 'Keep current size'],
-        ['shrink', 'Auto shrink']
+        ['keep', t('companion.dockKeep')],
+        ['shrink', t('companion.dockShrink')]
       ],
       settings.dockAutoScale ? 'shrink' : 'keep'
     );
@@ -260,7 +243,7 @@ export function setupPreferences({ getFrame, request, run, notify }) {
         image.src = sprite(item.name);
         image.alt = '';
         tile.replaceChildren(image, el('span', item.displayName));
-        tile.setAttribute('aria-label', `Use ${item.displayName} character`);
+        tile.setAttribute('aria-label', t('companion.useCharacter', { name: item.displayName }));
         return tile;
       },
       (tile, item) => tile.setAttribute('aria-pressed', String(settings.characterLock === item.name))
@@ -276,7 +259,7 @@ export function setupPreferences({ getFrame, request, run, notify }) {
         input.addEventListener('change', () =>
           run(input, () => save('set-speech-bubble-field', key, input.checked))
         );
-        label.append(input, el('span', fieldLabels[key] || key));
+        label.append(input, el('span', bubbleFields.has(key) ? t(`companion.field.${key}`) : key));
         return label;
       },
       (label, key) => {
@@ -297,14 +280,14 @@ export function setupPreferences({ getFrame, request, run, notify }) {
           status = el('span', undefined, 'chip');
         heading.append(glyph, title, status);
         const description = el('p');
-        const action = button('Install', () =>
+        const action = button(t('dialog.button.install'), () =>
           run(action, async () => {
             if (!card._tool.present) {
               await request('open-web', 'docs');
               return;
             }
             await save('install-hook', card._tool.flag);
-            notify(`${card._tool.name} installation updated`);
+            notify(t('toast.installUpdated', { name: card._tool.name }));
           })
         );
         const detail = el('div', undefined, 'small muted');
@@ -316,39 +299,39 @@ export function setupPreferences({ getFrame, request, run, notify }) {
         card._tool = tool;
         const { title, status, description, action, detail } = card._parts;
         text(title, tool.name);
-        text(description, descriptions[tool.flag] || 'Send local tool activity to your desktop.');
+        text(description, t(hookFlags.has(tool.flag) ? `integrations.hook.${tool.flag.slice(2)}` : 'integrations.hook.default'));
         const attention = tool.broken || tool.changed;
         text(
           status,
-          !tool.present
-            ? 'Not detected'
+          t(!tool.present
+            ? 'integrations.status.notDetected'
             : tool.broken
-              ? 'Needs repair'
+              ? 'integrations.status.needsRepair'
               : tool.changed
-                ? 'Update available'
+                ? 'integrations.status.update'
                 : tool.hasHook
-                  ? 'Installed'
-                  : 'Not installed'
+                  ? 'integrations.status.installed'
+                  : 'integrations.status.notInstalled')
         );
         status.className = `chip ${!tool.present ? 'neutral' : attention ? 'warning' : tool.hasHook ? 'good' : 'neutral'}`;
         text(
           action,
-          !tool.present
-            ? 'Setup guide'
+          t(!tool.present
+            ? 'integrations.action.guide'
             : tool.hasHook
               ? attention
-                ? 'Repair installation'
-                : 'Reinstall'
-              : 'Install integration'
+                ? 'integrations.action.repair'
+                : 'integrations.action.reinstall'
+              : 'integrations.action.install')
         );
         action.className = `button ${(tool.hasHook && !attention) || !tool.present ? 'secondary' : ''}`;
         action.disabled = Boolean(action.dataset.busy) || Boolean(settings.installing && tool.present);
         text(
           detail,
           tool.brokenPath
-            ? `Missing: ${tool.brokenPath}`
+            ? t('integrations.missing', { path: tool.brokenPath })
             : tool.dismissed
-              ? 'Automatic installation prompts are off.'
+              ? t('integrations.promptsOff')
               : ''
         );
         detail.hidden = !detail.textContent;
@@ -356,7 +339,7 @@ export function setupPreferences({ getFrame, request, run, notify }) {
     );
     $('hooks-reset-prompts').hidden = !settings.hooks.some((tool) => tool.dismissed);
     const config = settings.vibemonConfig;
-    text($('routing-status'), config.status.error ? 'Check configuration' : config.status.hasDesktopUrl ? 'Desktop connected' : 'Setup needed');
+    text($('routing-status'), t(config.status.error ? 'routing.status.error' : config.status.hasDesktopUrl ? 'routing.status.connected' : 'routing.status.setup'));
     $('routing-status').className = `chip ${config.status.error ? 'warning' : config.status.hasDesktopUrl ? 'good' : 'neutral'}`;
     text($('routing-error'), config.status.error || '');
     $('routing-error').hidden = !config.status.error;
@@ -372,7 +355,7 @@ export function setupPreferences({ getFrame, request, run, notify }) {
           'icon-button',
           'close'
         );
-        remove.setAttribute('aria-label', `Remove ${url}`);
+        remove.setAttribute('aria-label', t('routing.remove', { url }));
         row.append(el('span', url), remove);
         return row;
       },
@@ -383,41 +366,34 @@ export function setupPreferences({ getFrame, request, run, notify }) {
     field('cloud-delivery-url', delivery.url);
     $('cloud-delivery-url').disabled = delivery.busy;
     $('cloud-write-token').disabled = delivery.busy;
-    const deliveryLabels = { 'not-configured': 'No saved write token', 'not-verified': 'Not checked', checking: 'Checking…', verified: 'Write access verified', error: 'Needs attention' };
-    text($('cloud-delivery-status'), deliveryLabels[delivery.status]);
+    const deliveryLabels = { 'not-configured': 'notConfigured', 'not-verified': 'notVerified', checking: 'checking', verified: 'verified', error: 'error' };
+    text($('cloud-delivery-status'), Object.hasOwn(deliveryLabels, delivery.status) ? t(`cloudDelivery.status.${deliveryLabels[delivery.status]}`) : '');
     $('cloud-delivery-status').className = `chip ${delivery.status === 'verified' ? 'good' : delivery.status === 'error' ? 'warning' : 'neutral'}`;
-    text($('cloud-token-state'), delivery.tokenConfigured ? 'A write token is saved' : 'No write token');
-    $('cloud-write-token').placeholder = delivery.tokenConfigured ? 'Paste a new token to replace the saved one' : 'Paste a write token from Web Account';
+    text($('cloud-token-state'), t(delivery.tokenConfigured ? 'cloudDelivery.tokenSaved' : 'cloudDelivery.noToken'));
+    $('cloud-write-token').placeholder = t(delivery.tokenConfigured ? 'cloudDelivery.replaceToken' : 'cloudDelivery.writeTokenPlaceholder');
     for (const id of ['save-cloud-delivery', 'check-cloud-delivery', 'disconnect-cloud-delivery']) {
       $(id).disabled = Boolean($(id).dataset.busy) || delivery.busy || (id !== 'save-cloud-delivery' && !delivery.tokenConfigured);
     }
     const cloudError = deliveryError || (delivery.busy ? '' : delivery.error);
     text($('cloud-delivery-error'), cloudError);
     $('cloud-delivery-error').hidden = !cloudError;
-    text($('cloud-delivery-help'), delivery.checkedAt ? `Last checked ${new Date(delivery.checkedAt).toLocaleTimeString()}. Applies to hooks using shared settings.` : 'Local activity stays available in the App.');
-    text($('app-version'), `Version ${settings.version}`);
+    text($('cloud-delivery-help'), delivery.checkedAt ? t('cloudDelivery.lastChecked', { time: new Date(delivery.checkedAt).toLocaleTimeString(locale) }) : t('cloudDelivery.localStays'));
+    text($('app-version'), t('about.version', { version: settings.version }));
     text($('footer-version'), settings.version);
     const update = settings.update;
-    const updateDescriptions = {
-      current: 'You are using the latest available version.',
-      error: 'The update could not finish. Check again to try another download.',
-      checking: 'Checking for a new version…',
-      available: `Version ${update.version} is available.`,
-      downloading: `Downloading version ${update.version}…`,
-      downloaded: `Version ${update.version} is ready to install.`
-    };
+    const updateStates = new Set(['current', 'error', 'checking', 'available', 'downloading', 'downloaded']);
     text(
       $('update-status'),
-      !settings.isPackaged
-        ? 'Updates are available in the installed App.'
-        : updateDescriptions[update.status] || 'Check for the latest available version.'
+      t(!settings.isPackaged
+        ? 'about.update.unpackaged'
+        : updateStates.has(update.status) ? `about.update.${update.status}` : 'about.update.idle', { version: update.version })
     );
     $('check-updates').disabled =
       Boolean($('check-updates').dataset.busy) ||
       !settings.isPackaged ||
       ['checking', 'downloading', 'downloaded'].includes(update.status);
     $('update-action').hidden = !['available', 'downloaded'].includes(update.status);
-    text($('update-action'), update.status === 'downloaded' ? 'Restart and install' : 'Download update');
+    text($('update-action'), t(update.status === 'downloaded' ? 'about.restartInstall' : 'about.download'));
   }
   return {
     render,

@@ -1,5 +1,6 @@
-import { accountName } from '../../shared/design/presentation.mjs';
+import { accountName, metricLabel } from '../../shared/design/presentation.mjs';
 import { $, el, keyed, text, providerName, connection } from '../dom.js';
+import { t } from '../i18n.js';
 
 export function setupSelection({ getFrame, request, navigate, run, notify, fail }) {
   const dialog = $('selection-dialog');
@@ -17,7 +18,7 @@ export function setupSelection({ getFrame, request, navigate, run, notify, fail 
   }
   function count() {
     const selected = draft();
-    text($('selection-count'), `${selected.sources.length} resources · ${selected.accounts.length} accounts`);
+    text($('selection-count'), `${t('count.resources', { count: selected.sources.length })} · ${t('count.accounts', { count: selected.accounts.length })}`);
   }
   function checkbox(entry) {
     const label = el('label', undefined, 'choice');
@@ -61,7 +62,7 @@ export function setupSelection({ getFrame, request, navigate, run, notify, fail 
     );
     renderList(
       'metric-choices',
-      Object.entries(cloud.metrics).map(([id, metric]) => ({ id, label: metric.label })),
+      Object.entries(cloud.metrics).map(([id, metric]) => ({ id, label: metricLabel(id, metric.label, t) })),
       saved.metrics
     );
     count();
@@ -104,7 +105,7 @@ export function setupSelection({ getFrame, request, navigate, run, notify, fail 
     run($('save-selection'), async () => {
       await request('select', draft());
       if (isCurrent(current)) dialog.close();
-      notify('Dashboard selection saved');
+      notify(t('toast.selectionSaved'));
     }, error => { if (isCurrent(current)) fail(error); });
   });
   dialog.addEventListener('close', () => {
