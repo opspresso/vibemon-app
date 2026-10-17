@@ -204,11 +204,11 @@ describe('widget feed helpers', () => {
   });
 
   test('usage is keyed by account, with the default account for an unnamed cache key', () => {
-    const snapshot = { claude: { session: { pct: 1 } }, codex: { session: null } };
-    expect(usageByAccount(snapshot, provider => (provider === 'codex' ? 'codex:work' : provider))).toEqual({
-      'claude:default': snapshot.claude, 'codex:work': snapshot.codex
+    const snapshot = { claude: { session: { pct: 1 } }, 'codex:work': { session: null } };
+    expect(usageByAccount(snapshot)).toEqual({
+      'claude:default': snapshot.claude, 'codex:work': snapshot['codex:work']
     });
-    expect(usageByAccount(snapshot, () => null)).toEqual({});
+    expect(usageByAccount({})).toEqual({});
   });
 
   test('widgets need macOS 14 or later', () => {

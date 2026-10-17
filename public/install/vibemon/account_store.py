@@ -10,7 +10,7 @@ from cache_io import update_json_cache
 def normalize(value) -> dict:
     if not isinstance(value, dict) or value.get('version') != 1:
         return {'version': 1, 'profiles': {}, 'sessions': {}}
-    return {'version': 1, **{key: value[key] if isinstance(value.get(key), dict) else {} for key in ['profiles', 'sessions']}}
+    return {'version': 1, **{key: value[key] if isinstance(value.get(key), dict) else {} for key in ['profiles', 'sessions', 'refreshAttempts']}}
 
 
 class JsonAccountStore:

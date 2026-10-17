@@ -6,10 +6,8 @@ Fetches Claude Code and Codex CLI plan usage and stores it in the shared
 usage cache (~/.vibemon/cache/usage.json) — the same file that
 ~/.claude/statusline.py and the platform hooks read.
 
-Claude: Anthropic's OAuth usage API (the same endpoint the official /usage
-command uses, queried directly with the local Claude Code login token — no
-active session required), falling back to a `claude -p "/usage"` subprocess
-when a login token isn't available or the API call fails.
+Claude: identity-verified OAuth usage, or the official status-line measurements.
+The refresher never starts a model conversation to guess quota values.
 
 Codex: the same account-level usage API Codex CLI's own `/status` polls,
 queried with the local Codex login token, falling back to the newest local
@@ -30,7 +28,11 @@ Prints the resulting usage cache JSON to stdout. Exit code 0 on success
 
 from __future__ import annotations
 
-from account_context import cache_key
+from account_context import cache_key, current_account, prepare_account, using_account, known_session_account, registry_path, inspect_account
+from account_sources import codex_auth
+from account_identity import authenticated
+from account_refresh import refresh_profiles
+from contextlib import ExitStack
 from cache_io import cache_lock
 from http_client import open_credential_request
 
@@ -53,7 +55,6 @@ from usage_cache import (
     is_usage_bucket,
     is_fresh_observation,
     load_usage_cache as _load_usage_cache,
-    parse_usage_output,
     parse_epoch,
     reverse_jsonl,
     save_usage_cache as _save_usage_cache,
@@ -65,9 +66,9 @@ from usage_cache import (
 # every helper process pops a console window on Windows.
 NO_WINDOW_FLAGS = getattr(subprocess, "CREATE_NO_WINDOW", 0)
 
-CLAUDE_TIMEOUT_SECONDS = 30
 CLAUDE_TOKEN_TIMEOUT_SECONDS = 3
 USAGE_API_TIMEOUT_SECONDS = 8
+CLAUDE_PROFILE_API_URL = "https://api.anthropic.com/api/oauth/profile"
 CLAUDE_USAGE_API_URL = "https://api.anthropic.com/api/oauth/usage"
 CLAUDE_CREDENTIALS_FILE = os.path.join(os.path.expanduser(os.environ.get("CLAUDE_CONFIG_DIR") or "~/.claude"), ".credentials.json")
 
@@ -175,19 +176,33 @@ def _usage_response(request) -> dict[str, Any] | None:
         return None
 
 
-def fetch_claude_usage_live() -> dict[str, Any] | None:
-    """Fetch plan usage directly from Anthropic's OAuth usage API — the same
-    endpoint the official /usage command uses — via the local Claude Code
-    login token. Unlike the `claude -p "/usage"` text fallback below, this
-    needs no active session and returns an exact reset timestamp.
+def active_claude_account():
+    identity = inspect_account('claude')
+    return identity if identity.kind == 'account' else None
 
-    Returns the same shape as parse_usage_output() (`session`/`week_all`
-    entries with `pct` and `resets_at`, plus model-scoped weekly buckets like
-    `week_fable` with a `label`), or None if a token isn't available, the
-    request fails, or the response doesn't look like a usage payload.
-    """
+
+def fetch_claude_usage_live() -> dict[str, Any] | None:
+    """Read quota only after the token's provider identity matches the active profile."""
+    expected = active_claude_account()
+    if expected is None:
+        return None
     token = read_claude_token()
     if not token:
+        return None
+
+    profile = _usage_response(urllib.request.Request(CLAUDE_PROFILE_API_URL, headers={
+        'Authorization': f'Bearer {token}', 'Content-Type': 'application/json', 'Cache-Control': 'no-cache',
+    }))
+    account = profile.get('account') if isinstance(profile, dict) else None
+    organization = profile.get('organization') if isinstance(profile, dict) else None
+    if not isinstance(account, dict) or not isinstance(organization, dict):
+        return None
+    try:
+        actual = authenticated('claude', account.get('uuid'), organization.get('uuid'), None, 'claude-oauth-profile')
+    except ValueError:
+        return None
+    bound = current_account('claude')
+    if actual.id != expected.id or bound.kind == 'account' and bound.id != actual.id:
         return None
 
     request = urllib.request.Request(
@@ -248,23 +263,17 @@ def fetch_claude_usage_live() -> dict[str, Any] | None:
 
 
 def read_codex_token() -> tuple[str, str] | None:
-    """Read the local Codex CLI OAuth token, or None if unavailable.
-
-    Codex CLI stores its login as a plain JSON file (no OS keychain
-    involved), so this works the same way on every platform. The token is
-    returned only in memory — never logged, printed, or written to disk
-    beyond its existing credential store.
-    """
-    try:
-        with open(CODEX_AUTH_FILE, encoding="utf-8") as f:
-            data = json.load(f)
-        tokens = data.get("tokens", {})
-        token = tokens.get("access_token")
-        if not token:
-            return None
-        return token, tokens.get("account_id", "")
-    except (FileNotFoundError, json.JSONDecodeError, IOError, AttributeError):
+    """Read the CLI's selected OAuth credential, including keyring storage."""
+    from account_parsers import codex_account
+    metadata = codex_auth(dict(os.environ))
+    actual = codex_account(metadata)
+    if actual is None:
         return None
+    bound = current_account('codex')
+    if bound.kind == 'account' and bound.id != actual.id:
+        return None
+    tokens = metadata['tokens']
+    return tokens['access_token'], tokens['account_id']
 
 
 def _codex_window_kind(bucket: Any) -> str | None:
@@ -337,7 +346,7 @@ def fetch_codex_usage_live() -> dict[str, Any] | None:
     return result
 
 
-def get_codex_usage_from_sessions() -> dict[str, Any] | None:
+def get_codex_usage_from_sessions(expected_account: str | None = None) -> dict[str, Any] | None:
     """Fall back to the newest local Codex session log when the live API is
     unavailable — the same `rate_limits` snapshot Codex CLI itself writes to
     `~/.codex/sessions/**/*.jsonl` as it runs.
@@ -363,6 +372,15 @@ def get_codex_usage_from_sessions() -> dict[str, Any] | None:
     for path, mtime in files[:8]:
         if time.time() - mtime > CACHE_STALE_SECONDS:
             continue
+        if expected_account is not None:
+            try:
+                with open(path, encoding='utf-8') as stream:
+                    header = json.loads(stream.readline(65536))
+                session = header.get('payload', {}).get('id') if isinstance(header, dict) and header.get('type') == 'session_meta' else None
+            except (OSError, ValueError, AttributeError):
+                continue
+            if not isinstance(session, str) or known_session_account('codex', session) != expected_account:
+                continue
         for obj in reverse_jsonl(path):
             observed_at = parse_epoch(obj.get("timestamp", mtime))
             if not is_fresh_observation(observed_at, CACHE_STALE_SECONDS, time.time()):
@@ -404,8 +422,8 @@ def load_usage_cache() -> dict[str, Any] | None:
 def save_usage_cache(usage: dict[str, Any]) -> bool:
     """Persist a full-view refresh, stamping each provider independently.
 
-    `replace=True`: every source here (usage API limits[], `claude -p
-    "/usage"` text, Codex API/session log) reports the provider's complete
+    `replace=True`: every source here (usage API limits[] or an account-bound
+    Codex session log) reports the provider's complete
     bucket set, so buckets missing from it no longer exist and must be
     dropped — otherwise they linger stale and force a refresh every run.
     """
@@ -416,10 +434,8 @@ def refresh_usage(providers: set[str] | None = None) -> str:
     """Refresh the usage cache for Claude and Codex independently, so one
     provider's outage doesn't block the other's refresh.
 
-    Claude: Anthropic's OAuth usage API directly (no active session
-    required), falling back to `claude -p "/usage"` when a token can't be
-    found or the API call fails. Codex: the ChatGPT usage API, falling back
-    to the newest local session log.
+    Claude uses identity-verified OAuth quota data. Codex uses the active
+    credential or a recent transcript bound to the same account.
 
     A non-blocking refresh lock ensures only one network refresh runs at a
     time. Cache writes use a separate short-lived lock shared with
@@ -434,28 +450,10 @@ def refresh_usage(providers: set[str] | None = None) -> str:
     try:
         with cache_lock(lockfile, timeout=0):
             claude_usage = fetch_claude_usage_live() if "claude" in requested else None
-            if "claude" in requested and claude_usage is None:
-                # Resolved to an absolute path first: on Windows `claude` is a
-                # `claude.cmd` npm shim, and CreateProcess only appends `.exe` to a
-                # bare name, so spawning it by name fails with FileNotFoundError.
-                claude_cli = shutil.which("claude")
-                try:
-                    result = subprocess.run(
-                        [claude_cli or "claude", "-p", "/usage"],
-                        capture_output=True,
-                        text=True,
-                        timeout=CLAUDE_TIMEOUT_SECONDS,
-                        creationflags=NO_WINDOW_FLAGS,
-                        # This subprocess is a real Claude Code session; without the
-                        # flag its installed hooks would report a phantom project.
-                        env={**os.environ, "VIBEMON_SUPPRESS_HOOKS": "1"},
-                    )
-                    claude_usage = parse_usage_output(result.stdout) or None
-                except (subprocess.TimeoutExpired, FileNotFoundError, OSError):
-                    claude_usage = None
-
             if "codex" in requested:
-                codex_usage = fetch_codex_usage_live() or get_codex_usage_from_sessions()
+                codex_usage = fetch_codex_usage_live()
+                if codex_usage is None and current_account('codex').kind == 'account':
+                    codex_usage = get_codex_usage_from_sessions(current_account('codex').id)
             if not claude_usage and not codex_usage:
                 return "failed"
 
@@ -479,10 +477,9 @@ def refresh_usage(providers: set[str] | None = None) -> str:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(
-        description="Refresh the VibeMon plan-usage cache from Anthropic's usage API "
-        '(falls back to `claude -p /usage`)'
-    )
+    parser = argparse.ArgumentParser(description="Refresh identity-scoped VibeMon plan usage")
+    parser.add_argument('--provider', choices=['claude', 'codex'], help='Refresh one profile in this environment')
+    parser.add_argument('--all-profiles', action='store_true', help='Refresh all locally registered profiles')
     parser.add_argument(
         "--max-age",
         type=int,
@@ -493,14 +490,28 @@ def main() -> int:
     args = parser.parse_args()
 
     cache = load_usage_cache()
-    candidates = available_providers(cache) or {"claude", "codex"}
+    candidates = {args.provider} if args.provider else available_providers(cache) or {"claude", "codex"}
+    if args.all_profiles:
+        return 0 if refresh_profiles(os.path.abspath(__file__), registry_path(), dict(os.environ), candidates, args.max_age) else 1
+    with ExitStack() as stack:
+        for provider in candidates:
+            try:
+                identity = prepare_account(provider)
+            except (OSError, ValueError):
+                print('[vibemon] Account identity unavailable for usage refresh.', file=sys.stderr)
+                return 1
+            stack.enter_context(using_account(identity))
+        return refresh_current_profiles(candidates, args.max_age, cache)
+
+
+def refresh_current_profiles(candidates: set[str], max_age: int, cache) -> int:
     providers_to_refresh = set(candidates)
-    if args.max_age > 0 and isinstance(cache, dict):
+    if max_age > 0 and isinstance(cache, dict):
         now = time.time()
         providers_to_refresh = set()
         for name in candidates:
             original = cache.get(cache_key(name))
-            fresh = get_fresh_provider(cache, name, args.max_age, now=now)
+            fresh = get_fresh_provider(cache, name, max_age, now=now)
             if not isinstance(original, dict) or fresh is None:
                 providers_to_refresh.add(name)
                 continue

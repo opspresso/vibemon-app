@@ -88,6 +88,7 @@
     "public/install/vibemon/account_parsers.py": "public/install/vibemon/account_parsers.py",
     "public/install/vibemon/account_sources.py": "public/install/vibemon/account_sources.py",
     "public/install/vibemon/account_store.py": "public/install/vibemon/account_store.py",
-    "public/install/vibemon/account_service.py": "public/install/vibemon/account_service.py"
+    "public/install/vibemon/account_service.py": "public/install/vibemon/account_service.py",
+    "public/install/vibemon/account_refresh.py": "public/install/vibemon/account_refresh.py"
   }
 }

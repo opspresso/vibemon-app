@@ -392,6 +392,7 @@ const TOOLS = [
       { local: homePath('.vibemon', 'account_sources.py'), remote: 'vibemon/account_sources.py' },
       { local: homePath('.vibemon', 'account_store.py'), remote: 'vibemon/account_store.py' },
       { local: homePath('.vibemon', 'account_service.py'), remote: 'vibemon/account_service.py' },
+      { local: homePath('.vibemon', 'account_refresh.py'), remote: 'vibemon/account_refresh.py' },
       { local: homePath('.vibemon', 'account_context.py'), remote: 'vibemon/account_context.py' },
       { local: homePath('.vibemon', 'usage_cache.py'), remote: 'vibemon/usage_cache.py' },
       { local: homePath('.vibemon', 'project_context.py'), remote: 'vibemon/project_context.py' },

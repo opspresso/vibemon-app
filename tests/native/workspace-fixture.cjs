@@ -73,6 +73,10 @@ async function startFixture() {
   };
   const client = new MonitoringClient({ preferences, credentials, fetchImpl: (url, options) => fetch(origin + new URL(url).pathname + new URL(url).search, options) });
   const cloudDelivery = new HookCloudDelivery({ configManager: ports.vibemonConfigManager, fetchImpl: (url, options) => fetch(origin + new URL(url).pathname + new URL(url).search, options) });
+  ports.getAccountProfiles = () => [
+    { key: 'work', provider: 'codex', instance: 'Fixture Mac', root: '/fixture/codex-work', checkedAt: 1790000000, account: { id: 'work', displayName: 'Work account', kind: 'account' } },
+    { key: 'personal', provider: 'claude', instance: 'Fixture Mac', root: '/fixture/claude-personal', checkedAt: 1790000000, usageRefreshFailed: true, account: { id: 'personal', displayName: 'Personal profile', kind: 'profile' } }
+  ];
   const settings = new WorkspaceSettings({ ...ports, cloudDelivery });
   const errors = [];
   const view = new WorkspaceWindow({ monitoring: client, settings, ...ports, reportError: error => { errors.push(error.message); } });

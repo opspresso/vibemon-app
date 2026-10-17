@@ -39,7 +39,7 @@ class AccountService:
             identity = AccountIdentity(identity.provider, identity.id, label, identity.kind, identity.evidence)
         return identity
 
-    def bind(self, target, environment: dict, session: str | None, event: str = '', cwd: str | None = None, hint: dict | None = None) -> AccountIdentity:
+    def bind(self, target, environment: dict, session: str | None, event: str = '', cwd: str | None = None, hint: dict | None = None, cache_path: str | None = None) -> AccountIdentity:
         """Freeze account ownership for a session; a new SessionStart may rebind a resume.
 
         Old heartbeat payloads retain their original account independently of
@@ -62,20 +62,22 @@ class AccountService:
                 if isinstance(v, dict) and isinstance(v.get('expiresAt'), (int, float)) and v['expiresAt'] > now}
             # Two first hooks can probe concurrently. The first committed
             # binding owns that session; subsequent activity must use it.
-            winner = sessions.get(key) if key and event != 'SessionStart' else None
+            winner = sessions.get(key) if key else None
+            if event == 'SessionStart' and isinstance(winner, dict) and winner.get('boundAt', 0) <= now:
+                winner = None
             if isinstance(winner, dict):
                 try: chosen['identity'] = AccountIdentity.restore(winner.get('account'))
                 except ValueError: pass
             identity = chosen['identity']
-            if key:
+            if key and not isinstance(winner, dict):
                 sessions[key] = {'account': identity.record(), 'profile': target.key, 'sessionId': session, 'boundAt': now, 'expiresAt': now + SESSION_AGE_SECONDS}
             sessions = dict(sorted(sessions.items(), key=lambda item: item[1]['expiresAt'], reverse=True)[:MAX_SESSIONS])
             profiles = dict(current.get('profiles', {}))
             previous = profiles.get(target.key, {})
             previous = previous if isinstance(previous, dict) else {}
             if not isinstance(previous.get('checkedAt'), (int, float)) or previous['checkedAt'] <= now:
-                profiles[target.key] = {**asdict(target), 'key': target.key, 'account': identity.record(), 'checkedAt': now}
-            return {'version': 1, 'profiles': profiles, 'sessions': sessions}
+                profiles[target.key] = {**asdict(target), 'key': target.key, 'account': identity.record(), 'checkedAt': now, 'cachePath': cache_path}
+            return {**current, 'version': 1, 'profiles': profiles, 'sessions': sessions}
 
         self.store.update(save)
         return chosen['identity']

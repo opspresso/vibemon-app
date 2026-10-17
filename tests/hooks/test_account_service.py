@@ -69,3 +69,20 @@ def test_failed_persistence_does_not_claim_a_session_was_bound(tmp_path):
     service, source, target, env = fixture(tmp_path)
     service.store.update = Mock(side_effect=OSError('busy'))
     with pytest.raises(OSError):service.bind(target, env, 'session', 'SessionStart')
+
+
+def test_slow_old_session_start_cannot_replace_a_newer_resume(tmp_path):
+    service, source, target, env = fixture(tmp_path)
+    old = source.resolve.return_value
+    newer = authenticated('codex', 'new-user', 'new-org', 'New', 'fixture')
+    def resolve(*args):
+        source.resolve.side_effect = None
+        source.resolve.return_value = newer
+        service.now = lambda: 101
+        service.bind(target, env, 'same', 'SessionStart')
+        return old
+    source.resolve.side_effect = resolve
+    assert service.bind(target, env, 'same', 'SessionStart') == newer
+    entry = next(iter(service.store.read()['sessions'].values()))
+    assert entry['boundAt'] == 101
+    assert service.bind(target, env, 'same', 'Stop') == newer

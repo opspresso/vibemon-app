@@ -169,9 +169,9 @@ class WidgetPublisher {
 }
 
 /** Plan usage from usage-cache-reader, keyed by account (`provider:id`). */
-function usageByAccount(snapshot, cacheKey) {
+function usageByAccount(snapshot) {
   return Object.fromEntries(Object.entries(snapshot).flatMap(([provider, buckets]) => {
-    const key = cacheKey(provider);
+    const key = provider;
     if (!key) return [];
     return [[key.includes(':') ? key : `${key}:default`, buckets]];
   }));

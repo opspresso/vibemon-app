@@ -220,7 +220,29 @@ describe('profile isolation', () => {
       throw new Error('Unexpected cache location');
     });
     expect(getUsageCachePath()).toBe(target);
-    expect(getUsageSnapshot(1000000).claude.session.pct).toBe(20);
-    expect(getUsageSnapshot(1000000).codex.session).toBeNull();
+    const snapshot = getUsageSnapshot(1000000);
+    expect(snapshot.claude.session.pct).toBe(90);
+    expect(snapshot['claude:work'].session.pct).toBe(20);
+    expect(snapshot.codex.session.pct).toBe(80);
+    expect(snapshot['codex:work']).toBeUndefined();
   });
+});
+
+test('aggregates separate profile caches and keeps the newest observation for each account', () => {
+  const registry = path.join(os.homedir(), '.vibemon', 'accounts.json');
+  const custom = path.join(os.homedir(), 'work-cache', 'usage.json');
+  const account = { provider: 'claude', id: 'work', displayName: 'Work' };
+  fs.readFileSync.mockImplementation(file => {
+    if (file === registry) return JSON.stringify({ version: 1, profiles: { ['d'.repeat(64)]: {
+      provider: 'claude', root: os.homedir(), instance: 'fixture', account: { ...account, kind: 'manual' },
+      cachePath: path.join(path.dirname(custom), 'projects.json')
+    } } });
+    if (file === custom) return JSON.stringify({ 'claude:work': { updated_at: 1100, account, session: { pct: 32 }, week_all: { pct: 10 } } });
+    if (file === DEFAULT_USAGE_PATH) return JSON.stringify({ 'claude:work': { updated_at: 1000, session: { pct: 90 } }, 'codex:personal': { updated_at: 1100, session: { pct: 4 } } });
+    throw new Error('ENOENT');
+  });
+  const snapshot = getUsageSnapshot(1200000);
+  expect(snapshot['claude:work']).toMatchObject({ account, session: { pct: 32 }, week: { pct: 10 } });
+  expect(snapshot['codex:personal'].session.pct).toBe(4);
+  expect(snapshot.claude.session).toBeNull();
 });

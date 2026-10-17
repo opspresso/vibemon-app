@@ -419,6 +419,14 @@
           <p id="integration-progress" class="field-help" role="status" data-i18n="integrations.progress" hidden>Installation in progress. Other install actions will be available when it finishes.</p>
           <div id="hook-list" class="integration-grid"></div>
           <button id="hooks-reset-prompts" class="text-button" data-i18n="integrations.resetPrompts" hidden>Re-enable installation prompts</button>
+          <section class="panel settings-panel" aria-labelledby="account-profiles-title">
+            <div class="panel-heading">
+              <div><h3 id="account-profiles-title" data-i18n="accounts.title">Accounts on this machine</h3><p class="muted" data-i18n="accounts.help">Start a new coding session after installing hooks. VibeMon detects its account when the tool exposes a verifiable identity.</p></div>
+              <button id="accounts-guide" class="text-button" data-i18n="accounts.guide">Set up multiple accounts</button>
+            </div>
+            <p id="account-profiles-empty" class="field-help" data-i18n="accounts.empty">No profiles observed yet. Install an integration above, then start a coding session.</p>
+            <div id="account-profiles" class="integration-grid"></div>
+          </section>
           <details class="panel settings-panel advanced" id="local-routing">
             <summary data-i18n="routing.title">Local delivery settings<span id="routing-status" class="chip neutral"></span></summary>
             <p id="routing-error" class="field-help" role="alert" hidden></p>

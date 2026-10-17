@@ -10,24 +10,11 @@
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
+const { getAccountProfiles, readLocalJson, expandHome } = require('./account-profiles.cjs');
 const { USAGE_CACHE_STALE_SECONDS } = require('../shared/config.cjs');
 
 const VIBEMON_CONFIG_PATH = path.join(os.homedir(), '.vibemon', 'config.json');
 const DEFAULT_CACHE_PATH = path.join(os.homedir(), '.vibemon', 'cache', 'projects.json');
-
-function expandHome(p) {
-  if (p === '~') return os.homedir();
-  if (p.startsWith('~/') || p.startsWith('~\\')) {
-    return path.join(os.homedir(), p.slice(2));
-  }
-  return path.resolve(p);
-}
-
-function providerCacheKey(provider) {
-  const id = process.env[`VIBEMON_${provider.toUpperCase()}_ACCOUNT_ID`] || process.env.VIBEMON_ACCOUNT_ID || 'default';
-  if (!/^[a-zA-Z0-9][a-zA-Z0-9_.:-]{0,127}$/.test(id)) return null;
-  return id === 'default' ? provider : `${provider}:${id}`;
-}
 
 /**
  * Resolve ~/.vibemon/cache/usage.json, honoring config.json's cache_path
@@ -51,13 +38,27 @@ function getUsageCachePath() {
 /**
  * @returns {object|null} parsed cache, or null if missing/unreadable
  */
-function readUsageCache() {
-  try {
-    const raw = JSON.parse(fs.readFileSync(getUsageCachePath(), 'utf8'));
-    return raw && typeof raw === 'object' ? raw : null;
-  } catch {
-    return null;
+function readUsageCache(nowMs) {
+  const paths = new Set([getUsageCachePath(), ...getAccountProfiles().flatMap(profile => profile.cachePath ? [path.join(path.dirname(profile.cachePath), 'usage.json')] : [])]);
+  const merged = {};
+  for (const filename of paths) {
+    const data = readLocalJson(filename);
+    for (const [key, value] of Object.entries(data || {})) {
+      if (!/^(claude|codex)(:[a-zA-Z0-9][a-zA-Z0-9_.:-]{0,127})?$/.test(key) || !value || typeof value !== 'object') continue;
+      const at = Number(value.updated_at ?? data.ts ?? 0);
+      if (!Number.isFinite(at) || at <= 0 || at * 1000 > nowMs + 30000) continue;
+      const previous = merged[key] || {};
+      const next = at >= (previous.updated_at || 0) ? { ...previous, account: value.account || previous.account, updated_at: at } : { ...previous };
+      for (const [name, bucket] of Object.entries(value)) {
+        if (!bucket || typeof bucket !== 'object' || !(name === 'session' || name.startsWith('week_'))) continue;
+        const observed = Number(bucket.updated_at ?? at);
+        if (!Number.isFinite(observed) || observed <= 0 || observed * 1000 > nowMs + 30000) continue;
+        if (!next[name] || observed >= next[name].updated_at) next[name] = { ...bucket, updated_at: observed };
+      }
+      merged[key] = next;
+    }
   }
+  return merged;
 }
 
 /**
@@ -72,7 +73,7 @@ function readUsageCache() {
  */
 function getFreshBucket(cache, provider, bucketKey, nowMs) {
   if (!cache || typeof cache !== 'object') return null;
-  const providerData = cache[providerCacheKey(provider)];
+  const providerData = cache[provider];
   if (!providerData || typeof providerData !== 'object') return null;
 
   const providerUpdatedAt = Number(providerData.updated_at ?? cache.ts ?? 0);
@@ -107,7 +108,7 @@ function getFreshBucket(cache, provider, bucketKey, nowMs) {
  * @returns {{pct: number, resetsAt: number|null, label: string}|null}
  */
 function getFreshModelWeekBucket(cache, provider, nowMs) {
-  const providerData = cache && typeof cache === 'object' ? cache[providerCacheKey(provider)] : null;
+  const providerData = cache && typeof cache === 'object' ? cache[provider] : null;
   if (!providerData || typeof providerData !== 'object') return null;
 
   let best = null;
@@ -136,19 +137,21 @@ function getFreshModelWeekBucket(cache, provider, nowMs) {
  * }}
  */
 function getUsageSnapshot(nowMs = Date.now()) {
-  const cache = readUsageCache();
-  return {
-    claude: {
-      session: getFreshBucket(cache, 'claude', 'session', nowMs),
-      week: getFreshBucket(cache, 'claude', 'week_all', nowMs),
-      modelWeek: getFreshModelWeekBucket(cache, 'claude', nowMs)
-    },
-    codex: {
-      session: getFreshBucket(cache, 'codex', 'session', nowMs),
-      week: getFreshBucket(cache, 'codex', 'week_all', nowMs),
-      modelWeek: getFreshModelWeekBucket(cache, 'codex', nowMs)
+  const cache = readUsageCache(nowMs);
+  const keys = new Set(['claude', 'codex', ...Object.keys(cache || {}).filter(key => /^(claude|codex):[a-zA-Z0-9][a-zA-Z0-9_.:-]{0,127}$/.test(key))]);
+  return Object.fromEntries([...keys].map(key => {
+    const account = cache?.[key]?.account;
+    const buckets = {
+      session: getFreshBucket(cache, key, 'session', nowMs),
+      week: getFreshBucket(cache, key, 'week_all', nowMs),
+      modelWeek: getFreshModelWeekBucket(cache, key, nowMs)
+    };
+    if (account && `${account.provider}:${account.id}` === key && typeof account.displayName === 'string' &&
+        account.displayName.trim() && account.displayName.length <= 128) {
+      buckets.account = { provider: account.provider, id: account.id, displayName: account.displayName };
     }
-  };
+    return [key, buckets];
+  }));
 }
 
-module.exports = { getUsageCachePath, getUsageSnapshot, providerCacheKey, expandHome };
+module.exports = { getUsageCachePath, getUsageSnapshot, expandHome };

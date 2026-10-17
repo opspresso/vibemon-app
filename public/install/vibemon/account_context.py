@@ -11,7 +11,7 @@ from pathlib import Path
 
 from account_identity import AccountIdentity, named, fingerprint
 from account_service import AccountService, identity_hint, session_key
-from account_sources import LocalAccountSource, tool_profile
+from account_sources import LocalAccountSource, tool_profile, state_cache_path
 from account_store import JsonAccountStore
 
 _current: ContextVar = ContextVar('vibemon_account', default=None)
@@ -58,19 +58,19 @@ def prepare_account(provider: str, data: dict | None = None, root: str | None = 
     target, hint = profile_context(provider, root, data.get('account_hint'))
     service = AccountService(_source, JsonAccountStore(registry_path()))
     return service.bind(target, dict(os.environ), data.get('session_id'), data.get('hook_event_name', ''),
-        data.get('cwd') if isinstance(data.get('cwd'), str) and Path(data['cwd']).is_dir() else None, hint)
+        data.get('cwd') if isinstance(data.get('cwd'), str) and Path(data['cwd']).is_dir() else None, hint, cache_path=state_cache_path(dict(os.environ)))
 
 
 @contextmanager
 def using_account(identity: AccountIdentity):
-    token = _current.set(identity)
+    token = _current.set({**(_current.get() or {}), identity.provider: identity})
     try: yield identity
     finally: _current.reset(token)
 
 
 def current_account(provider: str) -> AccountIdentity:
-    active = _current.get()
-    if active is not None and active.provider == provider:
+    active = (_current.get() or {}).get(provider)
+    if active is not None:
         return active
     ident = os.environ.get(f'VIBEMON_{provider.upper()}_ACCOUNT_ID') or os.environ.get('VIBEMON_ACCOUNT_ID')
     label = os.environ.get(f'VIBEMON_{provider.upper()}_ACCOUNT_NAME') or os.environ.get('VIBEMON_ACCOUNT_NAME')
@@ -84,6 +84,24 @@ def activity_key(provider: str | AccountIdentity, session: str, root: str | None
     provider = provider.provider if isinstance(provider, AccountIdentity) else provider
     target, hint = profile_context(provider, root, hint)
     return session_key(target, session, dict(os.environ), hint)
+
+
+def inspect_account(provider: str) -> AccountIdentity:
+    target, hint = profile_context(provider)
+    return _source.resolve(target, dict(os.environ), None, hint)
+
+
+def known_session_account(provider: str, session: str) -> str | None:
+    """Do not attribute a transcript reused by several accounts to any one of them."""
+    target, _ = profile_context(provider)
+    entries = JsonAccountStore(registry_path()).read().get('sessions', {})
+    identities = set()
+    for entry in entries.values():
+        if not isinstance(entry, dict) or entry.get('profile') != target.key or entry.get('sessionId') != session:
+            continue
+        try: identities.add(AccountIdentity.restore(entry.get('account')).id)
+        except ValueError: continue
+    return next(iter(identities)) if len(identities) == 1 else None
 
 
 def account_id(provider: str) -> str:
