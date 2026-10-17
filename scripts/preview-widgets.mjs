@@ -4,6 +4,8 @@
 // through MonitoringClient and buildWidgetFeed, and renders every item and
 // notice in light and dark appearance and in the approximate vibrant mode.
 //
+// VIBEMON_LOCALE=ko or ja renders that language; the default is English.
+//
 // Output: out/widgets/feed.json and out/widgets/preview.png
 import { execFileSync } from 'node:child_process';
 import { mkdirSync, writeFileSync } from 'node:fs';
@@ -20,6 +22,7 @@ const { TOKEN, memoryStore, sources } = require('../tests/fixtures/workspace.cjs
 const out = fileURLToPath(new URL('../out/widgets/', import.meta.url));
 const characters = fileURLToPath(new URL('../src/assets/characters/', import.meta.url));
 const now = Date.now();
+const locale = process.env.VIBEMON_LOCALE || 'en';
 
 const products = buildMacosWidgets();
 const client = new MonitoringClient({
@@ -33,8 +36,8 @@ const local = [{
   id: 'local:preview', since: now - 20000,
   status: { state: 'done', project: 'vibemon-app', character: 'clawd', memory: 18, usage5h: 23, usageWeek: 41, usage5hResetsIn: 42, usageWeekResetsIn: 8640, observedAt: new Date(now - 20000).toISOString(), account: { id: 'default', provider: 'claude', displayName: 'claude default' } }
 }];
-const feed = buildWidgetFeed({ cloud: client.snapshot(), local, now, artwork: name => CHARACTER_CONFIG[name]?.image });
+const feed = buildWidgetFeed({ cloud: client.snapshot(), local, now, locale, artwork: name => CHARACTER_CONFIG[name]?.image });
 
 mkdirSync(out, { recursive: true });
 writeFileSync(`${out}feed.json`, JSON.stringify(feed, null, 2));
-execFileSync(`${products}vibemon-widget-preview`, [`${out}feed.json`, characters, `${out}preview.png`], { stdio: 'inherit' });
+execFileSync(`${products}vibemon-widget-preview`, [`${out}feed.json`, characters, `${out}preview.png`], { stdio: 'inherit', env: { ...process.env, VIBEMON_LOCALE: locale } });

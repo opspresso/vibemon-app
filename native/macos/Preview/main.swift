@@ -6,7 +6,7 @@
 // an approximation: it keeps the brightness of each pixel as white. Use the
 // sheet to review layout changes and to verify that a feed decodes.
 //
-// Usage: vibemon-widget-preview <feed.json> <characters-dir> <output.png> [<now ISO 8601>]
+// Usage: [VIBEMON_LOCALE=ko] vibemon-widget-preview <feed.json> <characters-dir> <output.png> [<now ISO 8601>]
 
 import AppKit
 import SwiftUI
@@ -26,6 +26,14 @@ do {
     exit(1)
 }
 CharacterArt.directories = [URL(fileURLWithPath: arguments[2], isDirectory: true)]
+// The widget's own words come from the String Catalog of the extension built
+// next to this tool. VIBEMON_LOCALE (en, ko, or ja) picks its language.
+if let language = ProcessInfo.processInfo.environment["VIBEMON_LOCALE"],
+   let folder = Bundle.main.executableURL?.deletingLastPathComponent()
+       .appendingPathComponent("VibeMonWidgets.appex/Contents/Resources/\(language).lproj"),
+   let bundle = Bundle(url: folder) {
+    Localization.bundle = bundle
+}
 let now = arguments.count == 5 ? (try? Date.ISO8601FormatStyle(includingFractionalSeconds: true).parse(arguments[4])) ?? feed.generatedAt : feed.generatedAt
 
 // After the feed items: notices, the first item after the App quits, and the gallery samples.
