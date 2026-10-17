@@ -47,7 +47,7 @@ const { StatusIngress } = require('./application/status-ingress.cjs');
 const { interactionTarget } = require('./modules/window-interaction-target.cjs');
 const registryCache = require('./shared/registry-cache.cjs');
 const {
-  CHARACTER_CONFIG, CHARACTER_IMAGE_FETCH_TIMEOUT_MS, CHARACTER_IMAGE_MAX_BYTES, CHAR_SIZE,
+  CHARACTER_CONFIG, CHARACTER_IMAGE_FETCH_TIMEOUT_MS, CHARACTER_IMAGE_MAX_BYTES, CHARACTER_IMAGE_SIZES,
   HOOK_CHECK_INITIAL_DELAY_MS, HOOK_CHECK_INTERVAL_MS, HTTP_PORT,
   UPDATE_CHECK_INITIAL_DELAY_MS, UPDATE_CHECK_INTERVAL_MS,
   USAGE_REFRESH_INITIAL_DELAY_MS, USAGE_REFRESH_INTERVAL_MS
@@ -247,7 +247,7 @@ ipcMain.handle('get-character-registry', () => {
     ...registryCache.charactersRegistry,
     staticBaseUrl: registryCache.STATIC_BASE_URL,
     imageFetchTimeoutMs: CHARACTER_IMAGE_FETCH_TIMEOUT_MS,
-    imageMaxBytes: CHARACTER_IMAGE_MAX_BYTES, imageSize: CHAR_SIZE,
+    imageMaxBytes: CHARACTER_IMAGE_MAX_BYTES, imageSizes: CHARACTER_IMAGE_SIZES,
     bundledImageFiles: registryCache.bundledImageFiles
   };
 });

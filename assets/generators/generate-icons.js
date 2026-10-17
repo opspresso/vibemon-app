@@ -81,11 +81,13 @@ async function generate(window) {
     assert.equal(character.eyes.w, eye.w * scale);
     assert.equal(character.eyes.h, eye.h * scale);
   }
+  // The sprite keeps 128-unit registry coordinates; extra pixels keep it sharp on Retina displays.
+  const spriteSize = 512;
   const spriteSvg = svg(`<path fill="${character.color}" d="${body}"/><path fill="${character.eyeColor}" d="${eyes}"/>`)
-    .replace('<svg ', '<svg width="128" height="128" ');
+    .replace('<svg ', `<svg width="${spriteSize}" height="${spriteSize}" `);
   const sizes = [16, 24, 32, 48, 64, 128, 256, 512, 1024];
   const [sprite, ...rendered] = await render(window, [
-    { size: 128, box: 128, offset: 0, svg: spriteSvg },
+    { size: spriteSize, box: spriteSize, offset: 0, svg: spriteSvg },
     ...sizes.map(size => tileJob(size, mark))
   ]);
   const frames = new Map(sizes.map((size, index) => [size, rendered[index]]));

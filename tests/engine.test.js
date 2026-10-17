@@ -24,7 +24,8 @@ function fakeCtx() {
     fillStyle: '',
     clearRect: jest.fn(),
     fillRect: jest.fn(),
-    drawImage: jest.fn()
+    drawImage: jest.fn(),
+    scale: jest.fn()
   };
 }
 
@@ -148,6 +149,9 @@ test('cleanup permits a fresh engine to remount in the same container', async ()
   const next = new Engine(container);
   await next.init();
   expect(next.ctx).not.toBeNull();
+  // Drawing stays in 128 units on a canvas with at least 2x backing pixels.
+  expect(next.canvas.width).toBe(256);
+  expect(next.ctx.scale).toHaveBeenCalledWith(2, 2);
   expect(next.canvas).not.toBe(oldCanvas);
   expect(children).toEqual([next.canvas]);
   next.cleanup();

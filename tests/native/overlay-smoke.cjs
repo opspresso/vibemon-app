@@ -18,7 +18,7 @@ const { dockCorner } = require('../../src/modules/dock-layout.cjs');
 const { getDockCandidates } = require('./dock-candidates.cjs');
 const characters = require('../../src/shared/data/characters.json');
 const states = require('../../src/shared/data/states.json');
-const { CHARACTER_IMAGE_FETCH_TIMEOUT_MS, CHARACTER_IMAGE_MAX_BYTES, CHAR_SIZE, DOCK_OVERLAY_GAP, STATIC_BASE_URL } = require('../../src/shared/config.cjs');
+const { CHARACTER_IMAGE_FETCH_TIMEOUT_MS, CHARACTER_IMAGE_MAX_BYTES, CHARACTER_IMAGE_SIZES, DOCK_OVERLAY_GAP, STATIC_BASE_URL } = require('../../src/shared/config.cjs');
 const root = path.resolve(__dirname, '../..');
 const output = path.join(root, 'out', 'overlay-tests', process.platform, app.commandLine.getSwitchValue('force-device-scale-factor') || 'native');
 fs.mkdirSync(output, { recursive: true });
@@ -49,7 +49,7 @@ async function until(check, label) {
 }
 
 ipcMain.handle('get-character-registry', () => ({ ...characters, staticBaseUrl: STATIC_BASE_URL, imageFetchTimeoutMs: CHARACTER_IMAGE_FETCH_TIMEOUT_MS,
-  bundledImageFiles: Object.values(characters.characters).map(character => character.image), imageMaxBytes: CHARACTER_IMAGE_MAX_BYTES, imageSize: CHAR_SIZE }));
+  bundledImageFiles: Object.values(characters.characters).map(character => character.image), imageMaxBytes: CHARACTER_IMAGE_MAX_BYTES, imageSizes: CHARACTER_IMAGE_SIZES }));
 ipcMain.handle('get-state-registry', () => states);
 ipcMain.handle('get-render-mode', () => characterManager.getRenderMode());
 ipcMain.handle('get-display-options', () => characterManager.getDisplayOptions());

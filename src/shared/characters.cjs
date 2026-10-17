@@ -4,7 +4,7 @@
  * Single source of truth: the canonical registry in the public App distribution
  * (vibemon.io/static/data/characters.json), resolved at startup by
  * registry-cache.cjs (cached remote copy → bundled data/characters.json).
- * To add a character, add its 128x128 PNG and one registry entry to
+ * To add a character, add its square PNG (CHARACTER_IMAGE_SIZES) and one registry entry to
  * the public App distribution — the rendering engine, tray icon, menus, and validation
  * all derive from the registry (bundled copies remain as offline fallback).
  */

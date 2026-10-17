@@ -14,7 +14,7 @@ const ATTENTION_COLOR = '#FF6633';
 // Tray icon cache for performance
 const trayIconCache = new Map();
 
-// Character sprite PNGs (128x128), decoded once and downscaled onto the tray
+// Character sprite PNGs, decoded once and downscaled onto the tray
 // icon — the icon is derived from the same registry image as the character
 // window, so new characters need no tray-specific artwork.
 const characterImageCache = new Map(); // name -> Promise<{width, height, data}|null>
@@ -50,9 +50,10 @@ function getCharacterImage(name) {
  * @returns {Electron.NativeImage}
  */
 function drawTrayIcon(state, sprite, showBadge) {
-  const size = TRAY_ICON_SIZE;
-  const pixels = trayIconBitmap(size, STATE_COLORS[state] || STATE_COLORS.idle, sprite, showBadge ? ATTENTION_COLOR : null);
-  return nativeImage.createFromBitmap(pixels, { width: size, height: size });
+  // Drawn at 2x so Retina menu bars show the sprite without upscaling.
+  const scale = 2, pixels = TRAY_ICON_SIZE * scale;
+  const bitmap = trayIconBitmap(TRAY_ICON_SIZE, STATE_COLORS[state] || STATE_COLORS.idle, sprite, showBadge ? ATTENTION_COLOR : null, scale);
+  return nativeImage.createFromBitmap(bitmap, { width: pixels, height: pixels, scaleFactor: scale });
 }
 
 let attentionDotImage = null;

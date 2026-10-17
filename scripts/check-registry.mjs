@@ -14,6 +14,7 @@ const EYE_TYPES = new Set(['normal', 'glasses', 'blink', 'happy']);
 const EFFECTS = new Set(['none', 'sparkle', 'thinking', 'question', 'zzz', 'exclamation']);
 const HEX_COLOR = /^#[0-9A-Fa-f]{6}$/;
 const CANVAS = 128;
+const { CHARACTER_IMAGE_SIZES } = JSON.parse(readFileSync(join(DATA, 'constants.json'), 'utf8'));
 // Palette slots the 3D rig paints (DEFAULT_THEME in monster-states.js).
 const THEME_KEYS = ['body', 'belly', 'accent', 'eye', 'blush', 'flame'];
 
@@ -97,8 +98,8 @@ if (isRecord(characters)) {
       check(pngs.has(ch.image), `characters.json ${name}: image ${ch.image} not found in src/assets/characters/`);
       if (pngs.has(ch.image)) {
         const png = readFileSync(join(CHARACTERS, ch.image));
-        check(png.length >= 24 && png.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10])) && png.readUInt32BE(16) === CANVAS && png.readUInt32BE(20) === CANVAS,
-          `characters.json ${name}: image must have a 128x128 PNG header`);
+        check(png.length >= 24 && png.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10])) && CHARACTER_IMAGE_SIZES.includes(png.readUInt32BE(16)) && png.readUInt32BE(20) === png.readUInt32BE(16),
+          `characters.json ${name}: image must be a square PNG of ${CHARACTER_IMAGE_SIZES.join(', ')} px`);
       }
       pngs.delete(ch.image);
     }

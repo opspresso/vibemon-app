@@ -76,7 +76,9 @@ async function verifyCompanion({ engineUrl, characters, defaultCharacter, states
   engine.setReducedMotion(true);
   const context = engine.canvas.getContext('2d', { willReadFrequently: true });
   const draw = state => { engine.setState({ state, character: 'vibemon' }); engine.render(); };
-  const pixel = (x, y) => Array.from(context.getImageData(x, y, 1, 1).data);
+  // Points are in 128 drawing units; the canvas has more backing pixels.
+  const density = engine.canvas.width / 128;
+  const pixel = (x, y) => Array.from(context.getImageData(Math.floor((x + 0.5) * density), Math.floor((y + 0.5) * density), 1, 1).data);
   const result = {};
   draw('idle');
   result.normal = [46, 82].map(x => pixel(x, 72));

@@ -220,7 +220,6 @@ h3 {
 .companion-shortcut img {
   width: 34px;
   height: 34px;
-  image-rendering: pixelated;
   flex: none;
 }
 .companion-shortcut .small {
@@ -572,7 +571,6 @@ h3 {
 .source-icon img {
   width: 28px;
   height: 28px;
-  image-rendering: pixelated;
 }
 .card-heading h3 {
   font-size: 14px;
@@ -748,7 +746,6 @@ h3 {
 .activity-avatar img {
   width: 28px;
   height: 28px;
-  image-rendering: pixelated;
 }
 .activity-content {
   min-width: 0;
@@ -1054,7 +1051,6 @@ input::placeholder {
 .character-tile img {
   width: 42px;
   height: 42px;
-  image-rendering: pixelated;
 }
 .character-tile[aria-pressed='true'] {
   border-color: var(--vm-accent);
@@ -1176,7 +1172,6 @@ input::placeholder {
 .about-hero > img {
   width: 92px;
   height: 92px;
-  image-rendering: pixelated;
   margin-bottom: 18px;
 }
 .about-hero h2 {
