@@ -44,7 +44,7 @@ If you already have a read token from [Account](https://vibemon.io/account), ope
 
 Open **Settings → Integrations → Install integration** for the tool you use, then restart that tool. Local character updates do not require Web login. To send the same activity to Web, select **Sign in to send activity** in **Send activity to Web** and approve it in the browser. To use an existing write token, open **Use a write token instead** and select **Save and verify**. The App's read token is never reused for hooks.
 
-Start a coding task and check its project and report time on Web. A moving local character confirms local delivery; it does not confirm that the separate Web connection works. The App does not install coding tools themselves or start collection on remote servers.
+Start a coding task. Check its activity under **On this device** in the App to confirm local hook delivery, then check the project's report time on Web to confirm Web delivery. A character can also follow a selected cloud project, so its movement alone does not identify the delivery path. The App does not install coding tools themselves or start collection on remote servers.
 
 Tool detection honors `CLAUDE_CONFIG_DIR`, `CODEX_HOME`, `KIRO_HOME`, and `OPENCODE_CONFIG_DIR`. These variables must reach both the tool and App processes. OpenClaw installation is supported on macOS/Linux. See [Monitor coding agents](https://vibemon.io/docs/coding-agents) for terminal and Windows setup, and the [hook reference](docs/hooks.md) for event mappings.
 
