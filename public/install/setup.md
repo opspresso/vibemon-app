@@ -1,19 +1,22 @@
 # VibeMon setup
 
-Install hooks to send coding-agent summaries to the local Desktop App, the Web service, or both. Python 3 is required. Web uses Google login; agent-provider credentials remain on the machine running the hooks.
+Install hooks to send coding-agent summaries to the local Desktop App, the Web service, or both, and install collectors for Linux hosts, DGX Spark, and Kubernetes. Python 3 is required. Web uses Google or invited email sign-in; agent-provider credentials remain on the machine running the hooks.
 
 Desktop auto-launch opens the installed macOS App or a Windows installer location (or `VibeMon.exe` on PATH). Start custom Windows installations and other platforms manually. Hooks never install or run an npm package.
 
-## 1. Prepare credentials
+## 1. Sign in
 
-1. Sign in at [Account](https://vibemon.io/account).
-2. Create a named token with `write` permission for hooks.
-3. Create a separate `read` token for the Desktop App. The Web dashboard uses your Google login.
-4. Select **Show token** to view and copy it. You can retrieve active tokens again from the same signed-in account.
+The installer signs in through Web, so you do not copy tokens:
 
-Account shows your Google profile and active/revoked tokens. Delete unused tokens from this page; deletion immediately stops their API access without removing resource data. Older hash-only tokens become retrievable after their next successful use. If an unused older token's original value is lost, create a new token and delete the old entry.
+1. The installer shows a code, such as `BCDF-GHJK`, and the address `https://vibemon.io/device`. In a desktop terminal it also opens that page.
+2. Sign in with Google or an invited email account, check the code, and select **Allow**.
+3. The installer receives a write token named after the client and this host, such as `Coding agent hooks (build-box)`, and saves it.
 
-Provide the write token through `VIBEMON_WRITE_TOKEN`, using your environment or secret manager. Interactive installation offers a hidden prompt. Do not put tokens in URLs or shell history. Existing user-chosen tokens must be replaced with generated tokens.
+A run in a terminal signs in when no token is saved. Add `--login` to sign in again, for example to replace a deleted token or to move to another Web origin. Runs without a terminal, such as App updates, never wait for a sign-in: without a token, activity stays local.
+
+For automation, supply a generated write token through `VIBEMON_WRITE_TOKEN` from your environment or secret manager instead. Create it on [Account](https://vibemon.io/account). Do not put tokens in URLs or shell history.
+
+Account lists every token. Delete a token there to disconnect its client; deletion immediately stops its API access without removing resource data.
 
 ## 2. Install hooks
 
@@ -53,6 +56,27 @@ All remote scripts and configuration templates require a matching [manifest.json
 
 The installer backs up modified configuration to `.bak`, writes atomically, and preserves unrelated hooks. Exit code `0` means every attempted installation succeeded. Undetected tools are skipped; a failure or a run with no installed tool returns `1`.
 
+## 3. Install a resource collector
+
+A collector sends CPU, memory, GPU, and disk summaries of a server or cluster. It signs in through Web the same way.
+
+| Target | Command |
+| --- | --- |
+| Linux host or DGX Spark | `curl -fsSL https://vibemon.io/install/install.py \| python3 - --collector` |
+| Kubernetes (current kubectl context) | `curl -fsSL https://vibemon.io/install/install.py \| python3 - --kubernetes` |
+
+Add `--name "Display name"` to choose the name on Web. The default is the host name or the kubectl context name. The source ID derives from it, such as `host-dgx-spark`.
+
+**Linux host or DGX Spark** needs Python 3.10 or later and systemd. The installer downloads the collector files checked against the manifest, installs `psutil` in its own Python environment, and starts the `vibemon-collector` service. DGX Spark unified memory and NVIDIA GPU measurements are detected automatically.
+
+- As root: the service is system-wide. Files are in `/opt/vibemon-collector`, and the token is in `/etc/vibemon/collector.env` (mode 600).
+- As another user: the service is a user service, with files in `~/.local/share/vibemon-collector` and the token in `~/.config/vibemon/collector.env`. Run `sudo loginctl enable-linger $USER` so that it keeps running after you log out.
+- Check it with `systemctl status vibemon-collector` (add `--user` for a user service).
+
+**Kubernetes** needs `kubectl` with the target cluster as the current context. The installer creates the `vibemon` namespace, read-only RBAC (list nodes and pods, read node metrics), a Secret with the token, and a Deployment of the published multi-arch collector image. CPU and memory need [metrics-server](https://github.com/kubernetes-sigs/metrics-server); without it, node and pod counts still work. The installer waits until Web accepts the first summary and otherwise shows the collector's last message.
+
+To remove a collector, run the same command with `--uninstall`. The token stays valid until you delete it on Account. For Prometheus-based clusters and other options, see the [collector guide](https://github.com/opspresso/vibemon-app/tree/main/collector).
+
 ## Self-hosted installation
 
 `VIBEMON_DOCS_URL` selects the installer file base, including its manifest and every helper/template. `VIBEMON_URL` selects the Web API origin and is saved in hook configuration when supplied. The two can use different hosts, for example when installation files are served by a CDN.
@@ -60,13 +84,12 @@ The installer backs up modified configuration to `.bak`, writes atomically, and 
 ```sh
 export VIBEMON_DOCS_URL=https://monitor.example/install
 export VIBEMON_URL=https://monitor.example
-# Supply VIBEMON_WRITE_TOKEN from that Web account through your secret manager.
-curl -fsSL "$VIBEMON_DOCS_URL/install.py" | python3 - --codex
+curl -fsSL "$VIBEMON_DOCS_URL/install.py" | python3 - --codex --login
 ```
 
 PowerShell uses the same environment variables; download `install.ps1` from the chosen file base. The Python installer and PowerShell wrapper reject redirects, credentials in URLs, query strings, and fragments. Python file downloads are limited to 1 MiB. HTTPS certificate verification stays enabled. For isolated loopback development only, `VIBEMON_ALLOW_HTTP_LOCAL=1` permits HTTP on localhost addresses.
 
-Changing the API origin while a write token is saved requires an explicitly supplied `VIBEMON_WRITE_TOKEN`. The installer never moves a saved credential to a new host automatically. Without these overrides, the existing API configuration is preserved and installation files come from `https://vibemon.io/install`.
+Changing the API origin while a write token is saved requires `--login` or an explicitly supplied `VIBEMON_WRITE_TOKEN`. The installer never moves a saved credential to a new host automatically. Without these overrides, the existing API configuration is preserved and installation files come from `https://vibemon.io/install`.
 
 ## 3. Configure delivery and account identity
 
