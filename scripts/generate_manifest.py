@@ -29,6 +29,8 @@ MANIFEST_FILES = [
     "vibemon/statusline.example.json",
     "vibemon/usage.py",
     "vibemon/usage_cache.py",
+    "vibemon/account_identity.py",
+    "vibemon/account_parsers.py",
     "vibemon/account_context.py",
     "vibemon/cache_io.py",
     "vibemon/http_client.py",

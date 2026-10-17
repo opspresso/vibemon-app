@@ -83,6 +83,8 @@
     "public/static/design/presentation.d.mts": "src/shared/design/presentation.d.mts",
     "public/static/data/monitoring.json": "src/shared/data/monitoring.json",
     "public/static/data/monitoring-cases.json": "src/shared/monitoring/cases.json",
-    "public/static/design/monitoring-labels.mjs": "src/shared/design/monitoring-labels.mjs"
+    "public/static/design/monitoring-labels.mjs": "src/shared/design/monitoring-labels.mjs",
+    "public/install/vibemon/account_identity.py": "public/install/vibemon/account_identity.py",
+    "public/install/vibemon/account_parsers.py": "public/install/vibemon/account_parsers.py"
   }
 }
