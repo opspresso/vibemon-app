@@ -36,27 +36,39 @@ export async function monitoringContract(write = false) {
 // The shared message catalog (src/shared/i18n/shared.json) becomes a module
 // for sandboxed renderers and Web. Every locale must have the English keys,
 // the same placeholders, and English must match the registries that still
-// carry English labels for older clients.
+// carry English labels for older clients. The Desktop catalog
+// (src/shared/i18n/desktop.json) follows the same rules and must not redefine
+// a shared key; the App reads it directly, so it generates no module.
 const messagesSource = new URL('../src/shared/i18n/shared.json', import.meta.url);
 const messagesDestination = new URL('../src/shared/i18n/shared-messages.mjs', import.meta.url);
+const desktopSource = new URL('../src/shared/i18n/desktop.json', import.meta.url);
 const placeholders = message => [...new Set((typeof message === 'string' ? [message] : Object.values(message)).flatMap(text => [...text.matchAll(/\{(\w+)\}/g)].map(match => match[1])))].sort().join(',');
+
+export function validateCatalog(name, catalog) {
+  const english = catalog.en;
+  if (!english) throw new Error(`${name} needs English messages`);
+  for (const [locale, messages] of Object.entries(catalog)) {
+    if (!['en', 'ko', 'ja'].includes(locale)) throw new Error(`Unsupported locale in ${name}: ${locale}`);
+    const missing = Object.keys(english).filter(key => !Object.hasOwn(messages, key));
+    const extra = Object.keys(messages).filter(key => !Object.hasOwn(english, key));
+    if (missing.length || extra.length) throw new Error(`${name} ${locale}: missing ${missing.join(', ') || '-'}; unknown ${extra.join(', ') || '-'}`);
+    for (const [key, message] of Object.entries(messages)) {
+      const valid = typeof message === 'string' || (message && typeof message.other === 'string' && Object.values(message).every(text => typeof text === 'string'));
+      if (!valid || placeholders(message) !== placeholders(english[key])) throw new Error(`${name} ${locale}: ${key} must keep the English placeholders`);
+    }
+  }
+}
 
 async function sharedMessages(write, policy, constants) {
   const catalog = JSON.parse(await readFile(messagesSource, 'utf8'));
+  const desktop = JSON.parse(await readFile(desktopSource, 'utf8'));
   const { BUILTIN_METRICS } = await import('../src/shared/resource-schema.cjs');
   const states = JSON.parse(await readFile(new URL('../src/shared/data/states.json', import.meta.url), 'utf8')).states;
+  validateCatalog('shared.json', catalog);
+  validateCatalog('desktop.json', desktop);
   const english = catalog.en;
-  if (!english) throw new Error('shared.json needs English messages');
-  for (const [locale, messages] of Object.entries(catalog)) {
-    if (!['en', 'ko', 'ja'].includes(locale)) throw new Error(`Unsupported locale in shared.json: ${locale}`);
-    const missing = Object.keys(english).filter(key => !Object.hasOwn(messages, key));
-    const extra = Object.keys(messages).filter(key => !Object.hasOwn(english, key));
-    if (missing.length || extra.length) throw new Error(`shared.json ${locale}: missing ${missing.join(', ') || '-'}; unknown ${extra.join(', ') || '-'}`);
-    for (const [key, message] of Object.entries(messages)) {
-      const valid = typeof message === 'string' || (message && typeof message.other === 'string' && Object.values(message).every(text => typeof text === 'string'));
-      if (!valid || placeholders(message) !== placeholders(english[key])) throw new Error(`shared.json ${locale}: ${key} must keep the English placeholders`);
-    }
-  }
+  const redefined = Object.keys(desktop.en).filter(key => Object.hasOwn(english, key));
+  if (redefined.length) throw new Error(`desktop.json redefines shared keys: ${redefined.join(', ')}`);
   const expect = (key, value) => { if (english[key] !== value) throw new Error(`shared.json en ${key} must equal ${JSON.stringify(value)}`); };
   for (const [state, { label }] of Object.entries(policy.states)) expect(`state.${state}`, label);
   for (const [state, { text }] of Object.entries(states)) expect(`bubble.${state}`, text);

@@ -31,7 +31,7 @@ test('each issue is assigned to the page that resolves it', () => {
   }));
   expect(attentionNotices(areas)).toEqual({
     // Agent sources count once, through their account.
-    dashboard: '1 resource · 2 coding accounts need attention',
+    dashboard: '1 resource and 2 coding accounts need attention',
     resources: '1 resource needs attention',
     accounts: '2 coding accounts need attention',
     where: '1 resource · 2 accounts',

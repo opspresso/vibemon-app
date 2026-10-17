@@ -7,6 +7,7 @@ const fs = require('fs');
 const path = require('path');
 const { STATE_COLORS, CHARACTER_CONFIG, DEFAULT_CHARACTER, TRAY_ICON_SIZE } = require('../shared/config.cjs');
 const { trayIconBitmap, dotBitmap } = require('./tray-icon.cjs');
+const { t } = require('../shared/i18n/locale.cjs');
 
 // The tray badge and menu dots share one attention color.
 const ATTENTION_COLOR = '#FF6633';
@@ -146,10 +147,10 @@ class TrayManager {
   attentionReasons() {
     const { dashboard, connection, integrations, update } = this.notices;
     return [
-      connection && `${connection} — open Settings`,
-      dashboard && `${dashboard} — open Dashboard`,
-      integrations && `${integrations} — open Integrations`,
-      update && `${update} — open About VibeMon`
+      connection && t('tray.reason.settings', { notice: connection }),
+      dashboard && t('tray.reason.dashboard', { notice: dashboard }),
+      integrations && t('tray.reason.integrations', { notice: integrations }),
+      update && t('tray.reason.about', { notice: update })
     ].filter(Boolean);
   }
 
@@ -195,20 +196,20 @@ class TrayManager {
     // Only macOS draws a sublabel, so other platforms put the reason in the label.
     const flagged = (item, notice) => !notice ? item : process.platform === 'darwin'
       ? { ...item, icon: attentionDot(), sublabel: notice }
-      : { ...item, icon: attentionDot(), label: `${item.label} — ${notice}` };
+      : { ...item, icon: attentionDot(), label: t('tray.flagged', { label: item.label, notice }) };
     // Groups: identity, what you watch, how it is set up, the app itself.
     // Shortcut hints match the workspace menu; a tray menu registers none.
     return [
-      { label: `VibeMon ${this.app.getVersion()}`, enabled: false },
+      { label: t('tray.version', { version: this.app.getVersion() }), enabled: false },
       { type: 'separator' },
-      flagged({ label: 'Dashboard', click: () => this.openDashboard?.() }, dashboard),
-      { label: 'Show companion', click: () => this.showCharacterHandler?.() },
+      flagged({ label: t('nav.dashboard'), click: () => this.openDashboard?.() }, dashboard),
+      { label: t('action.showCompanion'), click: () => this.showCharacterHandler?.() },
       { type: 'separator' },
-      flagged({ label: 'Settings…', accelerator: 'CmdOrCtrl+,', registerAccelerator: false, click: () => this.openSettings?.(connection ? 'connections' : 'companion') }, connection),
-      flagged({ label: 'Integrations…', click: () => this.openSettings?.('integrations') }, integrations),
+      flagged({ label: t('action.settingsMenu'), accelerator: 'CmdOrCtrl+,', registerAccelerator: false, click: () => this.openSettings?.(connection ? 'connections' : 'companion') }, connection),
+      flagged({ label: t('action.integrationsMenu'), click: () => this.openSettings?.('integrations') }, integrations),
       { type: 'separator' },
-      flagged({ label: 'About VibeMon', click: () => this.openSettings?.('about') }, update),
-      { label: 'Quit VibeMon', accelerator: 'CmdOrCtrl+Q', registerAccelerator: false, click: () => this.app.quit() }
+      flagged({ label: t('action.aboutApp'), click: () => this.openSettings?.('about') }, update),
+      { label: t('action.quitApp'), accelerator: 'CmdOrCtrl+Q', registerAccelerator: false, click: () => this.app.quit() }
     ];
   }
 

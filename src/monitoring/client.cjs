@@ -4,6 +4,7 @@ const { METRICS, validId, validAccountId, accountId, groupAccounts, webOrigin, v
 const { CLOUD_POLL_MS, CLOUD_REQUEST_TIMEOUT_MS, CLOUD_TREND_MS, CLOUD_MAX_RESPONSE_BYTES } = require('../shared/constants.cjs');
 const { sourceStale, sourceState, accountActivity, needsAttention, attentionCount } = require('../shared/monitoring/state.cjs');
 const { snapshotClock } = require('../shared/monitoring/clock.cjs');
+const { t } = require('../shared/i18n/locale.cjs');
 
 class MonitoringClient extends EventEmitter {
   constructor({ preferences, credentials, fetchImpl = fetch, allowLocalHttp = false, now = Date.now, monotonicNow = () => globalThis.performance.now() }) {
@@ -71,14 +72,14 @@ class MonitoringClient extends EventEmitter {
   }
   async configure({ url, token }) {
     const origin = webOrigin(url, this.allowLocalHttp);
-    if (typeof token !== 'string' || (token && !/^vm_[a-f0-9]{60}$/.test(token))) throw new Error('Enter a generated read token');
-    if (origin !== this.preferences.get('url') && !token && this.credentials.has()) throw new Error('Enter a token when changing the Web address');
+    if (typeof token !== 'string' || (token && !/^vm_[a-f0-9]{60}$/.test(token))) throw new Error(t('error.readTokenFormat'));
+    if (origin !== this.preferences.get('url') && !token && this.credentials.has()) throw new Error(t('error.tokenForNewAddress'));
     const candidate = token || this.credentials.get();
     const attempt = ++this.configurationAttempt;
     const data = await this.requestWith(origin, candidate, '/api/v1/sources');
     const sources = validateSources(data.sources);
     const clock = snapshotClock(data.serverTime, this.monotonicNow);
-    if (attempt !== this.configurationAttempt) throw new Error('The connection changed while checking. Try again');
+    if (attempt !== this.configurationAttempt) throw new Error(t('error.connectionChanged'));
     if (token) this.credentials.set(token, origin);
     else this.preferences.set('url', origin);
     this.generation++;
@@ -230,7 +231,7 @@ class MonitoringClient extends EventEmitter {
     const account = typeof target === 'object' && target?.kind === 'account';
     if (!(account ? validAccountId(sourceId) : validId(sourceId))) throw new Error('Invalid source ID');
     const data = await this.request(`/api/v1/${account ? 'accounts' : 'sources'}/${encodeURIComponent(sourceId)}/trend?hours=1`);
-    if (generation !== this.generation) throw new Error('The workspace connection changed; reopen this history');
+    if (generation !== this.generation) throw new Error(t('error.historyChanged'));
     const definitions = data.metricDefinitions === undefined ? METRICS : validateDefinitions(data.metricDefinitions);
     const points = validateTrend(data.points, definitions);
     const metrics = data.metricDefinitions === undefined

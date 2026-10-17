@@ -4,6 +4,7 @@ const {
   CHARACTER_SCALES, EDGE_MARGINS
 } = require('../shared/config.cjs');
 const { describeFailure } = require('../shared/install-result.cjs');
+const { t } = require('../shared/i18n/locale.cjs');
 
 // ~/.vibemon/config.json fields the workspace shows and edits. Credentials stay out.
 const HOOK_SETTINGS = ['debug', 'auto_launch', 'http_urls', 'serial_port'];
@@ -108,7 +109,7 @@ class WorkspaceSettings {
     handle('get-all', () => this.getSnapshot());
 
     const preference = (action, valid, apply) => handle(action, value => {
-      if (!valid(value)) throw new Error('Invalid setting value');
+      if (!valid(value)) throw new Error(t('error.invalidSetting'));
       apply(value);
       this.notifyChanged();
       return true;
@@ -125,8 +126,8 @@ class WorkspaceSettings {
     preference('set-open-at-login', boolean, value => this.app.setLoginItemSettings({ openAtLogin: value }));
 
     handle('set-speech-bubble-field', (field, enabled) => {
-      if (typeof enabled !== 'boolean') throw new Error('Choose whether the field is visible');
-      if (!SPEECH_BUBBLE_FIELDS.includes(field)) throw new Error('Invalid setting value');
+      if (typeof enabled !== 'boolean') throw new Error(t('error.chooseFieldVisible'));
+      if (!SPEECH_BUBBLE_FIELDS.includes(field)) throw new Error(t('error.invalidSetting'));
       this.windowManager.setSpeechBubbleField(field, enabled);
       this.notifyChanged();
       return true;
@@ -155,7 +156,7 @@ class WorkspaceSettings {
       if (failure || results.length === 0) {
         // The reason travels with the rejection: this path shows no dialog, so
         // without it the renderer can only say "Failed".
-        throw new Error(failure ? describeFailure(failure.result) : 'Hook install failed');
+        throw new Error(failure ? describeFailure(failure.result) : t('install.failed'));
       }
       return this.toHookView(this.hookInstaller.getCachedStatuses());
     });
@@ -163,14 +164,14 @@ class WorkspaceSettings {
     handle('repair-vibemon-config', () => {
       this.vibemonConfigManager.ensureDesktopUrl(null);
       const result = this.getVibemonConfigView();
-      if (!result.status.hasDesktopUrl) throw new Error('Unable to repair hook config. Check its JSON format and file permissions.');
+      if (!result.status.hasDesktopUrl) throw new Error(t('error.repairConfig'));
       this.notifyChanged();
       return result;
     });
 
     handle('set-vibemon-config', (partial) => {
-      if (!partial || typeof partial !== 'object' || Array.isArray(partial)) throw new Error('Config changes must be a JSON object');
-      if (Object.keys(partial).some(key => !HOOK_SETTINGS.includes(key))) throw new Error('This hook setting cannot be changed from the workspace');
+      if (!partial || typeof partial !== 'object' || Array.isArray(partial)) throw new Error(t('error.configObject'));
+      if (Object.keys(partial).some(key => !HOOK_SETTINGS.includes(key))) throw new Error(t('error.hookSettingLocked'));
       this.vibemonConfigManager.write(partial);
       this.notifyChanged();
       return this.getVibemonConfigView();
@@ -181,14 +182,14 @@ class WorkspaceSettings {
     handle('disconnect-cloud-delivery', () => this.cloudDelivery.disconnect());
 
     handle('add-http-url', (url) => {
-      if (typeof url !== 'string') throw new Error('Enter a valid HTTP URL');
+      if (typeof url !== 'string') throw new Error(t('error.httpUrl'));
       this.vibemonConfigManager.addHttpUrl(url);
       this.notifyChanged();
       return this.getVibemonConfigView();
     });
 
     handle('remove-http-url', (url) => {
-      if (typeof url !== 'string') throw new Error('Enter a valid HTTP URL');
+      if (typeof url !== 'string') throw new Error(t('error.httpUrl'));
       this.vibemonConfigManager.removeHttpUrl(url);
       this.notifyChanged();
       return this.getVibemonConfigView();
@@ -208,13 +209,13 @@ class WorkspaceSettings {
 
     handle('install-downloaded', () => {
       const { status } = this.updateChecker.getState();
-      if (status !== 'downloaded') throw new Error('Download the update before installing it');
+      if (status !== 'downloaded') throw new Error(t('error.downloadFirst'));
       this.updateChecker.installDownloaded();
       return true;
     });
 
     handle('open-external', async (key) => {
-      if (!Object.hasOwn(EXTERNAL_LINKS, key)) throw new Error('Invalid setting value');
+      if (!Object.hasOwn(EXTERNAL_LINKS, key)) throw new Error(t('error.invalidSetting'));
       const url = EXTERNAL_LINKS[key];
       await this.openExternal(url);
       return true;

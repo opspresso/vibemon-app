@@ -2,6 +2,8 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { createTranslator, mergeCatalogs, resolveLocale } from '../src/shared/i18n/translate.mjs';
 import messages from '../src/shared/i18n/shared-messages.mjs';
+import { readFileSync } from 'node:fs';
+import { validateCatalog } from '../scripts/generate-monitoring.mjs';
 import { describeReset, formatResetTime, metricLabel, observationAge, resetCountdown, resourceType, sharedTranslator, stateLabel } from '../src/shared/design/presentation.mjs';
 
 test('resolves the first supported language and falls back to English', () => {
@@ -31,6 +33,16 @@ test('translates with placeholders, plurals, and English fallback', () => {
 
 test('every shared message exists in every locale', () => {
   for (const locale of ['ko', 'ja']) assert.deepEqual(Object.keys(messages[locale]).sort(), Object.keys(messages.en).sort(), locale);
+});
+
+const desktop = JSON.parse(readFileSync(new URL('../src/shared/i18n/desktop.json', import.meta.url), 'utf8'));
+
+test('every Desktop message exists in every locale with the English placeholders', () => {
+  assert.doesNotThrow(() => validateCatalog('desktop.json', desktop));
+  for (const locale of ['ko', 'ja']) assert.deepEqual(Object.keys(desktop[locale]).sort(), Object.keys(desktop.en).sort(), locale);
+  assert.deepEqual(Object.keys(desktop.en).filter(key => Object.hasOwn(messages.en, key)), [], 'Desktop keys do not redefine shared keys');
+  assert.throws(() => validateCatalog('broken.json', { en: { a: 'Hi {name}' }, ko: { a: '안녕' } }), /placeholders/);
+  assert.throws(() => validateCatalog('broken.json', { en: { a: 'A', b: 'B' }, ja: { a: 'A' } }), /missing b/);
 });
 
 test('shared display rules use the reader language', () => {

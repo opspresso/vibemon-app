@@ -28,6 +28,11 @@ module.exports = {
       statements: 60
     }
   },
-  moduleFileExtensions: ['js', 'cjs', 'json'],
+  moduleFileExtensions: ['js', 'cjs', 'mjs', 'json'],
+  // Main-process modules require shared ES modules; Jest loads CommonJS only.
+  transform: {
+    '\\.[jt]sx?$': 'babel-jest',
+    '\\.mjs$': '<rootDir>/tests/helpers/esm-transform.cjs'
+  },
   verbose: true
 };

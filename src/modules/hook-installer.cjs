@@ -16,6 +16,7 @@ const https = require('https');
 const crypto = require('crypto');
 const { spawn } = require('child_process');
 const { dialog, shell } = require('electron');
+const { t } = require('../shared/i18n/locale.cjs');
 const Store = require('electron-store');
 const { DOCS_BASE_URL, INSTALLER_SHA256, HOOK_DOWNLOAD_TIMEOUT_MS } = require('../shared/config.cjs');
 const { describeFailure } = require('../shared/install-result.cjs');
@@ -586,11 +587,11 @@ class HookInstaller {
             reject({ reason: 'download-too-large' });
           } else text += chunk;
         });
-        res.on('error', () => reject({ reason: 'network-error', error: 'Download stream failed' }));
-        res.on('aborted', () => reject({ reason: 'network-error', error: 'Download interrupted' }));
+        res.on('error', () => reject({ reason: 'network-error', error: t('install.streamFailed') }));
+        res.on('aborted', () => reject({ reason: 'network-error', error: t('install.interrupted') }));
         res.on('end', () => { if (!failed) resolve(text); });
       });
-      req.on('timeout', () => req.destroy(new Error('Download timed out')));
+      req.on('timeout', () => req.destroy(new Error(t('install.timedOut'))));
       req.on('error', error => reject({ reason: 'network-error', error: error.message }));
     });
   }
@@ -731,7 +732,7 @@ class HookInstaller {
    */
   async installTools(tools, token, { showSummary = true } = {}) {
     if (this.isRunning) {
-      throw new Error('Another integration installation is already running');
+      throw new Error(t('install.running'));
     }
     this.isRunning = true;
     this.onStateChanged?.();
@@ -790,13 +791,13 @@ class HookInstaller {
       return;
     }
 
-    const toolNames = missing.map(t => t.name).join(', ');
+    const toolNames = missing.map(tool => tool.name).join(t('list.separator'));
     const { response } = await dialog.showMessageBox({
       type: 'info',
       title: 'VibeMon',
-      message: 'VibeMon found AI tools without hooks installed.',
-      detail: `${toolNames}\n\nInstall hooks now to show real-time status in VibeMon.`,
-      buttons: ['Install', 'Skip', "Don't Ask Again"],
+      message: t('dialog.hooksMissing.message'),
+      detail: t('dialog.hooksMissing.detail', { tools: toolNames }),
+      buttons: [t('dialog.button.install'), t('dialog.button.skip'), t('dialog.button.dontAsk')],
       defaultId: 0,
       cancelId: 1
     });
@@ -821,7 +822,7 @@ class HookInstaller {
    * @param {{showSummary?: boolean}} [options] - forwarded to installTools()
    */
   installByFlag(flag, token, options) {
-    const tool = TOOLS.find(t => t.flag === flag);
+    const tool = TOOLS.find(item => item.flag === flag);
     if (!tool) {
       return Promise.resolve([]);
     }
@@ -843,13 +844,13 @@ class HookInstaller {
     dialog.showMessageBox({
       type: 'warning',
       title: 'VibeMon',
-      message: succeeded.length > 0 ? 'Some hooks failed to install' : 'VibeMon hook installation failed',
+      message: t(succeeded.length > 0 ? 'dialog.installFailed.partial' : 'dialog.installFailed.all'),
       detail: [
-        succeeded.length > 0 ? `Succeeded: ${succeeded.join(', ')}` : null,
+        succeeded.length > 0 ? t('dialog.installFailed.succeeded', { tools: succeeded.join(t('list.separator')) }) : null,
         failedLines,
-        `See ${SETUP_GUIDE_URL} for manual setup instructions.`
+        t('dialog.installFailed.guide', { url: SETUP_GUIDE_URL })
       ].filter(Boolean).join('\n\n'),
-      buttons: ['OK', 'Open Setup Guide']
+      buttons: [t('dialog.button.ok'), t('dialog.button.openGuide')]
     }).then(({ response }) => {
       if (response === 1) {
         shell.openExternal(SETUP_GUIDE_URL);

@@ -1,3 +1,5 @@
+const { t } = require('../shared/i18n/locale.cjs');
+
 /** OS-protected encryption; plaintext and Linux basic_text storage are rejected. */
 class CredentialStore {
   constructor(store, safeStorage) {
@@ -15,7 +17,7 @@ class CredentialStore {
     catch { throw Object.assign(new Error('The saved read token cannot be decrypted. Enter it again from Web Account.'), { code: 'credential-unavailable' }); }
   }
   set(token, origin) {
-    if (!this.available()) throw new Error('OS secure storage is unavailable; unlock your keychain or secret service');
+    if (!this.available()) throw new Error(t('error.secureStorage'));
     const credential = this.safeStorage.encryptString(token).toString('base64');
     // One store transaction keeps a replacement credential bound to its origin.
     if (origin === undefined) this.store.set('credential', credential);
