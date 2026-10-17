@@ -28,7 +28,8 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import urlsplit
 from urllib.request import Request, urlopen
 
-from account_context import cloud_context, project_cache_key
+from account_context import cloud_context, project_cache_key, prepare_account, using_account
+from account_identity import AccountIdentity
 from project_context import get_project_name, parse_json, read_input
 import session_activity
 from session_activity import Transition
@@ -1120,10 +1121,10 @@ def activity_path() -> str:
     return os.path.join(os.path.dirname(get_config().cache_path), "activity.json")
 
 
-def deliver_report(payload: dict[str, Any], cwd: str, observed_at: str, *, is_start: bool = False, heartbeat: bool = False) -> None:
+def deliver_report(payload: dict[str, Any], cwd: str, observed_at: str, *, is_start: bool = False, heartbeat: bool = False, account: dict | None = None) -> None:
     """Send one report to every display with its cloud identity."""
     try:
-        context: dict | bool = cloud_context(str(payload.get("character", "vibemon")), str(payload.get("project", "")), cwd, observed_at=observed_at)
+        context: dict | bool = cloud_context(str(payload.get("character", "vibemon")), str(payload.get("project", "")), cwd, observed_at=observed_at, identity=AccountIdentity.restore(account) if account else None)
         if heartbeat:
             # A heartbeat repeats the current state: it refreshes liveness but
             # is not new activity and does not compete for display focus.
@@ -1140,7 +1141,7 @@ def watch_session(args: list[str]) -> bool:
         return False
     session_activity.watch(
         activity_path(), args[0],
-        lambda beat: deliver_report(beat.payload, beat.cwd, beat.observed_at, heartbeat=beat.heartbeat),
+        lambda beat: deliver_report(beat.payload, beat.cwd, beat.observed_at, heartbeat=beat.heartbeat, account=beat.account),
     )
     return True
 
@@ -1153,6 +1154,8 @@ def run(
     event_aliases: dict[str, str] | None = None,
     refine: Callable[[str, dict[str, Any], str], Transition | None] | None = None,
     locate_transcript: Callable[[dict[str, Any]], str] | None = None,
+    account_provider: str | None = None,
+    profile_root: str | None = None,
 ) -> None:
     """Hook entry point, driven by a per-tool adapter.
 
@@ -1199,6 +1202,18 @@ def run(
     if event_aliases:
         event_name = event_aliases.get(event_name, event_name)
     data = {**data, "hook_event_name": event_name}
+    if account_provider:
+        try:
+            identity = prepare_account(account_provider, data, profile_root)
+        except (OSError, ValueError):
+            print("[vibemon] Could not bind this session to its account; no report was sent.", file=sys.stderr)
+            return
+        with using_account(identity):
+            return process_event(data, event_name, event_state_map, build_payload, start_event, refine, locate_transcript, identity)
+    return process_event(data, event_name, event_state_map, build_payload, start_event, refine, locate_transcript, None)
+
+
+def process_event(data, event_name, event_state_map, build_payload, start_event, refine, locate_transcript, identity):
     tool_name = data.get("tool_name", "")
     cwd = data.get("cwd", "")
     transcript_path = data.get("transcript_path", "")
@@ -1239,11 +1254,11 @@ def run(
     if isinstance(session, str) and session and report.state in session_activity.ACTIVE_STATES:
         # Only an open turn needs what a heartbeat repeats.
         agent = session_activity.agent_process() if report.watch else None
-        session_activity.remember_payload(path, session, payload, cwd, agent)
+        session_activity.remember_payload(path, session, payload, cwd, agent, account=identity.record() if identity else None)
         if agent is not None:
             session_activity.start_watcher(os.path.abspath(__file__), session)
 
-    deliver_report(payload, cwd, report.observed_at, is_start=event_name == start_event)
+    deliver_report(payload, cwd, report.observed_at, is_start=event_name == start_event, account=identity.record() if identity else None)
 
 
 if __name__ == "__main__":

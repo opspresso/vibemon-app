@@ -215,14 +215,14 @@ def record(path: str, data: dict[str, Any], transition: Transition) -> Report | 
     return Report(result["state"], result["observedAt"], result["watch"])
 
 
-def remember_payload(path: str, session: str, payload: dict[str, Any], cwd: str, agent: dict[str, Any] | None) -> None:
+def remember_payload(path: str, session: str, payload: dict[str, Any], cwd: str, agent: dict[str, Any] | None, account: dict | None = None) -> None:
     """Store what a heartbeat repeats: the display payload and the agent process."""
     def update(cache: dict[str, Any]) -> dict[str, Any]:
         sessions = dict(cache.get("sessions") or {})
         entry = sessions.get(session)
         if not isinstance(entry, dict):
             return cache
-        entry = {**entry, "payload": payload, "payloadMs": _now_ms(), "cwd": cwd}
+        entry = {**entry, "payload": payload, "payloadMs": _now_ms(), "cwd": cwd, "account": account}
         if agent is not None:
             entry["agent"] = agent
         sessions[session] = entry
@@ -244,6 +244,7 @@ class Beat:
     cwd: str
     observed_at: str
     heartbeat: bool
+    account: dict | None = None
 
 
 def start_watcher(core_path: str, session: str) -> bool:
@@ -314,11 +315,11 @@ def tick(path: str, session: str, me: dict[str, Any]) -> Beat | None | bool:
         if closing:
             current = {**current, "open": False, "state": "done", "tools": {}, "updatedMs": now, "reportedMs": now}
             current.pop("watcher", None)
-            outcome["result"] = Beat(_aged({**payload, "state": "done", "tool": ""}, current, now), current.get("cwd", ""), observation_time(stamp), False) if isinstance(payload, dict) else False
+            outcome["result"] = Beat(_aged({**payload, "state": "done", "tool": ""}, current, now), current.get("cwd", ""), observation_time(stamp), False, current.get("account")) if isinstance(payload, dict) else False
         else:
             current = {**current, "reportedMs": now}
             if isinstance(payload, dict):
-                outcome["result"] = Beat(_aged({**payload, "state": current["state"]}, current, now), current.get("cwd", ""), observation_time(stamp), True)
+                outcome["result"] = Beat(_aged({**payload, "state": current["state"]}, current, now), current.get("cwd", ""), observation_time(stamp), True, current.get("account"))
         sessions[session] = current
         return {**cache, "lastMs": stamp, "sessions": sessions}
 

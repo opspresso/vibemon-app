@@ -12,10 +12,24 @@ for directory in ("scripts", "public/install", "public/install/claude", "public/
     sys.path.insert(0, str(ROOT / directory))
 
 import session_activity
+import account_context
 
 
 def pytest_configure(config):
     config.addinivalue_line("markers", "process_tree: use the real agent-process lookup")
+
+
+@pytest.fixture(autouse=True)
+def isolated_account_context(tmp_path, monkeypatch):
+    """Hook fixtures never probe real credentials or register profiles on this machine.
+
+    Existing transport/usage fixtures explicitly represent the legacy default
+    account. Identity integration tests remove this override to exercise detection.
+    Provider adapter tests construct their own injected source.
+    """
+    monkeypatch.setenv('VIBEMON_ACCOUNT_ID', 'default')
+    monkeypatch.setattr(account_context, 'registry_path', lambda: str(tmp_path / 'accounts.json'))
+    monkeypatch.setattr(account_context._source, 'resolve', lambda target, *_: target.unidentified())
 
 
 @pytest.fixture(autouse=True)

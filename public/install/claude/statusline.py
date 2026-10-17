@@ -29,7 +29,7 @@ for helper_dir in (Path(__file__).resolve().parent.parent / "vibemon", VIBEMON_H
         break
 
 # The helpers resolve only after the path setup above.
-from account_context import project_cache_key  # noqa: E402
+from account_context import project_cache_key, prepare_account, using_account  # noqa: E402
 from project_context import get_project_name, parse_json, read_input  # noqa: E402
 from cache_io import update_json_cache  # noqa: E402
 from usage_cache import (  # noqa: E402
@@ -748,6 +748,16 @@ def main() -> None:
     # Parse JSON once and reuse
     data = parse_json(input_raw)
 
+    try:
+        identity = prepare_account('claude', data, str(Path(__file__).resolve().parent))
+    except (OSError, ValueError):
+        print('[vibemon] Could not bind the status line to its account.', file=sys.stderr)
+        return
+    with using_account(identity):
+        render_statusline(data)
+
+
+def render_statusline(data: dict) -> None:
     # Extract model info
     model_data = data.get("model", {})
     model_display = (

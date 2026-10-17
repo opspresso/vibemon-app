@@ -72,6 +72,8 @@ def build_payload(
 
 if __name__ == "__main__":
     core.run(
+        account_provider="codex",
+        profile_root=str(Path(__file__).resolve().parents[1]),
         event_state_map=EVENT_STATE_MAP,
         build_payload=build_payload,
         start_event="SessionStart",
