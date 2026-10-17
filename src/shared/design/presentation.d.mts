@@ -15,7 +15,7 @@ export function measurementUnit(unit: string): string;
 export function formatMeasurement(value: unknown, unit?: string, exact?: boolean, unavailable?: string, includeUnit?: boolean): string;
 export function observationAge(timestamp: string | null | undefined, now?: number, t?: Translator): string;
 export function formatAxisValue(value: number): string;
-export function formatResetTime(minutes: number, t?: Translator): string | null;
+export function formatResetTime(minutes: number | null, t?: Translator): string | null;
 export function resetMinutes(resetAt: number | null | undefined, now?: number): number | null;
 export function resetCountdown(resetAt: number | null | undefined, now?: number, t?: Translator): string | null;
 export function describeReset(minutes: number | null, t?: Translator): string | null;
