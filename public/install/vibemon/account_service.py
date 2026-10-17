@@ -13,7 +13,7 @@ MAX_SESSIONS = 1024
 def identity_hint(value) -> dict[str, str]:
     if not isinstance(value, dict):
         return {}
-    return {key: clean for key in ['provider', 'credential_id', 'agent_id', 'revision', 'manual_id', 'manual_name']
+    return {key: clean for key in ['provider', 'credential_id', 'agent_id', 'revision', 'manual_id', 'manual_name', 'runtime']
         if (clean := text(value.get(key), 256)) is not None}
 
 

@@ -29,10 +29,11 @@ class Profile:
     root: str
     instance: str
     explicit_home: bool = False
+    context: str = ""
 
     @property
     def key(self) -> str:
-        return fingerprint('profile-v1', self.provider, self.instance, self.root, str(self.explicit_home))
+        return fingerprint('profile-v1', self.provider, self.instance, self.root, str(self.explicit_home), self.context)
 
     def environment(self, environment: dict[str, str]) -> dict[str, str]:
         result = dict(environment)
@@ -43,8 +44,8 @@ class Profile:
         return result
 
     def unidentified(self, reason: str = 'Account not identified') -> AccountIdentity:
-        label = f'{Path(self.root).name} @ {self.instance} · {reason}'
-        return profile(self.provider, self.root + ('#explicit-home' if self.explicit_home else ''), self.instance, label)
+        label = f'{self.context or Path(self.root).name} @ {self.instance} · {reason}'
+        return profile(self.provider, self.root + ('#explicit-home' if self.explicit_home else '') + ('#' + self.context if self.context else ''), self.instance, label)
 
 
 def tool_profile(provider: str, environment: dict[str, str] | None = None, root: str | None = None) -> Profile:
@@ -140,15 +141,17 @@ def codex_auth(environment: dict[str, str], cwd: str | None = None) -> dict | No
         if not isinstance(result, dict) or result.get('requiresOpenaiAuth') is False:
             return None
         account = result.get('account')
-        if not isinstance(account, dict) or account.get('type') != 'chatgpt':
+        if not isinstance(account, dict) or account.get('type') not in ('chatgpt', 'apiKey'):
             return None
         # Read the CLI's selected credential, not a potentially obsolete
         # auth.json beside a newer keyring login. Email alone cannot tell
         # personal and team workspaces of the same person apart.
         current = request(3, 'getAuthStatus', {'includeToken': True, 'refreshToken': False})
-        if not isinstance(current, dict) or current.get('authMethod') not in ('chatgpt', 'chatgptAuthTokens'):
+        if not isinstance(current, dict) or current.get('authMethod') not in ('chatgpt', 'chatgptAuthTokens', 'apikey'):
             return None
         token = current.get('authToken')
+        if current.get('authMethod') == 'apikey':
+            return {'auth_mode': 'apikey', 'credential_ref': fingerprint('api-key-v1', 'codex', token)} if text(token, 65536) else None
         claims = jwt_claims(token)
         auth = claims.get('https://api.openai.com/auth')
         if not isinstance(auth, dict):
@@ -176,7 +179,11 @@ class LocalAccountSource:
         env = target.environment(environment)
         identity = None
         if target.provider == 'codex':
-            identity = codex_account(self.codex(env, cwd))
+            metadata = self.codex(env, cwd)
+            identity = codex_account(metadata)
+            if isinstance(metadata, dict) and metadata.get('auth_mode') == 'apikey' and text(metadata.get('credential_ref'), 64):
+                reference = metadata['credential_ref']
+                return profile('codex', target.root, target.instance, 'API key ' + reference[-8:], reference)
         elif target.provider == 'claude':
             root = Path(target.root)
             # Current Claude puts custom-profile state inside its config root;
@@ -185,24 +192,33 @@ class LocalAccountSource:
             default = Path(env.get('HOME') or env.get('USERPROFILE') or str(Path.home())) / '.claude'
             if not target.explicit_home and root == default.resolve():
                 candidates.insert(0, default.parent / '.claude.json')
+            has_metadata = False
+            status = None
             for candidate in candidates:
                 settings = self.read(candidate)
                 if not isinstance(settings, dict) or not isinstance(settings.get('oauthAccount'), dict):
                     continue
+                has_metadata = True
                 # Even `auth status` initializes a never-used Claude profile.
                 # Inspect an existing login only; discovery must not create one.
                 status = self.command(['claude', 'auth', 'status', '--json'], env, cwd)
                 identity = claude_account(status, settings)
                 if identity: break
+            if not identity:
+                mode = status.get('authMethod') if isinstance(status, dict) else None
+                for variable, method in [('ANTHROPIC_API_KEY', 'api_key'), ('ANTHROPIC_AUTH_TOKEN', 'api_key'), ('CLAUDE_CODE_OAUTH_TOKEN', 'oauth_token')]:
+                    secret = text(env.get(variable), 65536)
+                    if secret and (not has_metadata or mode == method):
+                        reference = fingerprint('environment-credential-v1', 'claude', variable, secret)
+                        return profile('claude', target.root, target.instance, 'API credential ' + reference[-8:], reference)
         elif target.provider == 'kiro':
-            identity = kiro_account(self.command(['kiro-cli', 'whoami', '--format', 'json'], env, cwd))
+            if (hint or {}).get('runtime') == 'kiro-cli':
+                identity = kiro_account(self.command(['kiro-cli', 'whoami', '--format', 'json'], env, cwd))
         elif target.provider == 'opencode':
             backend = text((hint or {}).get('provider'), 128)
             if backend:
                 identity = opencode_connection(self.command(['opencode', 'auth', 'list', '--format', 'json'], env, cwd),
                     backend, target, text((hint or {}).get('credential_id'), 256))
         elif target.provider == 'openclaw':
-            agent = text((hint or {}).get('agent_id'), 128) or 'main'
-            return profile('openclaw', target.root + '/agent:' + agent, target.instance,
-                f'{agent} @ {target.instance} · Account not identified')
+            return target.unidentified()
         return identity or target.unidentified()

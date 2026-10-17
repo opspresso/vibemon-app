@@ -68,8 +68,8 @@ class AccountIsolationTest(unittest.TestCase):
                         identities.add(result['sourceId'])
         self.assertEqual(len(identities), 12)
 
-    def test_openclaw_javascript_and_python_share_the_identity_tuple(self):
-        # plugin_harness.mjs supplies a POSIX /server workspace on every OS.
+    def test_explicit_openclaw_source_ids_remain_wire_compatible(self):
+        # Existing OpenClaw installations used this POSIX workspace identity.
         # Keep that exact input here instead of resolving it onto a CI drive.
         with patch.dict(os.environ, {'VIBEMON_OPENCLAW_ACCOUNT_ID': 'work', 'VIBEMON_INSTANCE_ID': 'test-machine'}, clear=True), patch.object(account_context.Path, 'resolve', return_value=PurePosixPath('/server')):
             result = account_context.cloud_context('openclaw', 'OpenClaw', '/server')

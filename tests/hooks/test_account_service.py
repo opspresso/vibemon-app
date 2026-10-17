@@ -61,7 +61,8 @@ def test_expired_bindings_are_replaced_and_cache_has_no_credentials(tmp_path):
     assert service.bind(target, env, 'session', 'PreToolUse').id != a.id
     raw = (tmp_path / 'accounts.json').read_text()
     assert 'user-a' not in raw and 'user-b' not in raw and 'org-b' not in raw
-    assert (tmp_path / 'accounts.json').stat().st_mode & 0o077 == 0
+    if __import__('os').name != 'nt':
+        assert (tmp_path / 'accounts.json').stat().st_mode & 0o077 == 0
 
 
 def test_failed_persistence_does_not_claim_a_session_was_bound(tmp_path):

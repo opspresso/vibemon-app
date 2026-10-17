@@ -6,10 +6,11 @@ import socket
 from contextlib import contextmanager
 from contextvars import ContextVar
 from datetime import datetime, timezone
+from dataclasses import replace
 from pathlib import Path
 
 from account_identity import AccountIdentity, named, fingerprint
-from account_service import AccountService
+from account_service import AccountService, identity_hint
 from account_sources import LocalAccountSource, tool_profile
 from account_store import JsonAccountStore
 
@@ -28,10 +29,15 @@ def registry_path() -> str:
 def prepare_account(provider: str, data: dict | None = None, root: str | None = None) -> AccountIdentity:
     data = data or {}
     target = tool_profile(provider, root=root)
+    hint = identity_hint(data.get('account_hint'))
+    if provider == 'openclaw':
+        target = replace(target, context=hint.get('agent_id') or 'main')
+    elif provider == 'kiro':
+        target = replace(target, context=hint.get('runtime') or 'kiro-ide')
     service = AccountService(_source, JsonAccountStore(registry_path()))
     return service.bind(target, dict(os.environ), data.get('session_id'), data.get('hook_event_name', ''),
         data.get('cwd') if isinstance(data.get('cwd'), str) and Path(data['cwd']).is_dir() else None,
-        data.get('account_hint') if isinstance(data.get('account_hint'), dict) else None)
+        hint)
 
 
 @contextmanager
@@ -80,13 +86,14 @@ def observation_time(epoch_ms: int | None = None) -> str:
 
 
 def cloud_context(character: str, project: str, cwd: str | None = None, observed_at: str | None = None,
-                  identity: AccountIdentity | None = None) -> dict:
+                  identity: AccountIdentity | None = None, source_scope: str | None = None) -> dict:
     provider = provider_name(character)
     account = identity or current_account(provider)
     if account.provider != provider:
         raise ValueError('Account belongs to another coding tool')
     instance = os.environ.get('VIBEMON_INSTANCE_ID') or socket.gethostname()
     workspace = str(Path(cwd or os.getcwd()).resolve())
-    key = '\0'.join((provider, account.id, instance, workspace, project))
+    parts = (provider, account.id, instance, workspace, project)
+    key = '\0'.join(parts + ((source_scope,) if source_scope else ()))
     return {'account': account.public(), 'sourceId': 'agent:' + hashlib.sha256(key.encode()).hexdigest(),
         'observedAt': observed_at if observed_at is not None else observation_time()}

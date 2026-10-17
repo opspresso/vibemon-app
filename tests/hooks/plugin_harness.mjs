@@ -14,6 +14,7 @@ export async function loadPlugin(relativePath, options = {}) {
   let timerId = 0;
   let now = 1000;
   const children = [];
+  const identities = [];
   const requests = [];
   const timeouts = [];
   const files = new Map(Object.entries(options.files || {}));
@@ -37,11 +38,24 @@ export async function loadPlugin(relativePath, options = {}) {
   function spawn(command, args, spawnOptions) {
     const child = new EventEmitter();
     child.stdin = new EventEmitter();
+    child.stdout = new EventEmitter();
+    child.kill = () => child.emit("close", -1);
     child.raw = "";
     child.stdin.write = (data) => { child.raw += data; };
     child.stdin.end = (data = "") => {
       child.raw += data;
-      if (options.autoClose !== false) queueMicrotask(() => child.emit("close", 0));
+      if (args.includes("--resolve-plugin-account")) {
+        const input = JSON.parse(child.raw);
+        const agent = input.account_hint?.agent_id || "main";
+        const id = input.account_hint?.manual_id || options.env?.VIBEMON_OPENCLAW_ACCOUNT_ID || options.env?.VIBEMON_ACCOUNT_ID || `profile-${agent}`;
+        const identity = { account: { provider: "openclaw", id, displayName: input.account_hint?.manual_name || `OpenClaw ${agent}` },
+          sourceId: "agent:" + String(identities.length + 1).padStart(64, "0") };
+        identities.push(identity);
+        queueMicrotask(() => {
+          if (!options.identityFailure) child.stdout.emit("data", JSON.stringify(identity));
+          child.emit("close", options.identityFailure ? 1 : 0);
+        });
+      } else if (options.autoClose !== false) queueMicrotask(() => child.emit("close", 0));
     };
     child.unref = () => {};
     children.push({ command, args, options: spawnOptions, child });
@@ -83,7 +97,7 @@ export async function loadPlugin(relativePath, options = {}) {
   await module.evaluate();
   const flush = () => new Promise((resolve) => setImmediate(resolve));
   return {
-    exports: module.namespace, children, requests, timeouts, flush,
+    exports: module.namespace, children, identities, requests, timeouts, flush,
     setFile(p, content) { files.set(p, content); mtime += 1; },
     // Exit every queued child in turn; each exit can start the next one.
     closeChildren() {
@@ -114,6 +128,8 @@ export async function openclaw(options = {}) {
   });
   return {
     ...harness,
+    get children() { return harness.children.filter(child => !child.args.includes("--resolve-plugin-account")); },
+    get identityChildren() { return harness.children.filter(child => child.args.includes("--resolve-plugin-account")); },
     logs,
     async emit(name, event = {}, ctx = {}) {
       if (!hooks.has(name)) throw new Error(`Hook not registered: ${name}`);

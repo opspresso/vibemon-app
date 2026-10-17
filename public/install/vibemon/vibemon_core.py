@@ -30,6 +30,7 @@ from urllib.request import Request, urlopen
 
 from account_context import cloud_context, project_cache_key, prepare_account, using_account, activity_key
 from account_identity import AccountIdentity
+from account_service import identity_hint
 from project_context import get_project_name, parse_json, read_input
 import session_activity
 from session_activity import Transition
@@ -1066,6 +1067,28 @@ def send_serial_input(args: list[str]) -> bool:
     return bool(port and data) and send_serial(port, json.dumps(data))
 
 
+def plugin_source_scope(data: dict) -> str | None:
+    agent = identity_hint(data.get('account_hint')).get('agent_id')
+    return 'openclaw-agent:' + agent if agent and agent != 'main' else None
+
+
+def resolve_plugin_account(provider: str) -> bool:
+    """Return only the shared non-credential identity to a local plugin."""
+    if provider != 'openclaw':
+        return False
+    data = parse_json(read_input())
+    project, cwd = data.get('project'), data.get('cwd')
+    if not isinstance(project, str) or not project or not isinstance(cwd, str):
+        return False
+    try:
+        identity = prepare_account(provider, data)
+        print(json.dumps(cloud_context(provider, project, cwd, identity=identity, source_scope=plugin_source_scope(data))))
+        return True
+    except (OSError, ValueError):
+        print('[vibemon] Could not resolve the plugin account.', file=sys.stderr)
+        return False
+
+
 def send_cloud_status(provider: str) -> bool:
     """Send a plugin status with shared account identity and credential rules."""
     config = get_config()
@@ -1078,7 +1101,8 @@ def send_cloud_status(provider: str) -> bool:
     if not config.vibemon_url or not config.vibemon_token:
         return False
     try:
-        context = cloud_context(provider, payload["project"])
+        identity = prepare_account(provider, payload)
+        context = cloud_context(provider, payload["project"], payload.get("cwd"), identity=identity, source_scope=plugin_source_scope(payload))
         if "sourceId" in payload or "account" in payload:
             if payload.get("sourceId") != context["sourceId"] or payload.get("account") != context["account"]:
                 raise ValueError("Plugin account identity changed before delivery")
@@ -1088,13 +1112,14 @@ def send_cloud_status(provider: str) -> bool:
         if payload.get("heartbeat") is True:
             context["heartbeat"] = True
         return send_vibemon_api(config.vibemon_url, config.vibemon_token, payload, context)
-    except ValueError:
+    except (OSError, ValueError):
         print("[vibemon] Invalid cloud account configuration", file=sys.stderr)
         return False
 
 
 # Command-line entry points, dispatched before hook input is read.
 COMMAND_HANDLERS: dict[str, Any] = {
+    "--resolve-plugin-account": lambda args: resolve_plugin_account(args[0]) if len(args) == 1 else False,
     "--send-cloud": lambda args: send_cloud_status(args[0]) if len(args) == 1 else False,
     "--launch-desktop": lambda args: launch_desktop(),
     "--send-serial": send_serial_input,
@@ -1208,6 +1233,14 @@ def run(
     if event_aliases:
         event_name = event_aliases.get(event_name, event_name)
     data = {**data, "hook_event_name": event_name}
+    if account_provider and (account_provider == 'kiro' or not data.get('session_id')):
+        parent = session_activity.agent_process()
+        if account_provider == 'kiro':
+            executable = Path((parent or {}).get('name', '').replace('\\', '/')).name.lower().removesuffix('.exe')
+            runtime = 'kiro-cli' if executable in ('kiro-cli', 'q') else 'kiro-ide'
+            data = {**data, 'account_hint': {**identity_hint(data.get('account_hint')), 'runtime': runtime}}
+        if not data.get('session_id') and parent is not None:
+            data = {**data, 'session_id': f"process:{parent['pid']}:{data.get('cwd', '')}"}
     if account_provider == 'opencode' and event_name == start_event:
         hint = data.get('account_hint')
         known_backend = isinstance(hint, dict) and isinstance(hint.get('provider'), str) and hint['provider'].strip()

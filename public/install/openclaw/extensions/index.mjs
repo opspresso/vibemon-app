@@ -21,19 +21,13 @@ import fs from "node:fs";
 import path from "node:path";
 import os from "node:os";
 import { spawn } from "node:child_process";
-import { createHash } from "node:crypto";
 
 // Character configuration
 const CHARACTER = "claw";
 
-// State management
-let currentState = "idle";
-let doneTimer = null;
-let lastSendTime = 0;
-let lastPayload = "";
-// The newest state and its fields, which a heartbeat repeats.
-let lastStatus = null;
-let heartbeatTimer = null;
+// Each agent/workspace has independent activity, debounce and heartbeat state.
+const groups = new Map();
+const pendingIdentities = new Set();
 let hostConfig = {};
 const runs = new Map();
 const sendLanes = new Map();
@@ -207,7 +201,7 @@ function resolveConfig() {
 function refreshConfig() {
   if (loadSharedConfig()) {
     config = resolveConfig();
-    lastPayload = "";
+    for (const group of groups.values()) group.lastPayload = "";
     debug(`Shared config reloaded (HTTP: ${config.httpEnabled}, ${config.httpUrls.length} URLs)`);
   }
 }
@@ -270,16 +264,6 @@ function readModelFromConfig() {
   const value = hostConfig?.agents?.defaults?.model;
   const model = typeof value === "string" ? value : value?.primary;
   return typeof model === "string" ? model.split("/").pop() : "";
-}
-
-/**
- * Send status to the ESP32 via serial. vibemon_core.py resolves the port
- * setting (`~`, `*` wildcard) exactly as the hooks resolve `serial_port`.
- */
-function sendSerial(payload) {
-  const port = config.serialPort;
-  if (!config.serialEnabled || !port) return;
-  enqueueSend(`serial:${port}`, () => sendCorePayload(["--send-serial", port], payload));
 }
 
 // Shared transport owns serial locking and cloud account/credential boundaries.
@@ -426,54 +410,95 @@ function buildPayload(state, extra = {}) {
   };
 }
 
-// Same UTF-8 identity tuple as vibemon/account_context.py; terminal metadata is local only.
-function sourceIdentity() {
-  const provider = "openclaw";
-  const id = process.env.VIBEMON_OPENCLAW_ACCOUNT_ID || process.env.VIBEMON_ACCOUNT_ID || "default";
-  const displayName = process.env.VIBEMON_OPENCLAW_ACCOUNT_NAME || process.env.VIBEMON_ACCOUNT_NAME || `${provider} ${id}`;
-  if (!/^[a-zA-Z0-9][a-zA-Z0-9_.:-]{0,127}$/.test(id) || !displayName.trim() || displayName.length > 128) throw new Error("Invalid account identity");
-  const instance = process.env.VIBEMON_INSTANCE_ID || os.hostname();
-  const workspace = fs.realpathSync(process.cwd());
-  const tuple = [provider, id, instance, workspace, config.projectName].join("\0");
-  return { account: { provider, id, displayName }, sourceId: "agent:" + createHash("sha256").update(tuple).digest("hex") };
+function sourceIdentity(group) {
+  if (group.identity) return group.identity;
+  group.identity = new Promise((resolve, reject) => {
+    let output = "";
+    let settled = false;
+    const fail = () => { if (!settled) { settled = true; reject(new Error("Account identity unavailable")); } };
+    let child;
+    try {
+      child = spawn("python3", [CORE_SCRIPT, "--resolve-plugin-account", "openclaw"], {
+        stdio: ["pipe", "pipe", "ignore"], timeout: 5000, killSignal: "SIGKILL", windowsHide: true,
+      });
+    } catch { fail(); return; }
+    child.on("error", fail);
+    child.stdin.on("error", fail);
+    child.stdout.on("error", fail);
+    child.stdout.on("data", chunk => {
+      output += chunk.toString();
+      if (output.length > 8192) { child.kill?.("SIGKILL"); fail(); }
+    });
+    child.on("close", code => {
+      if (settled) return;
+      try {
+        const value = JSON.parse(output);
+        if (code !== 0 || value.account?.provider !== "openclaw" ||
+            !/^[a-zA-Z0-9][a-zA-Z0-9_.:-]{0,127}$/.test(value.account?.id) ||
+            typeof value.account?.displayName !== "string" || !value.account.displayName.trim() ||
+            value.account.displayName.length > 128 || !/^agent:[a-f0-9]{64}$/.test(value.sourceId)) { fail(); return; }
+        settled = true;
+        resolve({ account: value.account, sourceId: value.sourceId });
+      } catch { fail(); }
+    });
+    child.stdin.end(JSON.stringify({
+      project: group.project, cwd: group.cwd, session_id: group.key,
+      hook_event_name: "SessionStart", account_hint: group.hint,
+    }));
+    child.unref?.();
+  }).catch(error => { group.identity = null; throw error; });
+  return group.identity;
 }
 
-/**
- * Send status (debounced) - sends to all configured targets
- */
-function sendStatus(state, extra = {}) {
+function groupFor(ctx = {}) {
+  const agent = typeof ctx.agentId === "string" && ctx.agentId ? ctx.agentId : "main";
+  const cwd = typeof ctx.workspaceDir === "string" && ctx.workspaceDir ? ctx.workspaceDir : process.cwd();
+  const key = JSON.stringify([agent, cwd]);
+  if (!groups.has(key)) {
+    const account = pluginConfig.accounts?.[agent];
+    const hint = { agent_id: agent };
+    if (account && typeof account === "object") {
+      hint.manual_id = account.id;
+      hint.manual_name = account.displayName;
+    }
+    groups.set(key, { key, agent, cwd, project: (agent === "main" ? config.projectName : `${config.projectName} · ${agent}`).slice(0, 128), hint, identity: null,
+      runs: new Map(), currentState: "idle", lastSendTime: 0, lastPayload: "", lastStatus: null,
+      heartbeatTimer: null, doneTimer: null });
+  }
+  return groups.get(key);
+}
+
+function sendStatus(group, state, extra = {}) {
   if (process.env.VIBEMON_SUPPRESS_HOOKS === "1") return;
   refreshConfig();
-
-  let identity;
-  try { identity = sourceIdentity(); }
-  catch { logger?.warn?.("[vibemon] Invalid account or workspace identity; status was not sent."); return; }
-  const payload = { ...buildPayload(state, extra), ...identity };
-  const signature = JSON.stringify(payload);
+  const fields = { ...buildPayload(state, extra), project: group.project };
+  const signature = JSON.stringify(fields);
   const now = Date.now();
-  if (now - lastSendTime < MIN_SEND_INTERVAL_MS && signature === lastPayload) {
-    return;
-  }
-  lastSendTime = now;
-  lastPayload = signature;
-  currentState = state;
-  const { heartbeat, ...fields } = extra;
-  if (!heartbeat) lastStatus = { state, fields };
-  updateHeartbeat();
-  payload.observedAt = new Date(now).toISOString();
-
-  // Queue serial output through the shared Python transport
-  sendSerial(payload);
-
-  if (config.httpEnabled) {
-    for (const url of config.httpUrls) {
-      enqueueSend(`http:${url}`, () => sendHttpToUrl(url, payload));
+  if (now - group.lastSendTime < MIN_SEND_INTERVAL_MS && signature === group.lastPayload) return;
+  group.lastSendTime = now;
+  group.lastPayload = signature;
+  group.currentState = state;
+  const { heartbeat, ...values } = extra;
+  if (!heartbeat) group.lastStatus = { state, fields: values };
+  updateHeartbeat(group);
+  if (!(config.httpEnabled && config.httpUrls.length) && !(config.serialEnabled && config.serialPort) &&
+      !(config.vibemonUrl && config.vibemonToken)) return;
+  const target = config;
+  const pending = sourceIdentity(group).then(identity => {
+    const payload = { ...fields, ...identity, observedAt: new Date(now).toISOString() };
+    if (target.serialEnabled && target.serialPort) {
+      enqueueSend(`${group.key}:serial:${target.serialPort}`, () => sendCorePayload(["--send-serial", target.serialPort], payload));
     }
-  }
-  if (config.vibemonUrl && config.vibemonToken) {
-    const target = config;
-    enqueueSend(`api:${target.vibemonUrl}`, () => sendVibeMonApi(payload, target));
-  }
+    if (target.httpEnabled) for (const url of target.httpUrls) {
+      enqueueSend(`${group.key}:http:${url}`, () => sendHttpToUrl(url, payload));
+    }
+    if (target.vibemonUrl && target.vibemonToken) {
+      const report = { ...payload, cwd: group.cwd, session_id: group.key, account_hint: group.hint };
+      enqueueSend(`${group.key}:api:${target.vibemonUrl}`, () => sendVibeMonApi(report, target));
+    }
+  }).catch(() => logger?.warn?.("[vibemon] Account identity unavailable. Check Python and the shared integration installation."));
+  pendingIdentities.add(pending);
+  pending.finally(() => pendingIdentities.delete(pending));
 }
 
 // One request per target at a time, retaining only its newest pending state.
@@ -494,45 +519,28 @@ function enqueueSend(key, send) {
   return lane.done;
 }
 
-/**
- * Keep an active run visible: a long tool call or model response sends no
- * event, so repeat the newest active state HEARTBEAT_MS after the last report
- * while runs remain. Every report restarts the countdown.
- */
-function updateHeartbeat() {
-  if (heartbeatTimer) clearTimeout(heartbeatTimer);
-  heartbeatTimer = null;
-  if (!runs.size || !lastStatus || !ACTIVE_STATES.has(lastStatus.state)) return;
-  heartbeatTimer = setTimeout(() => {
-    heartbeatTimer = null;
-    if (runs.size) sendStatus(lastStatus.state, { ...lastStatus.fields, heartbeat: true });
+function updateHeartbeat(group) {
+  if (group.heartbeatTimer) clearTimeout(group.heartbeatTimer);
+  group.heartbeatTimer = null;
+  if (!group.runs.size || !group.lastStatus || !ACTIVE_STATES.has(group.lastStatus.state)) return;
+  group.heartbeatTimer = setTimeout(() => {
+    group.heartbeatTimer = null;
+    if (group.runs.size) sendStatus(group, group.lastStatus.state, { ...group.lastStatus.fields, heartbeat: true });
   }, HEARTBEAT_MS);
-  heartbeatTimer.unref?.();
+  group.heartbeatTimer.unref?.();
 }
 
-/**
- * Cancel pending done timer
- */
-function cancelDoneTimer() {
-  if (doneTimer) {
-    clearTimeout(doneTimer);
-    doneTimer = null;
-    debug("Done timer cancelled");
-  }
+function cancelDoneTimer(group) {
+  if (group.doneTimer) clearTimeout(group.doneTimer);
+  group.doneTimer = null;
 }
 
-/**
- * Schedule done state with delay
- */
-function scheduleDone(extra = {}) {
-  if (runs.size) return;
-  cancelDoneTimer();
-  debug(`Scheduling done in ${DONE_DELAY_MS}ms`);
-
-  doneTimer = setTimeout(() => {
-    doneTimer = null;
-    debug("Done timer fired -> done");
-    if (!runs.size) sendStatus("done", extra);
+function scheduleDone(group, extra = {}) {
+  if (group.runs.size) return;
+  cancelDoneTimer(group);
+  group.doneTimer = setTimeout(() => {
+    group.doneTimer = null;
+    if (!group.runs.size) sendStatus(group, "done", extra);
   }, DONE_DELAY_MS);
 }
 
@@ -543,7 +551,7 @@ const plugin = {
   id: "vibemon-bridge",
   name: "VibeMon Bridge",
   description: "Real-time status bridge for VibeMon (ESP32/Desktop)",
-  version: "1.2.0",
+  version: "1.3.0",
 
   register(api) {
     logger = api.logger;
@@ -574,96 +582,100 @@ const plugin = {
 
     function runKey(event, ctx) {
       const id = ctx?.runId || event?.runId;
-      if (id && runs.has(id)) return id;
       const sessionId = ctx?.sessionId || event?.sessionId;
       const sessionKey = ctx?.sessionKey || event?.sessionKey;
+      const matches = [];
       for (const [key, run] of runs) {
-        if (id && run.runId === id) return key;
+        if (ctx?.agentId && run.group.agent !== ctx.agentId) continue;
+        if (ctx?.workspaceDir && run.group.cwd !== ctx.workspaceDir) continue;
+        if (id && run.runId === id) { matches.push(key); continue; }
         if (id && run.runId && run.runId !== id) continue;
-        if ((sessionId && run.sessionId === sessionId) ||
-            (sessionKey && run.sessionKey === sessionKey)) return key;
+        if ((sessionId && run.sessionId === sessionId) || (sessionKey && run.sessionKey === sessionKey)) matches.push(key);
       }
-      return id || sessionKey || sessionId || "legacy";
+      if (matches.length === 1) return matches[0];
+      if (matches.length > 1) return null;
+      return JSON.stringify([ctx?.agentId || "main", ctx?.workspaceDir || process.cwd(), id || sessionKey || sessionId || "legacy"]);
     }
 
     function runContext(event, ctx) {
       const key = runKey(event, ctx);
+      if (key === null) return null;
       if (!runs.has(key)) {
-        runs.set(key, {
-          sessionId: ctx?.sessionId || event?.sessionId,
-          sessionKey: ctx?.sessionKey || event?.sessionKey,
-          model: ctx?.modelId || readModelFromConfig(),
-          memory: undefined,
-          tools: new Map(),
-        });
+        const group = groupFor(ctx);
+        const run = { group, sessionId: ctx?.sessionId || event?.sessionId, sessionKey: ctx?.sessionKey || event?.sessionKey,
+          model: ctx?.modelId || readModelFromConfig(), memory: undefined, tools: new Map() };
+        runs.set(key, run);
+        group.runs.set(key, run);
       }
       const run = runs.get(key);
       run.runId ||= ctx?.runId || event?.runId;
       return run;
     }
 
-    function metadata(run) {
-      return { model: run?.model || readModelFromConfig(), memory: run?.memory };
+    function removeRun(key) {
+      const run = runs.get(key);
+      if (run) { run.group.runs.delete(key); runs.delete(key); }
+      return run;
     }
 
-    function reportActive(preferred) {
-      const working = [...runs.values()].find((run) => run.tools.size);
-      const run = working || preferred || [...runs.values()].at(-1);
-      sendStatus(working ? "working" : "thinking", {
-        ...metadata(run),
-        tool: working ? [...working.tools.values()].at(-1) : "",
-      });
+    function metadata(run) { return { model: run?.model || readModelFromConfig(), memory: run?.memory }; }
+
+    function reportActive(group, preferred) {
+      const working = [...group.runs.values()].find(run => run.tools.size);
+      const run = working || preferred || [...group.runs.values()].at(-1);
+      sendStatus(group, working ? "working" : "thinking", { ...metadata(run), tool: working ? [...working.tools.values()].at(-1) : "" });
     }
 
     api.on("gateway_start", async () => {
-      cancelDoneTimer();
+      for (const group of groups.values()) { cancelDoneTimer(group); group.runs.clear(); updateHeartbeat(group); }
       runs.clear();
-      sendStatus("start", { note: "gateway_started" });
+      const group = groupFor();
+      sendStatus(group, "start", { note: "gateway_started" });
       await autoLaunchDesktop();
-      // Preserve a turn that began while the desktop was launching.
-      if (runs.size) reportActive();
-      else if (currentState === "start") sendStatus("start");
+      for (const active of groups.values()) if (active.runs.size) reportActive(active);
+      if (!runs.size && group.currentState === "start") sendStatus(group, "start");
     });
 
     const onAgentTurnStart = (event, ctx) => {
-      cancelDoneTimer();
-      reportActive(runContext(event, ctx));
+      const run = runContext(event, ctx);
+      if (!run) return;
+      cancelDoneTimer(run.group);
+      reportActive(run.group, run);
     };
     api.on("before_agent_run", onAgentTurnStart);
     api.on("before_agent_start", onAgentTurnStart);
 
     api.on("subagent_spawned", (event, ctx) => {
-      cancelDoneTimer();
-      sendStatus("working", { ...metadata(runs.get(runKey(event, ctx))), tool: "subagent" });
+      const run = runs.get(runKey(event, ctx));
+      const group = run?.group || groupFor(ctx);
+      cancelDoneTimer(group);
+      sendStatus(group, "working", { ...metadata(run), tool: "subagent" });
     });
-
     api.on("before_tool_call", (event, ctx) => {
-      cancelDoneTimer();
       const run = runContext(event, ctx);
+      if (!run) return;
+      cancelDoneTimer(run.group);
       const tool = event?.toolName || ctx?.toolName || "unknown";
       run.tools.set(event?.toolCallId || ctx?.toolCallId || tool, tool);
-      reportActive(run);
+      reportActive(run.group, run);
     });
-
     api.on("after_tool_call", (event, ctx) => {
       const run = runs.get(runKey(event, ctx));
-      if (!run) return; // A late result cannot revive a finished run.
+      if (!run) return;
       run.tools.delete(event?.toolCallId || ctx?.toolCallId || event?.toolName || ctx?.toolName || "unknown");
-      reportActive(run);
+      reportActive(run.group, run);
     });
-
     api.on("before_compaction", (event, ctx) => {
-      cancelDoneTimer();
-      sendStatus("packing", metadata(runs.get(runKey(event, ctx))));
+      const run = runs.get(runKey(event, ctx));
+      const group = run?.group || groupFor(ctx);
+      cancelDoneTimer(group);
+      sendStatus(group, "packing", metadata(run));
     });
     api.on("after_compaction", (event, ctx) => {
       const run = runs.get(runKey(event, ctx));
-      if (run) reportActive(run);
-      else sendStatus("thinking");
+      if (run) reportActive(run.group, run);
+      else sendStatus(groupFor(ctx), "thinking");
     });
-
-    // llm_output is the public usage-bearing event. model_call_ended has
-    // sanitized timing metadata only, so it cannot supply a usage gauge.
     api.on("llm_output", (event, ctx) => {
       const run = runs.get(runKey(event, ctx));
       if (!run) return;
@@ -674,39 +686,41 @@ const plugin = {
       const run = runs.get(runKey(event, ctx));
       if (run && typeof event?.model === "string") run.model = event.model;
     });
-
-    // Channel messages may be progress updates; they are not proof that an
-    // agent run has finished. Retain the fallback only when no run is active.
-    api.on("message_sent", (event) => {
-      if (event?.success && !doneTimer && currentState !== "done") scheduleDone();
+    api.on("message_sent", (event, ctx) => {
+      const group = groupFor(ctx);
+      if (event?.success && !group.doneTimer && group.currentState !== "done") scheduleDone(group);
     });
-
     api.on("agent_end", (event, ctx) => {
-      const key = runKey(event, ctx);
-      const run = runs.get(key);
-      runs.delete(key);
-      if (runs.size) reportActive();
-      else scheduleDone(metadata(run));
+      const run = removeRun(runKey(event, ctx));
+      if (!run) return;
+      if (run.group.runs.size) reportActive(run.group);
+      else scheduleDone(run.group, metadata(run));
     });
-
     api.on("session_end", (event, ctx) => {
       const sessionId = event?.sessionId || ctx?.sessionId;
       const sessionKey = event?.sessionKey || ctx?.sessionKey;
+      const affected = new Set();
       for (const [key, run] of runs) {
-        if ((sessionId && run.sessionId === sessionId) ||
-            (sessionKey && run.sessionKey === sessionKey) ||
-            (!sessionId && !sessionKey && key === "legacy")) runs.delete(key);
+        if (ctx?.agentId && run.group.agent !== ctx.agentId) continue;
+        if ((sessionId && run.sessionId === sessionId) || (sessionKey && run.sessionKey === sessionKey) ||
+            (!sessionId && !sessionKey && !run.runId && !run.sessionId && !run.sessionKey)) {
+          affected.add(run.group); removeRun(key);
+        }
       }
-      cancelDoneTimer();
-      if (runs.size) reportActive();
-      else sendStatus("done");
+      for (const group of affected) {
+        cancelDoneTimer(group);
+        if (group.runs.size) reportActive(group);
+        else sendStatus(group, "done");
+      }
     });
-
     api.on("gateway_stop", async () => {
-      cancelDoneTimer();
+      if (!groups.size) groupFor();
       runs.clear();
-      sendStatus("done", { note: "gateway_stopped" });
-      await Promise.allSettled([...sendLanes.values()].map((lane) => lane.done));
+      for (const group of groups.values()) {
+        cancelDoneTimer(group); group.runs.clear(); sendStatus(group, "done", { note: "gateway_stopped" });
+      }
+      await Promise.allSettled([...pendingIdentities]);
+      await Promise.allSettled([...sendLanes.values()].map(lane => lane.done));
     });
   },
 };

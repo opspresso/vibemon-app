@@ -91,3 +91,17 @@ def test_opencode_waits_for_the_selected_backend_without_losing_desktop_launch(t
     launch.assert_called_once()
     send.assert_not_called()
     probe.assert_not_called()
+
+
+def test_openclaw_agents_share_an_explicit_account_but_keep_distinct_project_sources(tmp_path, monkeypatch, capsys):
+    monkeypatch.setenv('VIBEMON_OPENCLAW_ACCOUNT_ID', 'shared-account')
+    contexts = []
+    for agent in ['work', 'personal']:
+        data = {'project': 'Shared project', 'cwd': str(tmp_path), 'session_id': agent,
+                'hook_event_name': 'SessionStart', 'account_hint': {'agent_id': agent}}
+        monkeypatch.setattr(core, 'read_input', lambda data=data: json.dumps(data))
+        assert core.resolve_plugin_account('openclaw') is True
+        contexts.append(json.loads(capsys.readouterr().out))
+    assert contexts[0]['account']['id'] == contexts[1]['account']['id'] == 'shared-account'
+    assert contexts[0]['sourceId'] != contexts[1]['sourceId']
+    assert set(contexts[0]) == {'account', 'sourceId', 'observedAt'}

@@ -63,7 +63,7 @@ def test_discovery_does_not_initialize_an_unused_claude_profile(tmp_path):
 
 def test_kiro_reader_uses_machine_readable_status(tmp_path):
     env = environment(tmp_path); command = Mock(return_value={'accountType': 'BuilderId', 'email': 'person@example.invalid'})
-    result = LocalAccountSource(command=command).resolve(tool_profile('kiro', env), env)
+    result = LocalAccountSource(command=command).resolve(tool_profile('kiro', env), env, hint={'runtime': 'kiro-cli'})
     assert result.kind == 'account'
     assert command.call_args.args[0] == ['kiro-cli', 'whoami', '--format', 'json']
 
@@ -116,3 +116,20 @@ for line in sys.stdin:
     assert [r['method'] for r in requests] == ['initialize','initialized','account/read','getAuthStatus']
     assert requests[-1]['params']['refreshToken'] is False
     assert all(child.poll() is not None for child in children)
+
+
+def test_api_credentials_are_distinct_without_claiming_they_identify_people(tmp_path):
+    env = environment(tmp_path)
+    source = LocalAccountSource(read=lambda *_: None)
+    identities = [source.resolve(tool_profile('claude', env), {**env, 'ANTHROPIC_API_KEY': secret}) for secret in ['fixture-key-a','fixture-key-b']]
+    assert all(identity.kind == 'credential' for identity in identities)
+    assert identities[0].id != identities[1].id
+    assert not any(secret in json.dumps([i.record() for i in identities]) for secret in ['fixture-key-a','fixture-key-b'])
+
+
+def test_kiro_ide_never_borrows_the_cli_login(tmp_path):
+    env = environment(tmp_path)
+    command = Mock(side_effect=AssertionError('IDE identity must not come from the CLI'))
+    identity = LocalAccountSource(command=command).resolve(tool_profile('kiro', env), env, hint={'runtime':'kiro-ide'})
+    assert identity.kind == 'profile'
+    command.assert_not_called()
