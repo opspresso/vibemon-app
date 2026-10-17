@@ -27,7 +27,7 @@
     "kiro/hooks/vibemon-session-end.json": "0892e909e9bb9f333f4208bb14f95554f9b01153df1b0057b0e056c02b9d06b9",
     "openclaw/extensions/index.mjs": "d0b4bebd82063963f056f1556266d74a6dcecb5ffd8a1b136b3a2c5d2106c399",
     "openclaw/extensions/openclaw.plugin.json": "a29de72b6af86a873ccee81643bd23280b52713fbfb1a48029d4d5cc3f6bee48",
-    "opencode/plugin/vibemon.js": "dff85610aea749098969711e7c8d033b9961b11034b50f3bcd983ff3052b9b95",
+    "opencode/plugin/vibemon.js": "46601ebd2cc64bf2678ecea2972a97179e68a24a1f3a6978a85f8f3ad9e1a166",
     "opencode/hooks/vibemon.py": "986fd3bb47c837a2df4d0f76eccf1120c49f1fcd6e6d88af649320ba64a4f674",
     "collector/vibemon_collector/__init__.py": "26effa5a5c29344cc6735202dc619a5b37c3944854ca10da036043b3acf7c22c",
     "collector/vibemon_collector/__main__.py": "035c98af5c6aabbf76ceb12a552d13bf91523be647c8e9b665a4ce7dfa798a7b",

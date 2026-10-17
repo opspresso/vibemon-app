@@ -155,9 +155,12 @@ function sessionBridge(directory) {
     }
     let accountHint = { provider: state.provider, revision: state.revision };
     if (state.revision !== "0" && !state.revision.startsWith("environment:")) accountHint.credential_id = state.revision;
-    if (toolUseID && eventName === "PreToolUse") state.toolAccounts.set(toolUseID, accountHint);
+    let reportedModel = state.model;
+    if (toolUseID && eventName === "PreToolUse") state.toolAccounts.set(toolUseID, { accountHint, model: state.model });
     if (toolUseID && eventName === "PostToolUse") {
-      accountHint = state.toolAccounts.get(toolUseID) || accountHint;
+      const original = state.toolAccounts.get(toolUseID);
+      accountHint = original?.accountHint || accountHint;
+      reportedModel = original?.model || reportedModel;
       state.toolAccounts.delete(toolUseID);
     }
     const previous = state.lastReport;
@@ -174,7 +177,7 @@ function sessionBridge(directory) {
       cwd: directory,
       transcript_path: "",
       permission_mode: state.agent === "plan" ? "plan" : "default",
-      model: state.model,
+      model: reportedModel,
       account_hint: accountHint,
     };
     if (!lateTool) {

@@ -418,7 +418,8 @@ startFixture().then(async fixture => {
   await click('#account-profiles summary');
   assert.equal(await ui('document.querySelector("#account-profiles details").open'), true);
   await click('#accounts-guide');
-  assert.ok(ports.calls.some(call => call[0] === 'external' && call[1].includes('/docs/coding-agents#keep-several-accounts-apart')));
+  await until(() => ports.calls.some(call => call[0] === 'external' && call[1].includes('/docs/coding-agents#keep-several-accounts-apart')), 'account guide opened');
+  await ui('document.getElementById("account-profiles-title").scrollIntoView({ block: "start" })');
   await screenshot('integration-accounts');
   assert.equal(await value('#cloud-write-token'), '');
   await input('#cloud-write-token', TOKEN);

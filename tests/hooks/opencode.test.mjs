@@ -414,3 +414,16 @@ test("a different model provider closes the previous connection without mixing i
   assert.equal(h.payloads().at(-1).account_hint.provider, "openai");
   assert.equal(h.payloads().at(-1).model, "gpt");
 });
+
+
+test("late tool results keep the model and account selected when the tool started", async () => {
+  const h = await opencode();
+  await h.event("session.created", created("s", "/projects/one", { model: { id: "claude", providerID: "anthropic" } }));
+  await h.event("session.execution.started", { sessionID: "s" });
+  await h.one.tool("execute.before", { sessionID: "s", tool: "read", id: "old" });
+  await h.event("session.step.started", { sessionID: "s", model: { id: "gpt", providerID: "openai" } });
+  await h.one.tool("execute.before", { sessionID: "s", tool: "read", id: "new" });
+  await h.one.tool("execute.after", { sessionID: "s", tool: "read", id: "old" });
+  assert.equal(h.payloads().at(-1).account_hint.provider, "anthropic");
+  assert.equal(h.payloads().at(-1).model, "claude");
+});
