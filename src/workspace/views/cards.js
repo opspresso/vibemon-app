@@ -1,3 +1,4 @@
+import { compareCards } from './card-order.mjs';
 import { accountName, describeReset, measurementUnit, metricTone, resetCountdown, resourceType, stateTone } from '../../shared/design/presentation.mjs';
 import {
   el,
@@ -94,10 +95,7 @@ export function renderCards(
   } = {},
   now = Date.now()
 ) {
-  const ordered = [...sources].sort((a, b) =>
-    Number(a.isAccount === true && sourceState(a) === 'inactive') - Number(b.isAccount === true && sourceState(b) === 'inactive')
-    || Number(needsAttention(b)) - Number(needsAttention(a))
-    || a.displayName.localeCompare(b.displayName));
+  const ordered = [...sources].sort(compareCards);
   const shown = limit ? ordered.slice(0, limit) : ordered;
   if (!shown.length) {
     container._emptyAction = navigate;
