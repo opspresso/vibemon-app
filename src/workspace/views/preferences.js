@@ -130,8 +130,10 @@ export function setupPreferences({ getFrame, request, run, notify }) {
   $('disconnect').addEventListener('click', () =>
     run($('disconnect'), async () => {
       $('read-token').value = '';
-      await request('disconnect');
-      text($('connection-saved'), 'This desktop is disconnected');
+      const result = await request('disconnect');
+      text($('connection-saved'), result.tokenDeleted
+        ? 'This desktop is disconnected and its token is deleted on Web'
+        : 'This desktop is disconnected. Delete its token on Web Account');
     })
   );
   $('preview-companion').addEventListener('click', () =>
