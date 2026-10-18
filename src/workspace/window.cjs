@@ -1,4 +1,4 @@
-const { BrowserWindow, ipcMain, shell, autoUpdater } = require('electron');
+const { BrowserWindow, ipcMain, shell, autoUpdater, nativeTheme } = require('electron');
 const path = require('node:path');
 const { URL } = require('node:url');
 const { centerOnCursorDisplay } = require('../modules/window-position.cjs');
@@ -7,11 +7,15 @@ const { WORKSPACE_UPDATE_MS } = require('../shared/constants.cjs');
 const { attentionAreas, attentionNotices } = require('../shared/attention.cjs');
 const { t, rendererLanguage } = require('../shared/i18n/locale.cjs');
 const { redactApiTokens } = require('../shared/api-token.cjs');
+const { colorPair, readTokens } = require('../shared/design/tokens.cjs');
 
 const ROUTES = ['overview', 'resources', 'agents', 'connections', 'companion', 'integrations', 'about'];
 const CHANNEL = 'workspace:request';
 // The preload reads the App language synchronously, before the page renders text.
 const LANGUAGE_CHANNEL = 'workspace:language';
+// The native window paints this color before the page loads, so it follows the OS theme like the page.
+const BACKGROUND = colorPair(readTokens(), 'background');
+const backgroundColor = () => nativeTheme.shouldUseDarkColors ? BACKGROUND.dark : BACKGROUND.light;
 const WEB_PATHS = { account: '/account', resources: '/resources/new', agents: '/coding-accounts/new', docs: '/docs', dashboard: '/dashboard' };
 
 class WorkspaceWindow {
@@ -32,6 +36,8 @@ class WorkspaceWindow {
     // Release hide-on-close before that sequence can cancel the update.
     this.onBeforeUpdate = () => this.cleanup();
     autoUpdater.on('before-quit-for-update', this.onBeforeUpdate);
+    this.onThemeUpdated = () => { if (this.window && !this.window.isDestroyed()) this.window.setBackgroundColor(backgroundColor()); };
+    nativeTheme.on('updated', this.onThemeUpdated);
     this.onLanguage = event => { event.returnValue = this.trusted(event) ? rendererLanguage() : null; };
     ipcMain.on(LANGUAGE_CHANNEL, this.onLanguage);
     ipcMain.handle(CHANNEL, async (event, command, args = []) => {
@@ -142,7 +148,7 @@ class WorkspaceWindow {
     }
     const window = new BrowserWindow({
       width: 1220, height: 830, minWidth: 820, minHeight: 600, show: false,
-      title: 'VibeMon', backgroundColor: '#f6f8fb',
+      title: 'VibeMon', backgroundColor: backgroundColor(),
       autoHideMenuBar: process.platform !== 'darwin',
       ...(process.platform === 'darwin' ? { titleBarStyle: 'hiddenInset', trafficLightPosition: { x: 18, y: 16 } } : {}),
       webPreferences: { preload: path.join(__dirname, 'preload.cjs'), contextIsolation: true, nodeIntegration: false, sandbox: true }
@@ -181,6 +187,7 @@ class WorkspaceWindow {
     this.timer = null;
     this.monitoring.off('change', this.onCloudChange);
     autoUpdater.off('before-quit-for-update', this.onBeforeUpdate);
+    nativeTheme.off('updated', this.onThemeUpdated);
     ipcMain.removeHandler(CHANNEL);
     ipcMain.off(LANGUAGE_CHANNEL, this.onLanguage);
     if (this.window && !this.window.isDestroyed()) this.window.destroy();
