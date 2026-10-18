@@ -12,7 +12,8 @@
 const { createHash, randomBytes } = require('node:crypto');
 const { URL, URLSearchParams } = require('node:url');
 const { webOrigin } = require('./domain.cjs');
-const { CLOUD_REQUEST_TIMEOUT_MS, WEB_SIGN_IN_TIMEOUT_MS } = require('../shared/constants.cjs');
+const { CLOUD_REQUEST_TIMEOUT_MS, CLOUD_CONNECTION_MAX_RESPONSE_BYTES, WEB_SIGN_IN_TIMEOUT_MS } = require('../shared/constants.cjs');
+const { readJsonResponse } = require('../shared/json-response.cjs');
 const { t } = require('../shared/i18n/locale.cjs');
 const { isApiToken, revokeApiToken } = require('../shared/api-token.cjs');
 
@@ -128,7 +129,8 @@ class WebSignIn {
     } catch {
       throw new SignInError('unreachable', t('signIn.unreachable'));
     }
-    const body = await response.json().catch(() => ({}));
+    // An unreadable or oversized body is a rejected sign-in, reported by status below.
+    const body = await readJsonResponse(response, CLOUD_CONNECTION_MAX_RESPONSE_BYTES).catch(() => ({}));
     if (response.ok && isApiToken(body.access_token)) return body.access_token;
     if (body.error === 'invalid_grant') throw new SignInError('expired', t('signIn.expired'));
     throw new SignInError('rejected', t('signIn.rejected', { status: response.status }));
