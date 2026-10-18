@@ -217,7 +217,7 @@ describe('HookInstaller', () => {
     shell.openExternal.mockReset();
     // Constructed after mocks are configured: the constructor eagerly
     // computes the initial status cache.
-    hookInstaller = new HookInstaller();
+    hookInstaller = new HookInstaller({ trustedManifestText: null });
   });
 
   describe('getMissingTools', () => {
@@ -1073,6 +1073,30 @@ describe('HookInstaller', () => {
     });
   });
 
+  describe('unattended installs', () => {
+    test('verify install.py against the trusted manifest and pin install.py to its bytes', async () => {
+      mockSuccessfulInstall('trusted-script');
+      const text = JSON.stringify({ installer: sha256('trusted-script'), files: {} });
+      const trusted = { manifest: JSON.parse(text), digest: sha256(text) };
+
+      const results = await hookInstaller.installTools([TOOLS[0]], { showSummary: false, trusted });
+
+      expect(results.every(r => r.result.ok)).toBe(true);
+      expect(https.get.mock.calls.map(call => call[0])).toEqual(['https://docs.example.test/install.py']);
+      expect(spawn.mock.calls[0][2].env.VIBEMON_MANIFEST_SHA256).toBe(sha256(text));
+    });
+
+    test('reject an install.py that the trusted manifest does not name', async () => {
+      mockSuccessfulInstall('web-script');
+      const trusted = { manifest: { installer: sha256('trusted-script'), files: {} }, digest: '0'.repeat(64) };
+
+      const results = await hookInstaller.installTools([TOOLS[0]], { showSummary: false, trusted });
+
+      expect(results[0].result).toMatchObject({ ok: false, reason: 'integrity-check-failed' });
+      expect(spawn).not.toHaveBeenCalled();
+    });
+  });
+
   describe('installByFlag', () => {
     test('resolves [] for an unknown flag without touching network/spawn', async () => {
       const result = await hookInstaller.installByFlag('--nope');
@@ -1150,9 +1174,10 @@ describe('HookInstaller', () => {
 
     test('downloadManifest accepts a manifest with a valid installer hash', async () => {
       const installer = sha256('install.py source');
-      mockManifestResponse(JSON.stringify({ installer, files: {} }));
+      const body = JSON.stringify({ installer, files: {} });
+      mockManifestResponse(body);
 
-      await expect(hookInstaller.downloadManifest()).resolves.toEqual({ installer, files: {} });
+      await expect(hookInstaller.downloadManifest()).resolves.toEqual({ manifest: { installer, files: {} }, digest: sha256(body) });
     });
 
     test('checkForChanges flags a tool whose file hash differs from the manifest', async () => {
@@ -1188,22 +1213,41 @@ describe('HookInstaller', () => {
 
     test('updateChanged reinstalls only drifted integrations, without prompting or a summary', async () => {
       mockClaudeInstalled('local-bytes');
-      mockManifestResponse(manifestFor({ 'claude/hooks/vibemon.py': sha256('published-bytes') }));
-      const install = jest.spyOn(hookInstaller, 'installTools').mockResolvedValue([{ result: { ok: true } }]);
+      const published = manifestFor({ 'claude/hooks/vibemon.py': sha256('published-bytes') });
+      const unattended = new HookInstaller({ trustedManifestText: published });
+      mockManifestResponse(published);
+      const install = jest.spyOn(unattended, 'installTools').mockResolvedValue([{ result: { ok: true } }]);
 
-      await hookInstaller.updateChanged();
+      await unattended.updateChanged();
 
-      expect(install).toHaveBeenCalledWith([expect.objectContaining({ flag: '--claude' })], { showSummary: false });
+      expect(install).toHaveBeenCalledWith([expect.objectContaining({ flag: '--claude' })], { showSummary: false, trusted: { manifest: JSON.parse(published), digest: sha256(published) } });
       expect(install.mock.calls[0][0].every(tool => tool.changed && !tool.broken)).toBe(true);
     });
 
     test('updateChanged does nothing when every installed file matches', async () => {
       mockClaudeInstalled('local-bytes');
-      mockManifestResponse(manifestFor({ 'claude/hooks/vibemon.py': sha256('local-bytes'), 'claude/statusline.py': sha256('local-bytes') }));
-      const install = jest.spyOn(hookInstaller, 'installTools');
+      const published = manifestFor({ 'claude/hooks/vibemon.py': sha256('local-bytes'), 'claude/statusline.py': sha256('local-bytes') });
+      const unattended = new HookInstaller({ trustedManifestText: published });
+      mockManifestResponse(published);
+      const install = jest.spyOn(unattended, 'installTools');
 
-      await expect(hookInstaller.updateChanged()).resolves.toEqual([]);
+      await expect(unattended.updateChanged()).resolves.toEqual([]);
       expect(install).not.toHaveBeenCalled();
+    });
+
+    // A compromised Web, or one newer than this App, must not run code without a person.
+    test.each([
+      ['Web publishes another manifest', manifestFor({ 'claude/hooks/vibemon.py': sha256('bundled-bytes') })],
+      ['the App has no bundled manifest', null]
+    ])('updateChanged runs nothing when %s', async (_case, trustedManifestText) => {
+      mockClaudeInstalled('local-bytes');
+      const unattended = new HookInstaller({ trustedManifestText });
+      mockManifestResponse(manifestFor({ 'claude/hooks/vibemon.py': sha256('published-bytes') }));
+      const install = jest.spyOn(unattended, 'installTools');
+
+      await expect(unattended.updateChanged()).resolves.toEqual([]);
+      expect(install).not.toHaveBeenCalled();
+      expect(unattended.getCachedStatuses().find(t => t.flag === claude.flag).changed).toBe(true);
     });
 
     test('checkForChanges reports no drift when hashes match', async () => {

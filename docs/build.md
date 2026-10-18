@@ -45,4 +45,6 @@ macOS releases require code-signature, notarization ticket, and Gatekeeper verif
 
 ## Cloud connection checks
 
+Each App build packages `public/install/manifest.json`. Unattended hook updates run only while Web serves a byte-identical `/install/manifest.json`, so release the App from the same App commit that Web pins in `app-assets.json`. Until both match, hook updates need **Reinstall** in Settings. See [hook installation and updates](features.md#hook-installation-and-updates).
+
 Publish Web with `GET /api/v1/connection?scope=write` before distributing an App that uses **Save and verify** for hook delivery. Older Web servers return an explicit upgrade message; the App does not write a synthetic observation to probe permissions. Existing hook delivery continues independently of this setup check.

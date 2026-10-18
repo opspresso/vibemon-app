@@ -7,6 +7,10 @@
  * to set them up. The script is downloaded over HTTPS and piped to
  * `python3 -` via stdin instead of a `curl | python3` shell pipe, so
  * arguments never pass through a shell.
+ *
+ * Two trust levels apply. An install that a person starts trusts the
+ * manifest.json that Web publishes now. An unattended update trusts only the
+ * manifest bundled with this App build (see updateChanged()).
  */
 
 const fs = require('fs');
@@ -29,6 +33,9 @@ const SETUP_GUIDE_URL = `${DOCS_BASE}/setup.md`;
 
 // Bound the installer and manifest before buffering their full contents.
 const MAX_SCRIPT_SIZE = 1024 * 1024;
+
+// public/install/manifest.json of this App build; package.json build.files packages it.
+const TRUSTED_MANIFEST_PATH = path.join(__dirname, '..', '..', 'public', 'install', 'manifest.json');
 
 // install.py's own output is bounded (it caps each file diff at 50 lines),
 // but its streams still have to be drained: an unread pipe stalls the child
@@ -196,6 +203,29 @@ function isValidManifest(manifest) {
   return Object.values(files).every(
     hash => typeof hash === 'string' && /^[0-9a-f]{64}$/.test(hash)
   );
+}
+
+/**
+ * Parse manifest.json text. `digest` is the sha256 of its exact bytes, which
+ * install.py checks when VIBEMON_MANIFEST_SHA256 is set.
+ * @param {string} text
+ * @returns {{manifest: object, digest: string}|null} null when the text is not a valid manifest
+ */
+function parseManifest(text) {
+  let manifest;
+  try { manifest = JSON.parse(text); } catch { return null; }
+  if (!isValidManifest(manifest)) return null;
+  return { manifest, digest: crypto.createHash('sha256').update(text, 'utf8').digest('hex') };
+}
+
+function readTrustedManifest() {
+  try {
+    return fs.readFileSync(TRUSTED_MANIFEST_PATH, 'utf8');
+  } catch (error) {
+    // Without it, only installs that a person starts can update hooks.
+    console.error('[HookInstaller] bundled manifest unavailable; unattended updates are off:', error.message);
+    return null;
+  }
 }
 
 function homePath(...segments) {
@@ -418,7 +448,12 @@ function commandExists(command) {
 
 
 class HookInstaller {
-  constructor() {
+  /**
+   * @param {{trustedManifestText?: string|null}} [options] - manifest.json text that
+   *   unattended updates trust; defaults to the copy bundled with the App
+   */
+  constructor({ trustedManifestText = readTrustedManifest() } = {}) {
+    this.trusted = trustedManifestText === null ? null : parseManifest(trustedManifestText);
     this.store = new Store({
       name: 'hook-installer-settings',
       defaults: { dismissed: [] }
@@ -428,10 +463,11 @@ class HookInstaller {
     // In-memory only (cleared on restart): avoids re-prompting every check
     // cycle for an error that won't resolve itself (e.g. missing python3).
     this.sessionSuppressed = new Set();
-    // Last successfully fetched manifest.json ({files: {path: sha256}}).
-    // Null until checkForChanges() succeeds once; without it, statuses
-    // report changed: false (existence-only checking).
+    // Last successfully fetched manifest.json ({files: {path: sha256}}) and
+    // the sha256 of its bytes. Null until a fetch succeeds once; without it,
+    // statuses report changed: false (existence-only checking).
     this.manifest = null;
+    this.manifestDigest = null;
     // Workspace snapshots reuse this cache instead of scanning tool files.
     this.cachedStatuses = this.refreshStatuses();
   }
@@ -622,7 +658,7 @@ class HookInstaller {
   async resolveInstallerHash() {
     if (INSTALLER_SHA256) return INSTALLER_SHA256;
     try {
-      this.manifest = await this.downloadManifest();
+      await this.fetchManifest();
     } catch (err) {
       if (!this.manifest) throw err;
       console.error('[HookInstaller] manifest fetch failed, using cached copy:', err.reason || err.error || err);
@@ -634,15 +670,19 @@ class HookInstaller {
   /**
    * Download and validate manifest.json (the sha256 map of every file
    * install.py copies verbatim), published next to install.py.
-   * @returns {Promise<{files: Object<string, string>}>}
+   * @returns {Promise<{manifest: {installer?: string, files: Object<string, string>}, digest: string}>}
    */
   async downloadManifest() {
-    const body = await this.downloadText('manifest.json');
-    let manifest;
-    try { manifest = JSON.parse(body); }
-    catch { throw { reason: 'invalid-manifest' }; }
-    if (!isValidManifest(manifest)) throw { reason: 'invalid-manifest' };
-    return manifest;
+    const parsed = parseManifest(await this.downloadText('manifest.json'));
+    if (!parsed) throw { reason: 'invalid-manifest' };
+    return parsed;
+  }
+
+  /** Download manifest.json and keep it as the current drift reference. */
+  async fetchManifest() {
+    const { manifest, digest } = await this.downloadManifest();
+    this.manifest = manifest;
+    this.manifestDigest = digest;
   }
 
   /**
@@ -653,7 +693,7 @@ class HookInstaller {
    */
   async checkForChanges() {
     try {
-      this.manifest = await this.downloadManifest();
+      await this.fetchManifest();
     } catch (err) {
       console.error('[HookInstaller] manifest fetch failed:', err.reason || err.error || err);
     }
@@ -663,17 +703,26 @@ class HookInstaller {
 
   /**
    * Repair installed integrations whose files drifted from the published
-   * manifest. Fixes to hooks and shared scripts otherwise stay on each machine
-   * only as a badge until someone reinstalls by hand. The unattended installer
-   * replaces VibeMon-owned files only; user-owned settings are left alone.
-   * Broken registrations still need the user, so they are not touched here.
-   * @returns {Promise<Array>} install results, empty when nothing drifted
+   * manifest, without asking. Fixes to hooks and shared scripts otherwise stay
+   * on each machine only as a badge until someone reinstalls by hand. The
+   * unattended installer replaces VibeMon-owned files only; user-owned settings
+   * are left alone. Broken registrations still need the user, so they are not
+   * touched here.
+   *
+   * Runs only when Web publishes the exact manifest bundled with this App
+   * build. install.py must match that manifest's installer hash, and it gets
+   * the manifest digest (VIBEMON_MANIFEST_SHA256), so it accepts no other file
+   * hashes. Web alone therefore cannot change the code that runs unattended.
+   * When Web is newer than the App, the badge stays until the App update that
+   * bundles the new manifest, or until a person reinstalls from Settings.
+   * @returns {Promise<Array>} install results, empty when nothing ran
    */
   async updateChanged() {
     await this.checkForChanges();
+    if (this.isRunning || !this.trusted || this.manifestDigest !== this.trusted.digest) return [];
     const changed = this.cachedStatuses.filter(tool => tool.changed && !tool.broken);
-    if (this.isRunning || changed.length === 0) return [];
-    return this.installTools(changed, { showSummary: false });
+    if (changed.length === 0) return [];
+    return this.installTools(changed, { showSummary: false, trusted: this.trusted });
   }
 
   /**
@@ -690,13 +739,14 @@ class HookInstaller {
    * @param {string} script
    * @param {{command: string, prefixArgs: string[]}} python - from findPython()
    * @param {string[]} flags - e.g. ['--claude']
+   * @param {string|null} [manifestDigest] - sha256 of the only manifest.json bytes install.py may accept
    * @returns {Promise<{ok: boolean, reason?: string, [key: string]: any}>}
    */
-  runScript(script, python, flags) {
+  runScript(script, python, flags, manifestDigest = null) {
     return new Promise((resolve) => {
       const child = spawn(python.command, [...python.prefixArgs, '-', ...flags], {
         stdio: ['pipe', 'pipe', 'pipe'],
-        env: { ...process.env, VIBEMON_DOCS_URL: DOCS_BASE },
+        env: { ...process.env, VIBEMON_DOCS_URL: DOCS_BASE, ...(manifestDigest ? { VIBEMON_MANIFEST_SHA256: manifestDigest } : {}) },
         ...SPAWN_DEFAULTS
       });
       let stdout = '';
@@ -729,12 +779,14 @@ class HookInstaller {
    * download fails the whole batch (nothing to run); an individual script
    * run failing does not stop the remaining tools.
    * @param {Array} tools
-   * @param {{showSummary?: boolean}} [options] - showSummary: whether to show
-   *   the native result dialog when finished (default true). The Settings
-   *   window's Install/Reinstall button passes false since it already shows
-   *   the result inline (badge/button state) and doesn't need a popup too.
+   * @param {{showSummary?: boolean, trusted?: {manifest: object, digest: string}|null}} [options]
+   *   showSummary: whether to show the native result dialog when finished
+   *   (default true). The Settings window's Install/Reinstall button passes
+   *   false since it already shows the result inline (badge/button state).
+   *   trusted: the bundled manifest that pins install.py and its files for an
+   *   unattended update; null trusts the manifest that Web publishes now.
    */
-  async installTools(tools, { showSummary = true } = {}) {
+  async installTools(tools, { showSummary = true, trusted = null } = {}) {
     if (this.isRunning) {
       throw new Error(t('install.running'));
     }
@@ -752,7 +804,7 @@ class HookInstaller {
       } else {
         let script = null;
         try {
-          const expectedHash = await this.resolveInstallerHash();
+          const expectedHash = trusted ? trusted.manifest.installer : await this.resolveInstallerHash();
           script = await this.downloadScript(expectedHash);
         } catch (err) {
           for (const tool of tools) {
@@ -763,7 +815,7 @@ class HookInstaller {
 
         if (script !== null) {
           for (const tool of tools) {
-            const result = await this.runScript(script, python, [tool.flag]);
+            const result = await this.runScript(script, python, [tool.flag], trusted?.digest);
             results.push({ tool, result });
           }
         }

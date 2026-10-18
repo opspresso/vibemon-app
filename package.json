@@ -68,6 +68,7 @@
     "productName": "VibeMon",
     "files": [
       "src/**",
+      "public/install/manifest.json",
       "assets/icon*",
       "LICENSE",
       "package.json"
