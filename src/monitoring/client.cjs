@@ -2,7 +2,7 @@ const { readJsonResponse } = require('../shared/json-response.cjs');
 const { EventEmitter } = require('events');
 const { URL, URLSearchParams } = require('node:url');
 const { METRICS, validId, validAccountId, accountId, groupAccounts, webOrigin, validateSources, validateTrend, validateDefinitions, validateOrder, displayMetrics, metricCatalog } = require('./domain.cjs');
-const { CLOUD_POLL_MS, CLOUD_REQUEST_TIMEOUT_MS, CLOUD_TREND_MS, CLOUD_MAX_RESPONSE_BYTES } = require('../shared/constants.cjs');
+const { CLOUD_POLL_MS, CLOUD_REQUEST_TIMEOUT_MS, CLOUD_TREND_MS, CLOUD_MAX_RESPONSE_BYTES, CLOUD_MAX_ETAG_LENGTH } = require('../shared/constants.cjs');
 const { sourceStale, sourceState, accountActivity, needsAttention, attentionCount } = require('../shared/monitoring/state.cjs');
 const { snapshotClock } = require('../shared/monitoring/clock.cjs');
 const { t } = require('../shared/i18n/locale.cjs');
@@ -11,6 +11,11 @@ const { isApiToken, revokeApiToken } = require('../shared/api-token.cjs');
 const DEFAULT_WEB_URL = 'https://vibemon.io';
 // Web rejected the saved token. Repeating the request cannot succeed until the token changes.
 const REJECTED = new Set(['token-expired', 'permission-denied']);
+// An ETag that can be sent back unchanged as an If-None-Match header value.
+const ENTITY_TAG = /^(W\/)?"[\x21\x23-\x7e]*"$/;
+function entityTag(value) {
+  return typeof value === 'string' && value.length <= CLOUD_MAX_ETAG_LENGTH && ENTITY_TAG.test(value) ? value : null;
+}
 
 class MonitoringClient extends EventEmitter {
   constructor({ preferences, credentials, fetchImpl = fetch, allowLocalHttp = false, now = Date.now, monotonicNow = () => globalThis.performance.now() }) {
@@ -39,6 +44,8 @@ class MonitoringClient extends EventEmitter {
     this.inflightDiscovery = false;
     this.lastSyncedAt = null;
     this.timer = null;
+    // The last 200 source list for one origin, token and query, and its ETag.
+    this.conditional = null;
   }
   getStatus() { return this.status; }
   /** The saved Web address, or the public service before one is saved. */
@@ -95,6 +102,7 @@ class MonitoringClient extends EventEmitter {
     // The replaced token has no other holder on this device. Web keeps it valid until it is deleted.
     if (replaced && replaced.token !== token) revokeApiToken(this.fetch, replaced.origin, replaced.token);
     this.generation++;
+    this.conditional = null;
     this.sources = sources;
     this.reportClock = clock;
     this.catalog = sources.map(source => this.catalogEntry(source));
@@ -116,6 +124,7 @@ class MonitoringClient extends EventEmitter {
     const saved = this.credentials.has();
     const credential = this.savedCredential();
     this.credentials.clear();
+    this.conditional = null;
     this.sources = [];
     this.catalog = [];
     this.accountCatalog = [];
@@ -155,16 +164,41 @@ class MonitoringClient extends EventEmitter {
     return this.requestWith(origin, this.credentials.get(), path);
   }
   async requestWith(origin, token, path) {
+    return this.readResponse(await this.send(origin, token, path));
+  }
+  async send(origin, token, path, etag = null) {
     if (!token) throw Object.assign(new Error('Configure a read token'), { code: 'not-configured' });
-    let response;
     try {
-      response = await this.fetch(`${origin}${path}`, {
-        headers: { Authorization: `Bearer ${token}` }, redirect: 'error',
+      return await this.fetch(`${origin}${path}`, {
+        headers: { Authorization: `Bearer ${token}`, ...(etag ? { 'If-None-Match': etag } : {}) }, redirect: 'error',
         signal: AbortSignal.timeout(CLOUD_REQUEST_TIMEOUT_MS)
       });
     } catch { throw Object.assign(new Error('Cannot reach Web'), { code: 'connection-error' }); }
+  }
+  readResponse(response) {
     if (!response.ok) throw Object.assign(new Error('Web request failed'), { code: response.status === 401 ? 'token-expired' : response.status === 403 ? 'permission-denied' : 'connection-error' });
     return readJsonResponse(response, CLOUD_MAX_RESPONSE_BYTES);
+  }
+  /**
+   * Requests the source list, conditional on the last 200 response for the
+   * same origin, token and query. A 304 reuses those sources with the time in
+   * X-Server-Time. Any failure forgets the cached response, so the next
+   * request is unconditional.
+   */
+  async requestSources(path) {
+    const origin = this.savedOrigin();
+    const token = this.credentials.get();
+    const key = JSON.stringify([origin, token, path]);
+    const cached = this.conditional?.key === key ? this.conditional : null;
+    this.conditional = null;
+    const response = await this.send(origin, token, path, cached?.etag);
+    if (response.status === 304) {
+      if (!cached) throw Object.assign(new Error('Unexpected not-modified response'), { code: 'connection-error' });
+      return { key, etag: cached.etag, sources: cached.sources, clock: snapshotClock(response.headers?.get('X-Server-Time'), this.monotonicNow) };
+    }
+    const data = await this.readResponse(response);
+    const sources = validateSources(data.sources);
+    return { key, etag: entityTag(response.headers?.get('ETag')), sources, clock: snapshotClock(data.serverTime, this.monotonicNow) };
   }
   poll(discover = false) {
     if (this.inflight) {
@@ -200,10 +234,9 @@ class MonitoringClient extends EventEmitter {
         if (ids.length) parts.push(`ids=${encodeURIComponent(ids.join(','))}`);
         if (accountIds.length) parts.push(`accounts=${encodeURIComponent(accountIds.join(','))}`);
         const query = !discover && !all ? `?${parts.join('&')}` : '';
-        const data = await this.request(`/api/v1/sources${query}`);
-        const sources = validateSources(data.sources);
-        const clock = snapshotClock(data.serverTime, this.monotonicNow);
+        const { key, etag, sources, clock } = await this.requestSources(`/api/v1/sources${query}`);
         if (generation === this.generation) {
+          this.conditional = etag ? { key, etag, sources } : null;
           this.sources = sources;
           this.reportClock = clock;
           if (discover || all) {
@@ -221,6 +254,7 @@ class MonitoringClient extends EventEmitter {
         }
       }
     } catch (error) {
+      this.conditional = null;
       if (generation === this.generation) this.status = error.code || 'connection-error';
     }
     // Every completed poll is a clock step: listeners re-evaluate staleness even when the data did not change.
@@ -278,6 +312,7 @@ class MonitoringClient extends EventEmitter {
     this.timer = null;
     this.configurationAttempt++;
     this.generation++;
+    this.conditional = null;
   }
 }
 module.exports = { MonitoringClient };

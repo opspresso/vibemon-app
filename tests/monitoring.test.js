@@ -33,6 +33,99 @@ function fixture(now = 1000000) {
   return { client: new MonitoringClient({ preferences, credentials, fetchImpl, now: () => now, monotonicNow: () => now }), preferences, secrets, fetchImpl };
 }
 
+describe('conditional source polling', () => {
+  const tagged = (value, etag) => ({ ...okResponse(value), status: 200, headers: new globalThis.Headers(etag ? { ETag: etag } : {}) });
+  const notModified = serverTime => ({ ok: false, status: 304, headers: new globalThis.Headers(serverTime === undefined ? {} : { 'X-Server-Time': serverTime }) });
+  // Configuring a new token also revokes the old one; only source reads are polls.
+  const polls = fetchImpl => fetchImpl.mock.calls.filter(([url, options]) => url.includes('/api/v1/sources') && !options.method);
+  const conditionHeader = (fetchImpl, call) => polls(fetchImpl)[call][1].headers['If-None-Match'];
+  const later = new Date(1060000).toISOString();
+
+  test('a 304 reuses the cached sources and takes the server time from X-Server-Time', async () => {
+    const { client, fetchImpl } = fixture();
+    const changes = jest.fn();
+    fetchImpl.mockResolvedValueOnce(tagged({ sources: [source(1000000)] }, 'W/"one"'));
+    await client.poll();
+    client.on('change', changes);
+    expect(conditionHeader(fetchImpl, 0)).toBeUndefined();
+    fetchImpl.mockResolvedValue(notModified(later));
+    const snapshot = await client.poll();
+    expect(conditionHeader(fetchImpl, 1)).toBe('W/"one"');
+    expect(snapshot).toMatchObject({ status: 'connected', evaluatedAt: 1060000 });
+    expect(snapshot.sources.map(item => item.sourceId)).toEqual(['spark']);
+    await client.poll();
+    expect(conditionHeader(fetchImpl, 2)).toBe('W/"one"');
+    expect(changes).toHaveBeenCalledTimes(2);
+  });
+
+  test('a changed query, token, or connection forgets the cached response', async () => {
+    const { client, preferences, fetchImpl } = fixture();
+    fetchImpl.mockResolvedValue(tagged({ sources: [source(1000000)] }, '"one"'));
+    await client.poll();
+    preferences.set('selectedSources', ['spark']);
+    await client.poll();
+    expect(polls(fetchImpl)[1][0]).toBe('https://web.example/api/v1/sources?ids=spark');
+    expect(conditionHeader(fetchImpl, 1)).toBeUndefined();
+    await client.configure({ url: 'https://web.example', token: 'vm_' + '2'.repeat(60) });
+    await client.poll();
+    expect(conditionHeader(fetchImpl, 3)).toBeUndefined();
+    await client.poll();
+    expect(conditionHeader(fetchImpl, 4)).toBe('"one"');
+    client.stop();
+    await client.poll();
+    expect(conditionHeader(fetchImpl, 5)).toBeUndefined();
+  });
+
+  test('disconnect forgets the cached response', async () => {
+    const { client, fetchImpl } = fixture();
+    fetchImpl.mockResolvedValue(tagged({ sources: [source(1000000)] }, '"one"'));
+    await client.poll();
+    await client.disconnect();
+    expect(client.conditional).toBeNull();
+  });
+
+  test.each([
+    ['without X-Server-Time', undefined],
+    ['with an invalid X-Server-Time', 'yesterday']
+  ])('a 304 %s is an invalid response and the next request is unconditional', async (_, serverTime) => {
+    const { client, fetchImpl } = fixture();
+    fetchImpl.mockResolvedValueOnce(tagged({ sources: [source(1000000)] }, '"one"'));
+    await client.poll();
+    fetchImpl.mockResolvedValueOnce(notModified(serverTime));
+    const snapshot = await client.poll();
+    expect(snapshot).toMatchObject({ status: 'connection-error', evaluatedAt: 1000000 });
+    expect(snapshot.sources[0].receivedAt).toBe(new Date(1000000).toISOString());
+    fetchImpl.mockResolvedValueOnce(notModified(later));
+    await client.poll();
+    expect(conditionHeader(fetchImpl, 2)).toBeUndefined();
+    expect(client.getStatus()).toBe('connection-error');
+  });
+
+  test('a 304 without a cached response does not invent sources', async () => {
+    const { client, fetchImpl } = fixture();
+    fetchImpl.mockResolvedValue(notModified(later));
+    const snapshot = await client.poll();
+    expect(snapshot).toMatchObject({ status: 'connection-error', sources: [] });
+  });
+
+  test('a failed request or an unusable ETag leaves the next request unconditional', async () => {
+    const { client, fetchImpl } = fixture();
+    fetchImpl.mockResolvedValueOnce(tagged({ sources: [source(1000000)] }, '"one"'));
+    await client.poll();
+    fetchImpl.mockResolvedValueOnce({ ok: false, status: 503 });
+    await client.poll();
+    expect(conditionHeader(fetchImpl, 1)).toBe('"one"');
+    fetchImpl.mockResolvedValueOnce(tagged({ sources: [source(1000000)] }, 'unquoted'));
+    await client.poll();
+    expect(conditionHeader(fetchImpl, 2)).toBeUndefined();
+    fetchImpl.mockResolvedValueOnce(tagged({ sources: [source(1000000)] }, `"${'a'.repeat(300)}"`));
+    await client.poll();
+    expect(conditionHeader(fetchImpl, 3)).toBeUndefined();
+    await client.poll();
+    expect(conditionHeader(fetchImpl, 4)).toBeUndefined();
+  });
+});
+
 describe('cloud monitoring', () => {
   afterEach(() => jest.useRealTimers());
   test.each([[401, 'token-expired'], [403, 'permission-denied'], [503, 'connection-error']])('empty selection cannot hide HTTP %s as a successful connection', async (status, expected) => {
