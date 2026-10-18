@@ -395,9 +395,15 @@ describe('HttpServer request boundaries', () => {
     const { server } = createServer();
     server.onError = jest.fn();
 
+    expect(server.listening).toBe(false);
     expect(server.start()).toBe(nativeServer);
+    nativeServer.listening = false;
     nativeServer.emit('error', Object.assign(new Error('busy'), { code: 'EADDRINUSE' }));
+    expect(server.listening).toBe(false);
+    nativeServer.listening = true;
+    expect(server.listening).toBe(true);
     await server.stop();
+    expect(server.listening).toBe(false);
 
     expect(server.onError).toHaveBeenCalled();
     expect(server.server).toBeNull();

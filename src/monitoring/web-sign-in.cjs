@@ -37,9 +37,10 @@ class WebSignIn {
    * @param {typeof fetch} [options.fetchImpl]
    * @param {boolean} [options.allowLocalHttp] - development builds may use a loopback Web origin
    * @param {string} [options.deviceName] - shown in the token name on Web Account
+   * @param {() => boolean} [options.canReceive] - whether the local HTTP server listens for the callback
    */
-  constructor({ port, openExternal, fetchImpl = fetch, allowLocalHttp = false, deviceName = '', timeoutMs = WEB_SIGN_IN_TIMEOUT_MS }) {
-    Object.assign(this, { port, openExternal, fetchImpl, allowLocalHttp, deviceName, timeoutMs });
+  constructor({ port, openExternal, fetchImpl = fetch, allowLocalHttp = false, deviceName = '', timeoutMs = WEB_SIGN_IN_TIMEOUT_MS, canReceive = () => true }) {
+    Object.assign(this, { port, openExternal, fetchImpl, allowLocalHttp, deviceName, timeoutMs, canReceive });
     this.pending = null;
   }
 
@@ -56,6 +57,8 @@ class WebSignIn {
   async signIn(url, scope, adopt) {
     const origin = webOrigin(url, this.allowLocalHttp);
     if (!['read', 'write'].includes(scope)) throw new SignInError('invalid-scope', t('signIn.unknownScope'));
+    // Without the callback server, the browser cannot return and the sign-in could only time out.
+    if (!this.canReceive()) throw new SignInError('no-callback', t('signIn.noCallback', { port: this.port }));
     this.cancel();
     const verifier = base64url(randomBytes(32));
     const state = base64url(randomBytes(16));

@@ -433,7 +433,10 @@ app.whenReady().then(async () => {
   workspaceSettings = new WorkspaceSettings({ windowManager, app, hookInstaller, vibemonConfigManager, updateChecker, cloudDelivery, getAccountProfiles, openExternal: url => shell.openExternal(url) });
   const monitoringStore = new Store({ name: 'monitoring' });
   monitoringClient = new MonitoringClient({ preferences: monitoringStore, credentials: new CredentialStore(monitoringStore, safeStorage), allowLocalHttp: !app.isPackaged });
-  webSignIn = new WebSignIn({ port: HTTP_PORT, openExternal: url => shell.openExternal(url), allowLocalHttp: !app.isPackaged, deviceName: os.hostname().split('.')[0] });
+  webSignIn = new WebSignIn({
+    port: HTTP_PORT, openExternal: url => shell.openExternal(url), allowLocalHttp: !app.isPackaged,
+    deviceName: os.hostname().split('.')[0], canReceive: () => Boolean(httpServer?.listening)
+  });
   workspaceWindow = new WorkspaceWindow({
     monitoring: monitoringClient,
     settings: workspaceSettings,

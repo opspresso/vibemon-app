@@ -82,4 +82,11 @@ describe('desktop sign-in through Web', () => {
     const [endpoint, options] = fetchImpl.mock.calls[1];
     expect([String(endpoint), options.method, options.headers.Authorization]).toEqual(['https://vibemon.io/api/v1/connection', 'DELETE', `Bearer ${TOKEN}`]);
   });
+
+  test('fails at once when the callback server does not listen', async () => {
+    const opened = [];
+    const signIn = new WebSignIn({ port: 19280, openExternal: async url => { opened.push(url); }, fetchImpl: jest.fn(), canReceive: () => false });
+    await expect(signIn.signIn('https://vibemon.io', 'read', adopt)).rejects.toMatchObject({ reason: 'no-callback', message: expect.stringContaining('19280') });
+    expect(opened).toEqual([]);
+  });
 });

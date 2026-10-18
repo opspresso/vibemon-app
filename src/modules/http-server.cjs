@@ -94,6 +94,11 @@ class HttpServer {
     return this.server;
   }
 
+  /** Whether the server accepts connections, for example the sign-in callback. */
+  get listening() {
+    return Boolean(this.server?.listening);
+  }
+
   stop() {
     return new Promise((resolve) => {
       // Clear rate limiting state
