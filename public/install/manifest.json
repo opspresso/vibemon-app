@@ -33,12 +33,12 @@
     "collector/vibemon_collector/__main__.py": "035c98af5c6aabbf76ceb12a552d13bf91523be647c8e9b665a4ce7dfa798a7b",
     "collector/vibemon_collector/application.py": "33fffb27519f26c3f779dba407b1fda1f045b7867a7717581ec03697860488a0",
     "collector/vibemon_collector/disk.py": "870e75da7bdddb243e1bc274ac9183fe139d0031868dcaf7261746a148599fdc",
-    "collector/vibemon_collector/domain.py": "2dd71b916aecf01d7967d70b3eedcdecf3fc0bf8efcd2850d9a0b40fe9ba3db6",
+    "collector/vibemon_collector/domain.py": "17b2991db432f8e614441df9fde60d5ff2ee646e22a18badf9a3b5a851444d83",
     "collector/vibemon_collector/health.py": "edecdd4623273688ae141a59a23be71b35b46f45d078e3c2b68d28c66a215d88",
     "collector/vibemon_collector/host.py": "71d07e395704a9a28be9ce4ff28c67972a1d524c45244d9741fe468d0b09bdbd",
     "collector/vibemon_collector/kubelet.py": "78f26dcfd5b4cd9ec3a6dc55f216ad62aaff83c9b82a6601cdffe9be70d076db",
     "collector/vibemon_collector/kubernetes.py": "11863b69332d4cf54fdf18ded078878823f6e8134d8f80ce158490d41facd1c2",
     "collector/vibemon_collector/prometheus.py": "dc4dda8cb95488a4084d2d2e8e8885c953f0e29ffd52341faa10e0b3c16a23dd",
-    "collector/vibemon_collector/transport.py": "ab4576ec02f28e846e0288b249fb66d8a7a5646dee7b1b612b22704434f2ad0d"
+    "collector/vibemon_collector/transport.py": "c539b1b9dfb2ce32685c3c8600f34ca566934cf90c95e5b4e0937fcdd8592618"
   }
 }

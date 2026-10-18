@@ -1,5 +1,9 @@
 """HTTPS JSON adapter. Credentials never enter URLs, exceptions, or logs."""
 import json
+import math
+import time
+from datetime import timezone
+from email.utils import parsedate_to_datetime
 from urllib.error import HTTPError
 from urllib.parse import urlsplit
 from urllib.request import Request, build_opener, HTTPRedirectHandler
@@ -22,9 +26,28 @@ def checked_url(value: str, allow_local_http: bool = False, origin_only: bool = 
     return value.rstrip("/")
 
 
+def retry_after_seconds(value: str, now: float) -> float:
+    value = value.strip()
+    if value.isascii() and value.isdigit():
+        delay = float(value)
+        if not math.isfinite(delay):
+            raise DeliveryFailure("Web returned an unsupported Retry-After delay; check the API origin", retryable=False)
+        return delay
+    try:
+        date = parsedate_to_datetime(value)
+        # The obsolete asctime HTTP-date form has no explicit timezone and means UTC.
+        if date.tzinfo is None:
+            date = date.replace(tzinfo=timezone.utc)
+        return max(0, date.timestamp() - now)
+    except (ValueError, TypeError, OverflowError, OSError):
+        # An invalid optional hint leaves the existing HTTP failure and backoff in force.
+        return 0
+
+
 class JsonClient:
-    def __init__(self, token: str | None = None):
+    def __init__(self, token: str | None = None, wall_clock=time.time):
         self.token = token
+        self.wall_clock = wall_clock
         self.opener = build_opener(NoRedirect())
 
     def request(self, url: str, payload: dict | None = None) -> dict:
@@ -46,13 +69,7 @@ class JsonClient:
             if payload is None:
                 raise
             retryable = error.code in (408, 425, 429, 500, 502, 503, 504)
-            retry_after = 0
-            raw_delay = (error.headers or {}).get('Retry-After', '')
-            if raw_delay.isdigit():
-                try:
-                    retry_after = min(60, int(raw_delay))
-                except ValueError:
-                    pass  # A malformed optional hint does not replace bounded backoff.
+            retry_after = retry_after_seconds((error.headers or {}).get('Retry-After', ''), self.wall_clock()) if retryable else 0
             detail = f"Web returned HTTP {error.code}"
             if not retryable:
                 detail += "; check the Web origin, write token permissions, and source definition"
