@@ -14,7 +14,7 @@
     "vibemon/account_service.py": "92ca7f84231d98d246b6513b6111fa426b5e010c462452d9e5e0a825499968fe",
     "vibemon/account_refresh.py": "bb274ebb2a3569b24e55de134bfa80acb89a9c5ca38249711e33f56358e3b5f2",
     "vibemon/account_context.py": "645ee396daac3317a4262289efca23e4325572e7b3396d2c603b8a358d835af1",
-    "vibemon/cache_io.py": "7f932c90cbeaaa30b077e31394b0c695cb0310a065d350f0d1e9293375598ba2",
+    "vibemon/cache_io.py": "dd631f8ea01e2f42225e980f30e9eaec6eef6c550ed6ac85a707e2c264497bdb",
     "vibemon/http_client.py": "306f9804a3bffc221b7c68f7b1f100937311908912ffb50bca500d493464052a",
     "vibemon/project_context.py": "8621372543a6864fd9fc06caad054a7d9b48eafb9fafdf6c55d59314f400c1c7",
     "vibemon/session_activity.py": "fc49a6dd18a7de07ed05859493cb6fb9ba1be463033a00345ced1a3297d366a1",

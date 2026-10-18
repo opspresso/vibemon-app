@@ -28,7 +28,12 @@ jobs:
       - run: pnpm check:registry
       - run: pnpm check:distribution
   hooks:
-    runs-on: ubuntu-latest
+    # Hooks run on every desktop OS; path and home handling differ on Windows.
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v6
         with:
@@ -42,3 +47,6 @@ jobs:
       - run: python -m pip install pytest ./collector
       - run: python -m pytest tests/hooks collector/tests -q
       - run: node --experimental-vm-modules --test tests/hooks/opencode.test.mjs tests/hooks/openclaw.test.mjs
+      - name: Verify the widget worker restart against real processes
+        if: runner.os == 'macOS'
+        run: node tests/native/widget-runtime-smoke.cjs
