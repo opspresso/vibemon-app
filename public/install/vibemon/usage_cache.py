@@ -60,7 +60,7 @@ def parse_epoch(value: Any) -> float | None:
     try:
         number = float(value)
         return number if math.isfinite(number) else None
-    except (TypeError, ValueError):
+    except (TypeError, ValueError, OverflowError):
         pass
     if isinstance(value, str):
         text = value.strip()
@@ -206,7 +206,7 @@ def provider_updated_at(cache: dict[str, Any] | None, provider: str) -> float:
         try:
             observed_at = float(data.get("updated_at", cache.get("ts", 0)))
             return observed_at if math.isfinite(observed_at) else 0
-        except (TypeError, ValueError):
+        except (TypeError, ValueError, OverflowError):
             return 0
     return 0
 

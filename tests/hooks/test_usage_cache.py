@@ -23,13 +23,13 @@ def cache_after(*writes, replace_last=False):
 
 class UsageCacheTest(unittest.TestCase):
     def test_invalid_or_future_provider_timestamps_cannot_keep_usage_fresh(self):
-        for observed_at in [float('nan'), float('inf'), 'NaN', 'Infinity', None, 'invalid', 131]:
+        for observed_at in [float('nan'), float('inf'), 'NaN', 'Infinity', None, 'invalid', 131, 10 ** 400, -(10 ** 400)]:
             with self.subTest(observed_at=observed_at):
                 cache = {'claude': {'updated_at': observed_at, 'session': {'pct': 42}}}
                 self.assertIsNone(get_fresh_provider(cache, 'claude', 1800, now=100))
 
     def test_invalid_or_future_bucket_timestamps_do_not_hide_a_fresh_bucket(self):
-        for observed_at in [float('nan'), float('inf'), 'NaN', 'Infinity', None, 'invalid', 131]:
+        for observed_at in [float('nan'), float('inf'), 'NaN', 'Infinity', None, 'invalid', 131, 10 ** 400, -(10 ** 400)]:
             with self.subTest(observed_at=observed_at):
                 cache = {'claude': {
                     'updated_at': 100,
@@ -63,6 +63,15 @@ class UsageCacheTest(unittest.TestCase):
         self.assertIsNone(week_bucket_key("all models"))
         self.assertIsNone(week_bucket_key(""))
         self.assertIsNone(week_bucket_key(None))
+
+    def test_unrepresentable_reset_does_not_discard_measured_zero_usage(self):
+        for reset in [10 ** 400, -(10 ** 400)]:
+            with self.subTest(reset=reset):
+                usage = usage_from_rate_limits({'rate_limits': {
+                    'five_hour': {'used_percentage': 0, 'resets_at': reset},
+                    'seven_day': {'used_percentage': 20, 'resets_at': 2000},
+                }})
+                self.assertEqual(usage, {'session': {'pct': 0}, 'week_all': {'pct': 20, 'resets_at': 2000}})
 
     def test_model_scoped_bucket_freshness_tracked_like_other_buckets(self):
         cache = cache_after(
