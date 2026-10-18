@@ -12,3 +12,4 @@ typedef napi_value (*napi_callback)(napi_env env, napi_callback_info info);
 
 napi_status napi_create_function(napi_env env, const char *utf8name, size_t length, napi_callback cb, void *data, napi_value *result);
 napi_status napi_set_named_property(napi_env env, napi_value object, const char *utf8name, napi_value value);
+napi_status napi_throw_error(napi_env env, const char *code, const char *message);

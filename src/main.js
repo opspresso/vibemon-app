@@ -33,6 +33,7 @@ const { t, initLocale, currentLocale } = require('./shared/i18n/locale.cjs');
 const { dashboardPage } = require('./workspace/deep-link.cjs');
 const { getUsageSnapshot } = require('./modules/usage-cache-reader.cjs');
 const { WidgetPublisher, usageByAccount, widgetsSupported } = require('./widgets/publisher.cjs');
+const { prepareWidgetRuntime } = require('./widgets/runtime.cjs');
 const { execFile } = require('child_process');
 
 // Modules
@@ -88,6 +89,7 @@ let monitoringClient = null;
 let workspaceWindow = null;
 let webSignIn = null;
 let widgetPublisher = null;
+let quitting = false;
 let hookCheckTimer = null;
 let updateCheckTimer = null;
 let usageRefreshTimer = null;
@@ -400,18 +402,23 @@ ipcMain.handle('focus-terminal', async (event) => {
  * that contains the widgets, so a Node-API module makes the request from this
  * process. An unpackaged Electron binary contains no VibeMon widgets.
  */
-function widgetReloader() {
+async function widgetReloader() {
   if (!app.isPackaged) return null;
   try {
-    return require(path.join(process.resourcesPath, 'widget-center.node')).reloadTimelines;
+    const native = require(path.join(process.resourcesPath, 'widget-center.node'));
+    await prepareWidgetRuntime({
+      bundlePath: path.resolve(path.dirname(process.execPath), '../..'),
+      registerApplication: native.registerApplication
+    });
+    return native.reloadTimelines;
   } catch (error) {
-    console.error('Widget reload module unavailable; widgets refresh on their own schedule:', error.message);
+    console.error('Could not prepare the macOS widget runtime:', error.message);
     return null;
   }
 }
 
 // App lifecycle
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
   // The OS languages are complete only after 'ready'; every later text uses them.
   initLocale(app);
   // Hide Dock icon on macOS (tray-only app)
@@ -465,10 +472,12 @@ app.whenReady().then(() => {
   if (widgetsSupported()) {
     // feed.mjs is an ES module that shares the renderer's display rules.
     const { buildWidgetFeed } = require('./widgets/feed.mjs');
+    const reload = await widgetReloader();
+    if (quitting) return;
     widgetPublisher = new WidgetPublisher({
       collect: () => ({ cloud: monitoringClient.snapshot(), states: windowManager.getRegisteredStates(), usage: usageByAccount(getUsageSnapshot()) }),
       build: input => buildWidgetFeed({ ...input, locale: currentLocale() }),
-      reload: widgetReloader(),
+      reload,
       artwork: character => CHARACTER_CONFIG[character]?.image
     });
     widgetPublisher.schedule();
@@ -574,6 +583,7 @@ app.on('window-all-closed', () => {
 });
 
 app.on('before-quit', () => {
+  quitting = true;
   dockMonitor.cleanup();
   if (hookCheckTimer) {
     clearInterval(hookCheckTimer);

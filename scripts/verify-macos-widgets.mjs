@@ -32,6 +32,9 @@ assert.deepEqual(entitlements['com.apple.security.temporary-exception.files.home
 assert.notEqual(entitlements['com.apple.security.network.client'], true);
 assert(info.CFBundleURLTypes.some(type => type.CFBundleURLSchemes.includes('vibemon')));
 assert(existsSync(path.join(contents, 'Resources/widget-center.node')));
+const widgetBridge = require(path.join(contents, 'Resources/widget-center.node'));
+assert.equal(typeof widgetBridge.registerApplication, 'function');
+assert.equal(typeof widgetBridge.reloadTimelines, 'function');
 const metadata = JSON.parse(readFileSync(path.join(resources, 'Metadata.appintents/extract.actionsdata')));
 for (const type of ['Agent', 'Resource']) {
   assert(metadata.actions[`${type}Selection`]);
