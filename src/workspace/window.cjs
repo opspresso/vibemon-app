@@ -89,26 +89,27 @@ class WorkspaceWindow {
     switch (command) {
       case 'snapshot': return this.snapshot();
       case 'navigate': this.navigate(args[0]); return this.snapshot();
-      case 'configure': return this.monitoring.configure(args[0]);
+      case 'configure': this.signIn?.cancel(); return this.monitoring.configure(args[0]);
       // Sign in through Web; the browser returns to the local HTTP server.
       case 'sign-in': {
         const url = String(args[0] ?? '');
-        return this.signIn.signIn(url, 'read', token => this.monitoring.configure({ url, token }));
+        return this.signIn.signIn(url, 'read', (token, signal) => this.monitoring.configure({ url, token }, { signal }));
       }
       case 'sign-in-cloud-delivery': {
         const url = String(args[0] ?? '');
-        const result = await this.signIn.signIn(url, 'write', token => this.settings.invoke('configure-cloud-delivery', { url, token }));
+        const result = await this.signIn.signIn(url, 'write', (token, signal) => this.settings.invoke('configure-cloud-delivery', { url, token }, { signal }));
         this.notify('settings');
         return result;
       }
       case 'cancel-sign-in': this.signIn.cancel(); return true;
-      case 'disconnect': return this.monitoring.disconnect();
+      case 'disconnect': this.signIn?.cancel(); return this.monitoring.disconnect();
       case 'refresh': return this.monitoring.poll(true);
       case 'select': return this.monitoring.select(args[0]);
       case 'trend': return this.monitoring.trend(args[0]);
       case 'settings': {
         const [action, values = []] = args;
         if (!Array.isArray(values) || values.length > 2) throw new Error('Invalid settings arguments');
+        if (['configure-cloud-delivery', 'disconnect-cloud-delivery'].includes(action)) this.signIn?.cancel();
         const result = await this.settings.invoke(action, ...values);
         this.notify('settings');
         return { result, frame: this.snapshot() };
@@ -183,6 +184,7 @@ class WorkspaceWindow {
 
   cleanup() {
     this.disposed = true;
+    this.signIn?.cancel();
     if (this.timer) clearTimeout(this.timer);
     this.timer = null;
     this.monitoring.off('change', this.onCloudChange);

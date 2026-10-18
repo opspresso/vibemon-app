@@ -178,7 +178,7 @@ class WorkspaceSettings {
       return this.getVibemonConfigView();
     });
 
-    handle('configure-cloud-delivery', value => this.cloudDelivery.configure(value));
+    handle('configure-cloud-delivery', (value, options) => this.cloudDelivery.configure(value, options));
     handle('check-cloud-delivery', () => this.cloudDelivery.check());
     handle('disconnect-cloud-delivery', () => this.cloudDelivery.disconnect());
 

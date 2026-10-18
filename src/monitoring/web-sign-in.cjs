@@ -43,6 +43,7 @@ class WebSignIn {
   constructor({ port, openExternal, fetchImpl = fetch, allowLocalHttp = false, deviceName = '', timeoutMs = WEB_SIGN_IN_TIMEOUT_MS, canReceive = () => true }) {
     Object.assign(this, { port, openExternal, fetchImpl, allowLocalHttp, deviceName, timeoutMs, canReceive });
     this.pending = null;
+    this.active = null;
   }
 
   get redirectUri() {
@@ -51,9 +52,10 @@ class WebSignIn {
 
   /**
    * Opens the browser, gets a token of `scope` for `url`, and resolves with
-   * the result of `adopt(token)`. When `adopt` fails, nothing keeps the new
+   * the result of `adopt(token, signal)`. The adopter must check `signal`
+   * before saving the connection. When `adopt` fails, nothing keeps the new
    * token, so it is deleted on Web before the error returns.
-   * A new sign-in replaces one that is still waiting.
+   * A new sign-in cancels the previous attempt, including exchange and verification.
    */
   async signIn(url, scope, adopt) {
     const origin = webOrigin(url, this.allowLocalHttp);
@@ -61,6 +63,8 @@ class WebSignIn {
     // Without the callback server, the browser cannot return and the sign-in could only time out.
     if (!this.canReceive()) throw new SignInError('no-callback', t('signIn.noCallback', { port: this.port }));
     this.cancel();
+    const controller = new globalThis.AbortController();
+    this.active = controller;
     const verifier = base64url(randomBytes(32));
     const state = base64url(randomBytes(16));
     const authorize = new URL('/authorize', origin);
@@ -68,23 +72,36 @@ class WebSignIn {
       client_id: CLIENT_ID, redirect_uri: this.redirectUri, scope, state, device_name: this.deviceName,
       code_challenge: base64url(createHash('sha256').update(verifier).digest()), code_challenge_method: 'S256'
     })) authorize.searchParams.set(key, value);
-    const code = await new Promise((resolve, reject) => {
-      const timer = setTimeout(() => this.finish(state, new SignInError('timeout', t('signIn.timeout'))), this.timeoutMs);
-      this.pending = { state, resolve, reject, timer };
-      Promise.resolve(this.openExternal(authorize.href)).catch(error => this.finish(state, new SignInError('browser', t('signIn.browser', { error: error.message }))));
-    });
-    const token = await this.exchange(origin, code, verifier);
     try {
-      return await adopt(token);
+      const code = await new Promise((resolve, reject) => {
+        const timer = setTimeout(() => this.finish(state, new SignInError('timeout', t('signIn.timeout'))), this.timeoutMs);
+        this.pending = { state, resolve, reject, timer };
+        Promise.resolve(this.openExternal(authorize.href)).catch(error => this.finish(state, new SignInError('browser', t('signIn.browser', { error: error.message }))));
+      });
+      controller.signal.throwIfAborted();
+      // Let the bounded exchange finish so a cancelled attempt can delete any issued token.
+      const token = await this.exchange(origin, code, verifier);
+      try {
+        controller.signal.throwIfAborted();
+        return await adopt(token, controller.signal);
+      } catch (error) {
+        await revokeApiToken(this.fetchImpl, origin, token);
+        throw error;
+      }
     } catch (error) {
-      await revokeApiToken(this.fetchImpl, origin, token);
+      // Aborted fetch bodies can report a transport error instead of the signal's reason.
+      controller.signal.throwIfAborted();
       throw error;
+    } finally {
+      if (this.active === controller) this.active = null;
     }
   }
 
-  /** Stops a waiting sign-in. */
+  /** Cancels the current sign-in through its final connection verification. */
   cancel() {
-    if (this.pending) this.finish(this.pending.state, new SignInError('cancelled', t('signIn.cancelled')));
+    const error = new SignInError('cancelled', t('signIn.cancelled'));
+    this.active?.abort(error);
+    if (this.pending) this.finish(this.pending.state, error);
   }
 
   /**

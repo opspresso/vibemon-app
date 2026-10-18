@@ -62,6 +62,14 @@ test('preference actions apply through companion ports without owning a window',
   expect(settings).not.toHaveProperty('window');
 });
 
+test('cloud sign-in keeps its cancellation signal through settings dispatch', () => {
+  const { settings, dependencies } = fixture();
+  const signal = new globalThis.AbortController().signal;
+  const connection = { url: 'https://vibemon.io', token: 'synthetic' };
+  settings.invoke('configure-cloud-delivery', connection, { signal });
+  expect(dependencies.cloudDelivery.configure).toHaveBeenCalledWith(connection, { signal });
+});
+
 test.each([
   ['set-render-mode', '4d'], ['set-character-lock', '../other'], ['set-character-scale', 7],
   ['set-edge-margin', -1], ['set-always-on-top-mode', '__proto__'], ['set-dock-auto-scale', 1],

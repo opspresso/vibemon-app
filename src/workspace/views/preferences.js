@@ -75,7 +75,7 @@ export function setupPreferences({ getFrame, request, run, notify }) {
     const { tokenDeleted } = await save('disconnect-cloud-delivery');
     notify(t(tokenDeleted ? 'toast.writeTokenRemoved' : 'toast.writeTokenKept'));
   }));
-  // While the browser is open, Cancel stops waiting so the person can start again.
+  // Cancel applies through token exchange and connection verification.
   const waiting = async (cancel, action) => {
     $(cancel).hidden = false;
     try { return await action(); } finally { $(cancel).hidden = true; }

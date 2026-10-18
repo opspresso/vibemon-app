@@ -46,7 +46,7 @@ beforeEach(() => {
     settings: { getSnapshot: jest.fn(() => ({ version: 'test', hooks: [], vibemonConfig: { status: {} }, cloudDelivery: { status: 'verified' }, update: { status: 'current', version: null } })), invoke: jest.fn() },
     getActivity: jest.fn(() => [{ id: 'local' }]), getUsage: jest.fn(() => ({ codex: {} })),
     showCompanion: jest.fn(), reportError: jest.fn(), openExternal: jest.fn(),
-    signIn: { signIn: jest.fn(async (_url, scope, adopt) => adopt(`token-for-${scope}`)), cancel: jest.fn() }
+    signIn: { signal: new globalThis.AbortController().signal, signIn: jest.fn(async (_url, scope, adopt) => adopt(`token-for-${scope}`, ports.signIn.signal)), cancel: jest.fn() }
   };
   view = new WorkspaceWindow(ports);
   invoke = ipcMain.handle.mock.calls[0][1];
@@ -270,15 +270,26 @@ test('signs in through Web: a read token connects the workspace, a write token g
   ports.monitoring.configure.mockResolvedValue({ status: 'connected' });
   await expect(invoke(event, 'sign-in', ['https://vibemon.io'])).resolves.toEqual({ ok: true, value: { status: 'connected' } });
   expect(ports.signIn.signIn).toHaveBeenCalledWith('https://vibemon.io', 'read', expect.any(Function));
-  expect(ports.monitoring.configure).toHaveBeenCalledWith({ url: 'https://vibemon.io', token: 'token-for-read' });
+  expect(ports.monitoring.configure).toHaveBeenCalledWith({ url: 'https://vibemon.io', token: 'token-for-read' }, { signal: ports.signIn.signal });
   await invoke(event, 'sign-in-cloud-delivery', ['https://vibemon.io']);
   expect(ports.signIn.signIn).toHaveBeenCalledWith('https://vibemon.io', 'write', expect.any(Function));
-  expect(ports.settings.invoke).toHaveBeenCalledWith('configure-cloud-delivery', { url: 'https://vibemon.io', token: 'token-for-write' });
+  expect(ports.settings.invoke).toHaveBeenCalledWith('configure-cloud-delivery', { url: 'https://vibemon.io', token: 'token-for-write' }, { signal: ports.signIn.signal });
   await invoke(event, 'cancel-sign-in', []);
   expect(ports.signIn.cancel).toHaveBeenCalled();
   // A sign-in failure reaches the page as a sentence, without token values.
   ports.signIn.signIn.mockRejectedValueOnce(Object.assign(new Error('You selected Deny on VibeMon Web.'), { reason: 'denied' }));
   await expect(invoke(event, 'sign-in', ['https://vibemon.io'])).resolves.toEqual({ ok: false, error: 'You selected Deny on VibeMon Web.' });
+});
+
+test.each([
+  ['configure', [{ url: 'https://vibemon.io', token: 'manual' }]],
+  ['disconnect', []],
+  ['settings', ['configure-cloud-delivery', [{ url: 'https://vibemon.io', token: 'manual' }]]],
+  ['settings', ['disconnect-cloud-delivery', []]]
+])('%s cancels an unfinished sign-in before changing a connection', async (command, args) => {
+  open();
+  await invoke(event, command, args);
+  expect(ports.signIn.cancel).toHaveBeenCalledTimes(1);
 });
 
 
