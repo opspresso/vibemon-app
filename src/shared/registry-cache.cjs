@@ -26,7 +26,8 @@ const bundledStates = require('./data/states.json');
 const bundledCharacters = require('./data/characters.json');
 const bundledImageFiles = Object.values(bundledCharacters.characters).map(character => character.image);
 
-const STATIC_BASE_URL = (process.env.VIBEMON_STATIC_URL || 'https://vibemon.io/static').replace(/\/+$/, '');
+// Fixed: the character window CSP (src/index.html) allows only this origin for images and data.
+const STATIC_BASE_URL = 'https://vibemon.io/static';
 
 // Engine drawing capabilities: unknown values are clamped to these.
 const EYE_TYPES = new Set(['normal', 'glasses', 'blink', 'happy']);
