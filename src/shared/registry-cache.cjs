@@ -30,16 +30,11 @@ const bundledImageFiles = Object.values(bundledCharacters.characters).map(charac
 const STATIC_BASE_URL = 'https://vibemon.io/static';
 
 // Engine drawing capabilities: unknown values are clamped to these.
-const EYE_TYPES = new Set(['normal', 'glasses', 'blink', 'happy']);
-const EFFECTS = new Set(['none', 'sparkle', 'thinking', 'question', 'zzz', 'exclamation']);
+const { EYE_TYPES, EFFECTS, HEX_COLOR, THEME_SLOTS } = require('./registry-rules.cjs');
 
-const HEX_COLOR = /^#[0-9A-Fa-f]{6}$/;
 const REGISTRY_NAME = /^[a-z0-9_-]{1,32}$/;
 const IMAGE_FILE = /^[a-z0-9_-]{1,64}\.png$/;
 const MAX_TEXT_LENGTH = 32;
-
-// Palette slots the 3D engine paints (monster-states.js DEFAULT_THEME).
-const THEME_SLOTS = ['body', 'belly', 'accent', 'eye', 'blush', 'flame'];
 
 const REQUIRED_STATES = Object.keys(bundledStates.states);
 

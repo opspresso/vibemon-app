@@ -4,19 +4,15 @@
 import { readFileSync, readdirSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
+import rules from '../src/shared/registry-rules.cjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const DATA = join(ROOT, 'src/shared/data');
 const CHARACTERS = join(ROOT, 'src/assets/characters');
 
-// Values with an engine drawing branch (vibemon-engine.js drawEyeType/drawEffect).
-const EYE_TYPES = new Set(['normal', 'glasses', 'blink', 'happy']);
-const EFFECTS = new Set(['none', 'sparkle', 'thinking', 'question', 'zzz', 'exclamation']);
-const HEX_COLOR = /^#[0-9A-Fa-f]{6}$/;
+const { EYE_TYPES, EFFECTS, HEX_COLOR, THEME_SLOTS: THEME_KEYS } = rules;
 const CANVAS = 128;
 const { CHARACTER_IMAGE_SIZES } = JSON.parse(readFileSync(join(DATA, 'constants.json'), 'utf8'));
-// Palette slots the 3D rig paints (DEFAULT_THEME in monster-states.js).
-const THEME_KEYS = ['body', 'belly', 'accent', 'eye', 'blush', 'flame'];
 
 const errors = [];
 const check = (ok, message) => { if (!ok) errors.push(message); };
