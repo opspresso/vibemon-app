@@ -120,8 +120,10 @@ CODEX_SESSIONS_DIR = str(
     Path(os.environ.get("CODEX_HOME") or "~/.codex").expanduser() / "sessions"
 )
 
-# Desktop launch configuration
-DESKTOP_LAUNCH_WAIT_SECONDS = 3
+# Desktop launch: wait until /health answers, within the 10-second hook timeout.
+DESKTOP_LAUNCH_DEADLINE_SECONDS = 6
+DESKTOP_LAUNCH_POLL_SECONDS = 0.2
+DESKTOP_HEALTH_TIMEOUT_SECONDS = 1
 
 
 @dataclass(frozen=True)
@@ -636,10 +638,10 @@ def send_http_post(
         return False, None
 
 
-def send_http_get(url: str, endpoint: str) -> tuple[bool, str | None]:
+def send_http_get(url: str, endpoint: str, timeout: float = HTTP_TIMEOUT_SECONDS) -> tuple[bool, str | None]:
     """Send HTTP GET request."""
     try:
-        with urlopen(f"{url.rstrip('/')}{endpoint}", timeout=HTTP_TIMEOUT_SECONDS) as response:
+        with urlopen(f"{url.rstrip('/')}{endpoint}", timeout=timeout) as response:
             return True, response.read().decode("utf-8")
     except (URLError, TimeoutError, OSError):
         return False, None
@@ -929,9 +931,9 @@ def send_reboot() -> bool:
 # ============================================================================
 
 
-def is_monitor_running(url: str) -> bool:
+def is_monitor_running(url: str, timeout: float = HTTP_TIMEOUT_SECONDS) -> bool:
     """Check if monitor is running."""
-    success, _ = send_http_get(url, "/health")
+    success, _ = send_http_get(url, "/health", timeout)
     return success
 
 
@@ -940,8 +942,11 @@ def show_monitor_window(url: str) -> None:
     send_http_post(url, "/show")
 
 
-def launch_desktop() -> bool:
-    """Launch an installed desktop package without downloading software."""
+def launch_desktop(url: str) -> bool:
+    """Launch an installed desktop package without downloading software.
+
+    Returns True when the App at `url` answers /health before the deadline.
+    """
     try:
         if IS_WINDOWS:
             roots = [
@@ -964,17 +969,32 @@ def launch_desktop() -> bool:
             debug_log("Start the Desktop App manually on this platform")
             return False
 
-        subprocess.Popen(
+        process = subprocess.Popen(
             command,
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
             **kwargs,
         )
-        time.sleep(DESKTOP_LAUNCH_WAIT_SECONDS)
-        return True
     except OSError as e:
         debug_log(f"Failed to launch Desktop App: {e}")
         return False
+    return wait_for_desktop(url, process)
+
+
+def wait_for_desktop(url: str, process: subprocess.Popen) -> bool:
+    """Poll /health until it answers, the launcher fails, or the deadline passes."""
+    deadline = time.monotonic() + DESKTOP_LAUNCH_DEADLINE_SECONDS
+    while True:
+        if is_monitor_running(url, DESKTOP_HEALTH_TIMEOUT_SECONDS):
+            return True
+        # macOS `open` exits nonzero when VibeMon is not installed; nothing will answer then.
+        if process.poll() not in (None, 0):
+            debug_log("Desktop App launch failed")
+            return False
+        if time.monotonic() >= deadline:
+            debug_log("Desktop App did not answer /health before the deadline")
+            return False
+        time.sleep(DESKTOP_LAUNCH_POLL_SECONDS)
 
 
 def get_desktop_url(http_urls: tuple[str, ...]) -> str | None:
@@ -992,7 +1012,7 @@ def prepare_desktop() -> None:
     if desktop_url and config.auto_launch:
         if not is_monitor_running(desktop_url):
             debug_log("Desktop App not running, launching...")
-            launch_desktop()
+            launch_desktop(desktop_url)
         show_monitor_window(desktop_url)
 
 
