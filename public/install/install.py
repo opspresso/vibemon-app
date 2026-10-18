@@ -222,13 +222,6 @@ def ask_yes_no(question: str, default: bool = True, unattended: bool = None) -> 
         print("Please answer 'y' or 'n'")
 
 
-def mask_token(token: str) -> str:
-    """Mask a token, showing only first 4 and last 4 characters."""
-    if not token or len(token) <= 8:
-        return "****"
-    return f"{token[:4]}{'*' * (len(token) - 8)}{token[-4:]}"
-
-
 TOKEN_PATTERN = re.compile(r"^vm_[a-f0-9]{60}$")
 
 

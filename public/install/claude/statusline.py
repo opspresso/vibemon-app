@@ -8,11 +8,9 @@ from __future__ import annotations
 
 import json
 import os
-import re
 import subprocess
 import sys
 import time
-from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -152,8 +150,8 @@ def detach_stdio() -> None:
     Claude Code captures the statusline by reading this process's stdout until
     EOF. A forked child inherits that same fd, so the pipe won't reach EOF
     until the child also closes it — even after the parent has already
-    exited. Without this, a slow child (lock contention in save_to_cache, or
-    the claude -p "/usage" subprocess) stalls the statusline itself.
+    exited. Without this, a slow child (lock contention in save_to_cache)
+    stalls the statusline itself.
     """
     try:
         devnull_fd = os.open(os.devnull, os.O_RDWR)
@@ -495,56 +493,6 @@ def build_usage_segment(cache: dict[str, Any] | None) -> str:
     return f"{C_CYAN}📊{C_RESET} " + " ".join(seg)
 
 
-_MONTHS = {
-    "jan": 1, "feb": 2, "mar": 3, "apr": 4, "may": 5, "jun": 6,
-    "jul": 7, "aug": 8, "sep": 9, "oct": 10, "nov": 11, "dec": 12,
-}
-
-
-def parse_reset_time(resets: str) -> float | None:
-    """Parse a `/usage` reset string into a local epoch timestamp.
-
-    Handles forms like "Jun 12 at 3:20pm (Asia/Seoul)" and "Jun 13 at 2am ...".
-    The trailing timezone label is ignored: `/usage` already renders the clock
-    in the user's local zone, so a naive local datetime is correct. The year is
-    inferred (rolled forward across a year boundary). Returns None if
-    unparseable.
-    """
-    if not resets:
-        return None
-
-    m = re.search(
-        r"([A-Za-z]{3})[a-z]*\s+(\d{1,2})\s+at\s+(\d{1,2})(?::(\d{2}))?\s*([AaPp][Mm])",
-        resets,
-    )
-    if not m:
-        return None
-
-    month = _MONTHS.get(m.group(1).lower())
-    if not month:
-        return None
-
-    day = int(m.group(2))
-    hour = int(m.group(3))
-    minute = int(m.group(4) or 0)
-    meridiem = m.group(5).lower()
-    if meridiem == "pm" and hour != 12:
-        hour += 12
-    elif meridiem == "am" and hour == 12:
-        hour = 0
-
-    now = datetime.now()
-    for year in (now.year, now.year + 1):
-        try:
-            dt = datetime(year, month, day, hour, minute)
-        except ValueError:
-            return None
-        # Use this year's date unless it's well in the past (year rollover).
-        if (dt - now).total_seconds() >= -86400:
-            return dt.timestamp()
-    return None
-
-
 def format_usage_reset(cache: dict[str, Any] | None) -> str:
     """Render time remaining until the session usage window resets (⏳).
 
@@ -557,11 +505,9 @@ def format_usage_reset(cache: dict[str, Any] | None) -> str:
         return ""
 
     resets_at = session.get("resets_at")
-    target = float(resets_at) if isinstance(resets_at, (int, float)) else None
-    if target is None:
-        target = parse_reset_time(session.get("resets", ""))
-    if target is None:
+    if not isinstance(resets_at, (int, float)):
         return ""
+    target = float(resets_at)
 
     remaining = int(target - time.time())
     # Reset windows are at most days away; a far-future value means the date
@@ -791,8 +737,8 @@ def render_statusline(data: dict) -> None:
     # payload (Claude Code >= v2.1.80, always fresh, no subprocess). Persist
     # it to the usage cache (under the "claude" key) so hooks/vibemon.py
     # (which reads the file, not this process's stdin) also sees the
-    # up-to-date value. Fall back to the claude -p "/usage" subprocess cache
-    # for older Claude Code versions.
+    # up-to-date value. Older Claude Code versions fall back to the shared
+    # usage cache, which usage.py refreshes from the usage API.
     usage_cache = usage_from_rate_limits(data)
     if usage_cache is not None:
         save_usage_cache({"claude": usage_cache})

@@ -306,8 +306,7 @@ def get_codex_context_usage(data: dict[str, Any]) -> float | None:
 
 def _resets_in_minutes(entry: dict[str, Any]) -> int | None:
     """Minutes remaining until a usage bucket's `resets_at` (epoch seconds),
-    or None if that bucket has no resets_at (e.g. populated by the older
-    `claude -p "/usage"` subprocess fallback, which only has a display string).
+    or None if that bucket has no resets_at.
     """
     resets_at = entry.get("resets_at")
     if not is_finite_number(resets_at):
@@ -365,8 +364,7 @@ def get_usage_metadata() -> dict[str, Any]:
     """Get Claude plan-usage percentages from the shared usage cache.
 
     usage.py/statusline.py cache plan usage (from the statusline payload's
-    official `rate_limits` field, Anthropic's usage API, or a `claude -p
-    "/usage"` subprocess as fallback) next to the project cache
+    official `rate_limits` field or Anthropic's usage API) next to the project cache
     (~/.vibemon/cache/usage.json), under the "claude" key. Returns {usage5h,
     usageWeek, usage5hResetsIn, usageWeekResetsIn} for the 5-hour session
     window and the weekly (all-models) window, plus {usageWeekModel,
@@ -1232,11 +1230,10 @@ def run(
             argv_event = cmd
 
     if os.environ.get("VIBEMON_SUPPRESS_HOOKS") == "1":
-        # Set by VibeMon's own usage-refresher when it spawns
-        # `claude -p "/usage"` to refresh the plan-usage cache — that
-        # subprocess is a real Claude Code session and would otherwise report
-        # status here under a ".vibemon" project (its cwd). Checked only after
-        # argv dispatch so explicit `--status`/`--lock` commands still run.
+        # Set on the processes that VibeMon's usage refresh spawns
+        # (usage-refresher.cjs, account_refresh.py), so a tool session they
+        # start never reports status. Checked only after argv dispatch so
+        # explicit `--status`/`--lock` commands still run.
         debug_log("Hook suppressed (VIBEMON_SUPPRESS_HOOKS=1)")
         return
 
@@ -1273,8 +1270,7 @@ def process_event(data, event_name, event_state_map, build_payload, start_event,
     cwd = cwd if isinstance(cwd, str) else ""
     transcript_path = transcript_path if isinstance(transcript_path, str) else ""
 
-    # A session working inside ~/.vibemon is VibeMon's own plumbing (the
-    # `claude -p "/usage"` subprocess usage.py spawns with that cwd), never a
+    # A session working inside ~/.vibemon is VibeMon's own plumbing, never a
     # user project. Skip reporting regardless of VIBEMON_SUPPRESS_HOOKS so
     # spawners that don't set the env var (older Desktop apps, manual
     # usage.py runs) can't surface a phantom ".vibemon" project.
