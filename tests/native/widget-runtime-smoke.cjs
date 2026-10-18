@@ -14,7 +14,7 @@ async function main() {
   const workers = [];
   const fixture = path.join(root, 'worker');
   const executableIn = bundlePath => path.join(bundlePath, 'Contents/PlugIns/VibeMonWidgets.appex/Contents/MacOS/VibeMonWidgets');
-  // Like an upgrade: a new file replaces the executable, which sets a new ctime.
+  // Like an upgrade: a new file with a new inode replaces the executable.
   function install(bundlePath) {
     const executable = executableIn(bundlePath);
     fs.mkdirSync(path.dirname(executable), { recursive: true });
@@ -26,8 +26,6 @@ async function main() {
     const bundlePath = path.join(root, name);
     const executable = executableIn(bundlePath);
     install(bundlePath);
-    // `ps` reports whole seconds; start after that window so the install time is unambiguous.
-    await new Promise(resolve => setTimeout(resolve, 1100));
     const child = spawn(executable, [], { stdio: ['ignore', 'pipe', 'ignore'] });
     const done = once(child, 'exit');
     workers.push({ child, done });
@@ -57,7 +55,7 @@ async function main() {
     assert.equal(other.child.exitCode, null);
     assert.equal(other.child.signalCode, null);
     assert(process.kill(other.child.pid, 0));
-    console.log('PASS: only a worker older than its installed executable restarts; the other App keeps its worker, including paths with spaces');
+    console.log('PASS: only a worker that runs a replaced executable restarts; the other App keeps its worker, including paths with spaces');
   } finally {
     for (const { child } of workers) if (child.exitCode === null && child.signalCode === null) child.kill('SIGTERM');
     await Promise.allSettled(workers.map(({ done }) => done));
