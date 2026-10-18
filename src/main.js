@@ -417,8 +417,23 @@ async function widgetReloader() {
   }
 }
 
+/** Publishes the widget feed once the widget runtime is ready. Startup does not wait for it. */
+async function startWidgets() {
+  // feed.mjs is an ES module that shares the renderer's display rules.
+  const { buildWidgetFeed } = require('./widgets/feed.mjs');
+  const reload = await widgetReloader();
+  if (quitting) return;
+  widgetPublisher = new WidgetPublisher({
+    collect: () => ({ cloud: monitoringClient.snapshot(), states: windowManager.getRegisteredStates(), usage: usageByAccount(getUsageSnapshot()) }),
+    build: input => buildWidgetFeed({ ...input, locale: currentLocale() }),
+    reload,
+    artwork: character => CHARACTER_CONFIG[character]?.image
+  });
+  widgetPublisher.schedule();
+}
+
 // App lifecycle
-app.whenReady().then(async () => {
+app.whenReady().then(() => {
   // The OS languages are complete only after 'ready'; every later text uses them.
   initLocale(app);
   // Hide Dock icon on macOS (tray-only app)
@@ -472,22 +487,7 @@ app.whenReady().then(async () => {
   });
   monitoringClient.start();
 
-  if (widgetsSupported()) {
-    // feed.mjs is an ES module that shares the renderer's display rules.
-    const { buildWidgetFeed } = require('./widgets/feed.mjs');
-    const reload = await widgetReloader();
-    if (quitting) return;
-    widgetPublisher = new WidgetPublisher({
-      collect: () => ({ cloud: monitoringClient.snapshot(), states: windowManager.getRegisteredStates(), usage: usageByAccount(getUsageSnapshot()) }),
-      build: input => buildWidgetFeed({ ...input, locale: currentLocale() }),
-      reload,
-      artwork: character => CHARACTER_CONFIG[character]?.image
-    });
-    widgetPublisher.schedule();
-  }
-
-
-  // Start HTTP server
+  // A hook that launched the App waits for /health, so the server starts before slower setup.
   httpServer = new HttpServer({
     windowManager, app, ingress: statusIngress, webSignIn, onStateUpdate: notifyStatusChange,
     onError: err => {
@@ -497,6 +497,8 @@ app.whenReady().then(async () => {
     }
   });
   httpServer.start();
+
+  if (widgetsSupported()) startWidgets();
 
   hookInstaller.onStateChanged = () => {
     workspaceWindow?.notify('settings');
