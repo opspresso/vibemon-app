@@ -250,10 +250,6 @@ function showCharacterAgain() {
 }
 
 // IPC handlers
-ipcMain.handle('get-version', () => {
-  return app.getVersion();
-});
-
 // Character registry for the renderer's engine setup (canonical:
 // the public App distribution, resolved by registry-cache.cjs — cached remote copy or
 // bundled fallback). Only images absent from the package require a download.

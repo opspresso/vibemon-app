@@ -137,4 +137,4 @@ class WebSignIn {
   }
 }
 
-module.exports = { WebSignIn, SignInError, CLIENT_ID };
+module.exports = { WebSignIn, SignInError };

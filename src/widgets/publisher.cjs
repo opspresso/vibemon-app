@@ -181,4 +181,4 @@ function widgetsSupported(platform = process.platform, release = os.release()) {
   return platform === 'darwin' && Number.parseInt(release, 10) >= 23;
 }
 
-module.exports = { WidgetPublisher, writeFeedFile, usageByAccount, widgetsSupported, FEED_PATH };
+module.exports = { WidgetPublisher, writeFeedFile, usageByAccount, widgetsSupported };

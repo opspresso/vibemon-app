@@ -186,10 +186,7 @@ module.exports = {
   validateProject,
   validateMemory,
   validateUsage,
-  validateResetMinutes,
-  validateUsageLabel,
   validateTool,
   validateModel,
-  validateTerminalId,
   validateStatusPayload
 };

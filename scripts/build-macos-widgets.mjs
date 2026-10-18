@@ -11,7 +11,7 @@ import { fileURLToPath } from 'node:url';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
 const output = fileURLToPath(new URL('../build/macos-widgets/', import.meta.url));
-export const WIDGET_PRODUCTS = `${output}Release/`;
+const WIDGET_PRODUCTS = `${output}Release/`;
 
 export function buildMacosWidgets() {
   if (process.platform !== 'darwin') throw new Error('macOS widgets build only on macOS');

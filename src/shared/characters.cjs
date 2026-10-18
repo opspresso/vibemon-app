@@ -21,13 +21,8 @@ const CHARACTER_CONFIG = Object.fromEntries(
 
 const CHARACTER_NAMES = Object.keys(CHARACTER_CONFIG);
 
-const CHARACTER_COLORS = Object.fromEntries(
-  CHARACTER_NAMES.map(name => [name, CHARACTER_CONFIG[name].color])
-);
-
 module.exports = {
   DEFAULT_CHARACTER,
   CHARACTER_CONFIG,
-  CHARACTER_NAMES,
-  CHARACTER_COLORS
+  CHARACTER_NAMES
 };

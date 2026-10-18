@@ -451,7 +451,7 @@ test('late candidate checks cannot overwrite a newer choice or undo disconnect',
   const cancelled = client.configure({ url: 'https://old.example', token: rawToken });
   await client.disconnect(); complete(okResponse({ sources: [] }));
   await expect(cancelled).rejects.toThrow('connection changed');
-  expect(client.hasToken()).toBe(false);
+  expect(client.snapshot().tokenConfigured).toBe(false);
 });
 test('the credential adapter commits encrypted token and origin together', () => {
   const storage = { set: jest.fn(), get: jest.fn() };

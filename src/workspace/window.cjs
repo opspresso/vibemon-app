@@ -16,7 +16,7 @@ const LANGUAGE_CHANNEL = 'workspace:language';
 // The native window paints this color before the page loads, so it follows the OS theme like the page.
 const BACKGROUND = colorPair(readTokens(), 'background');
 const backgroundColor = () => nativeTheme.shouldUseDarkColors ? BACKGROUND.dark : BACKGROUND.light;
-const WEB_PATHS = { account: '/account', resources: '/resources/new', agents: '/coding-accounts/new', docs: '/docs', dashboard: '/dashboard' };
+const WEB_PATHS = { account: '/account', resources: '/resources/new', agents: '/coding-accounts/new', docs: '/docs' };
 
 class WorkspaceWindow {
   constructor({ monitoring, settings, signIn, getActivity, getUsage, showCompanion, reportError, openExternal = url => shell.openExternal(url) }) {
@@ -61,7 +61,7 @@ class WorkspaceWindow {
     }
     this.dirty.clear();
     const areas = attentionAreas(this.cache.cloud, this.cache.settings);
-    return { ...this.cache, attention: { ...areas, notices: attentionNotices(areas) }, route: this.route, platform: process.platform };
+    return { ...this.cache, attention: { ...areas, notices: attentionNotices(areas) }, route: this.route };
   }
 
   notify(section) {
@@ -194,4 +194,4 @@ class WorkspaceWindow {
     this.window = null;
   }
 }
-module.exports = { WorkspaceWindow, ROUTES };
+module.exports = { WorkspaceWindow };

@@ -31,7 +31,7 @@ export const sourceType = source => source.isAccount ? `${providerName(source.pr
 export const metricName = metric => metricLabel(metric.key, metric.label, t);
 export const needsAttention = source => source.needsAttention;
 
-export function createMetric() {
+function createMetric() {
   const node = el('div', undefined, 'metric');
   const label = el('div', undefined, 'metric-line');
   const name = el('span', undefined, 'metric-label');
@@ -54,7 +54,7 @@ export function createMetric() {
   return node;
 }
 /** `metric.resetAt` is the time at which a plan usage limit resets, on the same clock as `now`. */
-export function updateMetric(node, { metric, value, label, precise = false, now = Date.now() }) {
+function updateMetric(node, { metric, value, label, precise = false, now = Date.now() }) {
   const { name, value: output, amount, unit, bar, fill, reset, resetPrefix, resetTime, resetSuffix } = node._parts;
   text(name, label || metricName(metric));
   text(amount, reading(value, metric.unit, precise, '—', false));

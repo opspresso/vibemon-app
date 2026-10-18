@@ -529,12 +529,10 @@ describe('HookInstaller', () => {
       mockToolMissing(target);
       hookInstaller.dismiss([target]);
       expect(hookInstaller.getMissingTools()).toEqual([]);
-      expect(hookInstaller.hasDismissed()).toBe(true);
 
       hookInstaller.clearDismissed();
 
       expect(hookInstaller.isDismissed(target)).toBe(false);
-      expect(hookInstaller.hasDismissed()).toBe(false);
       expect(hookInstaller.getMissingTools().map(t => t.flag)).toEqual([target.flag]);
     });
 

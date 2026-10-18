@@ -45,7 +45,6 @@ class MonitoringClient extends EventEmitter {
   savedUrl() { return this.preferences.get('url') || DEFAULT_WEB_URL; }
   /** The saved Web address as a checked origin; throws when it is not allowed here. */
   savedOrigin() { return webOrigin(this.savedUrl(), this.allowLocalHttp); }
-  hasToken() { return this.credentials.has(); }
   currentTime() { return this.reportClock ? this.reportClock() : this.now(); }
   snapshot() {
     const now = this.currentTime();

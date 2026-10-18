@@ -77,7 +77,7 @@ test.each([
 
 test('snapshots expose safe installation fields, never credentials', () => {
   const { settings } = fixture();
-  const snapshot = settings.invoke('get-all');
+  const snapshot = settings.getSnapshot();
   expect(snapshot.hooks[0]).toMatchObject({ flag: '--codex', changed: true });
   expect(JSON.stringify(snapshot)).not.toContain('never expose');
   expect(snapshot.vibemonConfig).not.toHaveProperty('vibemon_token');
@@ -112,8 +112,8 @@ test('external links use known destinations and propagate launch failures', asyn
   const { settings, dependencies } = fixture();
   await expect(settings.invoke('open-external', 'file:///private')).rejects.toThrow();
   expect(dependencies.openExternal).not.toHaveBeenCalled();
-  await settings.invoke('open-external', 'docs');
-  expect(dependencies.openExternal).toHaveBeenCalledWith('https://vibemon.io/docs');
+  await settings.invoke('open-external', 'accounts');
+  expect(dependencies.openExternal).toHaveBeenCalledWith('https://vibemon.io/docs/coding-agents#keep-several-accounts-apart');
   dependencies.openExternal.mockRejectedValue(new Error('Browser unavailable'));
   await expect(settings.invoke('open-external', 'releases')).rejects.toThrow('Browser unavailable');
 });

@@ -519,14 +519,6 @@ class HookInstaller {
   }
 
   /**
-   * Whether "Don't Ask Again" is silencing any tool's automatic prompt.
-   * @returns {boolean}
-   */
-  hasDismissed() {
-    return this.store.get('dismissed').length > 0 || this.sessionSuppressed.size > 0;
-  }
-
-  /**
    * Undo every "Don't Ask Again", so the periodic check offers those tools
    * again. Without this the choice is permanent — it is stored on disk and
    * nothing ever removed a flag from it — and a user who picks it by mistake

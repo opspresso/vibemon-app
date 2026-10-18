@@ -8,7 +8,7 @@
 const fs = require('fs');
 const path = require('path');
 const {
-  DEFAULT_CHARACTER, CHARACTER_CONFIG, CHARACTER_NAMES, CHARACTER_COLORS
+  DEFAULT_CHARACTER, CHARACTER_CONFIG, CHARACTER_NAMES
 } = require('../src/shared/characters.cjs');
 
 describe('character registry', () => {
@@ -49,12 +49,6 @@ describe('character registry', () => {
     for (const name of CHARACTER_NAMES) {
       const imagePath = path.join(__dirname, '..', 'src', 'assets', 'characters', CHARACTER_CONFIG[name].image);
       expect(fs.existsSync(imagePath)).toBe(true);
-    }
-  });
-
-  test('CHARACTER_COLORS is derived from the registry', () => {
-    for (const name of CHARACTER_NAMES) {
-      expect(CHARACTER_COLORS[name]).toBe(CHARACTER_CONFIG[name].color);
     }
   });
 });

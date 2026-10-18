@@ -1354,14 +1354,6 @@ class CharacterWindowManager {
   }
 
   /**
-   * Get all available always on top modes
-   * @returns {Object}
-   */
-  getAlwaysOnTopModes() {
-    return ALWAYS_ON_TOP_MODES;
-  }
-
-  /**
    * Set always on top mode and update the window
    * @param {'active-only'|'all'|'disabled'} mode
    */
