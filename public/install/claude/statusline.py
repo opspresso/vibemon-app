@@ -437,12 +437,14 @@ def build_progress_bar(percent_str: str | int | float, width: int = 10) -> str:
     filled = round(percent_value * width / 100)
     empty = width - filled
 
-    # Build the bar - filled segments use one color by total ratio, empty in dim
-    if percent_value > 90:
+    # Build the bar - filled segments use one color by total ratio, empty in dim.
+    # Same inclusive steps as barColor() in the App's vibemon-bubble.js: 90 and 70
+    # are the plan usage tone thresholds of its monitoring.json, which hooks do not ship.
+    if percent_value >= 90:
         color = C_RED
-    elif percent_value > 70:
+    elif percent_value >= 70:
         color = C_ORANGE
-    elif percent_value > 50:
+    elif percent_value >= 50:
         color = C_YELLOW
     else:
         color = C_GREEN

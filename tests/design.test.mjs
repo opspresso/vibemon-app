@@ -9,7 +9,7 @@ import { widgetPalette } from '../scripts/generate-widget-palette.mjs';
 import tokens from '../src/shared/design/tokens.cjs';
 import fixtures from '../src/shared/monitoring/cases.json' with { type: 'json' };
 import states from '../src/shared/data/states.json' with { type: 'json' };
-import { pickTextColor, hexToRgb } from '../src/shared/bubble/vibemon-bubble.js';
+import { barColor, pickTextColor, hexToRgb } from '../src/shared/bubble/vibemon-bubble.js';
 
 test('every shared speech-bubble state has readable text on its opaque background', () => {
   const luminance = hex => {
@@ -28,6 +28,9 @@ test('renderer labels match the validated canonical policy without network acces
 test('the macOS widget palette matches the shared design tokens', () => widgetPalette());
 test('measurement precision follows the shared device contract', () => {
   for (const { value, unit, expected } of fixtures.measurements) assert.equal(formatMeasurement(value, unit, false, '—', false), expected);
+});
+test('bubble bars change color at the inclusive usage tone thresholds', () => {
+  assert.deepEqual([49.9, 50, 69.9, 70, 89.9, 90].map(barColor), ['#00AA00', '#FFCC00', '#FFCC00', '#FF8800', '#FF8800', '#FF4444']);
 });
 test('metric tones follow the shared device contract', () => {
   for (const { key, value, expected } of fixtures.metricTones) assert.equal(metricTone(key, value), expected, `${key} ${value}`);

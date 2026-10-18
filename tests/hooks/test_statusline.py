@@ -91,3 +91,10 @@ class UsageSegmentTest(unittest.TestCase):
         self.assertIn("S ", segment)
         self.assertIn("W ", segment)
         self.assertNotIn("F ", segment)
+
+
+class BarColorTest(unittest.TestCase):
+    def test_tone_thresholds_are_inclusive_like_the_app(self):
+        for percent, color in ((49, statusline.C_GREEN), (50, statusline.C_YELLOW), (70, statusline.C_ORANGE), (90, statusline.C_RED)):
+            self.assertTrue(statusline.build_progress_bar(percent).startswith(color), percent)
+

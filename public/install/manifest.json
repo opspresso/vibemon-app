@@ -19,7 +19,7 @@
     "vibemon/project_context.py": "8621372543a6864fd9fc06caad054a7d9b48eafb9fafdf6c55d59314f400c1c7",
     "vibemon/session_activity.py": "fc49a6dd18a7de07ed05859493cb6fb9ba1be463033a00345ced1a3297d366a1",
     "vibemon/vibemon_core.py": "0acf80c1174f0716c3a6accd095d859cfb3932f92c80c34d8b8dd5b6086dc36b",
-    "claude/statusline.py": "6d8f514775534d8f88a7c73321fe5f352c884c1735fa71f824ee45856babe655",
+    "claude/statusline.py": "9f8328e4fce415197932498c567ccea0d52ad2aa3d4e74db1f9adfa8fa9bd56d",
     "claude/hooks/vibemon.py": "94fd4f4873a383a69656875989c970e4274e2e5d0b809aa27f240ed862ad7940",
     "codex/hooks/vibemon.py": "e549393469c9a3be6689b7fa52c659288832edf5802bd77f676271c19f0181c0",
     "kiro/hooks/vibemon.py": "5820b804f4709eeaef507e26f1cac605fbfc6b320c71ad5b95eb2d241c368989",
