@@ -6,25 +6,24 @@ const http = require('http');
 const { URL } = require('url');
 const { HTTP_PORT, MAX_PAYLOAD_SIZE, RATE_LIMIT, RATE_WINDOW_MS, HTTP_CLOSE_TIMEOUT_MS, CHARACTER_NAMES } = require('../shared/config.cjs');
 const { setCorsHeaders, isAllowedOrigin, isAllowedHost, hasJsonContentType, sendJson, sendError, parseJsonBody } = require('./http-utils.cjs');
-const { StatusIngress } = require('../application/status-ingress.cjs');
 const { t, currentLocale } = require('../shared/i18n/locale.cjs');
 
 // Rate limiting: cleanup when the per-IP map exceeds this size
 const RATE_CLEANUP_THRESHOLD = 100;
 
 class HttpServer {
-  constructor(stateManager, windowManager, app, ingress) {
+  /**
+   * @param {object} ports
+   * @param {object} ports.windowManager
+   * @param {object} ports.app
+   * @param {import('../application/status-ingress.cjs').StatusIngress} ports.ingress POST /status use case
+   * @param {object|null} [ports.webSignIn] receives GET /auth/callback
+   * @param {(menuOnly: boolean) => void} [ports.onStateUpdate] tray refresh after close and character-lock changes
+   * @param {(error: Error) => void} [ports.onError] server errors, such as EADDRINUSE
+   */
+  constructor({ windowManager, app, ingress, webSignIn = null, onStateUpdate = () => {}, onError = () => {} }) {
+    Object.assign(this, { windowManager, app, ingress, webSignIn, onStateUpdate, onError });
     this.server = null;
-    this.stateManager = stateManager;
-    this.windowManager = windowManager;
-    this.app = app;
-    this.onStateUpdate = null;  // Callback for menu/icon updates
-    this.onProjectSwitched = null;  // Callback: (oldProjectId) => void, window retargeted to another project
-    this.onError = null;        // Callback for server errors
-    this.ingress = ingress || new StatusIngress(stateManager, windowManager, {
-      onProjectSwitched: id => this.onProjectSwitched?.(id),
-      onStateUpdate: menuOnly => this.onStateUpdate?.(menuOnly)
-    });
 
     // Rate limiting state
     this.requestCounts = new Map();  // IP -> { count, resetTime }
@@ -85,10 +84,7 @@ class HttpServer {
       if (err.code === 'EADDRINUSE') {
         console.error(`Port ${HTTP_PORT} is already in use`);
       }
-      // Notify error callback if registered
-      if (this.onError) {
-        this.onError(err);
-      }
+      this.onError(err);
     });
 
     this.server.listen(HTTP_PORT, '127.0.0.1', () => {
@@ -273,10 +269,7 @@ class HttpServer {
       return;
     }
 
-    // Update tray
-    if (this.onStateUpdate) {
-      this.onStateUpdate(true);  // Menu only
-    }
+    this.onStateUpdate(true);  // Menu only
 
     sendJson(res, 200, {
       success: true,
@@ -345,10 +338,7 @@ class HttpServer {
 
     this.windowManager.setCharacterLock(character);
 
-    // Update tray menu
-    if (this.onStateUpdate) {
-      this.onStateUpdate(true);
-    }
+    this.onStateUpdate(true);  // Menu only
 
     sendJson(res, 200, {
       success: true,

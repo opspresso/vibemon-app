@@ -168,11 +168,10 @@ class VibemonConfigManager {
   /**
    * Create or repair ~/.vibemon/config.json so its http_urls includes this
    * app, without running the python installer. Existing fields (other
-   * http_urls entries, an already-set vibemon_token, etc.) are preserved.
-   * @param {string|null} token - only used to fill an empty vibemon_token
+   * http_urls entries, vibemon_token, etc.) are preserved.
    * @returns {boolean} whether the file was created/modified
    */
-  ensureDesktopUrl(token) {
+  ensureDesktopUrl() {
     const status = this.getStatus();
     if (status.exists && status.hasDesktopUrl) {
       return false;
@@ -198,11 +197,6 @@ class VibemonConfigManager {
     const urls = new Set(Array.isArray(config.http_urls) ? config.http_urls : []);
     urls.add(DESKTOP_HTTP_URL);
     config.http_urls = [...urls];
-
-    if (!config.vibemon_token && token) {
-      config.vibemon_token = token;
-    }
-
     return this.persist(config);
   }
 

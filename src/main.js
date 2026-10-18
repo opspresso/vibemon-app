@@ -485,14 +485,14 @@ app.whenReady().then(async () => {
 
 
   // Start HTTP server
-  httpServer = new HttpServer(stateManager, windowManager, app, statusIngress);
-  httpServer.onStateUpdate = notifyStatusChange;
-  httpServer.webSignIn = webSignIn;
-  httpServer.onError = (err) => {
-    if (err.code === 'EADDRINUSE') {
-      dialog.showErrorBox(t('dialog.portConflict.title'), t('dialog.portConflict.message', { port: HTTP_PORT }));
+  httpServer = new HttpServer({
+    windowManager, app, ingress: statusIngress, webSignIn, onStateUpdate: notifyStatusChange,
+    onError: err => {
+      if (err.code === 'EADDRINUSE') {
+        dialog.showErrorBox(t('dialog.portConflict.title'), t('dialog.portConflict.message', { port: HTTP_PORT }));
+      }
     }
-  };
+  });
   httpServer.start();
 
   hookInstaller.onStateChanged = () => {
@@ -513,7 +513,7 @@ app.whenReady().then(async () => {
   // updates drifted ones; broken registrations surface in the tray badge and
   // Settings > Integrations.
   const runHookCheck = () => {
-    vibemonConfigManager.ensureDesktopUrl(null);
+    vibemonConfigManager.ensureDesktopUrl();
     hookInstaller.checkAndPrompt()
       .catch((err) => console.error('Hook check failed:', err));
     hookInstaller.updateChanged()

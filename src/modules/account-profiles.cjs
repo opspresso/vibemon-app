@@ -11,12 +11,6 @@ const snapshots = new Map();
 const plain = value => value && typeof value === 'object' && !Array.isArray(value);
 const text = (value, max) => typeof value === 'string' && value.trim() && value.length <= max && !/[\u0000-\u001f\u007f]/.test(value);
 
-function expandHome(value) {
-  if (value === '~') return os.homedir();
-  if (value.startsWith('~/') || value.startsWith('~\\')) return path.join(os.homedir(), value.slice(2));
-  return path.resolve(value);
-}
-
 function readLocalJson(filename, maximum = 4 * 1024 * 1024) {
   try {
     const stat = fs.statSync(filename);
@@ -59,4 +53,4 @@ function getAccountProfiles() {
   }).sort((a, b) => a.provider.localeCompare(b.provider) || a.account.displayName.localeCompare(b.account.displayName));
 }
 
-module.exports = { getAccountProfiles, readLocalJson, expandHome, REGISTRY_PATH };
+module.exports = { getAccountProfiles, readLocalJson, REGISTRY_PATH };

@@ -19,7 +19,8 @@ const path = require('path');
 const { spawn } = require('child_process');
 const { USAGE_REFRESH_MAX_AGE_SECONDS, USAGE_REFRESH_TIMEOUT_MS } = require('../shared/config.cjs');
 const { findPython, SPAWN_DEFAULTS } = require('./python-runtime.cjs');
-const { getUsageCachePath, expandHome } = require('./usage-cache-reader.cjs');
+const { getUsageCachePath } = require('./usage-cache-reader.cjs');
+const { expandHome } = require('../shared/home-path.cjs');
 
 const USAGE_SCRIPT_PATH = path.join(os.homedir(), '.vibemon', 'usage.py');
 

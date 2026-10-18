@@ -165,7 +165,7 @@ class WorkspaceSettings {
     });
 
     handle('repair-vibemon-config', () => {
-      this.vibemonConfigManager.ensureDesktopUrl(null);
+      this.vibemonConfigManager.ensureDesktopUrl();
       const result = this.getVibemonConfigView();
       if (!result.status.hasDesktopUrl) throw new Error(t('error.repairConfig'));
       this.notifyChanged();

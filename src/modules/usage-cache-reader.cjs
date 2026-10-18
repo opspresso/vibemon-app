@@ -10,7 +10,8 @@
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
-const { getAccountProfiles, readLocalJson, expandHome } = require('./account-profiles.cjs');
+const { getAccountProfiles, readLocalJson } = require('./account-profiles.cjs');
+const { expandHome } = require('../shared/home-path.cjs');
 const { USAGE_CACHE_STALE_SECONDS } = require('../shared/config.cjs');
 
 const VIBEMON_CONFIG_PATH = path.join(os.homedir(), '.vibemon', 'config.json');
@@ -154,4 +155,4 @@ function getUsageSnapshot(nowMs = Date.now()) {
   }));
 }
 
-module.exports = { getUsageCachePath, getUsageSnapshot, expandHome };
+module.exports = { getUsageCachePath, getUsageSnapshot };

@@ -21,7 +21,7 @@ const Store = require('electron-store');
 const { DOCS_BASE_URL, INSTALLER_SHA256, HOOK_DOWNLOAD_TIMEOUT_MS } = require('../shared/config.cjs');
 const { describeFailure } = require('../shared/install-result.cjs');
 const { findPython, SPAWN_DEFAULTS, IS_WINDOWS } = require('./python-runtime.cjs');
-const { expandHome } = require('./usage-cache-reader.cjs');
+const { expandHome } = require('../shared/home-path.cjs');
 
 // Tolerate an accidental trailing slash on the (env-overridable) base URL.
 const DOCS_BASE = DOCS_BASE_URL.replace(/\/+$/, '');
