@@ -16,7 +16,9 @@ Add as many widgets as you need, for example one per server and one per coding a
 1. Start VibeMon. The widgets read data that the App writes.
 2. Control-click the desktop and select **Edit Widgets**, or open Notification Center and select **Edit Widgets**.
 3. Search for **VibeMon**. Drag **Resource** or **Coding Agent** to the desktop or Notification Center.
-4. Control-click the new widget and select **Edit "Resource"** or **Edit "Coding Agent"**. Choose the item to show. Coding accounts are listed as provider plus short account ID, for example `Codex · 27e702a8`, with the account name and project names below. Each choice keeps its original full ID.
+4. Control-click the new widget and select **Edit "Resource"** or **Edit "Coding Agent"**. Choose the item to show. Coding accounts are listed as provider plus short account ID, for example `Codex · 27e702a8`, with the account name and project names below. The list includes a resource icon or agent character. Search by name, account ID, or project to narrow the choices. Each choice keeps its original full ID.
+
+If VibeMon is missing from the gallery, keep the App in `/Applications`, start it once, and reopen **Edit Widgets**. The widget extension is included with the macOS App; there is no separate widget installer.
 
 A new widget shows the first item until you choose one. Click a widget to open its page in the Dashboard.
 
@@ -45,7 +47,7 @@ A coding agent combines all projects of one provider account. The state of the p
 
 - VibeMon writes `~/.vibemon/widgets/feed.json` about one second after a change. Only your user account can read the file.
 - Each item includes its future states and reset times, so a widget changes to **Stale**, **Idle**, or **Inactive** and counts down to a reset on time without new data.
-- macOS limits how often widgets refresh. VibeMon asks for a refresh at once when an item appears or disappears or its state color changes, for example when a project starts to wait for input. Other changes, such as new metric values, refresh at most every 5 minutes.
+- macOS limits how often widgets refresh. VibeMon asks for a refresh at once when an item appears or disappears, its name or icon changes, or its state color changes, for example when a project starts to wait for input. Other changes, such as new metric values, refresh at most every 5 minutes.
 - The widget extension runs in the App Sandbox. It can read only `~/.vibemon/widgets/`. It has no network access and never receives tokens.
 
 ## Develop
@@ -61,10 +63,20 @@ A coding agent combines all projects of one provider account. The state of the p
 Requirements: Xcode 16 or later, selected with `xcode-select` or `DEVELOPER_DIR`.
 
 ```sh
-pnpm preview:widgets   # Build, then render every widget state (light, dark, approximate vibrant) to out/widgets/preview.png
+pnpm preview:widgets   # Build, then render with the extension's bundled images (light, dark, approximate vibrant)
+node scripts/verify-macos-widgets.mjs /Applications/VibeMon.app # Verify an installed or packaged App
 pnpm test:design       # Feed model tests and the palette drift check
 pnpm exec jest tests/widget-publisher.test.js tests/deep-link.test.js
 ```
+
+The package verifier checks the extension metadata, App/widget versions, URL scheme, reload module, three localizations, every registered character image, and the App icon. Its native tests check picker labels, search, images, saved choices, missing items, feed decoding, and timeline dates. It renders a second sheet using the packaged extension's images. These checks do not replace adding and editing a widget in the system gallery.
+
+To check the installed App in the macOS gallery manually:
+
+1. Search for **VibeMon** and check its App icon, **Resource**, and **Coding Agent** previews.
+2. Add each widget, edit it, and search for a specific resource or account. Check the icon, account ID, and project names.
+3. Close the editor. Confirm the selected item remains after reopening it, and that clicking the widget opens the Dashboard.
+4. Check focused and unfocused desktop appearance, then change the selected item's name or icon and confirm it refreshes. macOS controls the final refresh timing.
 
 Rules for changes:
 

@@ -20,15 +20,20 @@ const { CHARACTER_CONFIG } = require('../src/shared/characters.cjs');
 const { TOKEN, memoryStore, sources } = require('../tests/fixtures/workspace.cjs');
 
 const out = fileURLToPath(new URL('../out/widgets/', import.meta.url));
-const characters = fileURLToPath(new URL('../src/assets/characters/', import.meta.url));
 const now = Date.now();
 const locale = process.env.VIBEMON_LOCALE || 'en';
 
+// Two accounts of the same provider exercise generated IDs in the picker.
+const fixtureSources = sources(now).map(source => source.account?.provider === 'codex' ? {
+  ...source, account: { ...source.account, id: `auto:${(source.account.id === 'personal' ? '27e702a8' : '396c8f1c').repeat(8)}` }
+} : source);
 const products = buildMacosWidgets();
+// Rendering must use what the extension ships, not the source image folder.
+const characters = `${products}VibeMonWidgets.appex/Contents/Resources/characters/`;
 const client = new MonitoringClient({
   preferences: memoryStore(),
   credentials: { has: () => true, get: () => TOKEN, set() {}, clear() {} },
-  fetchImpl: async () => new Response(JSON.stringify({ serverTime: new Date(now).toISOString().replace(/\.\d{3}Z$/, 'Z'), sources: sources(now) })),
+  fetchImpl: async () => new Response(JSON.stringify({ serverTime: new Date(now).toISOString().replace(/\.\d{3}Z$/, 'Z'), sources: fixtureSources })),
   now: () => now
 });
 await client.configure({ url: 'https://vibemon.io', token: TOKEN });
