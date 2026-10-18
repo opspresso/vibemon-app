@@ -16,35 +16,37 @@ else:
     import fcntl
 
 
-DEFAULT_PROJECTS_CACHE = "~/.vibemon/cache/projects.json"
+def _home(environment: Mapping[str, str]) -> str:
+    return environment.get("HOME") or environment.get("USERPROFILE") or str(Path.home())
 
 
 def projects_cache_path(environment: Mapping[str, str] | None = None) -> str:
     """The shared projects cache path for every hook, statusline, and usage helper.
 
     VIBEMON_CACHE_PATH wins, then `cache_path` in ~/.vibemon/config.json, then
-    the default. A leading `~` expands to the home directory of `environment`.
+    ~/.vibemon/cache/projects.json. A leading `~` expands to the home directory
+    of `environment`. The home directory is read only when one of those needs
+    it; other paths are returned as given.
     """
     environment = os.environ if environment is None else environment
-    home = Path(environment.get("HOME") or environment.get("USERPROFILE") or str(Path.home()))
     configured = str(environment.get("VIBEMON_CACHE_PATH") or "").strip()
     if not configured:
         try:
-            config = json.loads((home / ".vibemon" / "config.json").read_text(encoding="utf-8"))
+            config = json.loads(Path(_home(environment), ".vibemon", "config.json").read_text(encoding="utf-8"))
         except (OSError, ValueError):
             config = None
         value = config.get("cache_path") if isinstance(config, dict) else None
         configured = value.strip() if isinstance(value, str) else ""
     if not configured or len(configured) > 32768 or any(ord(c) < 32 or ord(c) == 127 for c in configured):
-        configured = DEFAULT_PROJECTS_CACHE
+        return os.path.join(_home(environment), ".vibemon", "cache", "projects.json")
     if configured == "~" or configured.startswith(("~/", "~\\")):
-        configured = str(home / configured[2:])
-    return os.path.abspath(configured)
+        return os.path.join(_home(environment), configured[2:])
+    return configured
 
 
 def usage_cache_path(environment: Mapping[str, str] | None = None) -> str:
     """usage.json, next to the projects cache."""
-    return str(Path(projects_cache_path(environment)).parent / "usage.json")
+    return os.path.join(os.path.dirname(projects_cache_path(environment)), "usage.json")
 
 
 @contextmanager

@@ -283,6 +283,11 @@ class UsageTest(unittest.TestCase):
             environment["VIBEMON_CACHE_PATH"] = "~/env/projects.json"
             self.assertEqual(cache_io.usage_cache_path(environment), os.path.join(home, "env", "usage.json"))
 
+    def test_an_override_path_needs_no_home_directory_and_keeps_its_form(self):
+        import cache_io
+        with patch.object(cache_io.Path, "home", side_effect=RuntimeError("Could not determine home directory.")):
+            self.assertEqual(cache_io.projects_cache_path({"VIBEMON_CACHE_PATH": " /tmp/custom/projects.json "}), "/tmp/custom/projects.json")
+
     def test_unavailable_claude_quota_never_starts_a_model_conversation(self):
         with tempfile.TemporaryDirectory() as directory:
             with (
