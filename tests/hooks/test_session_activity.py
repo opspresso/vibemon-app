@@ -193,13 +193,14 @@ def test_no_heartbeat_asserts_a_turn_whose_interrupt_cannot_be_seen(tmp_path, pa
     assert activity.tick(path, "s1", ME).payload["state"] == "done"
 
 
-def test_a_hook_during_the_check_outranks_an_older_interrupt(path, clock, alive, monkeypatch):
+@pytest.mark.parametrize('elapsed_ms', [0, 1])
+def test_a_hook_during_the_check_outranks_an_older_interrupt(path, clock, alive, monkeypatch, elapsed_ms):
     open_turn(path)
     assert activity.claim(path, "s1", ME)
 
     def interrupted_then_resumed(_transcript, _since):
         # A new prompt arrives while the watcher reads the transcript.
-        clock.ms += 1
+        clock.ms += elapsed_ms
         activity.record(path, event("UserPromptSubmit"), Transition("thinking"))
         return True
 

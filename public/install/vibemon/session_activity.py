@@ -323,9 +323,14 @@ def tick(path: str, session: str, me: dict[str, Any]) -> Beat | None | bool:
             outcome["result"] = False
             return cache
         now = _now_ms()
-        # A hook may have reported since the check; its event outranks an
-        # interrupt the transcript recorded before it.
-        closing = (exited or interrupted) and current.get("updatedMs") == entry.get("updatedMs") and current.get("agent") == entry.get("agent")
+        # Checks apply only to the event read above. Its sequence distinguishes
+        # hooks in the same wall-clock millisecond; keep the time check for
+        # cache entries written by older hooks without an event sequence.
+        if (current.get("eventStampMs") != entry.get("eventStampMs")
+            or current.get("updatedMs") != entry.get("updatedMs")
+            or current.get("agent") != entry.get("agent")):
+            return cache
+        closing = exited or interrupted
         if not closing and (not observable or now - current.get("reportedMs", 0) < HEARTBEAT_MS):
             return cache
         payload = current.get("payload")
