@@ -21,7 +21,7 @@ struct ResourceWidget: Widget {
         AppIntentConfiguration(kind: WidgetKind.resource, intent: ResourceSelection.self, provider: Provider<ResourceSelection>(kind: .resource)) { entry in
             EntryView(entry: entry)
         }
-        .configurationDisplayName("Resource")
+        .configurationDisplayName("Resource · Mac")
         .description("State and metrics of one resource from your VibeMon workspace.")
         .supportedFamilies([.systemSmall])
     }
@@ -32,7 +32,7 @@ struct AgentWidget: Widget {
         AppIntentConfiguration(kind: WidgetKind.agent, intent: AgentSelection.self, provider: Provider<AgentSelection>(kind: .agent)) { entry in
             EntryView(entry: entry)
         }
-        .configurationDisplayName("Coding Agent")
+        .configurationDisplayName("Coding Agent · Mac")
         .description("State and usage of one coding agent account.")
         .supportedFamilies([.systemSmall])
     }

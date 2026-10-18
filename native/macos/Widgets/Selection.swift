@@ -60,7 +60,9 @@ struct ResourceQuery: EntityStringQuery {
     }
 
     func defaultResult() async -> ResourceEntity? {
-        try? await suggestedEntities().first
+        // No saved ID means automatic selection from the current feed. Do not
+        // let WidgetKit cache today's first item as every new widget's choice.
+        nil
     }
 }
 
@@ -78,7 +80,7 @@ struct AgentQuery: EntityStringQuery {
     }
 
     func defaultResult() async -> AgentEntity? {
-        try? await suggestedEntities().first
+        nil
     }
 }
 

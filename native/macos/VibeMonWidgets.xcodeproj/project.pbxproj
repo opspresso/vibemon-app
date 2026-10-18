@@ -277,7 +277,7 @@
 				CODE_SIGN_ENTITLEMENTS = Config/Widgets.entitlements;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = "Config/Widgets-Info.plist";
-				INFOPLIST_KEY_CFBundleDisplayName = VibeMon;
+				INFOPLIST_KEY_CFBundleDisplayName = "VibeMon Mac";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "Copyright © opspresso. MIT License.";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -297,7 +297,7 @@
 				CODE_SIGN_ENTITLEMENTS = Config/Widgets.entitlements;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = "Config/Widgets-Info.plist";
-				INFOPLIST_KEY_CFBundleDisplayName = VibeMon;
+				INFOPLIST_KEY_CFBundleDisplayName = "VibeMon Mac";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "Copyright © opspresso. MIT License.";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",

@@ -44,7 +44,7 @@ struct Notice: Sendable, Equatable {
         case .resource:
             Notice(symbol: "questionmark.square.dashed", title: Localization.text("Resource unavailable"), detail: Localization.text("It is no longer selected in VibeMon. Edit the widget to choose another."), link: resources)
         case .agent:
-            Notice(symbol: "questionmark.square.dashed", title: Localization.text("Agent unavailable"), detail: Localization.text("It has stopped reporting. Edit the widget to choose another."), link: agents)
+            Notice(symbol: "questionmark.square.dashed", title: Localization.text("Choose coding account"), detail: Localization.text("The saved account is no longer available. Edit this widget and select a current account."), link: agents)
         }
     }
 }
@@ -251,7 +251,8 @@ private struct GaugeBar: View {
     }
 }
 
-private struct ResourceIcon: View {
+struct ResourceIcon: View {
+    @Environment(\.widgetRenderingMode) private var renderingMode
     let symbol: String?
 
     var body: some View {
@@ -259,7 +260,7 @@ private struct ResourceIcon: View {
             .font(.system(size: 14, weight: .semibold))
             .foregroundStyle(Palette.accent)
             .frame(width: 30, height: 30)
-            .background(Palette.accent.opacity(0.12), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+            .background(renderingMode == .fullColor ? Palette.accent.opacity(0.12) : .clear, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
             .widgetAccentable()
     }
 }
