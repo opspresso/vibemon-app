@@ -31,7 +31,7 @@ for helper_dir in (Path(__file__).resolve().parent.parent / "vibemon", VIBEMON_H
 # The helpers resolve only after the path setup above.
 from account_context import project_cache_key, prepare_account, using_account  # noqa: E402
 from project_context import get_project_name, parse_json, read_input  # noqa: E402
-from cache_io import update_json_cache  # noqa: E402
+from cache_io import projects_cache_path, update_json_cache, usage_cache_path  # noqa: E402
 from usage_cache import (  # noqa: E402
     CACHE_STALE_SECONDS,
     get_fresh_provider,
@@ -307,21 +307,13 @@ def get_context_percent(data: dict[str, Any]) -> float | None:
 # ============================================================================
 
 
-def get_cache_path() -> str:
-    """Get the cache file path."""
-    cache_path = os.environ.get(
-        "VIBEMON_CACHE_PATH", "~/.vibemon/cache/projects.json"
-    )
-    return os.path.expanduser(cache_path)
-
-
 def save_to_cache(project: str, model: str, memory: float | None, cwd: str | None = None) -> None:
     """Save scoped context under the shared cross-process cache lock."""
     if not project:
         return
 
     project = project_cache_key(project, cwd=cwd)
-    cache_path = get_cache_path()
+    cache_path = projects_cache_path()
     timestamp = int(time.time())
 
     def update(cache):
@@ -463,20 +455,14 @@ def build_progress_bar(percent_str: str | int | float, width: int = 10) -> str:
 # Plan Usage Functions
 # ============================================================================
 
-def get_usage_cache_path() -> str:
-    """Get the plan-usage cache file path (next to the statusline cache)."""
-    cache_dir = os.path.dirname(get_cache_path())
-    return os.path.join(cache_dir, "usage.json")
-
-
 def load_usage_cache() -> dict[str, Any] | None:
     """Load cached plan usage, or None if missing/unreadable."""
-    return _load_usage_cache(get_usage_cache_path())
+    return _load_usage_cache(usage_cache_path())
 
 
 def save_usage_cache(usage: dict[str, Any]) -> bool:
     """Merge provider updates and stamp each provider independently."""
-    return _save_usage_cache(get_usage_cache_path(), usage)
+    return _save_usage_cache(usage_cache_path(), usage)
 
 
 def build_usage_segment(cache: dict[str, Any] | None) -> str:

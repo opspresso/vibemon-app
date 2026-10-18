@@ -222,7 +222,7 @@ class UsageTest(unittest.TestCase):
         # stale check would force a network refresh on every later run.
         with tempfile.TemporaryDirectory() as directory:
             cache_path = str(Path(directory) / "usage.json")
-            with patch.object(usage, "get_usage_cache_path", return_value=cache_path):
+            with patch.object(usage, "usage_cache_path", return_value=cache_path):
                 usage.save_usage_cache({
                     "claude": {
                         "session": {"pct": 10},
@@ -241,7 +241,7 @@ class UsageTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             cache_path = str(Path(directory) / "usage.json")
             with (
-                patch.object(usage, "get_usage_cache_path", return_value=cache_path),
+                patch.object(usage, "usage_cache_path", return_value=cache_path),
                 patch.object(
                     usage,
                     "fetch_claude_usage_live",
@@ -267,14 +267,26 @@ class UsageTest(unittest.TestCase):
     def test_usage_cache_path_honors_env_override(self):
         with patch.dict(os.environ, {"VIBEMON_CACHE_PATH": "/tmp/custom/projects.json"}):
             self.assertEqual(
-                usage.get_usage_cache_path(),
+                usage.usage_cache_path(),
                 os.path.join("/tmp/custom", "usage.json"),
             )
+
+    def test_cache_paths_fall_back_to_config_then_default_with_home_expansion(self):
+        import cache_io
+        with tempfile.TemporaryDirectory() as home:
+            config = Path(home) / ".vibemon" / "config.json"
+            config.parent.mkdir()
+            environment = {"HOME": home}
+            self.assertEqual(cache_io.projects_cache_path(environment), os.path.join(home, ".vibemon", "cache", "projects.json"))
+            config.write_text(json.dumps({"cache_path": "~/shared/projects.json"}))
+            self.assertEqual(cache_io.usage_cache_path(environment), os.path.join(home, "shared", "usage.json"))
+            environment["VIBEMON_CACHE_PATH"] = "~/env/projects.json"
+            self.assertEqual(cache_io.usage_cache_path(environment), os.path.join(home, "env", "usage.json"))
 
     def test_unavailable_claude_quota_never_starts_a_model_conversation(self):
         with tempfile.TemporaryDirectory() as directory:
             with (
-                patch.object(usage, 'get_usage_cache_path', return_value=str(Path(directory)/'usage.json')),
+                patch.object(usage, 'usage_cache_path', return_value=str(Path(directory)/'usage.json')),
                 patch.object(usage, 'fetch_claude_usage_live', return_value=None),
                 patch.object(usage.subprocess, 'run') as command,
             ):

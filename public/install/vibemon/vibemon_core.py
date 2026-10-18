@@ -31,6 +31,7 @@ from urllib.request import Request, urlopen
 from account_context import cloud_context, project_cache_key, prepare_account, using_account, activity_key, event_context
 from account_identity import AccountIdentity
 from account_service import identity_hint
+from cache_io import projects_cache_path, usage_cache_path
 from project_context import get_project_name, parse_json, read_input
 import session_activity
 from session_activity import Transition
@@ -156,9 +157,7 @@ def get_config() -> Config:
         _config = Config(
             http_urls=parse_http_urls(os.environ.get("VIBEMON_HTTP_URLS")),
             serial_port=os.environ.get("VIBEMON_SERIAL_PORT"),
-            cache_path=os.path.expanduser(
-                os.environ.get("VIBEMON_CACHE_PATH", "~/.vibemon/cache/projects.json")
-            ),
+            cache_path=projects_cache_path(),
             auto_launch=os.environ.get("VIBEMON_AUTO_LAUNCH", "0") == "1",
             vibemon_url=os.environ.get("VIBEMON_URL"),
             vibemon_token=os.environ.get("VIBEMON_TOKEN"),
@@ -319,9 +318,7 @@ def _resets_in_minutes(entry: dict[str, Any]) -> int | None:
 
 def _load_usage_provider(provider: str) -> dict[str, Any] | None:
     """Load one provider only when that provider's usage is fresh."""
-    config = get_config()
-    usage_path = os.path.join(os.path.dirname(config.cache_path), "usage.json")
-    return get_fresh_provider(load_usage_cache(usage_path), provider, CACHE_STALE_SECONDS)
+    return get_fresh_provider(load_usage_cache(usage_cache_path()), provider, CACHE_STALE_SECONDS)
 
 
 def _usage_fields(bucket_data: dict[str, Any] | None) -> dict[str, Any]:

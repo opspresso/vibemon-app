@@ -19,7 +19,7 @@ const DEFAULT_CACHE_PATH = path.join(os.homedir(), '.vibemon', 'cache', 'project
 
 /**
  * Resolve ~/.vibemon/cache/usage.json, honoring config.json's cache_path
- * (same directory-sibling logic as usage.py's get_usage_cache_path()).
+ * (same rules as usage_cache_path() in cache_io.py).
  * @returns {string}
  */
 function getUsageCachePath() {
