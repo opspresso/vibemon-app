@@ -342,12 +342,8 @@ ipcMain.handle('focus-terminal', async (event) => {
   const terminalType = parts[0];
 
   if (terminalType === 'iterm2') {
-    // Extract UUID from terminal ID (format: iterm2:w0t4p0:UUID)
-    const uuid = parts.length === 3 ? parts[2] : parts[1];
-    if (!uuid) {
-      return { success: false, reason: 'invalid-terminal-id' };
-    }
-
+    // validators.cjs accepts only iterm2:w0t4p0:UUID, so the UUID is the third part.
+    const uuid = parts[2];
     // Validate UUID format (8-4-4-4-12 hex) to prevent command injection
     const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
     if (!UUID_REGEX.test(uuid)) {
