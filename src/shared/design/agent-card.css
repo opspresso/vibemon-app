@@ -8,9 +8,9 @@
 .vm-agent-card[data-agent-tone='warning'] { --vm-agent-edge: var(--vm-warning); }
 .vm-agent-card[data-agent-tone='danger'] { --vm-agent-edge: var(--vm-danger); }
 .vm-agent-card[data-agent-tone='good'] { --vm-agent-edge: var(--vm-good); }
-.vm-agent-card[data-agent-state='thinking'] { --vm-agent-edge: var(--vm-accent); }
-.vm-agent-card[data-agent-state='planning'] { --vm-agent-edge: color-mix(in srgb, var(--vm-info) 65%, var(--vm-good)); }
-.vm-agent-card[data-agent-state='packing'] { --vm-agent-edge: color-mix(in srgb, var(--vm-accent) 65%, var(--vm-danger)); }
+.vm-agent-card[data-agent-state='thinking'] { --vm-agent-edge: var(--vm-state-thinking); }
+.vm-agent-card[data-agent-state='planning'] { --vm-agent-edge: var(--vm-state-planning); }
+.vm-agent-card[data-agent-state='packing'] { --vm-agent-edge: var(--vm-state-packing); }
 .vm-agent-card[data-agent-tone='active'] :is(.chip, .workspace-status) {
   color: var(--vm-agent-edge);
   background: color-mix(in srgb, var(--vm-agent-edge) 14%, var(--vm-surface));

@@ -1,11 +1,12 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { accountName, statePresentation, providerLabel, formatMeasurement, observationAge, formatAxisValue, formatResetTime, resetCountdown } from '../src/shared/design/presentation.mjs';
+import { accountName, metricTone, statePresentation, providerLabel, formatMeasurement, observationAge, formatAxisValue, formatResetTime, resetCountdown } from '../src/shared/design/presentation.mjs';
 import { usageResetAt } from '../src/shared/monitoring/clock.cjs';
 import { dominantState, needsAttention, sourceState, accountState } from '../src/shared/monitoring/state.cjs';
 import { mergeMean } from '../src/shared/resource-schema.cjs';
 import { monitoringContract } from '../scripts/generate-monitoring.mjs';
 import { widgetPalette } from '../scripts/generate-widget-palette.mjs';
+import tokens from '../src/shared/design/tokens.cjs';
 import fixtures from '../src/shared/monitoring/cases.json' with { type: 'json' };
 import states from '../src/shared/data/states.json' with { type: 'json' };
 import { pickTextColor, hexToRgb } from '../src/shared/bubble/vibemon-bubble.js';
@@ -27,6 +28,20 @@ test('renderer labels match the validated canonical policy without network acces
 test('the macOS widget palette matches the shared design tokens', () => widgetPalette());
 test('measurement precision follows the shared device contract', () => {
   for (const { value, unit, expected } of fixtures.measurements) assert.equal(formatMeasurement(value, unit, false, '—', false), expected);
+});
+test('metric tones follow the shared device contract', () => {
+  for (const { key, value, expected } of fixtures.metricTones) assert.equal(metricTone(key, value), expected, `${key} ${value}`);
+});
+test('agent state edge tokens stay the documented mixes of their base tokens', () => {
+  const css = tokens.readTokens();
+  const channels = hex => [1, 3, 5].map(index => Number.parseInt(hex.slice(index, index + 2), 16));
+  const mix = (a, b, share) => '#' + channels(a).map((value, index) => Math.round(value * share + channels(b)[index] * (1 - share)).toString(16).padStart(2, '0')).join('');
+  const expected = { thinking: ['accent', 'accent', 1], planning: ['info', 'good', 0.65], packing: ['accent', 'danger', 0.65] };
+  for (const [state, [first, second, share]] of Object.entries(expected)) {
+    for (const scheme of ['light', 'dark']) {
+      assert.equal(tokens.colorPair(css, `state-${state}`)[scheme], mix(tokens.colorPair(css, first)[scheme], tokens.colorPair(css, second)[scheme], share), `${state} ${scheme}`);
+    }
+  }
 });
 test('usage reset countdowns follow the shared device contract', () => {
   const snapshot = Date.parse('2026-10-13T08:00:00Z');

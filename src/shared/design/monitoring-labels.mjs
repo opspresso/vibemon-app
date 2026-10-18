@@ -66,3 +66,4 @@ export default {
   ]
 };
 export const unitFractionDigits = {"%":2,"GiB":2};
+export const measurementTones = [{"keyPrefix":"usage","warningFrom":70,"dangerFrom":90}];

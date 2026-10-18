@@ -19,6 +19,17 @@
   --vm-danger-soft: light-dark(#fff0f3, #462735);
   --vm-info: light-dark(#3868a6, #9abff0);
   --vm-info-soft: light-dark(#e9f1ff, #21354e);
+  /* Agent states whose edge differs from their tone color (see agent-card.css).
+     planning = info 65% + good; packing = accent 65% + danger; sRGB, rounded per channel. */
+  --vm-state-thinking: light-dark(#6354ce, #b1a5ff);
+  --vm-state-planning: light-dark(#276e92, #8ec8de);
+  --vm-state-packing: light-dark(#8047a2, #caa3e5);
+  /* VibeMon Pro surfaces keep these colors in light and dark appearance. */
+  --vm-pro-night: #1a1439;
+  --vm-pro-violet: #6354ce;
+  --vm-pro-blue: #3868a6;
+  --vm-pro-glow: #b1a5ff;
+  --vm-pro-button-top: #7b6cf0;
   --vm-sidebar: #111a2b;
   --vm-sidebar-foreground: #d7dfef;
   --vm-sidebar-muted: #a7b6cd;
