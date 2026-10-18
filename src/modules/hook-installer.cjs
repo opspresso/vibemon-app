@@ -459,6 +459,7 @@ class HookInstaller {
       defaults: { dismissed: [] }
     });
     this.isRunning = false;
+    this.periodicCheck = null;
     this.onStateChanged = null;
     // In-memory only (cleared on restart): avoids re-prompting every check
     // cycle for an error that won't resolve itself (e.g. missing python3).
@@ -723,6 +724,24 @@ class HookInstaller {
     const changed = this.cachedStatuses.filter(tool => tool.changed && !tool.broken);
     if (changed.length === 0) return [];
     return this.installTools(changed, { showSummary: false, trusted: this.trusted });
+  }
+
+  /**
+   * One periodic check: repair drifted integrations, then offer missing ones.
+   * Checks run one at a time, so the install prompt never competes with an
+   * unattended update for the installer.
+   * @returns {Promise<void>}
+   */
+  runPeriodicCheck() {
+    this.periodicCheck ??= this.updateChanged()
+      // The prompt for missing tools does not depend on the update result.
+      .catch(error => console.error('[HookInstaller] update check failed:', error.reason || error.message || error))
+      .then(() => {
+        this.onStateChanged?.();
+        return this.checkAndPrompt();
+      })
+      .finally(() => { this.periodicCheck = null; });
+    return this.periodicCheck;
   }
 
   /**

@@ -90,10 +90,18 @@ let workspaceWindow = null;
 let webSignIn = null;
 let widgetPublisher = null;
 let quitting = false;
-let hookCheckTimer = null;
-let updateCheckTimer = null;
-let usageRefreshTimer = null;
-let registryRefreshTimer = null;
+// Startup and periodic task timers; before-quit clears every one.
+const taskTimers = new Set();
+
+/** Runs `task` once after `initialDelayMs`, then every `intervalMs`. */
+function scheduleTask(task, initialDelayMs, intervalMs) {
+  const first = setTimeout(() => {
+    taskTimers.delete(first);
+    task();
+  }, initialDelayMs);
+  taskTimers.add(first);
+  taskTimers.add(setInterval(task, intervalMs));
+}
 
 function getBubbleOptions(projectId) {
   const source = projectId?.startsWith('cloud:')
@@ -519,23 +527,14 @@ app.whenReady().then(() => {
   // Settings > Integrations.
   const runHookCheck = () => {
     vibemonConfigManager.ensureDesktopUrl();
-    hookInstaller.checkAndPrompt()
-      .catch((err) => console.error('Hook check failed:', err));
-    hookInstaller.updateChanged()
-      .then(() => {
-        workspaceWindow?.notify('settings');
-        refreshAttention();
-      })
-      .catch((err) => console.error('Hook change check failed:', err));
+    hookInstaller.runPeriodicCheck().catch((err) => console.error('Hook check failed:', err));
   };
-  setTimeout(runHookCheck, HOOK_CHECK_INITIAL_DELAY_MS);
-  hookCheckTimer = setInterval(runHookCheck, HOOK_CHECK_INTERVAL_MS);
+  scheduleTask(runHookCheck, HOOK_CHECK_INITIAL_DELAY_MS, HOOK_CHECK_INTERVAL_MS);
 
   // Detect new VibeMon releases: once shortly after startup, then
   // periodically. Installing requires the update action in Settings > About.
   const checkForUpdates = () => updateChecker.checkForUpdates().catch(error => console.error('Update check failed:', error.message));
-  setTimeout(checkForUpdates, UPDATE_CHECK_INITIAL_DELAY_MS);
-  updateCheckTimer = setInterval(checkForUpdates, UPDATE_CHECK_INTERVAL_MS);
+  scheduleTask(checkForUpdates, UPDATE_CHECK_INITIAL_DELAY_MS, UPDATE_CHECK_INTERVAL_MS);
 
   // Refresh the shared plan-usage cache (~/.vibemon/cache/usage.json) via
   // ~/.vibemon/usage.py: once shortly after startup, then periodically, so
@@ -546,14 +545,12 @@ app.whenReady().then(() => {
     workspaceWindow?.notify('settings');
     widgetPublisher?.schedule();
   });
-  setTimeout(refreshUsage, USAGE_REFRESH_INITIAL_DELAY_MS);
-  usageRefreshTimer = setInterval(refreshUsage, USAGE_REFRESH_INTERVAL_MS);
+  scheduleTask(refreshUsage, USAGE_REFRESH_INITIAL_DELAY_MS, USAGE_REFRESH_INTERVAL_MS);
 
   // Refresh the canonical registry cache from the public App distribution: once shortly
   // after startup, then periodically. A refreshed registry applies on the
   // next launch (startup resolves cache → bundled synchronously).
-  setTimeout(() => registryCache.refresh(), UPDATE_CHECK_INITIAL_DELAY_MS);
-  registryRefreshTimer = setInterval(() => registryCache.refresh(), UPDATE_CHECK_INTERVAL_MS);
+  scheduleTask(() => registryCache.refresh(), UPDATE_CHECK_INITIAL_DELAY_MS, UPDATE_CHECK_INTERVAL_MS);
 
   // Screen lock, system sleep, and display attach/detach make macOS move
   // windows itself (e.g. onto the primary display while another display
@@ -590,22 +587,9 @@ app.on('window-all-closed', () => {
 app.on('before-quit', () => {
   quitting = true;
   dockMonitor.cleanup();
-  if (hookCheckTimer) {
-    clearInterval(hookCheckTimer);
-    hookCheckTimer = null;
-  }
-  if (updateCheckTimer) {
-    clearInterval(updateCheckTimer);
-    updateCheckTimer = null;
-  }
-  if (usageRefreshTimer) {
-    clearInterval(usageRefreshTimer);
-    usageRefreshTimer = null;
-  }
-  if (registryRefreshTimer) {
-    clearInterval(registryRefreshTimer);
-    registryRefreshTimer = null;
-  }
+  // Node accepts timeouts and intervals in clearTimeout.
+  for (const timer of taskTimers) clearTimeout(timer);
+  taskTimers.clear();
 
   // Null callbacks first to prevent any fired timers from triggering updates
   stateManager.onStateTimeout = null;

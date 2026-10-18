@@ -1073,6 +1073,35 @@ describe('HookInstaller', () => {
     });
   });
 
+  describe('runPeriodicCheck', () => {
+    test('prompts for missing tools only after the unattended update finishes, one check at a time', async () => {
+      const order = [];
+      let finishUpdate;
+      jest.spyOn(hookInstaller, 'updateChanged').mockImplementation(() => new Promise(resolve => { order.push('update'); finishUpdate = resolve; }));
+      jest.spyOn(hookInstaller, 'checkAndPrompt').mockImplementation(async () => { order.push('prompt'); });
+      hookInstaller.onStateChanged = () => order.push('changed');
+
+      const first = hookInstaller.runPeriodicCheck();
+      expect(hookInstaller.runPeriodicCheck()).toBe(first);
+      await Promise.resolve();
+      expect(order).toEqual(['update']);
+      finishUpdate([]);
+      await first;
+      expect(order).toEqual(['update', 'changed', 'prompt']);
+      expect(hookInstaller.updateChanged).toHaveBeenCalledTimes(1);
+    });
+
+    test('still prompts when the update check fails', async () => {
+      const error = jest.spyOn(console, 'error').mockImplementation(() => {});
+      jest.spyOn(hookInstaller, 'updateChanged').mockRejectedValue(new Error('offline'));
+      const prompt = jest.spyOn(hookInstaller, 'checkAndPrompt').mockResolvedValue();
+      await hookInstaller.runPeriodicCheck();
+      expect(prompt).toHaveBeenCalled();
+      expect(hookInstaller.periodicCheck).toBeNull();
+      error.mockRestore();
+    });
+  });
+
   describe('unattended installs', () => {
     test('verify install.py against the trusted manifest and pin install.py to its bytes', async () => {
       mockSuccessfulInstall('trusted-script');
