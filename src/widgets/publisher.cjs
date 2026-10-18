@@ -32,7 +32,10 @@ function current(item, at) {
 
 /** Items, titles, artwork, and current tones: changes the user must see now. */
 function urgentKey(feed, at) {
-  return JSON.stringify([feed.running, feed.items.map(item => [item.id, item.title, item.artwork, current(item, at).tone])]);
+  return JSON.stringify([feed.running, feed.items.map(item => [
+    item.id, item.kind, item.title, item.subtitle, item.selectionTitle, item.selectionSubtitle,
+    item.symbol, item.artwork, item.link, current(item, at).tone
+  ])]);
 }
 
 const sameTime = (a, b) => a === b || (Boolean(a) && Boolean(b) && Math.abs(Date.parse(a) - Date.parse(b)) < TIME_TOLERANCE_MS);

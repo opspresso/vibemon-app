@@ -100,6 +100,18 @@ describe('WidgetPublisher', () => {
     expect(reloads).toEqual([T0, T0 + WIDGET_RELOAD_INTERVAL_MS]);
   });
 
+  test.each([
+    ['subtitle', 'Unified memory'], ['symbol', 'unified'],
+    ['selectionTitle', 'Codex · 27e702a8'], ['selectionSubtitle', 'Work · dockpad']
+  ])('refreshes changed %s without waiting for an unrelated metric update', (field, value) => {
+    const { publisher, reloads, setItems, advance } = setup();
+    publisher.publish();
+    setItems([{ ...item(), [field]: value }]);
+    publisher.publish();
+    advance(WIDGET_RELOAD_MIN_MS);
+    expect(reloads).toEqual([T0, T0 + WIDGET_RELOAD_MIN_MS]);
+  });
+
   test('reset time jitter needs no reload, but a moved reset does', () => {
     const { publisher, reloads, setItems, advance } = setup();
     setItems([item({ resetsAt: iso(T0 + 3600000) })]);

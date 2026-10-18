@@ -25,7 +25,7 @@ do {
     FileHandle.standardError.write(Data("cannot decode feed: \(error)\n".utf8))
     exit(1)
 }
-CharacterArt.directories = [URL(fileURLWithPath: arguments[2], isDirectory: true)]
+WidgetIcons.directory = URL(fileURLWithPath: arguments[2], isDirectory: true)
 // The widget's own words come from the String Catalog of the extension built
 // next to this tool. VIBEMON_LOCALE (en, ko, or ja) picks its language.
 if let language = ProcessInfo.processInfo.environment["VIBEMON_LOCALE"],

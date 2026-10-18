@@ -11,9 +11,17 @@ struct ResourceEntity: AppEntity {
     let id: String
     let title: String
     let subtitle: String
+    let icon: DisplayRepresentation.Image?
+
+    init(_ entry: WidgetCatalog.Entry) {
+        id = entry.id
+        title = entry.title
+        subtitle = entry.subtitle
+        icon = .init(systemName: WidgetIcons.resource(entry.symbol))
+    }
 
     var displayRepresentation: DisplayRepresentation {
-        DisplayRepresentation(title: "\(title)", subtitle: "\(subtitle)")
+        DisplayRepresentation(title: "\(title)", subtitle: "\(subtitle)", image: icon)
     }
 }
 
@@ -24,19 +32,31 @@ struct AgentEntity: AppEntity {
     let id: String
     let title: String
     let subtitle: String
+    let icon: DisplayRepresentation.Image?
+
+    init(_ entry: WidgetCatalog.Entry) {
+        id = entry.id
+        title = entry.title
+        subtitle = entry.subtitle
+        icon = WidgetIcons.characterURL(entry.artwork).map { .init(url: $0, isTemplate: false) }
+    }
 
     var displayRepresentation: DisplayRepresentation {
-        DisplayRepresentation(title: "\(title)", subtitle: "\(subtitle)")
+        DisplayRepresentation(title: "\(title)", subtitle: "\(subtitle)", image: icon)
     }
 }
 
-struct ResourceQuery: EntityQuery {
+struct ResourceQuery: EntityStringQuery {
     func entities(for identifiers: [ResourceEntity.ID]) async throws -> [ResourceEntity] {
-        Catalog.resolve(identifiers, kind: .resource).map { ResourceEntity(id: $0.id, title: $0.title, subtitle: $0.subtitle) }
+        WidgetCatalog.resolve(identifiers, kind: .resource).map(ResourceEntity.init)
     }
 
     func suggestedEntities() async throws -> [ResourceEntity] {
-        Catalog.items(.resource).map { ResourceEntity(id: $0.id, title: $0.title, subtitle: $0.subtitle) }
+        WidgetCatalog.items(.resource).map(ResourceEntity.init)
+    }
+
+    func entities(matching string: String) async throws -> [ResourceEntity] {
+        WidgetCatalog.items(.resource, matching: string).map(ResourceEntity.init)
     }
 
     func defaultResult() async -> ResourceEntity? {
@@ -44,43 +64,21 @@ struct ResourceQuery: EntityQuery {
     }
 }
 
-struct AgentQuery: EntityQuery {
+struct AgentQuery: EntityStringQuery {
     func entities(for identifiers: [AgentEntity.ID]) async throws -> [AgentEntity] {
-        Catalog.resolve(identifiers, kind: .agent).map { AgentEntity(id: $0.id, title: $0.title, subtitle: $0.subtitle) }
+        WidgetCatalog.resolve(identifiers, kind: .agent).map(AgentEntity.init)
     }
 
     func suggestedEntities() async throws -> [AgentEntity] {
-        Catalog.items(.agent).map { AgentEntity(id: $0.id, title: $0.title, subtitle: $0.subtitle) }
+        WidgetCatalog.items(.agent).map(AgentEntity.init)
+    }
+
+    func entities(matching string: String) async throws -> [AgentEntity] {
+        WidgetCatalog.items(.agent, matching: string).map(AgentEntity.init)
     }
 
     func defaultResult() async -> AgentEntity? {
         try? await suggestedEntities().first
-    }
-}
-
-/// Feed items in the form that the configuration picker lists.
-private enum Catalog {
-    struct Entry {
-        let id: String
-        let title: String
-        let subtitle: String
-    }
-
-    static func items(_ kind: FeedItem.Kind) -> [Entry] {
-        (FeedStore.load().feed?.items(of: kind) ?? []).map { item in
-            Entry(
-                id: item.id,
-                title: item.selectionTitle ?? (kind == .agent ? "\(item.title) · \(item.subtitle)" : item.title),
-                subtitle: item.selectionSubtitle ?? item.subtitle
-            )
-        }
-    }
-
-    /// A saved choice stays resolvable after its item leaves the feed, so the
-    /// widget can say that it is unavailable instead of silently switching.
-    static func resolve(_ identifiers: [String], kind: FeedItem.Kind) -> [Entry] {
-        let known = Dictionary(items(kind).map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
-        return identifiers.map { known[$0] ?? Entry(id: $0, title: Localization.text("Unavailable"), subtitle: Localization.text("Choose another item")) }
     }
 }
 

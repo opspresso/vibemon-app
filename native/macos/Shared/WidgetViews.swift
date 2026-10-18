@@ -255,21 +255,12 @@ private struct ResourceIcon: View {
     let symbol: String?
 
     var body: some View {
-        Image(systemName: systemName)
+        Image(systemName: WidgetIcons.resource(symbol))
             .font(.system(size: 14, weight: .semibold))
             .foregroundStyle(Palette.accent)
             .frame(width: 30, height: 30)
             .background(Palette.accent.opacity(0.12), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
             .widgetAccentable()
-    }
-
-    private var systemName: String {
-        switch symbol {
-        case "host": "desktopcomputer"
-        case "unified": "memorychip"
-        case "cluster": "square.stack.3d.up"
-        default: "cylinder.split.1x2"
-        }
     }
 }
 
@@ -279,17 +270,13 @@ private struct ResourceIcon: View {
 /// it keeps only the brightness of each pixel. An opaque tile behind the art
 /// then becomes one bright square, so other modes draw the art alone.
 struct CharacterArt: View {
-    /// Folders searched for character images. The preview tool replaces it.
-    nonisolated(unsafe) static var directories: [URL] = [Bundle.main.resourceURL?.appendingPathComponent("characters")].compactMap { $0 }
-    static let fallback = "vibemon-v2.png"
-
     let file: String?
     @Environment(\.widgetRenderingMode) private var renderingMode
 
     var body: some View {
         let fullColor = renderingMode == .fullColor
         Group {
-            if let image = Self.image(named: file) ?? Self.image(named: Self.fallback) {
+            if let url = WidgetIcons.characterURL(file), let image = NSImage(contentsOf: url) {
                 Image(nsImage: image)
                     .resizable()
                     .interpolation(.high)
@@ -303,15 +290,6 @@ struct CharacterArt: View {
         .frame(width: 30, height: 30)
         .background(fullColor ? Palette.subtle : .clear, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
         .accessibilityHidden(true)
-    }
-
-    private static func image(named file: String?) -> NSImage? {
-        // Registry file names are plain names; reject paths.
-        guard let file, !file.contains("/") else { return nil }
-        for directory in directories {
-            if let image = NSImage(contentsOf: directory.appendingPathComponent(file)) { return image }
-        }
-        return nil
     }
 }
 
