@@ -18,6 +18,8 @@ describe('VibemonConfigManager', () => {
     fs.readFileSync.mockReset();
     fs.writeFileSync.mockReset();
     fs.mkdirSync.mockReset();
+    fs.mkdtempSync.mockReset().mockImplementation(prefix => `${prefix}fixture`);
+    fs.rmSync.mockReset();
     fs.copyFileSync.mockReset();
     fs.chmodSync.mockReset();
     manager = new VibemonConfigManager();
@@ -154,12 +156,12 @@ describe('VibemonConfigManager', () => {
 
       expect(fs.mkdirSync).toHaveBeenCalledWith(expect.stringContaining('.vibemon'), { recursive: true, mode: 0o700 });
       expect(fs.writeFileSync).toHaveBeenCalledWith(
-        expect.stringMatching(/config\.json\.\d+\.tmp$/),
+        expect.stringMatching(/\.config\.json-fixture[/\\]data$/),
         expect.stringContaining('"debug": true'),
-        { mode: 0o600 }
+        { mode: 0o600, flag: 'wx' }
       );
       expect(fs.renameSync).toHaveBeenCalledWith(
-        expect.stringMatching(/config\.json\.\d+\.tmp$/),
+        expect.stringMatching(/\.config\.json-fixture[/\\]data$/),
         expect.stringMatching(/config\.json$/)
       );
     });
@@ -167,14 +169,17 @@ describe('VibemonConfigManager', () => {
     test('restricts the config directory and file to owner-only permissions', () => {
       manager.write({ debug: true });
 
-      expect(fs.chmodSync).toHaveBeenCalledWith(expect.stringContaining('.vibemon'), 0o700);
-      expect(fs.chmodSync).toHaveBeenCalledWith(expect.stringMatching(/config\.json\.\d+\.tmp$/), 0o600);
+      if (process.platform !== 'win32') expect(fs.chmodSync).toHaveBeenCalledWith(expect.stringContaining('.vibemon'), 0o700);
+      expect(fs.writeFileSync).toHaveBeenCalledWith(expect.any(String), expect.any(String), { mode: 0o600, flag: 'wx' });
     });
 
-    test('does not throw when chmodSync is unsupported (e.g. non-Unix platforms)', () => {
-      fs.chmodSync.mockImplementation(() => { throw new Error('not supported'); });
-
-      expect(() => manager.write({ debug: true })).not.toThrow();
+    (process.platform === 'win32' ? test.skip : test)('reports a save failure when POSIX permissions cannot be restricted', () => {
+      const log = jest.spyOn(console, 'error').mockImplementation(() => {});
+      fs.chmodSync.mockImplementation(() => { throw Object.assign(new Error('permission denied'), { code: 'EPERM' }); });
+      try {
+        expect(() => manager.write({ debug: true })).toThrow('Unable to save ~/.vibemon/config.json');
+        expect(fs.writeFileSync).not.toHaveBeenCalled();
+      } finally { log.mockRestore(); }
     });
   });
 
