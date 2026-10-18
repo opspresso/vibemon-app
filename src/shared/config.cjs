@@ -28,7 +28,7 @@ module.exports = {
   ...constants,
 
   // Character registry (data/characters.json):
-  // DEFAULT_CHARACTER, CHARACTER_CONFIG, CHARACTER_NAMES, CHARACTER_COLORS
+  // DEFAULT_CHARACTER, CHARACTER_CONFIG, CHARACTER_NAMES
   ...characters,
 
   // State registry (data/states.json):

@@ -75,18 +75,6 @@ def read_json(path: Path, maximum: int = MAX_METADATA_BYTES) -> Any:
         return None
 
 
-def state_cache_path(environment: dict[str, str]) -> str:
-    home = Path(environment.get('HOME') or environment.get('USERPROFILE') or str(Path.home()))
-    configured = environment.get('VIBEMON_CACHE_PATH')
-    if not configured:
-        config = read_json(home / '.vibemon' / 'config.json')
-        configured = config.get('cache_path') if isinstance(config, dict) else None
-    if not text(configured, 32768): configured = str(home / '.vibemon' / 'cache' / 'projects.json')
-    if configured == '~' or configured.startswith('~/'):
-        configured = str(home / configured[2:]) if configured != '~' else str(home)
-    return str(Path(configured).resolve())
-
-
 def command_json(arguments: list[str], environment: dict[str, str], cwd: str | None = None) -> Any:
     executable = shutil.which(arguments[0], path=environment.get('PATH'))
     if not executable:

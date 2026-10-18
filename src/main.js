@@ -54,6 +54,7 @@ const registryCache = require('./shared/registry-cache.cjs');
 const {
   CHARACTER_CONFIG, CHARACTER_IMAGE_FETCH_TIMEOUT_MS, CHARACTER_IMAGE_MAX_BYTES, CHARACTER_IMAGE_SIZES,
   HOOK_CHECK_INITIAL_DELAY_MS, HOOK_CHECK_INTERVAL_MS, HTTP_PORT,
+  REGISTRY_REFRESH_INITIAL_DELAY_MS, REGISTRY_REFRESH_INTERVAL_MS,
   UPDATE_CHECK_INITIAL_DELAY_MS, UPDATE_CHECK_INTERVAL_MS,
   USAGE_REFRESH_INITIAL_DELAY_MS, USAGE_REFRESH_INTERVAL_MS
 } = require('./shared/config.cjs');
@@ -90,10 +91,18 @@ let workspaceWindow = null;
 let webSignIn = null;
 let widgetPublisher = null;
 let quitting = false;
-let hookCheckTimer = null;
-let updateCheckTimer = null;
-let usageRefreshTimer = null;
-let registryRefreshTimer = null;
+// Startup and periodic task timers; before-quit clears every one.
+const taskTimers = new Set();
+
+/** Runs `task` once after `initialDelayMs`, then every `intervalMs`. */
+function scheduleTask(task, initialDelayMs, intervalMs) {
+  const first = setTimeout(() => {
+    taskTimers.delete(first);
+    task();
+  }, initialDelayMs);
+  taskTimers.add(first);
+  taskTimers.add(setInterval(task, intervalMs));
+}
 
 function getBubbleOptions(projectId) {
   const source = projectId?.startsWith('cloud:')
@@ -242,10 +251,6 @@ function showCharacterAgain() {
 }
 
 // IPC handlers
-ipcMain.handle('get-version', () => {
-  return app.getVersion();
-});
-
 // Character registry for the renderer's engine setup (canonical:
 // the public App distribution, resolved by registry-cache.cjs — cached remote copy or
 // bundled fallback). Only images absent from the package require a download.
@@ -338,12 +343,8 @@ ipcMain.handle('focus-terminal', async (event) => {
   const terminalType = parts[0];
 
   if (terminalType === 'iterm2') {
-    // Extract UUID from terminal ID (format: iterm2:w0t4p0:UUID)
-    const uuid = parts.length === 3 ? parts[2] : parts[1];
-    if (!uuid) {
-      return { success: false, reason: 'invalid-terminal-id' };
-    }
-
+    // validators.cjs accepts only iterm2:w0t4p0:UUID, so the UUID is the third part.
+    const uuid = parts[2];
     // Validate UUID format (8-4-4-4-12 hex) to prevent command injection
     const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
     if (!UUID_REGEX.test(uuid)) {
@@ -417,8 +418,23 @@ async function widgetReloader() {
   }
 }
 
+/** Publishes the widget feed once the widget runtime is ready. Startup does not wait for it. */
+async function startWidgets() {
+  // feed.mjs is an ES module that shares the renderer's display rules.
+  const { buildWidgetFeed } = require('./widgets/feed.mjs');
+  const reload = await widgetReloader();
+  if (quitting) return;
+  widgetPublisher = new WidgetPublisher({
+    collect: () => ({ cloud: monitoringClient.snapshot(), states: windowManager.getRegisteredStates(), usage: usageByAccount(getUsageSnapshot()) }),
+    build: input => buildWidgetFeed({ ...input, locale: currentLocale() }),
+    reload,
+    artwork: character => CHARACTER_CONFIG[character]?.image
+  });
+  widgetPublisher.schedule();
+}
+
 // App lifecycle
-app.whenReady().then(async () => {
+app.whenReady().then(() => {
   // The OS languages are complete only after 'ready'; every later text uses them.
   initLocale(app);
   // Hide Dock icon on macOS (tray-only app)
@@ -433,7 +449,10 @@ app.whenReady().then(async () => {
   workspaceSettings = new WorkspaceSettings({ windowManager, app, hookInstaller, vibemonConfigManager, updateChecker, cloudDelivery, getAccountProfiles, openExternal: url => shell.openExternal(url) });
   const monitoringStore = new Store({ name: 'monitoring' });
   monitoringClient = new MonitoringClient({ preferences: monitoringStore, credentials: new CredentialStore(monitoringStore, safeStorage), allowLocalHttp: !app.isPackaged });
-  webSignIn = new WebSignIn({ port: HTTP_PORT, openExternal: url => shell.openExternal(url), allowLocalHttp: !app.isPackaged, deviceName: os.hostname().split('.')[0] });
+  webSignIn = new WebSignIn({
+    port: HTTP_PORT, openExternal: url => shell.openExternal(url), allowLocalHttp: !app.isPackaged,
+    deviceName: os.hostname().split('.')[0], canReceive: () => Boolean(httpServer?.listening)
+  });
   workspaceWindow = new WorkspaceWindow({
     monitoring: monitoringClient,
     settings: workspaceSettings,
@@ -444,7 +463,7 @@ app.whenReady().then(async () => {
     reportError: error => dialog.showErrorBox(t('dialog.workspaceFailed'), error.message)
   });
   // Every source of an issue lands here: cloud polls, settings, hooks, updates.
-  const refreshAttention = () => trayManager.setAttention(attentionNotices(attentionAreas(monitoringClient.snapshot(), workspaceSettings.getSnapshot())));
+  const refreshAttention = (cloud = monitoringClient.snapshot()) => trayManager.setAttention(attentionNotices(attentionAreas(cloud, workspaceSettings.getSnapshot())));
   workspaceSettings.onSettingsChanged = () => {
     workspaceWindow.notify('settings');
     refreshAttention();
@@ -461,7 +480,7 @@ app.whenReady().then(async () => {
   monitoringClient.on('change', snapshot => {
     cloudActivity.accept(snapshot.sources);
     widgetPublisher?.schedule();
-    refreshAttention();
+    refreshAttention(snapshot);
     for (const projectId of windowManager.getProjectIds()) {
       bubbleWindowManager.refresh(projectId, getBubbleOptions(projectId))
         .catch(err => console.error('Bubble countdown refresh failed:', err));
@@ -469,31 +488,18 @@ app.whenReady().then(async () => {
   });
   monitoringClient.start();
 
-  if (widgetsSupported()) {
-    // feed.mjs is an ES module that shares the renderer's display rules.
-    const { buildWidgetFeed } = require('./widgets/feed.mjs');
-    const reload = await widgetReloader();
-    if (quitting) return;
-    widgetPublisher = new WidgetPublisher({
-      collect: () => ({ cloud: monitoringClient.snapshot(), states: windowManager.getRegisteredStates(), usage: usageByAccount(getUsageSnapshot()) }),
-      build: input => buildWidgetFeed({ ...input, locale: currentLocale() }),
-      reload,
-      artwork: character => CHARACTER_CONFIG[character]?.image
-    });
-    widgetPublisher.schedule();
-  }
-
-
-  // Start HTTP server
-  httpServer = new HttpServer(stateManager, windowManager, app, statusIngress);
-  httpServer.onStateUpdate = notifyStatusChange;
-  httpServer.webSignIn = webSignIn;
-  httpServer.onError = (err) => {
-    if (err.code === 'EADDRINUSE') {
-      dialog.showErrorBox(t('dialog.portConflict.title'), t('dialog.portConflict.message', { port: HTTP_PORT }));
+  // A hook that launched the App waits for /health, so the server starts before slower setup.
+  httpServer = new HttpServer({
+    windowManager, app, ingress: statusIngress, webSignIn, onStateUpdate: notifyStatusChange,
+    onError: err => {
+      if (err.code === 'EADDRINUSE') {
+        dialog.showErrorBox(t('dialog.portConflict.title'), t('dialog.portConflict.message', { port: HTTP_PORT }));
+      }
     }
-  };
+  });
   httpServer.start();
+
+  if (widgetsSupported()) startWidgets();
 
   hookInstaller.onStateChanged = () => {
     workspaceWindow?.notify('settings');
@@ -513,24 +519,15 @@ app.whenReady().then(async () => {
   // updates drifted ones; broken registrations surface in the tray badge and
   // Settings > Integrations.
   const runHookCheck = () => {
-    vibemonConfigManager.ensureDesktopUrl(null);
-    hookInstaller.checkAndPrompt(null)
-      .catch((err) => console.error('Hook check failed:', err));
-    hookInstaller.updateChanged()
-      .then(() => {
-        workspaceWindow?.notify('settings');
-        refreshAttention();
-      })
-      .catch((err) => console.error('Hook change check failed:', err));
+    vibemonConfigManager.ensureDesktopUrl();
+    hookInstaller.runPeriodicCheck().catch((err) => console.error('Hook check failed:', err));
   };
-  setTimeout(runHookCheck, HOOK_CHECK_INITIAL_DELAY_MS);
-  hookCheckTimer = setInterval(runHookCheck, HOOK_CHECK_INTERVAL_MS);
+  scheduleTask(runHookCheck, HOOK_CHECK_INITIAL_DELAY_MS, HOOK_CHECK_INTERVAL_MS);
 
   // Detect new VibeMon releases: once shortly after startup, then
   // periodically. Installing requires the update action in Settings > About.
   const checkForUpdates = () => updateChecker.checkForUpdates().catch(error => console.error('Update check failed:', error.message));
-  setTimeout(checkForUpdates, UPDATE_CHECK_INITIAL_DELAY_MS);
-  updateCheckTimer = setInterval(checkForUpdates, UPDATE_CHECK_INTERVAL_MS);
+  scheduleTask(checkForUpdates, UPDATE_CHECK_INITIAL_DELAY_MS, UPDATE_CHECK_INTERVAL_MS);
 
   // Refresh the shared plan-usage cache (~/.vibemon/cache/usage.json) via
   // ~/.vibemon/usage.py: once shortly after startup, then periodically, so
@@ -541,14 +538,12 @@ app.whenReady().then(async () => {
     workspaceWindow?.notify('settings');
     widgetPublisher?.schedule();
   });
-  setTimeout(refreshUsage, USAGE_REFRESH_INITIAL_DELAY_MS);
-  usageRefreshTimer = setInterval(refreshUsage, USAGE_REFRESH_INTERVAL_MS);
+  scheduleTask(refreshUsage, USAGE_REFRESH_INITIAL_DELAY_MS, USAGE_REFRESH_INTERVAL_MS);
 
   // Refresh the canonical registry cache from the public App distribution: once shortly
   // after startup, then periodically. A refreshed registry applies on the
   // next launch (startup resolves cache → bundled synchronously).
-  setTimeout(() => registryCache.refresh(), UPDATE_CHECK_INITIAL_DELAY_MS);
-  registryRefreshTimer = setInterval(() => registryCache.refresh(), UPDATE_CHECK_INTERVAL_MS);
+  scheduleTask(() => registryCache.refresh(), REGISTRY_REFRESH_INITIAL_DELAY_MS, REGISTRY_REFRESH_INTERVAL_MS);
 
   // Screen lock, system sleep, and display attach/detach make macOS move
   // windows itself (e.g. onto the primary display while another display
@@ -585,22 +580,9 @@ app.on('window-all-closed', () => {
 app.on('before-quit', () => {
   quitting = true;
   dockMonitor.cleanup();
-  if (hookCheckTimer) {
-    clearInterval(hookCheckTimer);
-    hookCheckTimer = null;
-  }
-  if (updateCheckTimer) {
-    clearInterval(updateCheckTimer);
-    updateCheckTimer = null;
-  }
-  if (usageRefreshTimer) {
-    clearInterval(usageRefreshTimer);
-    usageRefreshTimer = null;
-  }
-  if (registryRefreshTimer) {
-    clearInterval(registryRefreshTimer);
-    registryRefreshTimer = null;
-  }
+  // Node accepts timeouts and intervals in clearTimeout.
+  for (const timer of taskTimers) clearTimeout(timer);
+  taskTimers.clear();
 
   // Null callbacks first to prevent any fired timers from triggering updates
   stateManager.onStateTimeout = null;

@@ -49,12 +49,17 @@
  */
 
 import { formatMeasurement, formatResetTime } from '../design/presentation.mjs';
+import { measurementTones } from '../design/monitoring-labels.mjs';
 
-// Same green/yellow/orange/red thresholds as statusline.py's C_GREEN/C_YELLOW/C_ORANGE/C_RED.
+// Bars use the plan usage tone thresholds of monitoring.json (inclusive).
+// The yellow step below the warning threshold exists only in bars.
+// statusline.py repeats these values because hooks do not ship the contract.
+const USAGE_TONES = measurementTones.find(rule => rule.keyPrefix === 'usage');
+const BAR_NOTICE_FROM = 50;
 export function barColor(percent) {
-  if (percent > 90) return '#FF4444';
-  if (percent > 70) return '#FF8800';
-  if (percent > 50) return '#FFCC00';
+  if (percent >= USAGE_TONES.dangerFrom) return '#FF4444';
+  if (percent >= USAGE_TONES.warningFrom) return '#FF8800';
+  if (percent >= BAR_NOTICE_FROM) return '#FFCC00';
   return '#00AA00';
 }
 

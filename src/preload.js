@@ -46,7 +46,5 @@ contextBridge.exposeInMainWorld('electronAPI', {
   },
   setIgnoreMouseEvents: (ignore) => ipcRenderer.send('window-ignore-mouse', ignore),
   endWindowDrag: () => ipcRenderer.send('window-drag-end'),
-  moveWindowDrag: () => ipcRenderer.send('window-drag-move'),
-  getVersion: () => ipcRenderer.invoke('get-version'),
-  getPlatform: () => process.platform
+  moveWindowDrag: () => ipcRenderer.send('window-drag-move')
 });

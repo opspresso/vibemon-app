@@ -12,11 +12,12 @@
 const { createHash, randomBytes } = require('node:crypto');
 const { URL, URLSearchParams } = require('node:url');
 const { webOrigin } = require('./domain.cjs');
-const { CLOUD_REQUEST_TIMEOUT_MS, WEB_SIGN_IN_TIMEOUT_MS } = require('../shared/constants.cjs');
+const { CLOUD_REQUEST_TIMEOUT_MS, CLOUD_CONNECTION_MAX_RESPONSE_BYTES, WEB_SIGN_IN_TIMEOUT_MS } = require('../shared/constants.cjs');
+const { readJsonResponse } = require('../shared/json-response.cjs');
 const { t } = require('../shared/i18n/locale.cjs');
+const { isApiToken, revokeApiToken } = require('../shared/api-token.cjs');
 
 const CLIENT_ID = 'vibemon-desktop';
-const TOKEN = /^vm_[a-f0-9]{60}$/;
 
 // `reason` names the failure; the message is the sentence shown to people, in the App language.
 // (The workspace IPC shows `error.code` as a connection status, so it is not set.)
@@ -37,9 +38,10 @@ class WebSignIn {
    * @param {typeof fetch} [options.fetchImpl]
    * @param {boolean} [options.allowLocalHttp] - development builds may use a loopback Web origin
    * @param {string} [options.deviceName] - shown in the token name on Web Account
+   * @param {() => boolean} [options.canReceive] - whether the local HTTP server listens for the callback
    */
-  constructor({ port, openExternal, fetchImpl = fetch, allowLocalHttp = false, deviceName = '', timeoutMs = WEB_SIGN_IN_TIMEOUT_MS }) {
-    Object.assign(this, { port, openExternal, fetchImpl, allowLocalHttp, deviceName, timeoutMs });
+  constructor({ port, openExternal, fetchImpl = fetch, allowLocalHttp = false, deviceName = '', timeoutMs = WEB_SIGN_IN_TIMEOUT_MS, canReceive = () => true }) {
+    Object.assign(this, { port, openExternal, fetchImpl, allowLocalHttp, deviceName, timeoutMs, canReceive });
     this.pending = null;
   }
 
@@ -48,12 +50,16 @@ class WebSignIn {
   }
 
   /**
-   * Opens the browser and resolves with a token of `scope` for `url`.
+   * Opens the browser, gets a token of `scope` for `url`, and resolves with
+   * the result of `adopt(token)`. When `adopt` fails, nothing keeps the new
+   * token, so it is deleted on Web before the error returns.
    * A new sign-in replaces one that is still waiting.
    */
-  async signIn(url, scope) {
+  async signIn(url, scope, adopt) {
     const origin = webOrigin(url, this.allowLocalHttp);
     if (!['read', 'write'].includes(scope)) throw new SignInError('invalid-scope', t('signIn.unknownScope'));
+    // Without the callback server, the browser cannot return and the sign-in could only time out.
+    if (!this.canReceive()) throw new SignInError('no-callback', t('signIn.noCallback', { port: this.port }));
     this.cancel();
     const verifier = base64url(randomBytes(32));
     const state = base64url(randomBytes(16));
@@ -67,7 +73,13 @@ class WebSignIn {
       this.pending = { state, resolve, reject, timer };
       Promise.resolve(this.openExternal(authorize.href)).catch(error => this.finish(state, new SignInError('browser', t('signIn.browser', { error: error.message }))));
     });
-    return this.exchange(origin, code, verifier);
+    const token = await this.exchange(origin, code, verifier);
+    try {
+      return await adopt(token);
+    } catch (error) {
+      await revokeApiToken(this.fetchImpl, origin, token);
+      throw error;
+    }
   }
 
   /** Stops a waiting sign-in. */
@@ -117,11 +129,12 @@ class WebSignIn {
     } catch {
       throw new SignInError('unreachable', t('signIn.unreachable'));
     }
-    const body = await response.json().catch(() => ({}));
-    if (response.ok && typeof body.access_token === 'string' && TOKEN.test(body.access_token)) return body.access_token;
+    // An unreadable or oversized body is a rejected sign-in, reported by status below.
+    const body = await readJsonResponse(response, CLOUD_CONNECTION_MAX_RESPONSE_BYTES).catch(() => ({}));
+    if (response.ok && isApiToken(body.access_token)) return body.access_token;
     if (body.error === 'invalid_grant') throw new SignInError('expired', t('signIn.expired'));
     throw new SignInError('rejected', t('signIn.rejected', { status: response.status }));
   }
 }
 
-module.exports = { WebSignIn, SignInError, CLIENT_ID };
+module.exports = { WebSignIn, SignInError };

@@ -2,6 +2,7 @@ const { EventEmitter } = require('events');
 const http = require('http');
 
 const { HttpServer } = require('../src/modules/http-server.cjs');
+const { StatusIngress } = require('../src/application/status-ingress.cjs');
 
 function request(method, url, { headers = {}, body, rawBody } = {}) {
   const req = new EventEmitter();
@@ -59,7 +60,9 @@ function createServer() {
     getDebugInfo: jest.fn(() => ({ ok: true }))
   };
   const app = { quit: jest.fn(), getVersion: jest.fn(() => '0.0.0-test') };
-  return { server: new HttpServer(stateManager, windowManager, app), stateManager, windowManager, app };
+  const effects = { onProjectSwitched: jest.fn(), onStateUpdate: jest.fn() };
+  const ingress = new StatusIngress(stateManager, windowManager, effects);
+  return { server: new HttpServer({ windowManager, app, ingress }), stateManager, windowManager, app, effects };
 }
 
 describe('HttpServer request boundaries', () => {
@@ -392,9 +395,15 @@ describe('HttpServer request boundaries', () => {
     const { server } = createServer();
     server.onError = jest.fn();
 
+    expect(server.listening).toBe(false);
     expect(server.start()).toBe(nativeServer);
+    nativeServer.listening = false;
     nativeServer.emit('error', Object.assign(new Error('busy'), { code: 'EADDRINUSE' }));
+    expect(server.listening).toBe(false);
+    nativeServer.listening = true;
+    expect(server.listening).toBe(true);
     await server.stop();
+    expect(server.listening).toBe(false);
 
     expect(server.onError).toHaveBeenCalled();
     expect(server.server).toBeNull();
@@ -440,9 +449,7 @@ describe('HttpServer request boundaries', () => {
   });
 
   test('handles focus switches and info-only updates without state side effects', async () => {
-    const { server, windowManager } = createServer();
-    server.onProjectSwitched = jest.fn();
-    server.onStateUpdate = jest.fn();
+    const { server, windowManager, effects } = createServer();
     windowManager.routeStatusUpdate.mockReturnValue({
       switchedProject: 'old',
       updateResult: { updated: true, stateChanged: false, infoChanged: true },
@@ -455,8 +462,8 @@ describe('HttpServer request boundaries', () => {
       body: { state: 'working', project: 'demo', memory: 20 }
     }), res);
 
-    expect(server.onProjectSwitched).toHaveBeenCalledWith('old');
-    expect(server.onStateUpdate).not.toHaveBeenCalled();
+    expect(effects.onProjectSwitched).toHaveBeenCalledWith('old');
+    expect(effects.onStateUpdate).not.toHaveBeenCalled();
   });
 
   test('notifies menu updates for close and character mutations', async () => {

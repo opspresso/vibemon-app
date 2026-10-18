@@ -56,6 +56,35 @@ describe('cloud monitoring', () => {
     expect(fetchImpl.mock.calls.every(([url]) => url.includes('/api/v1/sources') && !url.includes('trend'))).toBe(true);
     client.stop(); await jest.advanceTimersByTimeAsync(60000); expect(fetchImpl).toHaveBeenCalledTimes(2);
   });
+  test.each([[401, 'token-expired'], [403, 'permission-denied']])('a rejected token (HTTP %s) pauses scheduled polls until a manual poll succeeds', async (status, expected) => {
+    jest.useFakeTimers();
+    const { client, fetchImpl } = fixture();
+    const changes = jest.fn();
+    client.on('change', changes);
+    fetchImpl.mockResolvedValueOnce({ ok: false, status });
+    client.start(); await jest.advanceTimersByTimeAsync(0);
+    expect(client.getStatus()).toBe(expected);
+    const emitted = changes.mock.calls.length;
+    await jest.advanceTimersByTimeAsync(120000);
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+    expect(changes).toHaveBeenCalledTimes(emitted);
+    await client.poll(true);
+    expect(client.getStatus()).toBe('connected');
+    await jest.advanceTimersByTimeAsync(30000);
+    expect(fetchImpl).toHaveBeenCalledTimes(3);
+    client.stop();
+  });
+  test('scheduled polls do not run without a saved token', async () => {
+    jest.useFakeTimers();
+    const { client, fetchImpl } = fixture();
+    client.credentials.clear();
+    const changes = jest.fn();
+    client.on('change', changes);
+    client.start(); await jest.advanceTimersByTimeAsync(90000);
+    expect(changes).toHaveBeenCalledTimes(1);
+    expect(fetchImpl).not.toHaveBeenCalled();
+    client.stop();
+  });
   test('requests selected sources and preserves discovery choices', async () => {
     const { client, fetchImpl } = fixture();
     await client.poll(true);
@@ -239,7 +268,7 @@ describe('credential storage', () => {
     expect(result.status).toBe('credential-unavailable');
     expect(fetchImpl).not.toHaveBeenCalled();
     expect(result.tokenConfigured).toBe(true);
-    expect(() => vault.get()).toThrow('cannot be decrypted');
+    expect(() => vault.get()).toThrow('saved token cannot be unlocked');
     try { vault.get(); } catch (error) { expect(error.message).not.toContain('private storage detail'); }
   });
   test('stores encrypted bytes, never plaintext, and does not expose credentials in snapshots', () => {
@@ -422,7 +451,7 @@ test('late candidate checks cannot overwrite a newer choice or undo disconnect',
   const cancelled = client.configure({ url: 'https://old.example', token: rawToken });
   await client.disconnect(); complete(okResponse({ sources: [] }));
   await expect(cancelled).rejects.toThrow('connection changed');
-  expect(client.hasToken()).toBe(false);
+  expect(client.snapshot().tokenConfigured).toBe(false);
 });
 test('the credential adapter commits encrypted token and origin together', () => {
   const storage = { set: jest.fn(), get: jest.fn() };
@@ -444,6 +473,25 @@ describe('selection saved before version 2', () => {
     preferences.set('selectedAccounts', ['codex:default']);
     new MonitoringClient({ preferences, credentials: { has: () => true, get: () => rawToken }, fetchImpl });
     expect(preferences.get('selectedAccounts')).toEqual(['codex:default']);
+  });
+});
+
+describe('replacing a token deletes the replaced one on Web', () => {
+  const replacement = 'vm_' + '2'.repeat(60);
+  test('a verified replacement deletes the previous token at its own origin', async () => {
+    const { client, fetchImpl } = fixture();
+    await client.configure({ url: 'https://other.example', token: replacement });
+    const [url, options] = fetchImpl.mock.calls.at(-1);
+    expect([url, options.method, options.headers.Authorization]).toEqual(['https://web.example/api/v1/connection', 'DELETE', `Bearer ${rawToken}`]);
+    expect(client.snapshot().url).toBe('https://other.example');
+  });
+  test('the same token, a URL-only change, and a failed check delete nothing', async () => {
+    const { client, fetchImpl } = fixture();
+    await client.configure({ url: 'https://web.example', token: rawToken });
+    await client.configure({ url: 'https://web.example', token: '' });
+    fetchImpl.mockResolvedValueOnce({ ok: false, status: 401 });
+    await expect(client.configure({ url: 'https://web.example', token: replacement })).rejects.toMatchObject({ code: 'token-expired' });
+    expect(fetchImpl.mock.calls.some(([, options]) => options?.method === 'DELETE')).toBe(false);
   });
 });
 

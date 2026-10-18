@@ -111,6 +111,13 @@
     "unitFractionDigits": {
       "%": 2,
       "GiB": 2
-    }
+    },
+    "tones": [
+      {
+        "keyPrefix": "usage",
+        "warningFrom": 70,
+        "dangerFrom": 90
+      }
+    ]
   }
 }

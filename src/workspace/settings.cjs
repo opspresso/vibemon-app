@@ -12,7 +12,6 @@ const HOOK_SETTINGS = ['debug', 'auto_launch', 'http_urls', 'serial_port'];
 // Fixed navigation targets — the renderer picks by key, so no URL ever
 // crosses the IPC boundary.
 const EXTERNAL_LINKS = {
-  docs: 'https://vibemon.io/docs',
   accounts: 'https://vibemon.io/docs/coding-agents#keep-several-accounts-apart',
   releases: 'https://github.com/opspresso/vibemon-app/releases'
 };
@@ -109,7 +108,6 @@ class WorkspaceSettings {
   setupActions() {
     this.actions = new Map();
     const handle = (action, handler) => this.actions.set(action, handler);
-    handle('get-all', () => this.getSnapshot());
 
     const preference = (action, valid, apply) => handle(action, value => {
       if (!valid(value)) throw new Error(t('error.invalidSetting'));
@@ -153,7 +151,7 @@ class WorkspaceSettings {
     handle('install-hook', async (flag) => {
       // No result dialog — the workspace already shows the outcome
       // inline via the row's badge/button state.
-      const results = await this.hookInstaller.installByFlag(flag, null, { showSummary: false });
+      const results = await this.hookInstaller.installByFlag(flag, { showSummary: false });
       this.notifyChanged();
       const failure = results.find(r => !r.result.ok);
       if (failure || results.length === 0) {
@@ -165,7 +163,7 @@ class WorkspaceSettings {
     });
 
     handle('repair-vibemon-config', () => {
-      this.vibemonConfigManager.ensureDesktopUrl(null);
+      this.vibemonConfigManager.ensureDesktopUrl();
       const result = this.getVibemonConfigView();
       if (!result.status.hasDesktopUrl) throw new Error(t('error.repairConfig'));
       this.notifyChanged();

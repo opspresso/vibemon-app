@@ -55,7 +55,7 @@ describe('VibemonConfigManager', () => {
     fs.readFileSync.mockReturnValue(body);
     expect(manager.getStatus()).toEqual({ exists: true, hasDesktopUrl: false, error: 'Fix ~/.vibemon/config.json: expected a valid JSON object.' });
     expect(() => manager.write({ debug: true })).toThrow('expected a valid JSON object');
-    expect(manager.ensureDesktopUrl(null)).toBe(false);
+    expect(manager.ensureDesktopUrl()).toBe(false);
     expect(fs.writeFileSync).not.toHaveBeenCalled();
   });
 
@@ -217,17 +217,17 @@ describe('VibemonConfigManager', () => {
       fs.existsSync.mockReturnValue(true);
       fs.readFileSync.mockReturnValue(JSON.stringify({ http_urls: ['http://127.0.0.1:19280'] }));
 
-      expect(manager.ensureDesktopUrl('tok')).toBe(false);
+      expect(manager.ensureDesktopUrl()).toBe(false);
       expect(fs.writeFileSync).not.toHaveBeenCalled();
     });
 
     test('creates a new config with defaults when missing', () => {
-      expect(manager.ensureDesktopUrl('my_token')).toBe(true);
+      expect(manager.ensureDesktopUrl()).toBe(true);
       expect(fs.mkdirSync).toHaveBeenCalledWith(expect.stringContaining('.vibemon'), { recursive: true, mode: 0o700 });
 
       const written = JSON.parse(fs.writeFileSync.mock.calls[0][1]);
       expect(written.http_urls).toEqual(['http://127.0.0.1:19280']);
-      expect(written.vibemon_token).toBe('my_token');
+      expect(written.vibemon_token).toBe('');
       expect(written.vibemon_url).toBe('https://vibemon.io');
     });
 
@@ -239,7 +239,7 @@ describe('VibemonConfigManager', () => {
         debug: true
       }));
 
-      expect(manager.ensureDesktopUrl('new_token')).toBe(true);
+      expect(manager.ensureDesktopUrl()).toBe(true);
 
       const written = JSON.parse(fs.writeFileSync.mock.calls[0][1]);
       expect(written.http_urls).toEqual(['http://192.168.1.50:8080', 'http://127.0.0.1:19280']);
@@ -252,19 +252,13 @@ describe('VibemonConfigManager', () => {
       fs.existsSync.mockReturnValue(true);
       fs.readFileSync.mockReturnValue('{not json');
 
-      expect(manager.ensureDesktopUrl(null)).toBe(false);
+      expect(manager.ensureDesktopUrl()).toBe(false);
 
       expect(fs.copyFileSync).not.toHaveBeenCalled();
       expect(fs.writeFileSync).not.toHaveBeenCalled();
       consoleError.mockRestore();
     });
 
-    test('leaves vibemon_token empty when no token is available', () => {
-      manager.ensureDesktopUrl(null);
-
-      const written = JSON.parse(fs.writeFileSync.mock.calls[0][1]);
-      expect(written.vibemon_token).toBe('');
-    });
   });
 
   describe('persist', () => {
@@ -295,7 +289,7 @@ describe('VibemonConfigManager', () => {
       fs.renameSync.mockImplementation(() => { throw new Error('EACCES'); });
 
       expect(() => manager.write({ debug: true })).toThrow('Unable to save');
-      expect(manager.ensureDesktopUrl(null)).toBe(false);
+      expect(manager.ensureDesktopUrl()).toBe(false);
     });
   });
 });

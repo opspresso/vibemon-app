@@ -925,5 +925,47 @@
       "elapsedMs": 0,
       "expected": null
     }
+  ],
+  "metricTones": [
+    {
+      "key": "usageSessionPercent",
+      "value": 69.99,
+      "expected": "normal"
+    },
+    {
+      "key": "usageSessionPercent",
+      "value": 70,
+      "expected": "warning"
+    },
+    {
+      "key": "usageWeekPercent",
+      "value": 89.99,
+      "expected": "warning"
+    },
+    {
+      "key": "usageWeekPercent",
+      "value": 90,
+      "expected": "danger"
+    },
+    {
+      "key": "usageWeekModelPercent",
+      "value": 100,
+      "expected": "danger"
+    },
+    {
+      "key": "usageSessionPercent",
+      "value": null,
+      "expected": "normal"
+    },
+    {
+      "key": "contextPercent",
+      "value": 95,
+      "expected": "normal"
+    },
+    {
+      "key": "cpuPercent",
+      "value": 99,
+      "expected": "normal"
+    }
   ]
 }

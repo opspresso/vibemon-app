@@ -31,6 +31,7 @@ from urllib.request import Request, urlopen
 from account_context import cloud_context, project_cache_key, prepare_account, using_account, activity_key, event_context
 from account_identity import AccountIdentity
 from account_service import identity_hint
+from cache_io import projects_cache_path, usage_cache_path
 from project_context import get_project_name, parse_json, read_input
 import session_activity
 from session_activity import Transition
@@ -120,8 +121,14 @@ CODEX_SESSIONS_DIR = str(
     Path(os.environ.get("CODEX_HOME") or "~/.codex").expanduser() / "sessions"
 )
 
-# Desktop launch configuration
-DESKTOP_LAUNCH_WAIT_SECONDS = 3
+# A start event launches Desktop, opens its window, and sends status within one
+# budget, inside the 10-second hook timeout. Desktop launch waits until /health
+# answers and leaves DESKTOP_SEND_RESERVE_SECONDS for the requests after it.
+START_BUDGET_SECONDS = 9
+DESKTOP_SEND_RESERVE_SECONDS = 3
+DESKTOP_LAUNCH_POLL_SECONDS = 0.2
+DESKTOP_HEALTH_TIMEOUT_SECONDS = 1
+MIN_REQUEST_TIMEOUT_SECONDS = 0.5
 
 
 @dataclass(frozen=True)
@@ -154,9 +161,7 @@ def get_config() -> Config:
         _config = Config(
             http_urls=parse_http_urls(os.environ.get("VIBEMON_HTTP_URLS")),
             serial_port=os.environ.get("VIBEMON_SERIAL_PORT"),
-            cache_path=os.path.expanduser(
-                os.environ.get("VIBEMON_CACHE_PATH", "~/.vibemon/cache/projects.json")
-            ),
+            cache_path=projects_cache_path(),
             auto_launch=os.environ.get("VIBEMON_AUTO_LAUNCH", "0") == "1",
             vibemon_url=os.environ.get("VIBEMON_URL"),
             vibemon_token=os.environ.get("VIBEMON_TOKEN"),
@@ -305,8 +310,7 @@ def get_codex_context_usage(data: dict[str, Any]) -> float | None:
 
 def _resets_in_minutes(entry: dict[str, Any]) -> int | None:
     """Minutes remaining until a usage bucket's `resets_at` (epoch seconds),
-    or None if that bucket has no resets_at (e.g. populated by the older
-    `claude -p "/usage"` subprocess fallback, which only has a display string).
+    or None if that bucket has no resets_at.
     """
     resets_at = entry.get("resets_at")
     if not is_finite_number(resets_at):
@@ -317,9 +321,7 @@ def _resets_in_minutes(entry: dict[str, Any]) -> int | None:
 
 def _load_usage_provider(provider: str) -> dict[str, Any] | None:
     """Load one provider only when that provider's usage is fresh."""
-    config = get_config()
-    usage_path = os.path.join(os.path.dirname(config.cache_path), "usage.json")
-    return get_fresh_provider(load_usage_cache(usage_path), provider, CACHE_STALE_SECONDS)
+    return get_fresh_provider(load_usage_cache(usage_cache_path()), provider, CACHE_STALE_SECONDS)
 
 
 def _usage_fields(bucket_data: dict[str, Any] | None) -> dict[str, Any]:
@@ -366,8 +368,7 @@ def get_usage_metadata() -> dict[str, Any]:
     """Get Claude plan-usage percentages from the shared usage cache.
 
     usage.py/statusline.py cache plan usage (from the statusline payload's
-    official `rate_limits` field, Anthropic's usage API, or a `claude -p
-    "/usage"` subprocess as fallback) next to the project cache
+    official `rate_limits` field or Anthropic's usage API) next to the project cache
     (~/.vibemon/cache/usage.json), under the "claude" key. Returns {usage5h,
     usageWeek, usage5hResetsIn, usageWeekResetsIn} for the 5-hour session
     window and the weekly (all-models) window, plus {usageWeekModel,
@@ -614,8 +615,15 @@ def send_serial(port: str, data: str) -> bool:
             Path(debounce_temp).unlink(missing_ok=True)
 
 
+def request_timeout(deadline: float | None) -> float:
+    """The HTTP timeout for a request that must end by `deadline` (time.monotonic()), if any."""
+    if deadline is None:
+        return HTTP_TIMEOUT_SECONDS
+    return max(MIN_REQUEST_TIMEOUT_SECONDS, min(HTTP_TIMEOUT_SECONDS, deadline - time.monotonic()))
+
+
 def send_http_post(
-    url: str, endpoint: str, data: str | None = None
+    url: str, endpoint: str, data: str | None = None, deadline: float | None = None
 ) -> tuple[bool, str | None]:
     """Send HTTP POST request."""
     try:
@@ -630,22 +638,22 @@ def send_http_post(
         else:
             req = Request(full_url, method="POST")
 
-        with urlopen(req, timeout=HTTP_TIMEOUT_SECONDS) as response:
+        with urlopen(req, timeout=request_timeout(deadline)) as response:
             return True, response.read().decode("utf-8")
     except (URLError, TimeoutError, OSError):
         return False, None
 
 
-def send_http_get(url: str, endpoint: str) -> tuple[bool, str | None]:
+def send_http_get(url: str, endpoint: str, timeout: float = HTTP_TIMEOUT_SECONDS) -> tuple[bool, str | None]:
     """Send HTTP GET request."""
     try:
-        with urlopen(f"{url.rstrip('/')}{endpoint}", timeout=HTTP_TIMEOUT_SECONDS) as response:
+        with urlopen(f"{url.rstrip('/')}{endpoint}", timeout=timeout) as response:
             return True, response.read().decode("utf-8")
     except (URLError, TimeoutError, OSError):
         return False, None
 
 
-def send_vibemon_api(url: str, token: str, payload: dict[str, Any], context: dict | None = None) -> bool:
+def send_vibemon_api(url: str, token: str, payload: dict[str, Any], context: dict | None = None, deadline: float | None = None) -> bool:
     """Send status to VibeMon API with Bearer token authentication.
 
     API: POST /api/status
@@ -691,7 +699,7 @@ def send_vibemon_api(url: str, token: str, payload: dict[str, Any], context: dic
             method="POST",
         )
 
-        with open_credential_request(req, timeout=HTTP_TIMEOUT_SECONDS) as response:
+        with open_credential_request(req, timeout=request_timeout(deadline)) as response:
             debug_log(f"VibeMon API response: {response.status}")
             return 200 <= response.status < 300
     except HTTPError as error:
@@ -929,19 +937,23 @@ def send_reboot() -> bool:
 # ============================================================================
 
 
-def is_monitor_running(url: str) -> bool:
+def is_monitor_running(url: str, timeout: float = HTTP_TIMEOUT_SECONDS) -> bool:
     """Check if monitor is running."""
-    success, _ = send_http_get(url, "/health")
+    success, _ = send_http_get(url, "/health", timeout)
     return success
 
 
-def show_monitor_window(url: str) -> None:
+def show_monitor_window(url: str, deadline: float | None = None) -> None:
     """Show the monitor window."""
-    send_http_post(url, "/show")
+    send_http_post(url, "/show", deadline=deadline)
 
 
-def launch_desktop() -> bool:
-    """Launch an installed desktop package without downloading software."""
+def launch_desktop(url: str | None, deadline: float) -> bool:
+    """Launch an installed desktop package without downloading software.
+
+    With `url`, returns True when the App there answers /health before
+    `deadline` (time.monotonic()). Without it, returns True once launched.
+    """
     try:
         if IS_WINDOWS:
             roots = [
@@ -964,17 +976,31 @@ def launch_desktop() -> bool:
             debug_log("Start the Desktop App manually on this platform")
             return False
 
-        subprocess.Popen(
+        process = subprocess.Popen(
             command,
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
             **kwargs,
         )
-        time.sleep(DESKTOP_LAUNCH_WAIT_SECONDS)
-        return True
     except OSError as e:
         debug_log(f"Failed to launch Desktop App: {e}")
         return False
+    return wait_for_desktop(url, process, deadline) if url else True
+
+
+def wait_for_desktop(url: str, process: subprocess.Popen, deadline: float) -> bool:
+    """Poll /health until it answers, the launcher fails, or `deadline` passes."""
+    while True:
+        if is_monitor_running(url, DESKTOP_HEALTH_TIMEOUT_SECONDS):
+            return True
+        # macOS `open` exits nonzero when VibeMon is not installed; nothing will answer then.
+        if process.poll() not in (None, 0):
+            debug_log("Desktop App launch failed")
+            return False
+        if time.monotonic() >= deadline:
+            debug_log("Desktop App did not answer /health before the deadline")
+            return False
+        time.sleep(DESKTOP_LAUNCH_POLL_SECONDS)
 
 
 def get_desktop_url(http_urls: tuple[str, ...]) -> str | None:
@@ -985,23 +1011,40 @@ def get_desktop_url(http_urls: tuple[str, ...]) -> str | None:
     return None
 
 
-def prepare_desktop() -> None:
-    """Start the configured local viewer without creating a placeholder account."""
+def prepare_desktop(deadline: float | None = None) -> None:
+    """Start the configured local viewer without creating a placeholder account.
+
+    Every wait and request ends by `deadline` (time.monotonic()); the default
+    is a full start budget.
+    """
+    if deadline is None:
+        deadline = time.monotonic() + START_BUDGET_SECONDS
     config = get_config()
     desktop_url = get_desktop_url(config.http_urls)
     if desktop_url and config.auto_launch:
-        if not is_monitor_running(desktop_url):
+        if not is_monitor_running(desktop_url, DESKTOP_HEALTH_TIMEOUT_SECONDS):
             debug_log("Desktop App not running, launching...")
-            launch_desktop()
-        show_monitor_window(desktop_url)
+            launch_desktop(desktop_url, deadline - DESKTOP_SEND_RESERVE_SECONDS)
+        show_monitor_window(desktop_url, deadline)
+
+
+def launch_configured_desktop() -> bool:
+    """`--launch-desktop`: launch Desktop and wait for the configured local URL, if any."""
+    deadline = time.monotonic() + START_BUDGET_SECONDS - DESKTOP_SEND_RESERVE_SECONDS
+    return launch_desktop(get_desktop_url(get_config().http_urls), deadline)
 
 
 def send_to_all(payload: dict[str, Any], is_start: bool = False, context: dict | bool | None = None) -> None:
-    """Send payload to all configured targets concurrently."""
+    """Send payload to all configured targets concurrently.
+
+    A start event shares one budget across the Desktop launch and the sends.
+    """
     config = get_config()
 
+    deadline = None
     if is_start:
-        prepare_desktop()
+        deadline = time.monotonic() + START_BUDGET_SECONDS
+        prepare_desktop(deadline)
 
     # Every display receives the same non-secret provider/workspace identity.
     payload_str = json.dumps({**payload, **context} if isinstance(context, dict) else payload)
@@ -1020,7 +1063,7 @@ def send_to_all(payload: dict[str, Any], is_start: bool = False, context: dict |
         # Capture url in closure
         u = url
         label = "Desktop App" if is_localhost_url(url) else f"HTTP ({url})"
-        tasks.append((label, lambda u=u: send_http_post(u, "/status", payload_str)[0]))
+        tasks.append((label, lambda u=u: send_http_post(u, "/status", payload_str, deadline)[0]))
 
     if resolved_port:
         # Capture resolved_port in closure
@@ -1033,7 +1076,7 @@ def send_to_all(payload: dict[str, Any], is_start: bool = False, context: dict |
             (
                 "VibeMon API",
                 lambda: send_vibemon_api(
-                    config.vibemon_url, config.vibemon_token, payload, context
+                    config.vibemon_url, config.vibemon_token, payload, context, deadline
                 ),
             )
         )
@@ -1121,7 +1164,7 @@ def send_cloud_status(provider: str) -> bool:
 COMMAND_HANDLERS: dict[str, Any] = {
     "--resolve-plugin-account": lambda args: resolve_plugin_account(args[0]) if len(args) == 1 else False,
     "--send-cloud": lambda args: send_cloud_status(args[0]) if len(args) == 1 else False,
-    "--launch-desktop": lambda args: launch_desktop(),
+    "--launch-desktop": lambda args: launch_configured_desktop(),
     "--send-serial": send_serial_input,
     "--lock": lambda args: send_lock(
         args[0] if args else os.path.basename(os.getcwd())
@@ -1215,11 +1258,10 @@ def run(
             argv_event = cmd
 
     if os.environ.get("VIBEMON_SUPPRESS_HOOKS") == "1":
-        # Set by VibeMon's own usage-refresher when it spawns
-        # `claude -p "/usage"` to refresh the plan-usage cache — that
-        # subprocess is a real Claude Code session and would otherwise report
-        # status here under a ".vibemon" project (its cwd). Checked only after
-        # argv dispatch so explicit `--status`/`--lock` commands still run.
+        # Set on the processes that VibeMon's usage refresh spawns
+        # (usage-refresher.cjs, account_refresh.py), so a tool session they
+        # start never reports status. Checked only after argv dispatch so
+        # explicit `--status`/`--lock` commands still run.
         debug_log("Hook suppressed (VIBEMON_SUPPRESS_HOOKS=1)")
         return
 
@@ -1256,8 +1298,7 @@ def process_event(data, event_name, event_state_map, build_payload, start_event,
     cwd = cwd if isinstance(cwd, str) else ""
     transcript_path = transcript_path if isinstance(transcript_path, str) else ""
 
-    # A session working inside ~/.vibemon is VibeMon's own plumbing (the
-    # `claude -p "/usage"` subprocess usage.py spawns with that cwd), never a
+    # A session working inside ~/.vibemon is VibeMon's own plumbing, never a
     # user project. Skip reporting regardless of VIBEMON_SUPPRESS_HOOKS so
     # spawners that don't set the env var (older Desktop apps, manual
     # usage.py runs) can't surface a phantom ".vibemon" project.

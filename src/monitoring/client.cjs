@@ -6,6 +6,11 @@ const { CLOUD_POLL_MS, CLOUD_REQUEST_TIMEOUT_MS, CLOUD_TREND_MS, CLOUD_MAX_RESPO
 const { sourceStale, sourceState, accountActivity, needsAttention, attentionCount } = require('../shared/monitoring/state.cjs');
 const { snapshotClock } = require('../shared/monitoring/clock.cjs');
 const { t } = require('../shared/i18n/locale.cjs');
+const { isApiToken, revokeApiToken } = require('../shared/api-token.cjs');
+
+const DEFAULT_WEB_URL = 'https://vibemon.io';
+// Web rejected the saved token. Repeating the request cannot succeed until the token changes.
+const REJECTED = new Set(['token-expired', 'permission-denied']);
 
 class MonitoringClient extends EventEmitter {
   constructor({ preferences, credentials, fetchImpl = fetch, allowLocalHttp = false, now = Date.now, monotonicNow = () => globalThis.performance.now() }) {
@@ -36,7 +41,10 @@ class MonitoringClient extends EventEmitter {
     this.timer = null;
   }
   getStatus() { return this.status; }
-  hasToken() { return this.credentials.has(); }
+  /** The saved Web address, or the public service before one is saved. */
+  savedUrl() { return this.preferences.get('url') || DEFAULT_WEB_URL; }
+  /** The saved Web address as a checked origin; throws when it is not allowed here. */
+  savedOrigin() { return webOrigin(this.savedUrl(), this.allowLocalHttp); }
   currentTime() { return this.reportClock ? this.reportClock() : this.now(); }
   snapshot() {
     const now = this.currentTime();
@@ -57,7 +65,7 @@ class MonitoringClient extends EventEmitter {
         .flatMap(source => displayMetrics(source).filter(metric => savedMetrics.includes(metric.key)).map(metric => metric.selectionKey))
     ])];
     return {
-      url: this.preferences.get('url') || 'https://vibemon.io',
+      url: this.savedUrl(),
       tokenConfigured: this.credentials.has(), status: this.status,
       lastSyncedAt: this.lastSyncedAt, connectionRevision: this.generation,
       evaluatedAt: now,
@@ -73,7 +81,7 @@ class MonitoringClient extends EventEmitter {
   }
   async configure({ url, token }) {
     const origin = webOrigin(url, this.allowLocalHttp);
-    if (typeof token !== 'string' || (token && !/^vm_[a-f0-9]{60}$/.test(token))) throw new Error(t('error.readTokenFormat'));
+    if (typeof token !== 'string' || (token && !isApiToken(token))) throw new Error(t('error.readTokenFormat'));
     if (origin !== this.preferences.get('url') && !token && this.credentials.has()) throw new Error(t('error.tokenForNewAddress'));
     const candidate = token || this.credentials.get();
     const attempt = ++this.configurationAttempt;
@@ -81,8 +89,11 @@ class MonitoringClient extends EventEmitter {
     const sources = validateSources(data.sources);
     const clock = snapshotClock(data.serverTime, this.monotonicNow);
     if (attempt !== this.configurationAttempt) throw new Error(t('error.connectionChanged'));
+    const replaced = token ? this.savedCredential() : null;
     if (token) this.credentials.set(token, origin);
     else this.preferences.set('url', origin);
+    // The replaced token has no other holder on this device. Web keeps it valid until it is deleted.
+    if (replaced && replaced.token !== token) revokeApiToken(this.fetch, replaced.origin, replaced.token);
     this.generation++;
     this.sources = sources;
     this.reportClock = clock;
@@ -90,9 +101,9 @@ class MonitoringClient extends EventEmitter {
     this.accountCatalog = groupAccounts(sources).map(({ accountId, displayName, provider }) => ({ accountId, displayName, provider }));
     this.lastSyncedAt = new Date(this.now()).toISOString();
     this.status = 'connected';
-    this.emit('sources', this.snapshot().sources);
-    this.emit('change', this.snapshot());
-    return this.snapshot();
+    const snapshot = this.snapshot();
+    this.emit('change', snapshot);
+    return snapshot;
   }
   /**
    * Removes the connection on this device, then deletes its token on Web.
@@ -102,10 +113,8 @@ class MonitoringClient extends EventEmitter {
   async disconnect() {
     this.configurationAttempt++;
     this.generation++;
-    const origin = this.snapshot().url;
     const saved = this.credentials.has();
-    let token = null;
-    try { token = saved ? this.credentials.get() : null; } catch { token = null; }
+    const credential = this.savedCredential();
     this.credentials.clear();
     this.sources = [];
     this.catalog = [];
@@ -113,20 +122,18 @@ class MonitoringClient extends EventEmitter {
     this.lastSyncedAt = null;
     this.reportClock = null;
     this.status = 'not-configured';
-    this.emit('sources', []);
-    this.emit('change', this.snapshot());
+    const snapshot = this.snapshot();
+    this.emit('change', snapshot);
     // A saved token that cannot be read cannot be deleted on Web either.
-    return { ...this.snapshot(), tokenDeleted: token ? await this.deleteToken(origin, token) : !saved };
+    return { ...snapshot, tokenDeleted: credential ? await revokeApiToken(this.fetch, credential.origin, credential.token) : !saved };
   }
-  async deleteToken(origin, token) {
+  /** The saved token and its origin, or null when none is saved or either cannot be used. */
+  savedCredential() {
     try {
-      const response = await this.fetch(`${origin}/api/v1/connection`, {
-        method: 'DELETE', headers: { Authorization: `Bearer ${token}` }, redirect: 'error', signal: AbortSignal.timeout(CLOUD_REQUEST_TIMEOUT_MS)
-      });
-      // A token that Web no longer accepts is already gone.
-      return response.status === 204 || response.status === 401;
+      const token = this.credentials.get();
+      return token ? { token, origin: this.savedOrigin() } : null;
     } catch {
-      return false;
+      return null;
     }
   }
   async select({ sources, accounts = null, metrics }) {
@@ -144,7 +151,7 @@ class MonitoringClient extends EventEmitter {
     return this.poll();
   }
   async request(path) {
-    const origin = webOrigin(this.preferences.get('url') || 'https://vibemon.io', this.allowLocalHttp);
+    const origin = this.savedOrigin();
     return this.requestWith(origin, this.credentials.get(), path);
   }
   async requestWith(origin, token, path) {
@@ -184,7 +191,6 @@ class MonitoringClient extends EventEmitter {
         this.sources = [];
         // No request was made: keep the last connection result, including errors.
         if (!this.credentials.has()) this.status = 'not-configured';
-        this.emit('sources', []);
       } else {
         if (!this.lastSyncedAt && this.credentials.has() && this.status !== 'connecting') {
           this.status = 'connecting';
@@ -212,15 +218,15 @@ class MonitoringClient extends EventEmitter {
           }
           this.status = 'connected';
           this.lastSyncedAt = new Date(this.now()).toISOString();
-          this.emit('sources', this.snapshot().sources);
         }
       }
     } catch (error) {
       if (generation === this.generation) this.status = error.code || 'connection-error';
-    } finally {
-      this.emit('change', this.snapshot());
     }
-    return this.snapshot();
+    // Every completed poll is a clock step: listeners re-evaluate staleness even when the data did not change.
+    const snapshot = this.snapshot();
+    this.emit('change', snapshot);
+    return snapshot;
   }
   catalogEntry(source) {
     return { sourceId: source.sourceId, displayName: source.displayName, kind: source.kind,
@@ -233,7 +239,7 @@ class MonitoringClient extends EventEmitter {
     const present = account ? this.accountCatalog.some(item => item.accountId === target.id)
       : this.catalog.some(item => item.sourceId === target.id && item.kind !== 'agent');
     if (!present) throw new Error(t('error.removalMissing'));
-    const origin = webOrigin(this.preferences.get('url') || 'https://vibemon.io', this.allowLocalHttp);
+    const origin = this.savedOrigin();
     const connection = await this.request('/api/v1/connection?scope=read');
     if (generation !== this.generation) throw new Error(t('error.connectionChanged'));
     if (connection.connected !== true || connection.scope !== 'read' || !validId(connection.ownerId)) throw new Error(t('error.removalUpgrade'));
@@ -255,10 +261,17 @@ class MonitoringClient extends EventEmitter {
       : displayMetrics({ sourceId, kind: 'resource', metricDefinitions: definitions, metricOrder: validateOrder(data.metricOrder, definitions) });
     return { points, displayMetrics: metrics };
   }
+  /**
+   * Polls now and every CLOUD_POLL_MS. Scheduled polls pause while no token is
+   * saved or Web rejected the saved one; configure(), select() and a manual
+   * refresh still poll and resume the schedule when they succeed.
+   */
   start() {
     if (this.timer) return;
     this.poll(true);
-    this.timer = setInterval(() => this.poll(), CLOUD_POLL_MS);
+    this.timer = setInterval(() => {
+      if (this.credentials.has() && !REJECTED.has(this.status)) this.poll();
+    }, CLOUD_POLL_MS);
   }
   stop() {
     if (this.timer) clearInterval(this.timer);

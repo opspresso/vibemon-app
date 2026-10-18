@@ -1,4 +1,4 @@
-const { BrowserWindow, ipcMain, shell, autoUpdater } = require('electron');
+const { BrowserWindow, ipcMain, shell, autoUpdater, nativeTheme } = require('electron');
 const path = require('node:path');
 const { URL } = require('node:url');
 const { centerOnCursorDisplay } = require('../modules/window-position.cjs');
@@ -6,12 +6,17 @@ const { webOrigin, validId } = require('../monitoring/domain.cjs');
 const { WORKSPACE_UPDATE_MS } = require('../shared/constants.cjs');
 const { attentionAreas, attentionNotices } = require('../shared/attention.cjs');
 const { t, rendererLanguage } = require('../shared/i18n/locale.cjs');
+const { redactApiTokens } = require('../shared/api-token.cjs');
+const { colorPair, readTokens } = require('../shared/design/tokens.cjs');
 
 const ROUTES = ['overview', 'resources', 'agents', 'connections', 'companion', 'integrations', 'about'];
 const CHANNEL = 'workspace:request';
 // The preload reads the App language synchronously, before the page renders text.
 const LANGUAGE_CHANNEL = 'workspace:language';
-const WEB_PATHS = { account: '/account', resources: '/resources/new', agents: '/coding-accounts/new', docs: '/docs', dashboard: '/dashboard' };
+// The native window paints this color before the page loads, so it follows the OS theme like the page.
+const BACKGROUND = colorPair(readTokens(), 'background');
+const backgroundColor = () => nativeTheme.shouldUseDarkColors ? BACKGROUND.dark : BACKGROUND.light;
+const WEB_PATHS = { account: '/account', resources: '/resources/new', agents: '/coding-accounts/new', docs: '/docs' };
 
 class WorkspaceWindow {
   constructor({ monitoring, settings, signIn, getActivity, getUsage, showCompanion, reportError, openExternal = url => shell.openExternal(url) }) {
@@ -31,13 +36,15 @@ class WorkspaceWindow {
     // Release hide-on-close before that sequence can cancel the update.
     this.onBeforeUpdate = () => this.cleanup();
     autoUpdater.on('before-quit-for-update', this.onBeforeUpdate);
+    this.onThemeUpdated = () => { if (this.window && !this.window.isDestroyed()) this.window.setBackgroundColor(backgroundColor()); };
+    nativeTheme.on('updated', this.onThemeUpdated);
     this.onLanguage = event => { event.returnValue = this.trusted(event) ? rendererLanguage() : null; };
     ipcMain.on(LANGUAGE_CHANNEL, this.onLanguage);
     ipcMain.handle(CHANNEL, async (event, command, args = []) => {
       if (!this.trusted(event)) throw new Error('Untrusted workspace request');
       if (!Array.isArray(args) || args.length > 3) throw new Error('Invalid workspace arguments');
       try { return { ok: true, value: await this.request(command, args) }; }
-      catch (error) { return { ok: false, error: String(error.code || error.message || t('error.requestFailed')).replace(/vm_[a-f0-9]{60}/g, '[redacted]') }; }
+      catch (error) { return { ok: false, error: redactApiTokens(error.code || error.message || t('error.requestFailed')) }; }
     });
   }
 
@@ -54,7 +61,7 @@ class WorkspaceWindow {
     }
     this.dirty.clear();
     const areas = attentionAreas(this.cache.cloud, this.cache.settings);
-    return { ...this.cache, attention: { ...areas, notices: attentionNotices(areas) }, route: this.route, platform: process.platform };
+    return { ...this.cache, attention: { ...areas, notices: attentionNotices(areas) }, route: this.route };
   }
 
   notify(section) {
@@ -86,11 +93,11 @@ class WorkspaceWindow {
       // Sign in through Web; the browser returns to the local HTTP server.
       case 'sign-in': {
         const url = String(args[0] ?? '');
-        return this.monitoring.configure({ url, token: await this.signIn.signIn(url, 'read') });
+        return this.signIn.signIn(url, 'read', token => this.monitoring.configure({ url, token }));
       }
       case 'sign-in-cloud-delivery': {
         const url = String(args[0] ?? '');
-        const result = await this.settings.invoke('configure-cloud-delivery', { url, token: await this.signIn.signIn(url, 'write') });
+        const result = await this.signIn.signIn(url, 'write', token => this.settings.invoke('configure-cloud-delivery', { url, token }));
         this.notify('settings');
         return result;
       }
@@ -141,7 +148,7 @@ class WorkspaceWindow {
     }
     const window = new BrowserWindow({
       width: 1220, height: 830, minWidth: 820, minHeight: 600, show: false,
-      title: 'VibeMon', backgroundColor: '#f6f8fb',
+      title: 'VibeMon', backgroundColor: backgroundColor(),
       autoHideMenuBar: process.platform !== 'darwin',
       ...(process.platform === 'darwin' ? { titleBarStyle: 'hiddenInset', trafficLightPosition: { x: 18, y: 16 } } : {}),
       webPreferences: { preload: path.join(__dirname, 'preload.cjs'), contextIsolation: true, nodeIntegration: false, sandbox: true }
@@ -180,10 +187,11 @@ class WorkspaceWindow {
     this.timer = null;
     this.monitoring.off('change', this.onCloudChange);
     autoUpdater.off('before-quit-for-update', this.onBeforeUpdate);
+    nativeTheme.off('updated', this.onThemeUpdated);
     ipcMain.removeHandler(CHANNEL);
     ipcMain.off(LANGUAGE_CHANNEL, this.onLanguage);
     if (this.window && !this.window.isDestroyed()) this.window.destroy();
     this.window = null;
   }
 }
-module.exports = { WorkspaceWindow, ROUTES };
+module.exports = { WorkspaceWindow };

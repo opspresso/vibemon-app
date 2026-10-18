@@ -1424,6 +1424,17 @@ class ManifestAvailabilityTest(unittest.TestCase):
                 install.FileSource().get_file('claude/statusline.py')
             self.assertEqual(download.call_args_list, [mock.call(f'{install.DOCS_BASE_URL}/manifest.json')])
 
+    def test_a_pinned_manifest_digest_rejects_any_other_manifest(self):
+        published = json.dumps({'files': {'claude/statusline.py': 'a' * 64}})
+        pinned = hashlib.sha256(published.encode()).hexdigest()
+        with mock.patch.object(install, '_MANIFEST_LOADED', False), mock.patch.dict(os.environ, {'VIBEMON_MANIFEST_SHA256': pinned}), mock.patch('sys.stdout', io.StringIO()):
+            with mock.patch.object(install, 'download_file', return_value=json.dumps({'files': {'claude/statusline.py': 'b' * 64}})):
+                with self.assertRaisesRegex(install.IntegrityError, 'not the version'):
+                    install.load_manifest(install.FileSource())
+                self.assertFalse(install._MANIFEST_LOADED)
+            with mock.patch.object(install, 'download_file', return_value=published):
+                self.assertEqual(install.load_manifest(install.FileSource()), {'claude/statusline.py': 'a' * 64})
+
     def test_invalid_manifest_is_not_cached_as_success(self):
         with mock.patch.object(install, '_MANIFEST_LOADED', False), mock.patch.object(install, 'download_file', return_value='{"files": {}}'):
             with self.assertRaises(install.IntegrityError):

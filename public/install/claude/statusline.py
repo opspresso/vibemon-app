@@ -8,11 +8,9 @@ from __future__ import annotations
 
 import json
 import os
-import re
 import subprocess
 import sys
 import time
-from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -31,7 +29,7 @@ for helper_dir in (Path(__file__).resolve().parent.parent / "vibemon", VIBEMON_H
 # The helpers resolve only after the path setup above.
 from account_context import project_cache_key, prepare_account, using_account  # noqa: E402
 from project_context import get_project_name, parse_json, read_input  # noqa: E402
-from cache_io import update_json_cache  # noqa: E402
+from cache_io import projects_cache_path, update_json_cache, usage_cache_path  # noqa: E402
 from usage_cache import (  # noqa: E402
     CACHE_STALE_SECONDS,
     get_fresh_provider,
@@ -152,8 +150,8 @@ def detach_stdio() -> None:
     Claude Code captures the statusline by reading this process's stdout until
     EOF. A forked child inherits that same fd, so the pipe won't reach EOF
     until the child also closes it — even after the parent has already
-    exited. Without this, a slow child (lock contention in save_to_cache, or
-    the claude -p "/usage" subprocess) stalls the statusline itself.
+    exited. Without this, a slow child (lock contention in save_to_cache)
+    stalls the statusline itself.
     """
     try:
         devnull_fd = os.open(os.devnull, os.O_RDWR)
@@ -307,21 +305,13 @@ def get_context_percent(data: dict[str, Any]) -> float | None:
 # ============================================================================
 
 
-def get_cache_path() -> str:
-    """Get the cache file path."""
-    cache_path = os.environ.get(
-        "VIBEMON_CACHE_PATH", "~/.vibemon/cache/projects.json"
-    )
-    return os.path.expanduser(cache_path)
-
-
 def save_to_cache(project: str, model: str, memory: float | None, cwd: str | None = None) -> None:
     """Save scoped context under the shared cross-process cache lock."""
     if not project:
         return
 
     project = project_cache_key(project, cwd=cwd)
-    cache_path = get_cache_path()
+    cache_path = projects_cache_path()
     timestamp = int(time.time())
 
     def update(cache):
@@ -437,12 +427,14 @@ def build_progress_bar(percent_str: str | int | float, width: int = 10) -> str:
     filled = round(percent_value * width / 100)
     empty = width - filled
 
-    # Build the bar - filled segments use one color by total ratio, empty in dim
-    if percent_value > 90:
+    # Build the bar - filled segments use one color by total ratio, empty in dim.
+    # Same inclusive steps as barColor() in the App's vibemon-bubble.js: 90 and 70
+    # are the plan usage tone thresholds of its monitoring.json, which hooks do not ship.
+    if percent_value >= 90:
         color = C_RED
-    elif percent_value > 70:
+    elif percent_value >= 70:
         color = C_ORANGE
-    elif percent_value > 50:
+    elif percent_value >= 50:
         color = C_YELLOW
     else:
         color = C_GREEN
@@ -461,20 +453,14 @@ def build_progress_bar(percent_str: str | int | float, width: int = 10) -> str:
 # Plan Usage Functions
 # ============================================================================
 
-def get_usage_cache_path() -> str:
-    """Get the plan-usage cache file path (next to the statusline cache)."""
-    cache_dir = os.path.dirname(get_cache_path())
-    return os.path.join(cache_dir, "usage.json")
-
-
 def load_usage_cache() -> dict[str, Any] | None:
     """Load cached plan usage, or None if missing/unreadable."""
-    return _load_usage_cache(get_usage_cache_path())
+    return _load_usage_cache(usage_cache_path())
 
 
 def save_usage_cache(usage: dict[str, Any]) -> bool:
     """Merge provider updates and stamp each provider independently."""
-    return _save_usage_cache(get_usage_cache_path(), usage)
+    return _save_usage_cache(usage_cache_path(), usage)
 
 
 def build_usage_segment(cache: dict[str, Any] | None) -> str:
@@ -507,56 +493,6 @@ def build_usage_segment(cache: dict[str, Any] | None) -> str:
     return f"{C_CYAN}📊{C_RESET} " + " ".join(seg)
 
 
-_MONTHS = {
-    "jan": 1, "feb": 2, "mar": 3, "apr": 4, "may": 5, "jun": 6,
-    "jul": 7, "aug": 8, "sep": 9, "oct": 10, "nov": 11, "dec": 12,
-}
-
-
-def parse_reset_time(resets: str) -> float | None:
-    """Parse a `/usage` reset string into a local epoch timestamp.
-
-    Handles forms like "Jun 12 at 3:20pm (Asia/Seoul)" and "Jun 13 at 2am ...".
-    The trailing timezone label is ignored: `/usage` already renders the clock
-    in the user's local zone, so a naive local datetime is correct. The year is
-    inferred (rolled forward across a year boundary). Returns None if
-    unparseable.
-    """
-    if not resets:
-        return None
-
-    m = re.search(
-        r"([A-Za-z]{3})[a-z]*\s+(\d{1,2})\s+at\s+(\d{1,2})(?::(\d{2}))?\s*([AaPp][Mm])",
-        resets,
-    )
-    if not m:
-        return None
-
-    month = _MONTHS.get(m.group(1).lower())
-    if not month:
-        return None
-
-    day = int(m.group(2))
-    hour = int(m.group(3))
-    minute = int(m.group(4) or 0)
-    meridiem = m.group(5).lower()
-    if meridiem == "pm" and hour != 12:
-        hour += 12
-    elif meridiem == "am" and hour == 12:
-        hour = 0
-
-    now = datetime.now()
-    for year in (now.year, now.year + 1):
-        try:
-            dt = datetime(year, month, day, hour, minute)
-        except ValueError:
-            return None
-        # Use this year's date unless it's well in the past (year rollover).
-        if (dt - now).total_seconds() >= -86400:
-            return dt.timestamp()
-    return None
-
-
 def format_usage_reset(cache: dict[str, Any] | None) -> str:
     """Render time remaining until the session usage window resets (⏳).
 
@@ -569,11 +505,9 @@ def format_usage_reset(cache: dict[str, Any] | None) -> str:
         return ""
 
     resets_at = session.get("resets_at")
-    target = float(resets_at) if isinstance(resets_at, (int, float)) else None
-    if target is None:
-        target = parse_reset_time(session.get("resets", ""))
-    if target is None:
+    if not isinstance(resets_at, (int, float)):
         return ""
+    target = float(resets_at)
 
     remaining = int(target - time.time())
     # Reset windows are at most days away; a far-future value means the date
@@ -803,8 +737,8 @@ def render_statusline(data: dict) -> None:
     # payload (Claude Code >= v2.1.80, always fresh, no subprocess). Persist
     # it to the usage cache (under the "claude" key) so hooks/vibemon.py
     # (which reads the file, not this process's stdin) also sees the
-    # up-to-date value. Fall back to the claude -p "/usage" subprocess cache
-    # for older Claude Code versions.
+    # up-to-date value. Older Claude Code versions fall back to the shared
+    # usage cache, which usage.py refreshes from the usage API.
     usage_cache = usage_from_rate_limits(data)
     if usage_cache is not None:
         save_usage_cache({"claude": usage_cache})

@@ -7,7 +7,7 @@ import tempfile
 import unittest
 from contextlib import redirect_stderr
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 import vibemon_core
 
@@ -301,10 +301,14 @@ class SerialWriteTest(unittest.TestCase):
         self.assertFalse(self._send(lambda fd, data: 0))
 
 
+URL = 'http://127.0.0.1:19280'
+DEADLINE = 100.0
+
+
 class DesktopLaunchTest(unittest.TestCase):
     def test_macos_opens_installed_application_without_a_shell(self):
-        with patch.object(vibemon_core, 'IS_WINDOWS', False), patch.object(sys, 'platform', 'darwin'), patch.object(vibemon_core.subprocess, 'Popen') as spawn, patch.object(vibemon_core.time, 'sleep'):
-            self.assertTrue(vibemon_core.launch_desktop())
+        with patch.object(vibemon_core, 'IS_WINDOWS', False), patch.object(sys, 'platform', 'darwin'), patch.object(vibemon_core.subprocess, 'Popen') as spawn, patch.object(vibemon_core, 'is_monitor_running', return_value=True):
+            self.assertTrue(vibemon_core.launch_desktop(URL, 10))
         self.assertEqual(spawn.call_args.args[0], ['/usr/bin/open', '-g', '-a', 'VibeMon'])
         self.assertTrue(spawn.call_args.kwargs['start_new_session'])
 
@@ -313,14 +317,60 @@ class DesktopLaunchTest(unittest.TestCase):
             executable = Path(directory) / 'Programs/VibeMon/VibeMon.exe'
             executable.parent.mkdir(parents=True)
             executable.touch()
-            with patch.dict(os.environ, {'LOCALAPPDATA': directory}, clear=True), patch.object(vibemon_core, 'IS_WINDOWS', True), patch.object(vibemon_core.subprocess, 'Popen') as spawn, patch.object(vibemon_core.time, 'sleep'):
-                self.assertTrue(vibemon_core.launch_desktop())
+            with patch.dict(os.environ, {'LOCALAPPDATA': directory}, clear=True), patch.object(vibemon_core, 'IS_WINDOWS', True), patch.object(vibemon_core.subprocess, 'Popen') as spawn, patch.object(vibemon_core, 'is_monitor_running', return_value=True):
+                self.assertTrue(vibemon_core.launch_desktop(URL, 10))
             self.assertEqual(spawn.call_args.args[0], [str(executable)])
 
     def test_missing_windows_installation_does_not_download_an_app(self):
         with patch.dict(os.environ, {}, clear=True), patch.object(vibemon_core, 'IS_WINDOWS', True), patch.object(vibemon_core.shutil, 'which', return_value=None), patch.object(vibemon_core.subprocess, 'Popen') as spawn:
-            self.assertFalse(vibemon_core.launch_desktop())
+            self.assertFalse(vibemon_core.launch_desktop(URL, 10))
             spawn.assert_not_called()
+
+    def test_launch_command_waits_for_the_configured_desktop_url(self):
+        config = Mock(http_urls=('https://example.com', URL))
+        with patch.object(vibemon_core, 'get_config', return_value=config), patch.object(vibemon_core, 'launch_desktop', return_value=True) as launch:
+            self.assertTrue(vibemon_core.COMMAND_HANDLERS['--launch-desktop']([]))
+        self.assertEqual(launch.call_args.args[0], URL)
+
+    def test_a_start_event_shares_one_budget_across_launch_window_and_sends(self):
+        config = Mock(http_urls=(URL,), auto_launch=True, serial_port=None, vibemon_url='https://vibemon.io', vibemon_token='vm_' + 'a' * 60)
+        now = 1000.0
+        with patch.object(vibemon_core, 'get_config', return_value=config), patch.object(vibemon_core.time, 'monotonic', return_value=now), \
+                patch.object(vibemon_core, 'is_monitor_running', return_value=False), patch.object(vibemon_core, 'launch_desktop', return_value=True) as launch, \
+                patch.object(vibemon_core, 'send_http_post', return_value=(True, None)) as post, patch.object(vibemon_core, 'send_vibemon_api', return_value=True) as cloud:
+            vibemon_core.send_to_all({'project': 'demo'}, True, {})
+        deadline = now + vibemon_core.START_BUDGET_SECONDS
+        self.assertEqual(launch.call_args.args[1], deadline - vibemon_core.DESKTOP_SEND_RESERVE_SECONDS)
+        self.assertEqual([call.args[-1] if len(call.args) == 4 else call.kwargs['deadline'] for call in post.call_args_list], [deadline, deadline])
+        self.assertEqual(cloud.call_args.args[-1], deadline)
+
+    def test_request_timeouts_use_the_time_left(self):
+        with patch.object(vibemon_core.time, 'monotonic', return_value=10.0):
+            self.assertEqual(vibemon_core.request_timeout(None), vibemon_core.HTTP_TIMEOUT_SECONDS)
+            self.assertEqual(vibemon_core.request_timeout(12.0), 2.0)
+            self.assertEqual(vibemon_core.request_timeout(9.0), vibemon_core.MIN_REQUEST_TIMEOUT_SECONDS)
+
+    def test_waits_only_until_health_answers(self):
+        process = Mock(poll=Mock(return_value=None))
+        answers = iter([False, False, True])
+        with patch.object(vibemon_core, 'is_monitor_running', side_effect=lambda url, timeout: next(answers)) as health, patch.object(vibemon_core.time, 'monotonic', return_value=0.0), patch.object(vibemon_core.time, 'sleep') as sleep:
+            self.assertTrue(vibemon_core.wait_for_desktop(URL, process, DEADLINE))
+        self.assertEqual(health.call_count, 3)
+        self.assertEqual(sleep.call_count, 2)
+        health.assert_called_with(URL, vibemon_core.DESKTOP_HEALTH_TIMEOUT_SECONDS)
+
+    def test_stops_when_the_launcher_fails(self):
+        process = Mock(poll=Mock(return_value=1))
+        with patch.object(vibemon_core, 'is_monitor_running', return_value=False), patch.object(vibemon_core.time, 'sleep') as sleep:
+            self.assertFalse(vibemon_core.wait_for_desktop(URL, process, DEADLINE))
+        sleep.assert_not_called()
+
+    def test_gives_up_at_the_deadline(self):
+        process = Mock(poll=Mock(return_value=None))
+        clock = iter([DEADLINE - 1, DEADLINE + 1])
+        with patch.object(vibemon_core, 'is_monitor_running', return_value=False), patch.object(vibemon_core.time, 'monotonic', side_effect=lambda: next(clock)), patch.object(vibemon_core.time, 'sleep') as sleep:
+            self.assertFalse(vibemon_core.wait_for_desktop(URL, process, DEADLINE))
+        self.assertEqual(sleep.call_count, 1)
 
 
 class SerialPortTest(unittest.TestCase):

@@ -35,7 +35,7 @@ Edit the canonical App source, update the export map when adding files, and rege
 
 The native verification workflow runs lint, unit tests, the workspace, overlays, and unpacked packaging on both macOS and Windows. These checks use the pinned pnpm version and frozen lockfile. Signing/notarization and publication require their existing platform secrets; the verification workflows do not exercise them.
 
-CI runs only before a release. `build-release.yml` first calls the public-distribution and native verification workflows on the tagged commit, and the platform builds start only after both pass. Pull requests and pushes do not start CI; run either workflow by hand (`gh workflow run registry-drift.yml --ref <branch>`, `gh workflow run overlay-verification.yml --ref <branch>`) when a branch needs a hosted check. Before merging, run the matching local checks.
+Every pull request runs `pull-request.yml` on Linux: lint, Jest with coverage thresholds, design tests, registry and distribution checks, and the hook and collector tests. The full verification runs before a release. `build-release.yml` first calls the public-distribution and native verification workflows on the tagged commit, and the platform builds start only after both pass. Pushes do not start CI; run either release workflow by hand (`gh workflow run registry-drift.yml --ref <branch>`, `gh workflow run overlay-verification.yml --ref <branch>`) when a branch needs a hosted check. Before merging, run the matching local checks.
 
 Windows release builds require `WINDOWS_CERTS` (base64 PKCS#12) and `WINDOWS_CERTS_PASSWORD`. Signing is mandatory. CI compares each EXE with the configured signer, then verifies Authenticode file integrity, the exact leaf certificate, and the timestamp with `osslsigncode`. The configured certificate is an explicit trust anchor for this check; the runner and end-user OS trust stores are not modified. A modified-file check must fail before publication.
 
@@ -44,5 +44,7 @@ The current OpsPresso Windows certificate is self-signed. Windows may show an un
 macOS releases require code-signature, notarization ticket, and Gatekeeper verification. Every release builds the commit referenced by its tag and requires the tag to match `package.json`. Both platform builds and signature checks must pass before GitHub publication. Windows blockmaps are published with the installers; failed Homebrew dispatches fail the workflow.
 
 ## Cloud connection checks
+
+Each App build packages `public/install/manifest.json`. Unattended hook updates run only while Web serves a byte-identical `/install/manifest.json`, so release the App from the same App commit that Web pins in `app-assets.json`. Until both match, hook updates need **Reinstall** in Settings. See [hook installation and updates](features.md#hook-installation-and-updates).
 
 Publish Web with `GET /api/v1/connection?scope=write` before distributing an App that uses **Save and verify** for hook delivery. Older Web servers return an explicit upgrade message; the App does not write a synthetic observation to probe permissions. Existing hook delivery continues independently of this setup check.

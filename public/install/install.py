@@ -30,7 +30,9 @@ succeeded exits 1.
 
 Downloaded files are checked against the published manifest.json before they
 are written. install.py cannot verify itself — the Desktop app does that
-against the manifest's "installer" hash before running it.
+against the manifest's "installer" hash before running it. When
+VIBEMON_MANIFEST_SHA256 is set, only a manifest.json with that sha256 is
+accepted; the Desktop app sets it for unattended updates.
 """
 
 from __future__ import annotations
@@ -218,13 +220,6 @@ def ask_yes_no(question: str, default: bool = True, unattended: bool = None) -> 
         if answer in ("n", "no"):
             return False
         print("Please answer 'y' or 'n'")
-
-
-def mask_token(token: str) -> str:
-    """Mask a token, showing only first 4 and last 4 characters."""
-    if not token or len(token) <= 8:
-        return "****"
-    return f"{token[:4]}{'*' * (len(token) - 8)}{token[-4:]}"
 
 
 TOKEN_PATTERN = re.compile(r"^vm_[a-f0-9]{60}$")
@@ -497,12 +492,16 @@ def load_manifest(source) -> dict:
         return {}
     if _MANIFEST_LOADED and _MANIFEST_BASE == source.base_url:
         return REMOTE_MANIFEST
+    pinned = os.environ.get("VIBEMON_MANIFEST_SHA256", "").strip()
     try:
-        files = json.loads(download_file(f"{source.base_url}/{MANIFEST_PATH}"))["files"]
+        text = download_file(f"{source.base_url}/{MANIFEST_PATH}")
+        files = json.loads(text)["files"]
         if not isinstance(files, dict) or not files or any(not isinstance(key, str) or not isinstance(digest, str) or not re.fullmatch(r"[0-9a-f]{64}", digest) for key, digest in files.items()):
             raise ValueError("Invalid manifest")
     except (RuntimeError, ValueError, KeyError, TypeError) as error:
         raise IntegrityError("Cannot verify installation files. Publish the source and manifest together, then retry.") from error
+    if pinned and hashlib.sha256(text.encode("utf-8")).hexdigest() != pinned:
+        raise IntegrityError("manifest.json is not the version that VibeMon expects; nothing was written")
     REMOTE_MANIFEST = files
     _MANIFEST_LOADED = True
     _MANIFEST_BASE = source.base_url

@@ -4,6 +4,7 @@ const path = require('node:path');
 jest.mock('electron', () => ({
   BrowserWindow: jest.fn(),
   autoUpdater: new (require('node:events').EventEmitter)(),
+  nativeTheme: Object.assign(new (require('node:events').EventEmitter)(), { shouldUseDarkColors: false }),
   ipcMain: { handle: jest.fn(), removeHandler: jest.fn(), on: jest.fn(), off: jest.fn() },
   shell: { openExternal: jest.fn() },
   contextBridge: { exposeInMainWorld: jest.fn() },
@@ -11,7 +12,7 @@ jest.mock('electron', () => ({
 }));
 jest.mock('../src/modules/window-position.cjs', () => ({ centerOnCursorDisplay: jest.fn() }));
 
-const { BrowserWindow, ipcMain, contextBridge, ipcRenderer, autoUpdater } = require('electron');
+const { BrowserWindow, ipcMain, contextBridge, ipcRenderer, autoUpdater, nativeTheme } = require('electron');
 const { centerOnCursorDisplay } = require('../src/modules/window-position.cjs');
 const { WorkspaceWindow } = require('../src/workspace/window.cjs');
 const { WORKSPACE_UPDATE_MS } = require('../src/shared/constants.cjs');
@@ -32,7 +33,8 @@ beforeEach(() => {
     show: jest.fn(() => { visible = true; focused = true; native.emit('show'); }),
     hide: jest.fn(() => { visible = false; focused = false; native.emit('hide'); }),
     destroy: jest.fn(() => { destroyed = true; native.emit('closed'); }),
-    focus: jest.fn(() => { focused = true; }), restore: jest.fn(), loadFile: jest.fn(() => Promise.resolve())
+    focus: jest.fn(() => { focused = true; }), restore: jest.fn(), loadFile: jest.fn(() => Promise.resolve()),
+    setBackgroundColor: jest.fn()
   });
   BrowserWindow.mockImplementation(() => native);
   const monitoring = Object.assign(new EventEmitter(), {
@@ -44,7 +46,7 @@ beforeEach(() => {
     settings: { getSnapshot: jest.fn(() => ({ version: 'test', hooks: [], vibemonConfig: { status: {} }, cloudDelivery: { status: 'verified' }, update: { status: 'current', version: null } })), invoke: jest.fn() },
     getActivity: jest.fn(() => [{ id: 'local' }]), getUsage: jest.fn(() => ({ codex: {} })),
     showCompanion: jest.fn(), reportError: jest.fn(), openExternal: jest.fn(),
-    signIn: { signIn: jest.fn(async (_url, scope) => `token-for-${scope}`), cancel: jest.fn() }
+    signIn: { signIn: jest.fn(async (_url, scope, adopt) => adopt(`token-for-${scope}`)), cancel: jest.fn() }
   };
   view = new WorkspaceWindow(ports);
   invoke = ipcMain.handle.mock.calls[0][1];
@@ -64,6 +66,17 @@ test('native update shutdown releases hide-on-close before app before-quit', () 
   expect(autoUpdater.listenerCount('before-quit-for-update')).toBe(0);
   view.open();
   expect(BrowserWindow).toHaveBeenCalledTimes(1);
+});
+
+test('the native window background follows the OS theme with the shared background token', () => {
+  nativeTheme.shouldUseDarkColors = true;
+  open();
+  expect(BrowserWindow.mock.calls[0][0].backgroundColor).toBe('#111722');
+  nativeTheme.shouldUseDarkColors = false;
+  nativeTheme.emit('updated');
+  expect(native.setBackgroundColor).toHaveBeenLastCalledWith('#f6f8fb');
+  view.cleanup();
+  expect(nativeTheme.listenerCount('updated')).toBe(0);
 });
 
 test('one sandboxed window serves navigation and denies external window navigation', async () => {
@@ -256,10 +269,10 @@ test('signs in through Web: a read token connects the workspace, a write token g
   open();
   ports.monitoring.configure.mockResolvedValue({ status: 'connected' });
   await expect(invoke(event, 'sign-in', ['https://vibemon.io'])).resolves.toEqual({ ok: true, value: { status: 'connected' } });
-  expect(ports.signIn.signIn).toHaveBeenCalledWith('https://vibemon.io', 'read');
+  expect(ports.signIn.signIn).toHaveBeenCalledWith('https://vibemon.io', 'read', expect.any(Function));
   expect(ports.monitoring.configure).toHaveBeenCalledWith({ url: 'https://vibemon.io', token: 'token-for-read' });
   await invoke(event, 'sign-in-cloud-delivery', ['https://vibemon.io']);
-  expect(ports.signIn.signIn).toHaveBeenCalledWith('https://vibemon.io', 'write');
+  expect(ports.signIn.signIn).toHaveBeenCalledWith('https://vibemon.io', 'write', expect.any(Function));
   expect(ports.settings.invoke).toHaveBeenCalledWith('configure-cloud-delivery', { url: 'https://vibemon.io', token: 'token-for-write' });
   await invoke(event, 'cancel-sign-in', []);
   expect(ports.signIn.cancel).toHaveBeenCalled();

@@ -8,6 +8,8 @@ function fixture() {
   fixtures.push(root);
   mkdirSync(join(root, 'scripts'));
   cpSync('scripts/check-registry.mjs', join(root, 'scripts/check-registry.mjs'));
+  mkdirSync(join(root, 'src/shared'), { recursive: true });
+  cpSync('src/shared/registry-rules.cjs', join(root, 'src/shared/registry-rules.cjs'));
   for (const directory of ['src/shared/data', 'src/assets/characters']) {
     mkdirSync(join(root, directory), { recursive: true });
     cpSync(directory, join(root, directory), { recursive: true });

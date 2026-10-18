@@ -11,7 +11,8 @@ from pathlib import Path
 
 from account_identity import AccountIdentity, named, fingerprint
 from account_service import AccountService, identity_hint, session_key
-from account_sources import LocalAccountSource, tool_profile, state_cache_path
+from account_sources import LocalAccountSource, tool_profile
+from cache_io import projects_cache_path
 from account_store import JsonAccountStore
 
 _current: ContextVar = ContextVar('vibemon_account', default=None)
@@ -58,7 +59,7 @@ def prepare_account(provider: str, data: dict | None = None, root: str | None = 
     target, hint = profile_context(provider, root, data.get('account_hint'))
     service = AccountService(_source, JsonAccountStore(registry_path()))
     return service.bind(target, dict(os.environ), data.get('session_id'), data.get('hook_event_name', ''),
-        data.get('cwd') if isinstance(data.get('cwd'), str) and Path(data['cwd']).is_dir() else None, hint, cache_path=state_cache_path(dict(os.environ)))
+        data.get('cwd') if isinstance(data.get('cwd'), str) and Path(data['cwd']).is_dir() else None, hint, cache_path=projects_cache_path())
 
 
 @contextmanager

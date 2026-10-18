@@ -1,7 +1,7 @@
 // Pure display rules shared by the Desktop renderer and the private Web client.
 // Functions that return text take an optional translator `t` (see
 // ../i18n/translate.mjs); without one they return English.
-import states, { unitFractionDigits } from './monitoring-labels.mjs';
+import states, { measurementTones, unitFractionDigits } from './monitoring-labels.mjs';
 import messages from '../i18n/shared-messages.mjs';
 import { createTranslator } from '../i18n/translate.mjs';
 
@@ -38,8 +38,13 @@ export function metricLabel(key, label, t = english) {
   if (label === english('metric.unifiedMemory')) return t('metric.unifiedMemory');
   return label;
 }
-// Plan usage warns before a limit; other measurements have no thresholds.
-export const metricTone = (key, value) => !key.startsWith('usage') || !(value >= 70) ? 'normal' : value >= 90 ? 'danger' : 'warning';
+// Thresholds come from monitoring.json `measurements.tones`: plan usage warns
+// before a limit, and other measurements have no thresholds. Bounds are inclusive.
+export function metricTone(key, value) {
+  const rule = measurementTones.find(({ keyPrefix }) => key.startsWith(keyPrefix));
+  if (!rule || !(value >= rule.warningFrom)) return 'normal';
+  return value >= rule.dangerFrom ? 'danger' : 'warning';
+}
 
 const decimal = new Intl.NumberFormat(undefined, { maximumFractionDigits: 1 });
 const unitFormats = new Map(Object.entries(unitFractionDigits).map(([unit, maximumFractionDigits]) => [unit, new Intl.NumberFormat(undefined, { maximumFractionDigits })]));

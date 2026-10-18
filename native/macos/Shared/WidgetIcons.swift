@@ -16,12 +16,21 @@ enum WidgetIcons {
 
     /// Only bundled, decodable images can become picker image URLs.
     static func characterURL(_ file: String?) -> URL? {
-        imageURL(file) ?? imageURL(fallback)
+        (load(file) ?? load(fallback))?.url
+    }
+
+    /// The decoded character art, or the fallback art. Each call decodes one file once.
+    static func characterImage(_ file: String?) -> NSImage? {
+        (load(file) ?? load(fallback))?.image
     }
 
     static func imageURL(_ file: String?) -> URL? {
+        load(file)?.url
+    }
+
+    private static func load(_ file: String?) -> (url: URL, image: NSImage)? {
         guard let file, !file.contains("/"), let directory else { return nil }
         let url = directory.appendingPathComponent(file)
-        return NSImage(contentsOf: url) == nil ? nil : url
+        return NSImage(contentsOf: url).map { (url, $0) }
     }
 }

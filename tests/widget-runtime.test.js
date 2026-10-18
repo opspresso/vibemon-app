@@ -4,15 +4,23 @@ const { WIDGET_RESTART_TIMEOUT_MS } = require('../src/shared/constants.cjs');
 const bundlePath = '/Applications/VibeMon.app';
 const executable = `${bundlePath}/Contents/PlugIns/VibeMonWidgets.appex/Contents/MacOS/VibeMonWidgets`;
 
-function setup(entries = [[42, executable]]) {
+// The executable was installed 10 minutes before the process list was read.
+const LISTED_AT = Date.parse('2026-10-18T09:00:00Z');
+const INSTALLED_AT = LISTED_AT - 600000;
+// Started before the install: an upgrade left this worker running the old bundle.
+const BEFORE_UPGRADE = '15:00';
+
+function setup(entries = [[42, executable]], elapsed = BEFORE_UPGRADE) {
   const active = new Map(entries);
   const events = [];
   let time = 0;
   const ports = {
     bundlePath,
     registerApplication: jest.fn(() => events.push('register')),
-    readProcesses: jest.fn(() => entries.map(([pid, file]) => `  ${pid} ${file}`).join('\n')),
-    readPath: jest.fn(pid => active.get(pid) ?? null),
+    readProcesses: jest.fn(async () => entries.map(([pid, file]) => `  ${pid} ${elapsed} ${file}`).join('\n')),
+    readPath: jest.fn(async pid => active.get(pid) ?? null),
+    installedAt: jest.fn(async () => INSTALLED_AT),
+    wallNow: () => LISTED_AT,
     terminate: jest.fn(pid => { events.push(`stop:${pid}`); active.delete(pid); }),
     delay: jest.fn(async ms => { time += ms; }),
     now: () => time
@@ -74,9 +82,22 @@ test('leaves processes untouched if registration fails', async () => {
   expect(ports.readProcesses).not.toHaveBeenCalled();
 });
 
+test.each([
+  ['started after the install', '09:59', false],
+  ['started more than a day ago', '2-03:04:05', true],
+  ['started within a second after the install', '10:00', true],
+  ['with an unreadable elapsed time', 'later', true]
+])('a worker %s: stopped is %s', async (_case, elapsed, stopped) => {
+  const { ports } = setup([[42, executable]], elapsed);
+  await prepareWidgetRuntime(ports);
+  expect(ports.terminate).toHaveBeenCalledTimes(stopped ? 1 : 0);
+  expect(ports.installedAt).toHaveBeenCalledWith(executable);
+});
+
 test('registers normally when no widget worker exists', async () => {
   const { ports } = setup([]);
   await prepareWidgetRuntime(ports);
   expect(ports.registerApplication).toHaveBeenCalledTimes(1);
   expect(ports.terminate).not.toHaveBeenCalled();
+  expect(ports.installedAt).not.toHaveBeenCalled();
 });

@@ -38,4 +38,4 @@ function rendererLanguage() {
   return { locale, messages: locale === DEFAULT_LOCALE ? { en: catalog.en } : { en: catalog.en, [locale]: catalog[locale] } };
 }
 
-module.exports = { t, initLocale, setLocale, currentLocale, rendererLanguage, systemLanguages };
+module.exports = { t, initLocale, setLocale, currentLocale, rendererLanguage };

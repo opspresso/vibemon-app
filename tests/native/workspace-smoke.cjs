@@ -441,7 +441,7 @@ startFixture().then(async fixture => {
   await click('#disconnect-cloud-delivery');
   await until(async () => (await text('#cloud-delivery-status')) === 'No saved write token', 'shared cloud credential removed');
   assert.equal(ports.config.vibemon_token, '');
-  assert.equal(client.hasToken(), true, 'stopping publication retains the independent read connection');
+  assert.equal(client.snapshot().tokenConfigured, true, 'stopping publication retains the independent read connection');
   assert.ok(ports.config.http_urls.includes('http://127.0.0.1:19280'));
   ports.config.vibemon_token = 'fixture-secret-must-not-cross-IPC';
   view.notify('settings');

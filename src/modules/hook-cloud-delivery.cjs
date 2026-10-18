@@ -1,6 +1,7 @@
 const { webOrigin, sameWebOrigin } = require('../shared/web-origin.cjs');
 const { readJsonResponse } = require('../shared/json-response.cjs');
 const { t } = require('../shared/i18n/locale.cjs');
+const { isApiToken, revokeApiToken } = require('../shared/api-token.cjs');
 const { CLOUD_REQUEST_TIMEOUT_MS, CLOUD_CONNECTION_MAX_RESPONSE_BYTES } = require('../shared/constants.cjs');
 
 const sameConnection = (a, b) => a.vibemon_url === b.vibemon_url && a.vibemon_token === b.vibemon_token;
@@ -28,7 +29,7 @@ class HookCloudDelivery {
 
   async verify(url, token) {
     const origin = webOrigin(url, this.allowLocalHttp);
-    if (typeof token !== 'string' || !/^vm_[a-f0-9]{60}$/.test(token)) throw new Error(t('delivery.tokenFormat'));
+    if (!isApiToken(token)) throw new Error(t('delivery.tokenFormat'));
     let response;
     try {
       response = await this.fetchImpl(`${origin}/api/v1/connection?scope=write`, {
@@ -66,6 +67,7 @@ class HookCloudDelivery {
       if (!sameConnection(current, this.configManager.read())) throw new Error(t('delivery.changed'));
       this.configManager.write({ vibemon_url: origin, vibemon_token: token });
       this.result = { vibemon_url: origin, vibemon_token: token, status: 'verified', checkedAt: new Date(this.now()).toISOString() };
+      if (current.vibemon_token && current.vibemon_token !== token) this.revoke(current);
       return true;
     });
   }
@@ -85,12 +87,25 @@ class HookCloudDelivery {
     });
   }
 
-  disconnect() {
+  /**
+   * Removes the saved write token, then deletes it on Web.
+   * `tokenDeleted` is false when Web could not delete it; the token then stays
+   * valid until it is deleted on Web Account.
+   */
+  async disconnect() {
     if (this.busy) throw new Error(t('delivery.wait'));
+    const current = this.configManager.read();
     this.configManager.write({ vibemon_token: '' });
     this.result = null;
     this.onChange?.();
-    return true;
+    return { tokenDeleted: current.vibemon_token ? await this.revoke(current) : true };
+  }
+
+  /** Deletes a token that config.json no longer holds. A saved address that is invalid cannot be used. */
+  revoke({ vibemon_url: url, vibemon_token: token }) {
+    let origin;
+    try { origin = webOrigin(url, this.allowLocalHttp); } catch { return Promise.resolve(false); }
+    return revokeApiToken(this.fetchImpl, origin, token);
   }
 }
 module.exports = { HookCloudDelivery };

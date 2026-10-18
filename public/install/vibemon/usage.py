@@ -33,7 +33,7 @@ from account_sources import codex_auth
 from account_identity import authenticated
 from account_refresh import refresh_profiles
 from contextlib import ExitStack
-from cache_io import cache_lock
+from cache_io import cache_lock, usage_cache_path
 from http_client import open_credential_request
 
 import argparse
@@ -83,29 +83,6 @@ CODEX_WEEK_MAX_SECONDS = 8 * 86400
 # ============================================================================
 # Cache Path Resolution
 # ============================================================================
-
-
-def get_usage_cache_path() -> str:
-    """Resolve the usage cache path next to the shared projects cache.
-
-    `VIBEMON_CACHE_PATH` wins when set, matching how the hooks
-    (vibemon_core.get_config) and statusline.py resolve the same path; the
-    cache_path setting in ~/.vibemon/config.json is the fallback so every
-    VibeMon component agrees on where the cache directory lives.
-    """
-    cache_path = os.environ.get("VIBEMON_CACHE_PATH", "").strip()
-    if not cache_path:
-        cache_path = "~/.vibemon/cache/projects.json"
-        config_file = os.path.expanduser("~/.vibemon/config.json")
-        try:
-            with open(config_file, encoding="utf-8") as f:
-                config = json.load(f)
-            if isinstance(config, dict) and config.get("cache_path"):
-                cache_path = str(config["cache_path"])
-        except (FileNotFoundError, json.JSONDecodeError, IOError):
-            pass
-    cache_dir = os.path.dirname(os.path.expanduser(cache_path))
-    return os.path.join(cache_dir, "usage.json")
 
 
 def available_providers(cache: dict[str, Any] | None = None) -> set[str]:
@@ -416,7 +393,7 @@ def get_codex_usage_from_sessions(expected_account: str | None = None) -> dict[s
 
 def load_usage_cache() -> dict[str, Any] | None:
     """Load cached plan usage, or None if missing/unreadable."""
-    return _load_usage_cache(get_usage_cache_path())
+    return _load_usage_cache(usage_cache_path())
 
 
 def save_usage_cache(usage: dict[str, Any]) -> bool:
@@ -427,7 +404,7 @@ def save_usage_cache(usage: dict[str, Any]) -> bool:
     bucket set, so buckets missing from it no longer exist and must be
     dropped — otherwise they linger stale and force a refresh every run.
     """
-    return _save_usage_cache(get_usage_cache_path(), usage, replace=True)
+    return _save_usage_cache(usage_cache_path(), usage, replace=True)
 
 
 def refresh_usage(providers: set[str] | None = None) -> str:
@@ -444,7 +421,7 @@ def refresh_usage(providers: set[str] | None = None) -> str:
     """
     requested = providers or {"claude", "codex"}
     identity = hashlib.sha256("\0".join(cache_key(provider) for provider in sorted(requested)).encode()).hexdigest()
-    lockfile = f"{get_usage_cache_path()}.{identity}.refresh.lock"
+    lockfile = f"{usage_cache_path()}.{identity}.refresh.lock"
     claude_usage: dict[str, Any] | None = None
     codex_usage: dict[str, Any] | None = None
     try:
