@@ -297,7 +297,10 @@ def get_context_percent(data: dict[str, Any]) -> float | None:
     values = [usage.get(key, 0) for key in keys]
     if any(not is_finite_number(value) or value < 0 for value in values):
         return None
-    return normalize_percent((sum(values) / size) * 100)
+    total = sum(values)
+    if total > size:
+        return None
+    return normalize_percent((total / size) * 100)
 
 
 # ============================================================================
@@ -352,52 +355,48 @@ C_ORANGE = "\033[38;5;208m"
 # ============================================================================
 
 
-def format_number(num: int | float | str | None) -> str:
-    """Format number with K/M suffix."""
-    if num is None or num == "null" or num == 0:
-        return "0"
-
+def _quantity(value: Any) -> float | None:
+    """Parse a finite nonnegative display quantity without inventing a zero."""
+    if isinstance(value, bool):
+        return None
     try:
-        num_float = float(num)
-        int_num = int(num_float)
+        number = float(value)
+    except (ValueError, TypeError, OverflowError):
+        return None
+    return (0.0 if number == 0 else number) if is_finite_number(number) and number >= 0 else None
 
-        if int_num >= 1_000_000:
-            return f"{num_float / 1_000_000:.1f}M"
-        if int_num >= 1_000:
-            return f"{num_float / 1_000:.1f}K"
-        return str(int_num)
-    except (ValueError, TypeError):
-        return "0"
+
+def format_number(num: int | float | str | None) -> str:
+    """Format a count with K/M suffixes, or an em dash when unavailable."""
+    number = _quantity(num)
+    if number is None:
+        return "—"
+    if number >= 1_000_000:
+        return f"{number / 1_000_000:.1f}M"
+    if number >= 1_000:
+        return f"{number / 1_000:.1f}K"
+    return str(int(number))
 
 
 def format_duration(ms: int | float | str | None) -> str:
-    """Format duration in milliseconds to human readable format."""
-    if ms is None or ms == "null" or ms == 0:
-        return "0s"
-
-    try:
-        total_seconds = int(ms) // 1000
-        hours, remainder = divmod(total_seconds, 3600)
-        minutes, seconds = divmod(remainder, 60)
-
-        if hours > 0:
-            return f"{hours}h{minutes}m"
-        if minutes > 0:
-            return f"{minutes}m{seconds}s"
-        return f"{seconds}s"
-    except (ValueError, TypeError):
-        return "0s"
+    """Format elapsed milliseconds, or an em dash when unavailable."""
+    number = _quantity(ms)
+    if number is None:
+        return "—"
+    total_seconds = int(number) // 1000
+    hours, remainder = divmod(total_seconds, 3600)
+    minutes, seconds = divmod(remainder, 60)
+    if hours > 0:
+        return f"{hours}h{minutes}m"
+    if minutes > 0:
+        return f"{minutes}m{seconds}s"
+    return f"{seconds}s"
 
 
 def format_cost(cost: float | str | None) -> str:
-    """Format cost in USD."""
-    if cost is None or cost == "null":
-        return "$0.00"
-
-    try:
-        return f"${float(cost):.2f}"
-    except (ValueError, TypeError):
-        return "$0.00"
+    """Format a measured cost in USD, or an em dash when unavailable."""
+    number = _quantity(cost)
+    return "—" if number is None else f"${number:.2f}"
 
 
 # ============================================================================
@@ -505,7 +504,7 @@ def format_usage_reset(cache: dict[str, Any] | None) -> str:
         return ""
 
     resets_at = session.get("resets_at")
-    if not isinstance(resets_at, (int, float)):
+    if not is_finite_number(resets_at):
         return ""
     target = float(resets_at)
 
@@ -579,7 +578,7 @@ def build_statusline(
         parts.append(f"{C_MAGENTA}🤖 {short_model}{C_RESET}")
 
     # Token usage (📥 in / 📤 out)
-    if SHOW_TOKENS and input_tokens and str(input_tokens) != "0":
+    if SHOW_TOKENS and any(_quantity(value) not in (None, 0) for value in (input_tokens, output_tokens)):
         in_fmt = format_number(input_tokens)
         out_fmt = format_number(output_tokens)
         parts.append(f"{C_CYAN}📥 {in_fmt} 📤 {out_fmt}{C_RESET}")
@@ -595,11 +594,14 @@ def build_statusline(
         parts.append(f"{C_DIM}⏱️ {duration_fmt}{C_RESET}")
 
     # Lines changed (+/-)
-    if SHOW_LINES and lines_added and str(lines_added) != "0":
-        lines_part = f"{C_GREEN}+{lines_added}{C_RESET}"
-        if lines_removed and str(lines_removed) != "0":
-            lines_part += f" {C_RED}-{lines_removed}{C_RESET}"
-        parts.append(lines_part)
+    if SHOW_LINES:
+        counts = []
+        for value, sign, color in ((lines_added, '+', C_GREEN), (lines_removed, '-', C_RED)):
+            number = _quantity(value)
+            if number is not None and number.is_integer() and number > 0:
+                counts.append(f"{color}{sign}{int(number)}{C_RESET}")
+        if counts:
+            parts.append(' '.join(counts))
 
     # Context usage with progress bar (🧠 icon)
     if SHOW_MEMORY and context_usage:
@@ -699,6 +701,8 @@ def render_statusline(data: dict) -> None:
         if isinstance(model_data, dict)
         else "Claude"
     )
+    if not isinstance(model_display, str):
+        model_display = "Claude"
 
     # Extract workspace info
     workspace_data = data.get("workspace", {})
@@ -707,6 +711,8 @@ def render_statusline(data: dict) -> None:
         if isinstance(workspace_data, dict)
         else ""
     )
+    if not isinstance(current_dir, str):
+        current_dir = ""
     dir_name = get_project_name(current_dir) if current_dir else ""
 
     # Get additional info. git_info is purely for display, so skip the
@@ -718,10 +724,10 @@ def render_statusline(data: dict) -> None:
     # Extract context window data
     context_window = data.get("context_window", {})
     if isinstance(context_window, dict):
-        input_tokens = context_window.get("total_input_tokens", 0)
-        output_tokens = context_window.get("total_output_tokens", 0)
+        input_tokens = context_window.get("total_input_tokens")
+        output_tokens = context_window.get("total_output_tokens")
     else:
-        input_tokens = output_tokens = 0
+        input_tokens = output_tokens = None
 
     # Extract cost data
     cost_data = data.get("cost", {})

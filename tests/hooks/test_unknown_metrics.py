@@ -29,6 +29,8 @@ def test_invalid_provider_percent_is_unknown(value):
     ({'context_window_size': float('inf'), 'current_usage': {'input_tokens': 1}}, ''),
     ({'context_window_size': 10**400, 'current_usage': {'input_tokens': 1}}, ''),
     ({'context_window_size': 100, 'current_usage': {'input_tokens': 10**400}}, ''),
+    ({'context_window_size': 1, 'current_usage': {'input_tokens': 10**308, 'cache_read_input_tokens': 10**308}}, ''),
+    ({'context_window_size': 100.0, 'current_usage': {'input_tokens': 10**308, 'cache_read_input_tokens': 10**308}}, ''),
 ])
 def test_context_distinguishes_zero_from_missing(window, expected):
     assert statusline.format_percent(statusline.get_context_percent({'context_window': window})) == expected

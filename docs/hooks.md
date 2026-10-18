@@ -75,6 +75,8 @@ Desktop shows the registry in **Settings → Integrations → Accounts on this m
 
 Context and plan-usage percentages retain their measured precision in the cache and both local and Web payloads. The statusline and dashboards format percentages to at most two decimal places. Formatting never becomes the input to a later cache write. Missing or invalid readings stay unavailable; a measured zero remains zero.
 
+Optional statusline token, cost, and elapsed-time fields use `—` for unavailable values. Added and removed lines are shown independently, including changes that only remove lines.
+
 Note that the plan-usage fields (`usage5h`/`usageWeek`/`usageWeekModel` and their reset countdowns) are sent by the **Claude Code and Codex hooks**, since they both read from the same `usage.py`-refreshed cache (under provider/account-specific cache keys). The Kiro and opencode hooks don't report usage, and OpenClaw reports context-window usage as `memory` instead.
 
 ### Codex Configuration
