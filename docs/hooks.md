@@ -38,7 +38,7 @@ After installation, edit `~/.vibemon/config.json` to configure your targets:
 |-------|-------------|---------|
 | `debug` | Enable debug logging | `true` |
 | `cache_path` | Cache file path for project metadata | `~/.vibemon/cache/projects.json` |
-| `auto_launch` | Auto-launch Desktop App on session start and wait up to 6 seconds for it to answer `GET /health` | `true` |
+| `auto_launch` | Auto-launch Desktop App on session start. Launch, window, and status requests share a 9-second budget inside the 10-second hook timeout; the launch waits for `GET /health` and leaves 3 seconds for the requests. | `true` |
 | `http_urls` | Local status-push targets (Desktop App or legacy ESP32-C6 firmware) | `["http://127.0.0.1:19280"]` |
 | `serial_port` | Legacy ESP32-C6 USB serial port (`~` and `*` wildcard supported; POSIX only, ignored on Windows) | `"/dev/cu.usbmodem*"` |
 | `vibemon_url` | VibeMon cloud API URL | `https://vibemon.io` |

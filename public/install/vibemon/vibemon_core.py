@@ -121,10 +121,14 @@ CODEX_SESSIONS_DIR = str(
     Path(os.environ.get("CODEX_HOME") or "~/.codex").expanduser() / "sessions"
 )
 
-# Desktop launch: wait until /health answers, within the 10-second hook timeout.
-DESKTOP_LAUNCH_DEADLINE_SECONDS = 6
+# A start event launches Desktop, opens its window, and sends status within one
+# budget, inside the 10-second hook timeout. Desktop launch waits until /health
+# answers and leaves DESKTOP_SEND_RESERVE_SECONDS for the requests after it.
+START_BUDGET_SECONDS = 9
+DESKTOP_SEND_RESERVE_SECONDS = 3
 DESKTOP_LAUNCH_POLL_SECONDS = 0.2
 DESKTOP_HEALTH_TIMEOUT_SECONDS = 1
+MIN_REQUEST_TIMEOUT_SECONDS = 0.5
 
 
 @dataclass(frozen=True)
@@ -611,8 +615,15 @@ def send_serial(port: str, data: str) -> bool:
             Path(debounce_temp).unlink(missing_ok=True)
 
 
+def request_timeout(deadline: float | None) -> float:
+    """The HTTP timeout for a request that must end by `deadline` (time.monotonic()), if any."""
+    if deadline is None:
+        return HTTP_TIMEOUT_SECONDS
+    return max(MIN_REQUEST_TIMEOUT_SECONDS, min(HTTP_TIMEOUT_SECONDS, deadline - time.monotonic()))
+
+
 def send_http_post(
-    url: str, endpoint: str, data: str | None = None
+    url: str, endpoint: str, data: str | None = None, deadline: float | None = None
 ) -> tuple[bool, str | None]:
     """Send HTTP POST request."""
     try:
@@ -627,7 +638,7 @@ def send_http_post(
         else:
             req = Request(full_url, method="POST")
 
-        with urlopen(req, timeout=HTTP_TIMEOUT_SECONDS) as response:
+        with urlopen(req, timeout=request_timeout(deadline)) as response:
             return True, response.read().decode("utf-8")
     except (URLError, TimeoutError, OSError):
         return False, None
@@ -642,7 +653,7 @@ def send_http_get(url: str, endpoint: str, timeout: float = HTTP_TIMEOUT_SECONDS
         return False, None
 
 
-def send_vibemon_api(url: str, token: str, payload: dict[str, Any], context: dict | None = None) -> bool:
+def send_vibemon_api(url: str, token: str, payload: dict[str, Any], context: dict | None = None, deadline: float | None = None) -> bool:
     """Send status to VibeMon API with Bearer token authentication.
 
     API: POST /api/status
@@ -688,7 +699,7 @@ def send_vibemon_api(url: str, token: str, payload: dict[str, Any], context: dic
             method="POST",
         )
 
-        with open_credential_request(req, timeout=HTTP_TIMEOUT_SECONDS) as response:
+        with open_credential_request(req, timeout=request_timeout(deadline)) as response:
             debug_log(f"VibeMon API response: {response.status}")
             return 200 <= response.status < 300
     except HTTPError as error:
@@ -932,15 +943,16 @@ def is_monitor_running(url: str, timeout: float = HTTP_TIMEOUT_SECONDS) -> bool:
     return success
 
 
-def show_monitor_window(url: str) -> None:
+def show_monitor_window(url: str, deadline: float | None = None) -> None:
     """Show the monitor window."""
-    send_http_post(url, "/show")
+    send_http_post(url, "/show", deadline=deadline)
 
 
-def launch_desktop(url: str) -> bool:
+def launch_desktop(url: str | None, deadline: float) -> bool:
     """Launch an installed desktop package without downloading software.
 
-    Returns True when the App at `url` answers /health before the deadline.
+    With `url`, returns True when the App there answers /health before
+    `deadline` (time.monotonic()). Without it, returns True once launched.
     """
     try:
         if IS_WINDOWS:
@@ -973,12 +985,11 @@ def launch_desktop(url: str) -> bool:
     except OSError as e:
         debug_log(f"Failed to launch Desktop App: {e}")
         return False
-    return wait_for_desktop(url, process)
+    return wait_for_desktop(url, process, deadline) if url else True
 
 
-def wait_for_desktop(url: str, process: subprocess.Popen) -> bool:
-    """Poll /health until it answers, the launcher fails, or the deadline passes."""
-    deadline = time.monotonic() + DESKTOP_LAUNCH_DEADLINE_SECONDS
+def wait_for_desktop(url: str, process: subprocess.Popen, deadline: float) -> bool:
+    """Poll /health until it answers, the launcher fails, or `deadline` passes."""
     while True:
         if is_monitor_running(url, DESKTOP_HEALTH_TIMEOUT_SECONDS):
             return True
@@ -1000,23 +1011,40 @@ def get_desktop_url(http_urls: tuple[str, ...]) -> str | None:
     return None
 
 
-def prepare_desktop() -> None:
-    """Start the configured local viewer without creating a placeholder account."""
+def prepare_desktop(deadline: float | None = None) -> None:
+    """Start the configured local viewer without creating a placeholder account.
+
+    Every wait and request ends by `deadline` (time.monotonic()); the default
+    is a full start budget.
+    """
+    if deadline is None:
+        deadline = time.monotonic() + START_BUDGET_SECONDS
     config = get_config()
     desktop_url = get_desktop_url(config.http_urls)
     if desktop_url and config.auto_launch:
-        if not is_monitor_running(desktop_url):
+        if not is_monitor_running(desktop_url, DESKTOP_HEALTH_TIMEOUT_SECONDS):
             debug_log("Desktop App not running, launching...")
-            launch_desktop(desktop_url)
-        show_monitor_window(desktop_url)
+            launch_desktop(desktop_url, deadline - DESKTOP_SEND_RESERVE_SECONDS)
+        show_monitor_window(desktop_url, deadline)
+
+
+def launch_configured_desktop() -> bool:
+    """`--launch-desktop`: launch Desktop and wait for the configured local URL, if any."""
+    deadline = time.monotonic() + START_BUDGET_SECONDS - DESKTOP_SEND_RESERVE_SECONDS
+    return launch_desktop(get_desktop_url(get_config().http_urls), deadline)
 
 
 def send_to_all(payload: dict[str, Any], is_start: bool = False, context: dict | bool | None = None) -> None:
-    """Send payload to all configured targets concurrently."""
+    """Send payload to all configured targets concurrently.
+
+    A start event shares one budget across the Desktop launch and the sends.
+    """
     config = get_config()
 
+    deadline = None
     if is_start:
-        prepare_desktop()
+        deadline = time.monotonic() + START_BUDGET_SECONDS
+        prepare_desktop(deadline)
 
     # Every display receives the same non-secret provider/workspace identity.
     payload_str = json.dumps({**payload, **context} if isinstance(context, dict) else payload)
@@ -1035,7 +1063,7 @@ def send_to_all(payload: dict[str, Any], is_start: bool = False, context: dict |
         # Capture url in closure
         u = url
         label = "Desktop App" if is_localhost_url(url) else f"HTTP ({url})"
-        tasks.append((label, lambda u=u: send_http_post(u, "/status", payload_str)[0]))
+        tasks.append((label, lambda u=u: send_http_post(u, "/status", payload_str, deadline)[0]))
 
     if resolved_port:
         # Capture resolved_port in closure
@@ -1048,7 +1076,7 @@ def send_to_all(payload: dict[str, Any], is_start: bool = False, context: dict |
             (
                 "VibeMon API",
                 lambda: send_vibemon_api(
-                    config.vibemon_url, config.vibemon_token, payload, context
+                    config.vibemon_url, config.vibemon_token, payload, context, deadline
                 ),
             )
         )
@@ -1136,7 +1164,7 @@ def send_cloud_status(provider: str) -> bool:
 COMMAND_HANDLERS: dict[str, Any] = {
     "--resolve-plugin-account": lambda args: resolve_plugin_account(args[0]) if len(args) == 1 else False,
     "--send-cloud": lambda args: send_cloud_status(args[0]) if len(args) == 1 else False,
-    "--launch-desktop": lambda args: launch_desktop(),
+    "--launch-desktop": lambda args: launch_configured_desktop(),
     "--send-serial": send_serial_input,
     "--lock": lambda args: send_lock(
         args[0] if args else os.path.basename(os.getcwd())

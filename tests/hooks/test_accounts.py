@@ -102,4 +102,4 @@ class AccountIsolationTest(unittest.TestCase):
             vibemon_core.send_to_all(payload, False, context)
         self.assertEqual(json.loads(local.call_args.args[2]), {**payload, **context})
         self.assertNotIn('sourceId', payload)
-        cloud.assert_called_once_with('https://web.example', 'fixture-write', payload, context)
+        cloud.assert_called_once_with('https://web.example', 'fixture-write', payload, context, None)
