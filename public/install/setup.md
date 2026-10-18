@@ -1,6 +1,6 @@
 # VibeMon setup
 
-Install hooks to send coding-agent summaries to the local Desktop App, the Web service, or both, and install collectors for Linux hosts, DGX Spark, and Kubernetes. Python 3 is required. Web uses Google or invited email sign-in; agent-provider credentials remain on the machine running the hooks.
+Install hooks to send coding-agent summaries to the local Desktop App, the Web service, or both, and install collectors for Linux hosts, DGX Spark, and Kubernetes. Python 3 is required. Web uses Google or email account sign-in; agent-provider credentials remain on the machine running the hooks.
 
 Desktop auto-launch opens the installed macOS App or a Windows installer location (or `VibeMon.exe` on PATH). Start custom Windows installations and other platforms manually. Hooks never install or run an npm package.
 
@@ -9,7 +9,7 @@ Desktop auto-launch opens the installed macOS App or a Windows installer locatio
 The installer signs in through Web, so you do not copy tokens:
 
 1. The installer shows a code, such as `BCDF-GHJK`, and the address `https://vibemon.io/device`. In a desktop terminal it also opens that page.
-2. Sign in with Google or an invited email account, check the code, and select **Allow**.
+2. Sign in with Google or an email account, check the code, and select **Allow**. For email sign-in, create an account on Web and confirm the address first.
 3. The installer receives a write token named after the client and this host, such as `Coding agent hooks (build-box)`, and saves it.
 
 A run in a terminal signs in when no token is saved. Add `--login` to sign in again, for example to replace a deleted token or to move to another Web origin. Runs without a terminal, such as App updates, never wait for a sign-in: without a token, activity stays local.
@@ -20,7 +20,7 @@ Account lists every token. Delete a token there to disconnect its client; deleti
 
 ## 2. Install hooks
 
-Desktop users can open **Settings → Integrations** and choose **Install integration** for a detected tool. Open **Send activity to Web**, enter the Web origin and a separate write token, and select **Save and verify**. The dashboard read token remains in **Settings → Connections**. These are shared hook defaults; per-agent environment variables and plugin settings retain their precedence.
+Desktop users can open **Settings → Integrations** and choose **Install integration** for a detected tool. Open **Send activity to Web**, select **Sign in to send activity**, and approve it in the browser. To paste an existing write token, open **Use a write token instead** and select **Save and verify**. The dashboard read token remains in **Settings → Connections**. These are shared hook defaults; per-agent environment variables and plugin settings retain their precedence.
 
 For a headless macOS or Linux installation:
 
@@ -109,10 +109,10 @@ The shared directory contains the transport, session, account-identity, and usag
    ```
 
 3. Start a coding session. The local App should show its project and state.
-4. Open **Settings → Connections** in the App, enter the Web origin and read token, and select **Save and connect**. Use **Customize view** to select resources, accounts, and metrics.
+4. Open **Settings → Connections** in the App and select **Sign in with VibeMon**. Use **Customize view** to select resources, accounts, and metrics. To use an existing read token, open **Use a read token instead** and select **Save and connect**.
 5. Confirm that the same account's source appears. Missing measurements remain unavailable; they do not appear as zero.
 
-Read and write tokens must belong to the same Google owner. Resource collection is separate from hooks; see [Monitor servers and clusters](https://vibemon.io/docs/servers) and [Send your own data](https://vibemon.io/docs/api).
+Read and write tokens must belong to the same VibeMon account. Resource collection is separate from hooks; see [Monitor servers and clusters](https://vibemon.io/docs/servers) and [Send your own data](https://vibemon.io/docs/api).
 
 ## Resource collectors
 
