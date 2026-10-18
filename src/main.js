@@ -54,6 +54,7 @@ const registryCache = require('./shared/registry-cache.cjs');
 const {
   CHARACTER_CONFIG, CHARACTER_IMAGE_FETCH_TIMEOUT_MS, CHARACTER_IMAGE_MAX_BYTES, CHARACTER_IMAGE_SIZES,
   HOOK_CHECK_INITIAL_DELAY_MS, HOOK_CHECK_INTERVAL_MS, HTTP_PORT,
+  REGISTRY_REFRESH_INITIAL_DELAY_MS, REGISTRY_REFRESH_INTERVAL_MS,
   UPDATE_CHECK_INITIAL_DELAY_MS, UPDATE_CHECK_INTERVAL_MS,
   USAGE_REFRESH_INITIAL_DELAY_MS, USAGE_REFRESH_INTERVAL_MS
 } = require('./shared/config.cjs');
@@ -542,7 +543,7 @@ app.whenReady().then(() => {
   // Refresh the canonical registry cache from the public App distribution: once shortly
   // after startup, then periodically. A refreshed registry applies on the
   // next launch (startup resolves cache → bundled synchronously).
-  scheduleTask(() => registryCache.refresh(), UPDATE_CHECK_INITIAL_DELAY_MS, UPDATE_CHECK_INTERVAL_MS);
+  scheduleTask(() => registryCache.refresh(), REGISTRY_REFRESH_INITIAL_DELAY_MS, REGISTRY_REFRESH_INTERVAL_MS);
 
   // Screen lock, system sleep, and display attach/detach make macOS move
   // windows itself (e.g. onto the primary display while another display
