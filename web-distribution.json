@@ -81,6 +81,8 @@
     "public/static/i18n/translate.mjs": "src/shared/i18n/translate.mjs",
     "public/static/design/presentation.mjs": "src/shared/design/presentation.mjs",
     "public/static/design/presentation.d.mts": "src/shared/design/presentation.d.mts",
+    "public/static/design/card-order.mjs": "src/shared/design/card-order.mjs",
+    "public/static/design/card-order.d.mts": "src/shared/design/card-order.d.mts",
     "public/static/data/monitoring.json": "src/shared/data/monitoring.json",
     "public/static/data/monitoring-cases.json": "src/shared/monitoring/cases.json",
     "public/static/design/monitoring-labels.mjs": "src/shared/design/monitoring-labels.mjs",
