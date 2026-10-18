@@ -43,9 +43,6 @@ import {
 } from './monster-states.js';
 import { COMPANION_SIZE, COMPANION_OUTLINE, COMPANION_EYES } from './vibemon-companion.mjs';
 
-// three.js namespace, supplied by the consumer through createVibeMonEngine.
-let THREE = null;
-
 const CONSTANTS = {
   VIEW_WIDTH: 134,
   VIEW_HEIGHT: 138,
@@ -197,7 +194,7 @@ const MOVE_FNS = {
  * eyes }. Everything is primitives + flat materials; joints are the Group
  * pivots listed in JOINTS.
  */
-function buildMonster(attentive = false) {
+function buildMonster(THREE, attentive = false) {
   // Theme slots get their colors from _applyCharacter() right after a build.
   const materials = {
     ...Object.fromEntries(THEME_SLOTS.map(slot => [slot, slot === 'flame' ? new THREE.MeshBasicMaterial() : new THREE.MeshToonMaterial()])),
@@ -377,6 +374,7 @@ function disposeRig(rig) {
 export class VibeMonEngine3D {
   constructor(container, options = {}) {
     this.container = container;
+    this.THREE = options.THREE;
     this.characters = options.characters || {};
     this.defaultCharacter = options.defaultCharacter || Object.keys(this.characters)[0] || null;
     this.states = options.states || {};
@@ -410,6 +408,7 @@ export class VibeMonEngine3D {
 
   init() {
     if (this.renderer || !this.container) return this;
+    const THREE = this.THREE;
 
     const width = this.container.clientWidth || CONSTANTS.VIEW_WIDTH;
     const height = this.container.clientHeight || CONSTANTS.VIEW_HEIGHT;
@@ -432,7 +431,7 @@ export class VibeMonEngine3D {
     sun.position.set(3, 6, 5);
     this.scene.add(sun);
 
-    this.rig = buildMonster(this.currentCharacter === 'vibemon');
+    this.rig = buildMonster(THREE, this.currentCharacter === 'vibemon');
     this.scene.add(this.rig.group);
     this._applyCharacter(this.currentCharacter);
 
@@ -466,7 +465,7 @@ export class VibeMonEngine3D {
     if (this.rig.attentive !== attentive) {
       this.scene.remove(this.rig.group);
       disposeRig(this.rig);
-      this.rig = buildMonster(attentive);
+      this.rig = buildMonster(this.THREE, attentive);
       this.scene.add(this.rig.group);
     }
     const theme = getCharacterTheme(this.characters[name]);
@@ -601,7 +600,6 @@ export function createVibeMonEngine(container, options = {}) {
   if (!options.THREE) {
     throw new Error('vibemon-engine-3d requires options.THREE (the three.js namespace)');
   }
-  THREE = options.THREE;
   return new VibeMonEngine3D(container, options);
 }
 
