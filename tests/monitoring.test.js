@@ -56,6 +56,35 @@ describe('cloud monitoring', () => {
     expect(fetchImpl.mock.calls.every(([url]) => url.includes('/api/v1/sources') && !url.includes('trend'))).toBe(true);
     client.stop(); await jest.advanceTimersByTimeAsync(60000); expect(fetchImpl).toHaveBeenCalledTimes(2);
   });
+  test.each([[401, 'token-expired'], [403, 'permission-denied']])('a rejected token (HTTP %s) pauses scheduled polls until a manual poll succeeds', async (status, expected) => {
+    jest.useFakeTimers();
+    const { client, fetchImpl } = fixture();
+    const changes = jest.fn();
+    client.on('change', changes);
+    fetchImpl.mockResolvedValueOnce({ ok: false, status });
+    client.start(); await jest.advanceTimersByTimeAsync(0);
+    expect(client.getStatus()).toBe(expected);
+    const emitted = changes.mock.calls.length;
+    await jest.advanceTimersByTimeAsync(120000);
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+    expect(changes).toHaveBeenCalledTimes(emitted);
+    await client.poll(true);
+    expect(client.getStatus()).toBe('connected');
+    await jest.advanceTimersByTimeAsync(30000);
+    expect(fetchImpl).toHaveBeenCalledTimes(3);
+    client.stop();
+  });
+  test('scheduled polls do not run without a saved token', async () => {
+    jest.useFakeTimers();
+    const { client, fetchImpl } = fixture();
+    client.credentials.clear();
+    const changes = jest.fn();
+    client.on('change', changes);
+    client.start(); await jest.advanceTimersByTimeAsync(90000);
+    expect(changes).toHaveBeenCalledTimes(1);
+    expect(fetchImpl).not.toHaveBeenCalled();
+    client.stop();
+  });
   test('requests selected sources and preserves discovery choices', async () => {
     const { client, fetchImpl } = fixture();
     await client.poll(true);

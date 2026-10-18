@@ -8,6 +8,9 @@ const { snapshotClock } = require('../shared/monitoring/clock.cjs');
 const { t } = require('../shared/i18n/locale.cjs');
 const { isApiToken, revokeApiToken } = require('../shared/api-token.cjs');
 
+// Web rejected the saved token. Repeating the request cannot succeed until the token changes.
+const REJECTED = new Set(['token-expired', 'permission-denied']);
+
 class MonitoringClient extends EventEmitter {
   constructor({ preferences, credentials, fetchImpl = fetch, allowLocalHttp = false, now = Date.now, monotonicNow = () => globalThis.performance.now() }) {
     super();
@@ -94,9 +97,9 @@ class MonitoringClient extends EventEmitter {
     this.accountCatalog = groupAccounts(sources).map(({ accountId, displayName, provider }) => ({ accountId, displayName, provider }));
     this.lastSyncedAt = new Date(this.now()).toISOString();
     this.status = 'connected';
-    this.emit('sources', this.snapshot().sources);
-    this.emit('change', this.snapshot());
-    return this.snapshot();
+    const snapshot = this.snapshot();
+    this.emit('change', snapshot);
+    return snapshot;
   }
   /**
    * Removes the connection on this device, then deletes its token on Web.
@@ -115,10 +118,10 @@ class MonitoringClient extends EventEmitter {
     this.lastSyncedAt = null;
     this.reportClock = null;
     this.status = 'not-configured';
-    this.emit('sources', []);
-    this.emit('change', this.snapshot());
+    const snapshot = this.snapshot();
+    this.emit('change', snapshot);
     // A saved token that cannot be read cannot be deleted on Web either.
-    return { ...this.snapshot(), tokenDeleted: credential ? await revokeApiToken(this.fetch, credential.origin, credential.token) : !saved };
+    return { ...snapshot, tokenDeleted: credential ? await revokeApiToken(this.fetch, credential.origin, credential.token) : !saved };
   }
   /** The saved token and its origin, or null when none is saved or either cannot be used. */
   savedCredential() {
@@ -184,7 +187,6 @@ class MonitoringClient extends EventEmitter {
         this.sources = [];
         // No request was made: keep the last connection result, including errors.
         if (!this.credentials.has()) this.status = 'not-configured';
-        this.emit('sources', []);
       } else {
         if (!this.lastSyncedAt && this.credentials.has() && this.status !== 'connecting') {
           this.status = 'connecting';
@@ -212,15 +214,15 @@ class MonitoringClient extends EventEmitter {
           }
           this.status = 'connected';
           this.lastSyncedAt = new Date(this.now()).toISOString();
-          this.emit('sources', this.snapshot().sources);
         }
       }
     } catch (error) {
       if (generation === this.generation) this.status = error.code || 'connection-error';
-    } finally {
-      this.emit('change', this.snapshot());
     }
-    return this.snapshot();
+    // Every completed poll is a clock step: listeners re-evaluate staleness even when the data did not change.
+    const snapshot = this.snapshot();
+    this.emit('change', snapshot);
+    return snapshot;
   }
   catalogEntry(source) {
     return { sourceId: source.sourceId, displayName: source.displayName, kind: source.kind,
@@ -255,10 +257,17 @@ class MonitoringClient extends EventEmitter {
       : displayMetrics({ sourceId, kind: 'resource', metricDefinitions: definitions, metricOrder: validateOrder(data.metricOrder, definitions) });
     return { points, displayMetrics: metrics };
   }
+  /**
+   * Polls now and every CLOUD_POLL_MS. Scheduled polls pause while no token is
+   * saved or Web rejected the saved one; configure(), select() and a manual
+   * refresh still poll and resume the schedule when they succeed.
+   */
   start() {
     if (this.timer) return;
     this.poll(true);
-    this.timer = setInterval(() => this.poll(), CLOUD_POLL_MS);
+    this.timer = setInterval(() => {
+      if (this.credentials.has() && !REJECTED.has(this.status)) this.poll();
+    }, CLOUD_POLL_MS);
   }
   stop() {
     if (this.timer) clearInterval(this.timer);

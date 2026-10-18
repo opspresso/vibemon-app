@@ -444,7 +444,7 @@ app.whenReady().then(async () => {
     reportError: error => dialog.showErrorBox(t('dialog.workspaceFailed'), error.message)
   });
   // Every source of an issue lands here: cloud polls, settings, hooks, updates.
-  const refreshAttention = () => trayManager.setAttention(attentionNotices(attentionAreas(monitoringClient.snapshot(), workspaceSettings.getSnapshot())));
+  const refreshAttention = (cloud = monitoringClient.snapshot()) => trayManager.setAttention(attentionNotices(attentionAreas(cloud, workspaceSettings.getSnapshot())));
   workspaceSettings.onSettingsChanged = () => {
     workspaceWindow.notify('settings');
     refreshAttention();
@@ -461,7 +461,7 @@ app.whenReady().then(async () => {
   monitoringClient.on('change', snapshot => {
     cloudActivity.accept(snapshot.sources);
     widgetPublisher?.schedule();
-    refreshAttention();
+    refreshAttention(snapshot);
     for (const projectId of windowManager.getProjectIds()) {
       bubbleWindowManager.refresh(projectId, getBubbleOptions(projectId))
         .catch(err => console.error('Bubble countdown refresh failed:', err));
