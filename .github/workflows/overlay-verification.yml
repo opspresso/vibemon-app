@@ -62,6 +62,7 @@ jobs:
           plutil -extract CFBundleURLTypes.0.CFBundleURLSchemes.0 raw "$app/Contents/Info.plist" | grep -qx vibemon
           pnpm preview:widgets
           node scripts/verify-macos-widgets.mjs "$app"
+          node tests/native/widget-runtime-smoke.cjs
       - name: Save geometry results and screenshots
         if: always()
         uses: actions/upload-artifact@v7

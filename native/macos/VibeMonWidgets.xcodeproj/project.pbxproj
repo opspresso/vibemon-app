@@ -319,6 +319,7 @@
 				OTHER_LDFLAGS = (
 					"-Wl,-U,_napi_create_function",
 					"-Wl,-U,_napi_set_named_property",
+					"-Wl,-U,_napi_throw_error",
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = "com.opspresso.vibemon.widget-center";
 				PRODUCT_NAME = "widget-center";
@@ -336,6 +337,7 @@
 				OTHER_LDFLAGS = (
 					"-Wl,-U,_napi_create_function",
 					"-Wl,-U,_napi_set_named_property",
+					"-Wl,-U,_napi_throw_error",
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = "com.opspresso.vibemon.widget-center";
 				PRODUCT_NAME = "widget-center";

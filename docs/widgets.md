@@ -49,6 +49,8 @@ If an older coding widget stops showing measurements after automatic account det
 
 ## Refresh and privacy
 
+Starting the packaged Mac App refreshes its own system registration and restarts the widget extension bundled at that App's path before requesting new timelines. This replaces a worker that survived an App upgrade with a cached older bundle version. Saved widget choices and other apps' widget processes remain intact. If widgets stay blank after an update, quit and reopen VibeMon Mac.
+
 - VibeMon writes `~/.vibemon/widgets/feed.json` about one second after a change. Only your user account can read the file.
 - Each item includes its future states and reset times, so a widget changes to **Stale**, **Idle**, or **Inactive** and counts down to a reset on time without new data.
 - macOS limits how often widgets refresh. VibeMon asks for a refresh at once when an item appears or disappears, its name or icon changes, or its state color changes, for example when a project starts to wait for input. Other changes, such as new metric values, refresh at most every 5 minutes.
@@ -60,6 +62,7 @@ If an older coding widget stops showing measurements after automatic account det
 | --- | --- |
 | `src/widgets/feed.mjs` | The feed model. It applies the shared state, label, tone, and number rules. |
 | `src/widgets/publisher.cjs` | Collects App data, writes the feed, and requests widget reloads. |
+| `src/widgets/runtime.cjs` | Refreshes the installed App registration and stops only its exact widget executable before the first reload. |
 | `native/macos/` | Xcode project: the widget extension (`Widgets/`, `Shared/`), the reload module (`WidgetCenter/`), and the preview tool (`Preview/`). |
 | `scripts/build-macos-widgets.mjs` | Builds the Xcode products into `build/macos-widgets/Release/`. |
 | `scripts/macos-widgets-packaging.cjs` | electron-builder hooks: builds the products before packaging and signs the extension. |
@@ -70,7 +73,8 @@ Requirements: Xcode 16 or later, selected with `xcode-select` or `DEVELOPER_DIR`
 pnpm preview:widgets   # Build, then render with the extension's bundled images (light, dark, approximate vibrant)
 node scripts/verify-macos-widgets.mjs /Applications/VibeMon.app # Verify an installed or packaged App
 pnpm test:design       # Feed model tests and the palette drift check
-pnpm exec jest tests/widget-publisher.test.js tests/deep-link.test.js
+pnpm exec jest tests/widget-publisher.test.js tests/widget-runtime.test.js tests/deep-link.test.js
+node tests/native/widget-runtime-smoke.cjs # Real process lifecycle, using disposable test workers
 ```
 
 The package verifier checks the extension metadata, App/widget versions, URL scheme, reload module, three localizations, every registered character image, and the App icon. Its native tests check picker labels, search, images, saved choices, missing items, feed decoding, and timeline dates. It renders a second sheet using the packaged extension's images. These checks do not replace adding and editing a widget in the system gallery.
@@ -81,6 +85,7 @@ To check the installed App in the macOS gallery manually:
 2. Add each widget, edit it, and search for a specific resource or account. Check the icon, account ID, and project names.
 3. Close the editor. Confirm the selected item remains after reopening it, and that clicking the widget opens the Dashboard.
 4. Check focused and unfocused desktop appearance, then change the selected item's name or icon and confirm it refreshes. macOS controls the final refresh timing.
+5. After an upgrade, confirm the installed widget process was replaced, `chronod` stores fresh timelines without `Bundle version did not match`, and the four displayed widgets show their selected data. The extension's “Request ended … success” only confirms generation; it does not prove that macOS accepted or displayed the archive.
 
 Rules for changes:
 
