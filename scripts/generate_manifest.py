@@ -38,6 +38,7 @@ MANIFEST_FILES = [
     "vibemon/account_context.py",
     "vibemon/cache_io.py",
     "vibemon/http_client.py",
+    "vibemon/http_deadline.py",
     "vibemon/project_context.py",
     "vibemon/session_activity.py",
     "vibemon/vibemon_core.py",
@@ -53,7 +54,7 @@ MANIFEST_FILES = [
     "opencode/hooks/vibemon.py",
     *(f"collector/vibemon_collector/{name}" for name in (
         "__init__.py", "__main__.py", "application.py", "disk.py", "domain.py", "health.py",
-        "host.py", "kubelet.py", "kubernetes.py", "prometheus.py", "transport.py",
+        "host.py", "http_deadline.py", "kubelet.py", "kubernetes.py", "prometheus.py", "transport.py",
     )),
 ]
 
@@ -63,6 +64,8 @@ REPO_ROOT = DOCS_DIR.parents[1]
 
 
 def source_path(rel: str) -> Path:
+    if rel == 'vibemon/http_deadline.py':
+        return REPO_ROOT / 'collector/vibemon_collector/http_deadline.py'
     return REPO_ROOT / rel if rel.startswith("collector/") else DOCS_DIR / rel
 
 

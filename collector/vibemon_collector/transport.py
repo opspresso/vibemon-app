@@ -6,8 +6,9 @@ from datetime import timezone
 from email.utils import parsedate_to_datetime
 from urllib.error import HTTPError
 from urllib.parse import urlsplit
-from urllib.request import Request, build_opener, HTTPRedirectHandler
+from urllib.request import Request, HTTPRedirectHandler
 from .application import DeliveryFailure
+from .http_deadline import DeadlineOpener, read_limited
 
 
 class NoRedirect(HTTPRedirectHandler):
@@ -45,10 +46,11 @@ def retry_after_seconds(value: str, now: float) -> float:
 
 
 class JsonClient:
-    def __init__(self, token: str | None = None, wall_clock=time.time):
+    def __init__(self, token: str | None = None, wall_clock=time.time, timeout=5):
         self.token = token
         self.wall_clock = wall_clock
-        self.opener = build_opener(NoRedirect())
+        self.timeout = timeout
+        self.opener = DeadlineOpener(NoRedirect())
 
     def request(self, url: str, payload: dict | None = None) -> dict:
         headers = {"Accept": "application/json"}
@@ -59,10 +61,8 @@ class JsonClient:
             headers["Content-Type"] = "application/json"
             data = json.dumps(payload, allow_nan=False).encode()
         try:
-            with self.opener.open(Request(url, data=data, headers=headers), timeout=5) as response:
-                raw = response.read(64 * 1024 + 1)
-                if len(raw) > 64 * 1024:
-                    raise ValueError("Response exceeds the summary response limit")
+            with self.opener.open(Request(url, data=data, headers=headers), timeout=self.timeout) as response:
+                raw = read_limited(response, 64 * 1024)
                 return json.loads(raw)
         except HTTPError as error:
             error.close()

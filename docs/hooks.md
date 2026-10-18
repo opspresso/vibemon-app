@@ -38,11 +38,13 @@ After installation, edit `~/.vibemon/config.json` to configure your targets:
 |-------|-------------|---------|
 | `debug` | Enable debug logging | `true` |
 | `cache_path` | Cache file path for project metadata | `~/.vibemon/cache/projects.json` |
-| `auto_launch` | Auto-launch Desktop App on session start. Launch, window, and status requests share a 9-second budget inside the 10-second hook timeout; the launch waits for `GET /health` and leaves 3 seconds for the requests. | `true` |
+| `auto_launch` | Auto-launch Desktop App on session start. Launch polling, window, and status requests share a 9-second I/O budget inside the 10-second hook timeout; the launch waits for `GET /health` and leaves 3 seconds for the requests. | `true` |
 | `http_urls` | Local status-push targets (Desktop App or legacy ESP32-C6 firmware) | `["http://127.0.0.1:19280"]` |
 | `serial_port` | Legacy ESP32-C6 USB serial port (`~` and `*` wildcard supported; POSIX only, ignored on Windows) | `"/dev/cu.usbmodem*"` |
 | `vibemon_url` | VibeMon cloud API URL | `https://vibemon.io` |
 | `vibemon_token` | Generated write token (from /account) | |
+
+HTTP headers and bodies consume the same monotonic request budget, including chunked responses and redirects. A stream that sends occasional bytes cannot extend it. Local response bodies are limited to 1 MiB; provider usage summaries are limited to 64 KiB. The operating system DNS resolver cannot be cancelled by Python's socket timeout; elapsed DNS time consumes the remaining budget before network I/O continues.
 
 Claude Code's statusline reads a separate `~/.vibemon/statusline.json` for display toggles (e.g. `show_cost`, `show_git`, `show_model`, `show_tokens`) — see [statusline.example.json](../public/install/vibemon/statusline.example.json) for the full set of defaults. This file is optional; statusline.py falls back to sensible defaults (and to any matching keys still in `config.json`) when it's absent.
 

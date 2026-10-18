@@ -26,7 +26,8 @@ from pathlib import Path
 from typing import Any, Callable
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlsplit
-from urllib.request import Request, urlopen
+from urllib.request import Request
+from http.client import HTTPException
 
 from account_context import cloud_context, project_cache_key, prepare_account, using_account, activity_key, event_context
 from account_identity import AccountIdentity
@@ -35,7 +36,7 @@ from cache_io import projects_cache_path, usage_cache_path
 from project_context import get_project_name, parse_json, read_input
 import session_activity
 from session_activity import Transition
-from http_client import open_credential_request
+from http_client import open_credential_request, open_request as urlopen, read_limited
 from usage_cache import CACHE_STALE_SECONDS, get_fresh_provider, is_finite_number, is_fresh_observation, load_usage_cache, model_week_bucket, valid_percent, reverse_jsonl
 
 try:
@@ -124,7 +125,7 @@ START_BUDGET_SECONDS = 9
 DESKTOP_SEND_RESERVE_SECONDS = 3
 DESKTOP_LAUNCH_POLL_SECONDS = 0.2
 DESKTOP_HEALTH_TIMEOUT_SECONDS = 1
-MIN_REQUEST_TIMEOUT_SECONDS = 0.5
+LOCAL_RESPONSE_LIMIT_BYTES = 1024 * 1024
 
 
 @dataclass(frozen=True)
@@ -615,7 +616,10 @@ def request_timeout(deadline: float | None) -> float:
     """The HTTP timeout for a request that must end by `deadline` (time.monotonic()), if any."""
     if deadline is None:
         return HTTP_TIMEOUT_SECONDS
-    return max(MIN_REQUEST_TIMEOUT_SECONDS, min(HTTP_TIMEOUT_SECONDS, deadline - time.monotonic()))
+    remaining = deadline - time.monotonic()
+    if remaining <= 0:
+        raise TimeoutError('HTTP request has no time remaining')
+    return min(HTTP_TIMEOUT_SECONDS, remaining)
 
 
 def send_http_post(
@@ -635,8 +639,8 @@ def send_http_post(
             req = Request(full_url, method="POST")
 
         with urlopen(req, timeout=request_timeout(deadline)) as response:
-            return True, response.read().decode("utf-8")
-    except (URLError, TimeoutError, OSError):
+            return True, read_limited(response, LOCAL_RESPONSE_LIMIT_BYTES).decode("utf-8")
+    except (URLError, TimeoutError, OSError, ValueError, HTTPException):
         return False, None
 
 
@@ -644,8 +648,8 @@ def send_http_get(url: str, endpoint: str, timeout: float = HTTP_TIMEOUT_SECONDS
     """Send HTTP GET request."""
     try:
         with urlopen(f"{url.rstrip('/')}{endpoint}", timeout=timeout) as response:
-            return True, response.read().decode("utf-8")
-    except (URLError, TimeoutError, OSError):
+            return True, read_limited(response, LOCAL_RESPONSE_LIMIT_BYTES).decode("utf-8")
+    except (URLError, TimeoutError, OSError, ValueError, HTTPException):
         return False, None
 
 
@@ -708,7 +712,7 @@ def send_vibemon_api(url: str, token: str, payload: dict[str, Any], context: dic
         print(f"[vibemon] Web update rejected (HTTP {error.code}). {guidance}", file=sys.stderr)
         error.close()
         return False
-    except (URLError, TimeoutError, OSError) as error:
+    except (URLError, TimeoutError, OSError, HTTPException) as error:
         print(f"[vibemon] Web update failed ({type(error).__name__}). Check the Web connection and vibemon_url in ~/.vibemon/config.json.", file=sys.stderr)
         return False
 
@@ -987,7 +991,11 @@ def launch_desktop(url: str | None, deadline: float) -> bool:
 def wait_for_desktop(url: str, process: subprocess.Popen, deadline: float) -> bool:
     """Poll /health until it answers, the launcher fails, or `deadline` passes."""
     while True:
-        if is_monitor_running(url, DESKTOP_HEALTH_TIMEOUT_SECONDS):
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            debug_log("Desktop App did not answer /health before the deadline")
+            return False
+        if is_monitor_running(url, min(DESKTOP_HEALTH_TIMEOUT_SECONDS, remaining)):
             return True
         # macOS `open` exits nonzero when VibeMon is not installed; nothing will answer then.
         if process.poll() not in (None, 0):
@@ -996,7 +1004,7 @@ def wait_for_desktop(url: str, process: subprocess.Popen, deadline: float) -> bo
         if time.monotonic() >= deadline:
             debug_log("Desktop App did not answer /health before the deadline")
             return False
-        time.sleep(DESKTOP_LAUNCH_POLL_SECONDS)
+        time.sleep(min(DESKTOP_LAUNCH_POLL_SECONDS, max(0, deadline - time.monotonic())))
 
 
 def get_desktop_url(http_urls: tuple[str, ...]) -> str | None:
@@ -1010,15 +1018,18 @@ def get_desktop_url(http_urls: tuple[str, ...]) -> str | None:
 def prepare_desktop(deadline: float | None = None) -> None:
     """Start the configured local viewer without creating a placeholder account.
 
-    Every wait and request ends by `deadline` (time.monotonic()); the default
-    is a full start budget.
+    Requests share the remaining monotonic I/O budget; the default is a full
+    start budget. The operating system DNS resolver is outside socket timeouts.
     """
     if deadline is None:
         deadline = time.monotonic() + START_BUDGET_SECONDS
     config = get_config()
     desktop_url = get_desktop_url(config.http_urls)
     if desktop_url and config.auto_launch:
-        if not is_monitor_running(desktop_url, DESKTOP_HEALTH_TIMEOUT_SECONDS):
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            return
+        if not is_monitor_running(desktop_url, min(DESKTOP_HEALTH_TIMEOUT_SECONDS, remaining)):
             debug_log("Desktop App not running, launching...")
             launch_desktop(desktop_url, deadline - DESKTOP_SEND_RESERVE_SECONDS)
         show_monitor_window(desktop_url, deadline)

@@ -3,15 +3,19 @@ import json
 import os
 import ssl
 import threading
+import time
 from pathlib import Path
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from urllib.error import URLError
 
 from vibemon_collector.kubernetes import KubectlReader
 from vibemon_collector.kubelet import KubeletReader
+from vibemon_collector.http_deadline import DeadlineOpener
 
 
 class MetricsAPI(BaseHTTPRequestHandler):
     requests = []
+    slow = False
 
     def do_GET(self):
         self.requests.append(self.path)
@@ -26,7 +30,14 @@ class MetricsAPI(BaseHTTPRequestHandler):
         self.send_header('Content-Type', 'application/json')
         self.send_header('Content-Length', str(len(body)))
         self.end_headers()
-        self.wfile.write(body)
+        try:
+            if self.slow:
+                for byte in body:
+                    self.wfile.write(bytes([byte])); self.wfile.flush(); time.sleep(0.03)
+            else:
+                self.wfile.write(body)
+        except OSError:
+            pass  # A timed-out test request closes its socket.
 
     def log_message(self, *_args):
         pass
@@ -45,7 +56,22 @@ try:
     assert MetricsAPI.requests == ['/apis/metrics.k8s.io/v1beta1/nodes']
     assert KubeletReader(Path('/tmp/fixture/serviceaccount')).read('127.0.0.1', server.server_port) == {'node': {'nodeName': 'fixture'}}
     assert MetricsAPI.requests[-1] == '/stats/summary'
-    print('Verified kubectl TLS and mounted service-account authentication.')
+    MetricsAPI.slow = True
+    started = time.monotonic()
+    try:
+        KubeletReader(Path('/tmp/fixture/serviceaccount'), timeout=0.15).read('127.0.0.1', server.server_port)
+        raise AssertionError('A trickled TLS body exceeded the request budget')
+    except TimeoutError:
+        assert time.monotonic() - started < 0.6
+    finally:
+        MetricsAPI.slow = False
+    assert KubeletReader(Path('/tmp/fixture/serviceaccount')).read('127.0.0.1', server.server_port) == {'node': {'nodeName': 'fixture'}}
+    try:
+        DeadlineOpener().open(f'https://127.0.0.1:{server.server_port}/stats/summary', timeout=1)
+        raise AssertionError('The fixture CA must not be globally trusted')
+    except URLError as error:
+        assert isinstance(error.reason, ssl.SSLCertVerificationError)
+    print('Verified kubectl TLS, service-account authentication, bounded TLS bodies and certificate verification.')
 finally:
     server.shutdown()
     server.server_close()

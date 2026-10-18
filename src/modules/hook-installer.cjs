@@ -416,6 +416,7 @@ const TOOLS = [
     files: [
       { local: homePath('.vibemon', 'usage.py'), remote: 'vibemon/usage.py' },
       { local: homePath('.vibemon', 'http_client.py'), remote: 'vibemon/http_client.py' },
+      { local: homePath('.vibemon', 'http_deadline.py'), remote: 'vibemon/http_deadline.py' },
       { local: homePath('.vibemon', 'cache_io.py'), remote: 'vibemon/cache_io.py' },
       { local: homePath('.vibemon', 'account_identity.py'), remote: 'vibemon/account_identity.py' },
       { local: homePath('.vibemon', 'account_parsers.py'), remote: 'vibemon/account_parsers.py' },

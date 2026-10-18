@@ -1079,6 +1079,8 @@ class FileSource:
         else:
             # Local checkouts keep the collector package at the repository root.
             local = self.local_dir / path
+            if path == 'vibemon/http_deadline.py' and not local.exists():
+                local = self.local_dir.parents[1] / 'collector/vibemon_collector/http_deadline.py'
             if not local.exists() and path.startswith("collector/"):
                 local = self.local_dir.parents[1] / path
             return local.read_text(encoding="utf-8")
@@ -1094,7 +1096,7 @@ def is_tool_installed(commands: str | tuple[str, ...], home_dir: Path) -> bool:
 # Shared ~/.vibemon scripts, installed for every platform and removed by
 # --uninstall --vibemon. vibemon_core.py imports the others, so it comes last.
 SHARED_SCRIPTS = (
-    "http_client.py", "cache_io.py", "account_identity.py", "account_parsers.py", "account_sources.py", "account_store.py", "account_service.py", "account_refresh.py", "account_context.py", "usage.py",
+    "http_deadline.py", "http_client.py", "cache_io.py", "account_identity.py", "account_parsers.py", "account_sources.py", "account_store.py", "account_service.py", "account_refresh.py", "account_context.py", "usage.py",
     "usage_cache.py", "project_context.py", "session_activity.py", "vibemon_core.py",
 )
 
@@ -1701,7 +1703,7 @@ def install_vibemon(source: FileSource, cli_token: str = None) -> bool:
 
 COLLECTOR_MODULES = (
     "__init__.py", "__main__.py", "application.py", "disk.py", "domain.py", "health.py",
-    "host.py", "kubelet.py", "kubernetes.py", "prometheus.py", "transport.py",
+    "host.py", "http_deadline.py", "kubelet.py", "kubernetes.py", "prometheus.py", "transport.py",
 )
 COLLECTOR_FILES = tuple(f"collector/vibemon_collector/{name}" for name in COLLECTOR_MODULES)
 PSUTIL_REQUIREMENT = "psutil>=5.9,<8"

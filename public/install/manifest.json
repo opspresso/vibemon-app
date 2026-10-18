@@ -1,5 +1,5 @@
 {
-  "installer": "63151a1657c08cb2f6e17d7d77ce4a9109b35ccdbd0bf55b628b2d0731c7fe42",
+  "installer": "e8930eff81ee2e164158f3e75ed7f3ea0f708c36361935ff2dd40d90011cdd00",
   "files": {
     "claude/settings.json": "16364280f11c2e94a7c70d01b0f019aaf736ea82c8b0d8a2a9936072d0cfe009",
     "codex/hooks.json": "b7e5e486400a0b289a789f4f6ecc9d04188192ef031b7e6c1dcbc60d3d8ad2f8",
@@ -15,10 +15,11 @@
     "vibemon/account_refresh.py": "bb274ebb2a3569b24e55de134bfa80acb89a9c5ca38249711e33f56358e3b5f2",
     "vibemon/account_context.py": "645ee396daac3317a4262289efca23e4325572e7b3396d2c603b8a358d835af1",
     "vibemon/cache_io.py": "dd631f8ea01e2f42225e980f30e9eaec6eef6c550ed6ac85a707e2c264497bdb",
-    "vibemon/http_client.py": "306f9804a3bffc221b7c68f7b1f100937311908912ffb50bca500d493464052a",
+    "vibemon/http_client.py": "77af40cc46f93b22ec0c8e58c76becc1a8a4bf7fb473d2eeadc9db766c4b066e",
+    "vibemon/http_deadline.py": "40a015c393f39161d459431b708539f25ff865f0b9c11a06869b5e0082c845bc",
     "vibemon/project_context.py": "8621372543a6864fd9fc06caad054a7d9b48eafb9fafdf6c55d59314f400c1c7",
     "vibemon/session_activity.py": "fc49a6dd18a7de07ed05859493cb6fb9ba1be463033a00345ced1a3297d366a1",
-    "vibemon/vibemon_core.py": "275b31a8ec27aca354293b4deef8d97d24adc45624c3e616438ca178e7117b48",
+    "vibemon/vibemon_core.py": "537c6ab0e07414616c121805b5b03f56f61a752d7ce9da6231436b695359dad3",
     "claude/statusline.py": "414a62217e07b12086b10d142b74f99a458ad20089ed6aa2576eaa134c365f1c",
     "claude/hooks/vibemon.py": "94fd4f4873a383a69656875989c970e4274e2e5d0b809aa27f240ed862ad7940",
     "codex/hooks/vibemon.py": "e549393469c9a3be6689b7fa52c659288832edf5802bd77f676271c19f0181c0",
@@ -36,9 +37,10 @@
     "collector/vibemon_collector/domain.py": "afe36872b4fbb39e199c0eb25c610de889414e7e11f3babb9fc797c6526fcb71",
     "collector/vibemon_collector/health.py": "edecdd4623273688ae141a59a23be71b35b46f45d078e3c2b68d28c66a215d88",
     "collector/vibemon_collector/host.py": "71d07e395704a9a28be9ce4ff28c67972a1d524c45244d9741fe468d0b09bdbd",
-    "collector/vibemon_collector/kubelet.py": "78f26dcfd5b4cd9ec3a6dc55f216ad62aaff83c9b82a6601cdffe9be70d076db",
+    "collector/vibemon_collector/http_deadline.py": "40a015c393f39161d459431b708539f25ff865f0b9c11a06869b5e0082c845bc",
+    "collector/vibemon_collector/kubelet.py": "2926f2526e138438613333d2803a98036cd76f2d3f5fd99faa9a2490011bfd73",
     "collector/vibemon_collector/kubernetes.py": "ec74340984f8a318d871477f9b41d83e7da198724ce1cd23e1619fb47bf41fd6",
     "collector/vibemon_collector/prometheus.py": "dc4dda8cb95488a4084d2d2e8e8885c953f0e29ffd52341faa10e0b3c16a23dd",
-    "collector/vibemon_collector/transport.py": "c539b1b9dfb2ce32685c3c8600f34ca566934cf90c95e5b4e0937fcdd8592618"
+    "collector/vibemon_collector/transport.py": "0355e6920afe8d00540b2f9d739856f16ffb2fd8e096e0d63376138cab3cc828"
   }
 }
