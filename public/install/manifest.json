@@ -37,7 +37,7 @@
     "collector/vibemon_collector/health.py": "edecdd4623273688ae141a59a23be71b35b46f45d078e3c2b68d28c66a215d88",
     "collector/vibemon_collector/host.py": "71d07e395704a9a28be9ce4ff28c67972a1d524c45244d9741fe468d0b09bdbd",
     "collector/vibemon_collector/kubelet.py": "78f26dcfd5b4cd9ec3a6dc55f216ad62aaff83c9b82a6601cdffe9be70d076db",
-    "collector/vibemon_collector/kubernetes.py": "11863b69332d4cf54fdf18ded078878823f6e8134d8f80ce158490d41facd1c2",
+    "collector/vibemon_collector/kubernetes.py": "ec74340984f8a318d871477f9b41d83e7da198724ce1cd23e1619fb47bf41fd6",
     "collector/vibemon_collector/prometheus.py": "dc4dda8cb95488a4084d2d2e8e8885c953f0e29ffd52341faa10e0b3c16a23dd",
     "collector/vibemon_collector/transport.py": "c539b1b9dfb2ce32685c3c8600f34ca566934cf90c95e5b4e0937fcdd8592618"
   }

@@ -3,9 +3,10 @@ import json
 import math
 import re
 import subprocess
-from concurrent.futures import ThreadPoolExecutor, wait
+from concurrent.futures import CancelledError, ThreadPoolExecutor, wait
 from datetime import datetime
 from decimal import Decimal, InvalidOperation
+from threading import Event
 from .domain import Sample, cluster_health
 from .disk import CLUSTER_DEFINITIONS, DISK_METRICS, disk_values
 from .kubelet import filesystem
@@ -56,6 +57,7 @@ class KubernetesSampler:
         self.disk_reader = disk_reader
         self.metric_definitions = CLUSTER_DEFINITIONS if set(metrics).intersection(DISK_METRICS) else None
         self.disk_executor = None
+        self.disk_futures = []
 
     def sample(self):
         values = {key: None for key in self.metrics}
@@ -94,11 +96,17 @@ class KubernetesSampler:
                 failed = True
         if set(values).intersection(DISK_METRICS) and nodes:
             try:
+                # Cancelling a queued Future does not remove its executor work item.
+                # Keep one batch until its work items drain, including after the deadline.
+                if any(not future.done() for future in self.disk_futures):
+                    raise ValueError('Previous kubelet summary requests are still running')
                 rows = self.reader.read('endpoints')
                 if any(len(row) != 3 for row in rows): raise ValueError('Invalid kubelet endpoints')
                 endpoints = {row[0]: row for row in rows}
                 if len(endpoints) != len(rows) or not set(nodes).issubset(endpoints): raise ValueError('Incomplete kubelet endpoints')
+                stopped = Event()
                 def disk(name):
+                    if stopped.is_set(): raise CancelledError()
                     _, addresses, port = endpoints[name]
                     # Dual-stack nodes may advertise both IPv4 and IPv6.
                     return filesystem(self.disk_reader.read(addresses.split()[0], port), name, self.clock())
@@ -106,13 +114,17 @@ class KubernetesSampler:
                 # workers on the next tick, or wait for queued node batches.
                 if self.disk_executor is None:
                     self.disk_executor = ThreadPoolExecutor(max_workers=8)
-                futures = [self.disk_executor.submit(disk, name) for name in nodes]
+                futures = []
+                self.disk_futures = futures
                 try:
+                    for name in nodes:
+                        futures.append(self.disk_executor.submit(disk, name))
                     _, pending = wait(futures, timeout=DISK_QUERY_TIMEOUT)
                     if pending: raise ValueError('Kubelet summary deadline exceeded')
                     disks = [future.result() for future in futures]
                 finally:
-                    for future in futures: future.cancel()
+                    # Queued calls exit without reading; their Futures stay pending until drained.
+                    stopped.set()
                 available = sum(item[0] for item in disks)
                 capacity = sum(item[1] for item in disks)
                 measured = disk_values(available, capacity)

@@ -97,6 +97,8 @@ For an in-cluster collector, add `--disk` to read each node's root filesystem fr
 
 `diskAvailableGiB` and `diskTotalGiB` sum root-filesystem bytes across all nodes and divide by 2^30. `diskUsedPercent` is `100 × (1 − available / total)`, including space unavailable to workloads. These are node root disks, not PVC totals or a sum of container overlay mounts. If any node is missing, fails, or has filesystem statistics older than 120 seconds, all three disk values are `null`; CPU, memory, and pod health remain independent. A genuinely full disk reports zero available GiB. The existing three-sample window supplies means and maxima.
 
+Kubelet reads use at most eight workers and one batch of node requests. If a batch misses its deadline, disk values remain unavailable until its running requests end; later ticks keep collecting the other metrics without adding more disk work. The next batch requests fresh statistics rather than publishing late results from the previous tick.
+
 Disk-enabled cluster observations include `resourceType`, `metricDefinitions`, and `metricOrder`, preserving the cluster source ID and existing client rendering. Deploy Web support for extended host/cluster definitions before enabling the flag. The flag is off by default and is unsupported with the Prometheus backend.
 
 The CLI reads only the selected summary fields from node/pod objects. Pod specs, credentials and logs are not part of the Python result or Web payload. Python 3.10+ is still required; this backend does not import the host-only `psutil` adapter.

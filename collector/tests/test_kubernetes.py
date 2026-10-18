@@ -116,12 +116,45 @@ class DiskTests(unittest.TestCase):
         self.assertEqual(summary['metricOrder'][2], 'diskAvailableGiB')
         self.assertEqual(summary['metrics']['diskAvailableGiB'], 40)
 
+    def test_recovery_reads_a_fresh_batch_instead_of_publishing_late_results(self):
+        release, started = Event(), Event()
+        original_read = self.read
+        def delayed(address, port):
+            previous = deepcopy(original_read(address, port))
+            started.set()
+            release.wait(2)
+            return previous
+        self.read = delayed
+        sampler = KubernetesSampler(self.reader, CLUSTER_METRICS + DISK_METRICS, lambda: 1000, self)
+        try:
+            with patch('vibemon_collector.kubernetes.DISK_QUERY_TIMEOUT', 0.02):
+                self.assertIsNone(sampler.sample().metrics['diskAvailableGiB'])
+                self.assertTrue(started.wait(1))
+                waiting = sampler.sample()
+                self.assertIsNone(waiting.metrics['diskAvailableGiB'])
+                self.assertEqual(waiting.metrics['cpuPercent'], 25)
+            release.set()
+            for future in sampler.disk_futures:
+                future.exception(timeout=1)
+            self.read = original_read
+            self.responses['10.0.0.1']['node']['fs']['availableBytes'] = 5 * 1024 ** 3
+            self.responses['10.0.0.2']['node']['fs']['availableBytes'] = 15 * 1024 ** 3
+            recovered = sampler.sample()
+            self.assertEqual(recovered.metrics['diskAvailableGiB'], 20)
+            self.assertEqual(recovered.metrics['diskUsedPercent'], 80)
+            self.assertEqual(recovered.metrics['cpuPercent'], 25)
+        finally:
+            release.set()
+            sampler.disk_executor.shutdown(wait=True, cancel_futures=True)
+
     def test_slow_node_batches_do_not_block_other_metrics_or_grow_worker_pool(self):
         release = Event()
+        requests = []
         self.reader.nodes = [[str(i), '2', '1Gi', 'True'] for i in range(20)]
         self.reader.endpoints = [[str(i), f'10.0.0.{i + 1}', '10250'] for i in range(20)]
         self.reader.usage['items'] = [{'metadata': {'name': str(i)}, 'timestamp': '1970-01-01T00:16:40Z', 'usage': {'cpu': '500m', 'memory': '256Mi'}} for i in range(20)]
         def stalled(_address, _port):
+            requests.append(_address)
             release.wait(2)
             raise OSError('timeout')
         self.read = stalled
@@ -136,6 +169,8 @@ class DiskTests(unittest.TestCase):
                     self.assertEqual(sample.metrics['podsUnhealthy'], 3)
                     self.assertTrue(all(sample.metrics[key] is None for key in DISK_METRICS))
                 self.assertLessEqual(len(sampler.disk_executor._threads), 8)
+                self.assertLessEqual(sampler.disk_executor._work_queue.qsize(), len(self.reader.nodes))
         finally:
             release.set()
-            sampler.disk_executor.shutdown(wait=True, cancel_futures=True)
+            sampler.disk_executor.shutdown(wait=True)
+        self.assertLessEqual(len(requests), 8)
