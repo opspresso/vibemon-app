@@ -47,6 +47,7 @@ precondition(!WidgetCatalog.items(.agent, from: load, matching: project).isEmpty
 precondition(WidgetCatalog.items(.agent, from: .missing).isEmpty)
 precondition(WidgetIcons.imageURL("../icon.png") == nil)
 precondition(WidgetIcons.characterURL("not-bundled.png")?.lastPathComponent == WidgetIcons.fallback)
+precondition(WidgetIcons.characterImage("not-bundled.png")?.isValid == true)
 
 func visibleImage(_ url: URL) {
     guard let image = NSImage(contentsOf: url), image.isValid,

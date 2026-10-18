@@ -277,7 +277,7 @@ struct CharacterArt: View {
     var body: some View {
         let fullColor = renderingMode == .fullColor
         Group {
-            if let url = WidgetIcons.characterURL(file), let image = NSImage(contentsOf: url) {
+            if let image = WidgetIcons.characterImage(file) {
                 Image(nsImage: image)
                     .resizable()
                     .interpolation(.high)
