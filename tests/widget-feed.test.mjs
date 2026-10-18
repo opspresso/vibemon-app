@@ -60,6 +60,14 @@ test('a resource shows at most three metrics and its collector message', () => {
   assert.equal(item.message, 'Serving requests');
 });
 
+test('automatic resource widgets choose attention before an alphabetically earlier healthy resource', () => {
+  const healthy = host({ sourceId: 'healthy', displayName: 'Alpha healthy' });
+  const failing = host({ sourceId: 'failing', displayName: 'Zeta failing', health: 'error' });
+  const items = build({ cloud: cloud([healthy, failing]) }).items;
+  assert.deepEqual(items.map(item => item.id), ['resource:failing', 'resource:healthy']);
+  assert.equal(items[0].timeline[0].state, 'error');
+});
+
 test('timeline times follow the wall clock when the server clock differs', () => {
   const skew = minutes(3);
   const [item] = build({ cloud: cloud([host({ receivedAt: iso(skew - minutes(1)) })], { evaluatedAt: NOW + skew }) }).items;
@@ -89,6 +97,52 @@ test('an input request from an older project outranks newer work on the same acc
   assert.deepEqual(item.timeline[0], { at: iso(0), state: 'notification', label: 'Needs input', tone: 'warning' });
   // The input request ages out first; the newer work is then shown.
   assert.deepEqual(item.timeline[1], { at: iso(constants.SLEEP_TIMEOUT_MS - minutes(3)), state: 'working', label: 'Working', tone: 'active' });
+});
+
+test('automatic coding widgets prioritize attention and put inactive accounts last, newest first', () => {
+  const account = (id, provider, project, state, age) => agentSource({
+    sourceId: `agent:${id}`, observedAt: iso(-age),
+    account: { id, provider, displayName: id }, agent: { state, character: provider === 'claude' ? 'clawd' : 'codex', project }
+  });
+  const inactiveAge = 2 * constants.SLEEP_TIMEOUT_MS;
+  const sources = [
+    account('old', 'claude', 'Alpha old', 'working', inactiveAge + minutes(10)),
+    account('active', 'codex', 'Beta active', 'working', 1000),
+    account('recent', 'claude', 'Zeta recent', 'working', inactiveAge + minutes(1)),
+    account('waiting', 'codex', 'Zeta input', 'notification', 1000)
+  ];
+  const items = build({ cloud: cloud(sources) }).items;
+  assert.deepEqual(items.map(item => item.id), ['agent:codex:waiting', 'agent:codex:active', 'agent:claude:recent', 'agent:claude:old']);
+  assert.deepEqual(items.map(item => item.timeline[0].state), ['notification', 'working', 'inactive', 'inactive']);
+});
+
+test('coding widget name ordering uses the project responsible for the account state', () => {
+  const latest = agentSource({
+    sourceId: 'agent:latest', observedAt: iso(-1000),
+    agent: { state: 'working', character: 'clawd', project: 'Alpha latest' }
+  });
+  const waiting = agentSource({ sourceId: 'agent:waiting', agent: { state: 'notification', character: 'clawd', project: 'Zulu input' } });
+  const other = agentSource({
+    sourceId: 'agent:other', account: { id: 'other', provider: 'codex', displayName: 'Other' },
+    agent: { state: 'notification', character: 'codex', project: 'Bravo input' }
+  });
+  const items = build({ cloud: cloud([latest, waiting, other]) }).items;
+  assert.deepEqual(items.map(item => item.id), ['agent:codex:other', 'agent:claude:work']);
+  assert.ok(items.every(item => item.timeline[0].state === 'notification'));
+  assert.equal(items[1].selectionSubtitle, 'Work · Alpha latest · Zulu input');
+});
+
+test('automatic choices keep a stable identity when names match and report order changes', () => {
+  const sources = [
+    host({ sourceId: 'b', displayName: 'Same resource' }),
+    host({ sourceId: 'a', displayName: 'Same resource' }),
+    agentSource({ sourceId: 'agent:b', account: { provider: 'codex', id: 'b', displayName: 'B' } }),
+    agentSource({ sourceId: 'agent:a', account: { provider: 'codex', id: 'a', displayName: 'A' } })
+  ];
+  const expected = ['resource:a', 'resource:b', 'agent:codex:a', 'agent:codex:b'];
+  for (const input of [sources, [...sources].reverse()]) {
+    assert.deepEqual(build({ cloud: cloud(input) }).items.map(item => item.id), expected);
+  }
 });
 
 test('local delivery replaces the cloud copy of a source and fills usage from this device', () => {
@@ -144,7 +198,7 @@ test('local projects appear without a cloud connection, sorted after resources',
     { id: 'local:y', since: NOW, status: { state: 'working', project: 'y', character: 'clawd', account: { id: 'default', provider: 'claude', displayName: 'claude default' } } }
   ];
   const feed = build({ cloud: cloud([host()]), local });
-  assert.deepEqual(feed.items.map(item => item.id), ['resource:mac-studio', 'agent:claude:default', 'agent:codex:default']);
+  assert.deepEqual(feed.items.map(item => item.id), ['resource:mac-studio', 'agent:codex:default', 'agent:claude:default']);
   assert.deepEqual(feed.items.map(item => item.link), ['vibemon://dashboard/resources', 'vibemon://dashboard/agents', 'vibemon://dashboard/agents']);
 });
 

@@ -5,11 +5,12 @@
 // agent account. Each item carries a timeline of its future display states,
 // so a widget keeps aging correctly between App writes.
 import { accountName, formatMeasurement, measurementUnit, metricLabel, metricTone, providerLabel, resourceType, sharedTranslator, stateLabel, stateTone } from '../shared/design/presentation.mjs';
+import { compareCards } from '../shared/design/card-order.mjs';
 import monitoring from '../shared/monitoring/state.cjs';
 import clock from '../shared/monitoring/clock.cjs';
 import constants from '../shared/constants.cjs';
 
-const { accountActivity, agentTransition, groupAccounts, sourceState } = monitoring;
+const { accountActivity, agentTransition, groupAccounts, needsAttention, sourceState } = monitoring;
 const { usageResetAt } = clock;
 
 export const WIDGET_FEED_VERSION = 1;
@@ -48,15 +49,24 @@ export function buildWidgetFeed({ cloud, local = [], usage = {}, artwork = () =>
   const selected = new Set(cloud.selectedMetrics);
   const resources = cloud.sources
     .filter(source => source.kind !== 'agent')
-    .map(source => resourceItem(source, selected, reportNow, wall, t));
+    .map(source => ({ source, sourceId: source.sourceId, displayName: source.displayName, needsAttention: needsAttention(sourceState(source, reportNow)) }))
+    .sort(compareCards)
+    .map(({ source }) => resourceItem(source, selected, reportNow, wall, t));
   const agents = agentAccounts(cloud.sources, local, offset, now)
-    .map(account => agentItem(account, usage[account.accountId], artwork, reportNow, wall, offset, t));
-  const byTitle = (a, b) => a.title.localeCompare(b.title) || a.subtitle.localeCompare(b.subtitle) || (a.id < b.id ? -1 : 1);
+    .map(account => {
+      const { state, project } = accountActivity(account, reportNow);
+      return {
+        account, sourceId: account.accountId, isAccount: true, displayState: state, displayName: project,
+        observedAt: account.latest.observedAt, needsAttention: needsAttention(state)
+      };
+    })
+    .sort(compareCards)
+    .map(({ account }) => agentItem(account, usage[account.accountId], artwork, reportNow, wall, offset, t));
   return {
     version: WIDGET_FEED_VERSION,
     generatedAt: new Date(now).toISOString(),
     running,
-    items: [...resources.sort(byTitle), ...agents.sort(byTitle)]
+    items: [...resources, ...agents]
   };
 }
 

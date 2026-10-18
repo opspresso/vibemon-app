@@ -1,4 +1,4 @@
-import { compareCards } from './card-order.mjs';
+import { compareCards } from '../../shared/design/card-order.mjs';
 import { accountName, describeReset, formatResetTime, measurementUnit, metricLabel, metricTone, resetMinutes, resourceType, stateTone } from '../../shared/design/presentation.mjs';
 import { t, locale } from '../i18n.js';
 import {

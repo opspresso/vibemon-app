@@ -22,7 +22,7 @@ If VibeMon is missing from the gallery, keep the App in `/Applications`, start i
 
 If both apps are available, **VibeMon Mac** contains the widgets supplied by this Mac; **VibeMon iPhone** contains widgets supplied by your iPhone. Individual widget names also end in **Mac** or **iPhone**. Update the corresponding app to update its widgets.
 
-A new widget leaves its selection empty and shows the first current item until you choose one. Click a widget to open its page in the Dashboard.
+A new widget leaves its selection empty and shows the first item of its kind in Dashboard order: items that need attention first, then by name. Inactive coding accounts come last, with the most recently active first. A coding account's name in this order is the project responsible for its displayed state. Choosing an item keeps that selection. Click a widget to open its page in the Dashboard.
 
 ## What the widget shows
 
