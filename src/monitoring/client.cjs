@@ -6,6 +6,7 @@ const { CLOUD_POLL_MS, CLOUD_REQUEST_TIMEOUT_MS, CLOUD_TREND_MS, CLOUD_MAX_RESPO
 const { sourceStale, sourceState, accountActivity, needsAttention, attentionCount } = require('../shared/monitoring/state.cjs');
 const { snapshotClock } = require('../shared/monitoring/clock.cjs');
 const { t } = require('../shared/i18n/locale.cjs');
+const { isApiToken } = require('../shared/api-token.cjs');
 
 class MonitoringClient extends EventEmitter {
   constructor({ preferences, credentials, fetchImpl = fetch, allowLocalHttp = false, now = Date.now, monotonicNow = () => globalThis.performance.now() }) {
@@ -73,7 +74,7 @@ class MonitoringClient extends EventEmitter {
   }
   async configure({ url, token }) {
     const origin = webOrigin(url, this.allowLocalHttp);
-    if (typeof token !== 'string' || (token && !/^vm_[a-f0-9]{60}$/.test(token))) throw new Error(t('error.readTokenFormat'));
+    if (typeof token !== 'string' || (token && !isApiToken(token))) throw new Error(t('error.readTokenFormat'));
     if (origin !== this.preferences.get('url') && !token && this.credentials.has()) throw new Error(t('error.tokenForNewAddress'));
     const candidate = token || this.credentials.get();
     const attempt = ++this.configurationAttempt;

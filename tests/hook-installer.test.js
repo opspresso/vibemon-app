@@ -503,7 +503,7 @@ describe('HookInstaller', () => {
     test('passes the OpenCode flag to the verified installer', async () => {
       const { installer } = setup();
       mockSuccessfulInstall();
-      const results = await installer.installByFlag('--opencode', null);
+      const results = await installer.installByFlag('--opencode');
       expect(results).toHaveLength(1);
       expect(results[0].result.ok).toBe(true);
       expect(spawn).toHaveBeenCalledWith('python3', ['-', '--opencode'], expect.any(Object));
@@ -542,7 +542,7 @@ describe('HookInstaller', () => {
       const target = TOOLS[0];
       mockToolMissing(target);
       pythonAvailable = false;
-      await hookInstaller.installTools([target], null);
+      await hookInstaller.installTools([target]);
       expect(hookInstaller.getMissingTools()).toEqual([]);
 
       hookInstaller.clearDismissed();
@@ -823,11 +823,11 @@ describe('HookInstaller', () => {
       expect(await pending).toMatchObject({ ok: false, reason: code ? 'exit-code' : 'input-error' });
     });
 
-    test('spawns python3 without exposing the token in process arguments', async () => {
+    test('spawns python3 with the script on stdin, not in process arguments', async () => {
       const fakeChild = createChild();
       spawn.mockReturnValue(fakeChild);
 
-      const resultPromise = hookInstaller.runScript('print(1)', PYTHON, ['--claude'], 'my_token123');
+      const resultPromise = hookInstaller.runScript('print(1)', PYTHON, ['--claude']);
       fakeChild.emit('close', 0);
       const result = await resultPromise;
 
@@ -862,14 +862,13 @@ describe('HookInstaller', () => {
       const fakeChild = createChild();
       spawn.mockReturnValue(fakeChild);
 
-      const resultPromise = hookInstaller.runScript('script', PYTHON, ['--codex'], null);
+      const resultPromise = hookInstaller.runScript('script', PYTHON, ['--codex']);
       fakeChild.stderr.emit('data', 'traceback');
       fakeChild.emit('close', 1);
 
       expect(await resultPromise).toEqual({
         ok: false, reason: 'exit-code', code: 1, stdout: '', stderr: 'traceback'
       });
-      expect(spawn.mock.calls[0][1]).not.toContain('--token');
     });
 
     // A piped stream nobody reads blocks the child once the OS pipe buffer
@@ -940,7 +939,7 @@ describe('HookInstaller', () => {
     test('rejects a concurrent installation without spawning anything', async () => {
       hookInstaller.isRunning = true;
 
-      await expect(hookInstaller.installTools([TOOLS[0]], null)).rejects.toThrow('already running');
+      await expect(hookInstaller.installTools([TOOLS[0]])).rejects.toThrow('already running');
       expect(https.get).not.toHaveBeenCalled();
       expect(spawn).not.toHaveBeenCalled();
     });
@@ -948,7 +947,7 @@ describe('HookInstaller', () => {
     test('fails the whole batch with python-not-found when python3 is missing (no download attempted)', async () => {
       pythonAvailable = false;
 
-      const results = await hookInstaller.installTools([TOOLS[0], TOOLS[1]], null);
+      const results = await hookInstaller.installTools([TOOLS[0], TOOLS[1]]);
 
       expect(results.map(r => r.result.reason)).toEqual(['python-not-found', 'python-not-found']);
       expect(https.get).not.toHaveBeenCalled();
@@ -961,8 +960,7 @@ describe('HookInstaller', () => {
       const progress = [];
       hookInstaller.onStateChanged = () => progress.push(hookInstaller.isRunning);
 
-      const token = 'vm_' + 'a'.repeat(60);
-      const results = await hookInstaller.installTools([TOOLS[0], TOOLS[1]], token);
+      const results = await hookInstaller.installTools([TOOLS[0], TOOLS[1]]);
 
       const scriptFetches = https.get.mock.calls.filter(c => c[0].endsWith('/install.py'));
       expect(scriptFetches).toHaveLength(1);
@@ -974,27 +972,13 @@ describe('HookInstaller', () => {
       expect(spawn.mock.calls[0][1]).toEqual([...pythonPrefix, '-', TOOLS[0].flag]);
       expect(spawn.mock.calls[1][0]).toBe(pythonCommand);
       expect(spawn.mock.calls[1][1]).toEqual([...pythonPrefix, '-', TOOLS[1].flag]);
-      expect(spawn.mock.calls[0][2].env.VIBEMON_WRITE_TOKEN).toBe(token);
-      expect(JSON.stringify(spawn.mock.calls.map(call => call[1]))).not.toContain(token);
-    });
-
-    test('withholds a missing or malformed token, which install.py would reject', async () => {
-      mockSuccessfulInstall();
-
-      await hookInstaller.installTools([TOOLS[0]], null);
-      await hookInstaller.installTools([TOOLS[0]], 'BAD TOKEN!');
-
-      for (const [, args, options] of spawn.mock.calls) {
-        expect(args).toEqual([...pythonPrefix, '-', TOOLS[0].flag]);
-        expect(options.env.VIBEMON_WRITE_TOKEN).toBe(process.env.VIBEMON_WRITE_TOKEN);
-      }
     });
 
     test('suppresses the whole batch and skips spawning when the download fails', async () => {
       const fakeReq = new EventEmitter();
       https.get.mockImplementation(() => fakeReq);
 
-      const resultPromise = hookInstaller.installTools([TOOLS[0], TOOLS[1]], null);
+      const resultPromise = hookInstaller.installTools([TOOLS[0], TOOLS[1]]);
       setTimeout(() => fakeReq.emit('error', new Error('offline')), 0);
       const results = await resultPromise;
 
@@ -1007,7 +991,7 @@ describe('HookInstaller', () => {
     test('fails the batch with integrity-check-failed when install.py does not match the manifest installer hash', async () => {
       serveDownloads({ installer: sha256('published-script'), files: {} }, 'tampered-script');
 
-      const results = await hookInstaller.installTools([TOOLS[0]], null);
+      const results = await hookInstaller.installTools([TOOLS[0]]);
 
       expect(results.map(r => r.result.reason)).toEqual(['integrity-check-failed']);
       expect(spawn).not.toHaveBeenCalled();
@@ -1016,7 +1000,7 @@ describe('HookInstaller', () => {
     test('fails the batch with integrity-reference-missing when the manifest has no installer hash', async () => {
       serveDownloads({ files: {} }, 'script-source');
 
-      const results = await hookInstaller.installTools([TOOLS[0]], null);
+      const results = await hookInstaller.installTools([TOOLS[0]]);
 
       expect(results.map(r => r.result.reason)).toEqual(['integrity-reference-missing']);
       expect(spawn).not.toHaveBeenCalled();
@@ -1033,7 +1017,7 @@ describe('HookInstaller', () => {
         return fakeReq;
       });
 
-      const results = await hookInstaller.installTools([TOOLS[0]], null);
+      const results = await hookInstaller.installTools([TOOLS[0]]);
 
       expect(results.every(r => r.result.ok)).toBe(true);
     });
@@ -1042,7 +1026,7 @@ describe('HookInstaller', () => {
       mockSuccessfulInstall();
       mockToolInstalled(TOOLS[0]); // hook "now installed"
 
-      await hookInstaller.installTools([TOOLS[0]], null);
+      await hookInstaller.installTools([TOOLS[0]]);
 
       const status = hookInstaller.getCachedStatuses().find(t => t.flag === TOOLS[0].flag);
       expect(status.hasHook).toBe(true);
@@ -1053,7 +1037,7 @@ describe('HookInstaller', () => {
     test('stays silent when every tool installed', async () => {
       mockSuccessfulInstall();
 
-      await hookInstaller.installTools([TOOLS[0]], null);
+      await hookInstaller.installTools([TOOLS[0]]);
 
       expect(dialog.showMessageBox).not.toHaveBeenCalled();
     });
@@ -1061,7 +1045,7 @@ describe('HookInstaller', () => {
     test('still reports failures, with the setup guide offered', async () => {
       pythonAvailable = false;
 
-      await hookInstaller.installTools([TOOLS[0]], null);
+      await hookInstaller.installTools([TOOLS[0]]);
 
       expect(dialog.showMessageBox).toHaveBeenCalledWith(expect.objectContaining({
         type: 'warning',
@@ -1080,7 +1064,7 @@ describe('HookInstaller', () => {
         return child;
       });
 
-      await hookInstaller.installTools([TOOLS[0], TOOLS[1]], null);
+      await hookInstaller.installTools([TOOLS[0], TOOLS[1]]);
 
       const { detail, message } = dialog.showMessageBox.mock.calls[0][0];
       expect(message).toBe('Some hooks failed to install');
@@ -1091,7 +1075,7 @@ describe('HookInstaller', () => {
 
   describe('installByFlag', () => {
     test('resolves [] for an unknown flag without touching network/spawn', async () => {
-      const result = await hookInstaller.installByFlag('--nope', null);
+      const result = await hookInstaller.installByFlag('--nope');
       expect(result).toEqual([]);
       expect(https.get).not.toHaveBeenCalled();
     });
@@ -1099,7 +1083,7 @@ describe('HookInstaller', () => {
     test('installs the matching tool', async () => {
       mockSuccessfulInstall();
 
-      const results = await hookInstaller.installByFlag(TOOLS[2].flag, null);
+      const results = await hookInstaller.installByFlag(TOOLS[2].flag);
 
       expect(results).toHaveLength(1);
       expect(results[0].tool.flag).toBe(TOOLS[2].flag);
@@ -1109,7 +1093,7 @@ describe('HookInstaller', () => {
     test('reports a failure through the result dialog by default', async () => {
       pythonAvailable = false;
 
-      await hookInstaller.installByFlag(TOOLS[2].flag, null);
+      await hookInstaller.installByFlag(TOOLS[2].flag);
 
       expect(dialog.showMessageBox).toHaveBeenCalled();
     });
@@ -1117,7 +1101,7 @@ describe('HookInstaller', () => {
     test('skips the result dialog when showSummary is false', async () => {
       pythonAvailable = false;
 
-      await hookInstaller.installByFlag(TOOLS[2].flag, null, { showSummary: false });
+      await hookInstaller.installByFlag(TOOLS[2].flag, { showSummary: false });
 
       expect(dialog.showMessageBox).not.toHaveBeenCalled();
     });
@@ -1209,7 +1193,7 @@ describe('HookInstaller', () => {
 
       await hookInstaller.updateChanged();
 
-      expect(install).toHaveBeenCalledWith([expect.objectContaining({ flag: '--claude' })], null, { showSummary: false });
+      expect(install).toHaveBeenCalledWith([expect.objectContaining({ flag: '--claude' })], { showSummary: false });
       expect(install.mock.calls[0][0].every(tool => tool.changed && !tool.broken)).toBe(true);
     });
 
@@ -1283,7 +1267,7 @@ describe('HookInstaller', () => {
 
   describe('checkAndPrompt', () => {
     test('does nothing when no tools are missing', async () => {
-      await hookInstaller.checkAndPrompt(null);
+      await hookInstaller.checkAndPrompt();
       expect(dialog.showMessageBox).not.toHaveBeenCalled();
     });
 
@@ -1291,7 +1275,7 @@ describe('HookInstaller', () => {
       mockToolMissing(TOOLS[0]);
       hookInstaller.isRunning = true;
 
-      await hookInstaller.checkAndPrompt(null);
+      await hookInstaller.checkAndPrompt();
 
       expect(dialog.showMessageBox).not.toHaveBeenCalled();
     });
@@ -1301,7 +1285,7 @@ describe('HookInstaller', () => {
       dialog.showMessageBox.mockResolvedValueOnce({ response: 0 });
       mockSuccessfulInstall();
 
-      await hookInstaller.checkAndPrompt('tok');
+      await hookInstaller.checkAndPrompt();
 
       expect(dialog.showMessageBox).toHaveBeenCalledWith(expect.objectContaining({
         detail: expect.stringContaining(TOOLS[0].name)
@@ -1317,7 +1301,7 @@ describe('HookInstaller', () => {
       mockToolMissing(TOOLS[1]);
       dialog.showMessageBox.mockResolvedValueOnce({ response: 1 });
 
-      await hookInstaller.checkAndPrompt(null);
+      await hookInstaller.checkAndPrompt();
 
       expect(spawn).not.toHaveBeenCalled();
       expect(hookInstaller.isDismissed(TOOLS[1])).toBe(false);
@@ -1328,7 +1312,7 @@ describe('HookInstaller', () => {
       mockToolMissing(TOOLS[2]);
       dialog.showMessageBox.mockResolvedValueOnce({ response: 2 });
 
-      await hookInstaller.checkAndPrompt(null);
+      await hookInstaller.checkAndPrompt();
 
       expect(spawn).not.toHaveBeenCalled();
       expect(hookInstaller.isDismissed(TOOLS[2])).toBe(true);

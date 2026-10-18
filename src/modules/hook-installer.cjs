@@ -673,7 +673,7 @@ class HookInstaller {
     await this.checkForChanges();
     const changed = this.cachedStatuses.filter(tool => tool.changed && !tool.broken);
     if (this.isRunning || changed.length === 0) return [];
-    return this.installTools(changed, null, { showSummary: false });
+    return this.installTools(changed, { showSummary: false });
   }
 
   /**
@@ -692,11 +692,11 @@ class HookInstaller {
    * @param {string[]} flags - e.g. ['--claude']
    * @returns {Promise<{ok: boolean, reason?: string, [key: string]: any}>}
    */
-  runScript(script, python, flags, token) {
+  runScript(script, python, flags) {
     return new Promise((resolve) => {
       const child = spawn(python.command, [...python.prefixArgs, '-', ...flags], {
         stdio: ['pipe', 'pipe', 'pipe'],
-        env: { ...process.env, VIBEMON_DOCS_URL: DOCS_BASE, ...(token ? { VIBEMON_WRITE_TOKEN: token } : {}) },
+        env: { ...process.env, VIBEMON_DOCS_URL: DOCS_BASE },
         ...SPAWN_DEFAULTS
       });
       let stdout = '';
@@ -729,14 +729,12 @@ class HookInstaller {
    * download fails the whole batch (nothing to run); an individual script
    * run failing does not stop the remaining tools.
    * @param {Array} tools
-   * @param {string|null} token - Optional generated hook write credential,
-   *   passed only through the child environment. Never use the App read token.
    * @param {{showSummary?: boolean}} [options] - showSummary: whether to show
    *   the native result dialog when finished (default true). The Settings
    *   window's Install/Reinstall button passes false since it already shows
    *   the result inline (badge/button state) and doesn't need a popup too.
    */
-  async installTools(tools, token, { showSummary = true } = {}) {
+  async installTools(tools, { showSummary = true } = {}) {
     if (this.isRunning) {
       throw new Error(t('install.running'));
     }
@@ -764,9 +762,8 @@ class HookInstaller {
         }
 
         if (script !== null) {
-          const writeToken = typeof token === 'string' && /^vm_[a-f0-9]{60}$/.test(token) ? token : undefined;
           for (const tool of tools) {
-            const result = await this.runScript(script, python, [tool.flag], writeToken);
+            const result = await this.runScript(script, python, [tool.flag]);
             results.push({ tool, result });
           }
         }
@@ -785,9 +782,8 @@ class HookInstaller {
    * Detect missing tools and, if any, ask the user for confirmation before
    * installing hooks for them. No-op when nothing is missing or an install
    * is already in progress.
-   * @param {string|null} token - Optional hook write token; never use the cloud read token
    */
-  async checkAndPrompt(token) {
+  async checkAndPrompt() {
     if (this.isRunning) {
       return;
     }
@@ -816,7 +812,7 @@ class HookInstaller {
       return;
     }
 
-    await this.installTools(missing, token);
+    await this.installTools(missing);
   }
 
   /**
@@ -824,15 +820,14 @@ class HookInstaller {
    * or tray menu), bypassing the dismissed/suppressed filters used by
    * checkAndPrompt.
    * @param {string} flag - e.g. '--claude'
-   * @param {string|null} token
    * @param {{showSummary?: boolean}} [options] - forwarded to installTools()
    */
-  installByFlag(flag, token, options) {
+  installByFlag(flag, options) {
     const tool = TOOLS.find(item => item.flag === flag);
     if (!tool) {
       return Promise.resolve([]);
     }
-    return this.installTools([tool], token, options);
+    return this.installTools([tool], options);
   }
 
   showResultSummary(results) {

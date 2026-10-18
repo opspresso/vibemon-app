@@ -153,7 +153,7 @@ class WorkspaceSettings {
     handle('install-hook', async (flag) => {
       // No result dialog — the workspace already shows the outcome
       // inline via the row's badge/button state.
-      const results = await this.hookInstaller.installByFlag(flag, null, { showSummary: false });
+      const results = await this.hookInstaller.installByFlag(flag, { showSummary: false });
       this.notifyChanged();
       const failure = results.find(r => !r.result.ok);
       if (failure || results.length === 0) {

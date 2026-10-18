@@ -1,6 +1,7 @@
 const { webOrigin, sameWebOrigin } = require('../shared/web-origin.cjs');
 const { readJsonResponse } = require('../shared/json-response.cjs');
 const { t } = require('../shared/i18n/locale.cjs');
+const { isApiToken } = require('../shared/api-token.cjs');
 const { CLOUD_REQUEST_TIMEOUT_MS, CLOUD_CONNECTION_MAX_RESPONSE_BYTES } = require('../shared/constants.cjs');
 
 const sameConnection = (a, b) => a.vibemon_url === b.vibemon_url && a.vibemon_token === b.vibemon_token;
@@ -28,7 +29,7 @@ class HookCloudDelivery {
 
   async verify(url, token) {
     const origin = webOrigin(url, this.allowLocalHttp);
-    if (typeof token !== 'string' || !/^vm_[a-f0-9]{60}$/.test(token)) throw new Error(t('delivery.tokenFormat'));
+    if (!isApiToken(token)) throw new Error(t('delivery.tokenFormat'));
     let response;
     try {
       response = await this.fetchImpl(`${origin}/api/v1/connection?scope=write`, {

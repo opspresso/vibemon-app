@@ -6,6 +6,7 @@ const { webOrigin, validId } = require('../monitoring/domain.cjs');
 const { WORKSPACE_UPDATE_MS } = require('../shared/constants.cjs');
 const { attentionAreas, attentionNotices } = require('../shared/attention.cjs');
 const { t, rendererLanguage } = require('../shared/i18n/locale.cjs');
+const { redactApiTokens } = require('../shared/api-token.cjs');
 
 const ROUTES = ['overview', 'resources', 'agents', 'connections', 'companion', 'integrations', 'about'];
 const CHANNEL = 'workspace:request';
@@ -37,7 +38,7 @@ class WorkspaceWindow {
       if (!this.trusted(event)) throw new Error('Untrusted workspace request');
       if (!Array.isArray(args) || args.length > 3) throw new Error('Invalid workspace arguments');
       try { return { ok: true, value: await this.request(command, args) }; }
-      catch (error) { return { ok: false, error: String(error.code || error.message || t('error.requestFailed')).replace(/vm_[a-f0-9]{60}/g, '[redacted]') }; }
+      catch (error) { return { ok: false, error: redactApiTokens(error.code || error.message || t('error.requestFailed')) }; }
     });
   }
 

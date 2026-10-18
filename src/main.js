@@ -514,7 +514,7 @@ app.whenReady().then(async () => {
   // Settings > Integrations.
   const runHookCheck = () => {
     vibemonConfigManager.ensureDesktopUrl(null);
-    hookInstaller.checkAndPrompt(null)
+    hookInstaller.checkAndPrompt()
       .catch((err) => console.error('Hook check failed:', err));
     hookInstaller.updateChanged()
       .then(() => {

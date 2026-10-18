@@ -14,9 +14,9 @@ const { URL, URLSearchParams } = require('node:url');
 const { webOrigin } = require('./domain.cjs');
 const { CLOUD_REQUEST_TIMEOUT_MS, WEB_SIGN_IN_TIMEOUT_MS } = require('../shared/constants.cjs');
 const { t } = require('../shared/i18n/locale.cjs');
+const { isApiToken } = require('../shared/api-token.cjs');
 
 const CLIENT_ID = 'vibemon-desktop';
-const TOKEN = /^vm_[a-f0-9]{60}$/;
 
 // `reason` names the failure; the message is the sentence shown to people, in the App language.
 // (The workspace IPC shows `error.code` as a connection status, so it is not set.)
@@ -118,7 +118,7 @@ class WebSignIn {
       throw new SignInError('unreachable', t('signIn.unreachable'));
     }
     const body = await response.json().catch(() => ({}));
-    if (response.ok && typeof body.access_token === 'string' && TOKEN.test(body.access_token)) return body.access_token;
+    if (response.ok && isApiToken(body.access_token)) return body.access_token;
     if (body.error === 'invalid_grant') throw new SignInError('expired', t('signIn.expired'));
     throw new SignInError('rejected', t('signIn.rejected', { status: response.status }));
   }

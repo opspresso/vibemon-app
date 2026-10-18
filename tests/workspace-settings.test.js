@@ -98,7 +98,7 @@ test('installation failure keeps its actionable reason and does not open a secon
   const { settings, dependencies } = fixture();
   dependencies.hookInstaller.installByFlag.mockResolvedValue([{ result: { ok: false, reason: 'integrity-check-failed' } }]);
   await expect(settings.invoke('install-hook', '--codex')).rejects.toThrow('integrity check failed');
-  expect(dependencies.hookInstaller.installByFlag).toHaveBeenCalledWith('--codex', null, { showSummary: false });
+  expect(dependencies.hookInstaller.installByFlag).toHaveBeenCalledWith('--codex', { showSummary: false });
   dependencies.hookInstaller.installByFlag.mockResolvedValue([]);
   await expect(settings.invoke('install-hook', '--codex')).rejects.toThrow('Hook install failed');
   dependencies.hookInstaller.installByFlag.mockResolvedValue([{ result: { ok: true } }]);
