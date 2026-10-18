@@ -76,6 +76,39 @@ def test_explicit_account_names_preserve_existing_contract():
     assert AccountIdentity.restore(identity.record()) == identity
 
 
+@pytest.mark.parametrize('name', ['😀' * 65, 'name\ud800', 'name\udfff', ' \ufeff \ufeff '])
+def test_manual_account_names_reject_invalid_wire_text(name):
+    with pytest.raises(ValueError):
+        named('codex', 'work', name)
+
+
+def test_generated_names_fit_the_real_desktop_and_web_text_contract():
+    import subprocess
+    from pathlib import Path
+    root = Path(__file__).resolve().parents[2]
+    identities = [
+        named('codex', 'work', '😀' * 64),
+        authenticated('claude', 'subject', 'org', 'A' * 127 + '😀', 'fixture'),
+        authenticated('claude', 'subject', 'org', '😀' * 80, 'fixture'),
+        profile('claude', '/fixture', 'fixture', '😀' * 80),
+    ]
+    # Execute the canonical validator instead of copying its JavaScript rules.
+    script = """
+const { validateStatusPayload } = require('./src/modules/validators.cjs');
+let data = '';
+process.stdin.on('data', chunk => { data += chunk; });
+process.stdin.on('end', () => console.log(JSON.stringify(JSON.parse(data).map(account =>
+  validateStatusPayload({ state: 'working', project: 'fixture', account }).valid))));
+"""
+    result = subprocess.run(['node', '-e', script], cwd=root, input=json.dumps([item.public() for item in identities]),
+                            text=True, capture_output=True, check=True, timeout=10)
+    assert json.loads(result.stdout) == [True] * len(identities)
+    assert identities[1].display_name == 'A' * 127
+    assert identities[2].display_name == '😀' * 64
+    assert identities[1].id == identities[2].id
+    assert identities[3].display_name.startswith('Claude Code · ')
+
+
 def test_opencode_uses_the_active_connection_without_exposing_or_inventing_a_person():
     from account_parsers import opencode_connection
     from account_sources import Profile

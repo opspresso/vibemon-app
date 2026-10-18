@@ -12,11 +12,27 @@ KINDS = frozenset({"account", "credential", "profile", "manual"})
 
 
 def text(value: Any, maximum: int = 512) -> str | None:
-    if not isinstance(value, str) or not value.strip() or len(value) > maximum:
+    if not isinstance(value, str) or not value.replace('\ufeff', '').strip() or len(value) > maximum:
         return None
     if any(ord(character) < 32 or ord(character) == 127 for character in value):
         return None
+    # Public Web/Desktop text limits count UTF-16 units, not Python code points.
+    try:
+        if len(value.encode('utf-16-le')) > maximum * 2:
+            return None
+    except UnicodeEncodeError:
+        return None
     return value.strip()
+
+
+def display_label(value: str) -> str:
+    """Fit an automatic label to the API limit without splitting a character."""
+    units = 0
+    for index, character in enumerate(value):
+        units += 2 if ord(character) > 0xffff else 1
+        if units > 128:
+            return value[:index]
+    return value
 
 
 def fingerprint(*parts: str) -> str:
@@ -64,11 +80,11 @@ def authenticated(provider: str, subject: str, organization: str, label: str | N
         raise ValueError("Missing account subject")
     ident = "auto:" + fingerprint("account-v1", provider, subject, organization)
     name = label or f"{PROVIDERS.get(provider, provider)} {ident[-8:]}"
-    return AccountIdentity(provider, ident, name[:128], "account", evidence)
+    return AccountIdentity(provider, ident, display_label(name), "account", evidence)
 
 
 def profile(provider: str, root: str, instance: str, label: str, credential: str = "") -> AccountIdentity:
     """A profile/credential identifies local configuration, never an inferred person."""
     kind = "credential" if credential else "profile"
     ident = kind + ":" + fingerprint("profile-v1", provider, instance, root, credential)
-    return AccountIdentity(provider, ident, f"{PROVIDERS.get(provider, provider)} · {label}"[:128], kind, "local-profile")
+    return AccountIdentity(provider, ident, display_label(f"{PROVIDERS.get(provider, provider)} · {label}"), kind, "local-profile")
