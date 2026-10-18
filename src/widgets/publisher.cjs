@@ -171,13 +171,9 @@ class WidgetPublisher {
   }
 }
 
-/** Plan usage from usage-cache-reader, keyed by account (`provider:id`). */
+/** Plan usage from usage-cache-reader, keyed by account (`provider:id`). A bare provider key is its default account. */
 function usageByAccount(snapshot) {
-  return Object.fromEntries(Object.entries(snapshot).flatMap(([provider, buckets]) => {
-    const key = provider;
-    if (!key) return [];
-    return [[key.includes(':') ? key : `${key}:default`, buckets]];
-  }));
+  return Object.fromEntries(Object.entries(snapshot).map(([key, buckets]) => [key.includes(':') ? key : `${key}:default`, buckets]));
 }
 
 /** WidgetKit widgets need macOS 14 (Darwin 23) or later. */
