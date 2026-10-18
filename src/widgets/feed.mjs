@@ -115,7 +115,7 @@ function agentItem(account, usage, artwork, now, wall, offset, t) {
     }
     // Hooks omit usage between statusline refreshes; this device's cache has it.
     const cached = usage?.[bucket];
-    return metricEntry({ key, label, ...GAUGE }, cached?.pct, isoTime(cached?.resetsAt * 1000));
+    return metricEntry({ key, label, ...GAUGE }, cached?.pct, isoTime(typeof cached?.resetsAt === 'number' ? cached.resetsAt * 1000 : null));
   });
   const changes = account.sources.flatMap(source => agentChanges(source.agent.state, Date.parse(source.observedAt)));
   return {
@@ -158,8 +158,9 @@ function timeline(changes, now, wall, evaluate) {
 }
 
 const status = (state, t) => ({ state, label: stateLabel(state, t), tone: stateTone(state) });
-// An ISO time, or null when `time` is not a representable Date.
-const isoTime = time => Number.isNaN(new Date(time).getTime()) ? null : new Date(time).toISOString();
+// An ISO time, or null when `time` is not a finite number of milliseconds that a Date can represent.
+// `new Date(null)` is the epoch, so null must not reach the Date constructor.
+const isoTime = time => typeof time === 'number' && !Number.isNaN(new Date(time).getTime()) ? new Date(time).toISOString() : null;
 
 /** `resetsAt` is the wall-clock ISO time at which a plan usage limit resets; the widget counts down to it. */
 function metricEntry(metric, value, resetsAt = null) {

@@ -131,6 +131,13 @@ test('reset times outside the Date range do not stop the feed', () => {
   assert.deepEqual(item.metrics.map(metric => [metric.value, metric.resetsAt]), [['34', undefined], ['72.4', undefined], ['20', undefined]]);
 });
 
+test('cached usage without a reset time has no countdown', () => {
+  const remote = agentSource();
+  const usage = { 'claude:work': { session: null, week: { pct: 20, resetsAt: null } } };
+  const [item] = build({ cloud: cloud([{ ...remote, metrics: { ...remote.metrics, usageWeekPercent: null } }]), usage }).items;
+  assert.deepEqual(item.metrics.map(metric => [metric.value, metric.resetsAt]), [['34', undefined], ['72.4', undefined], ['20', undefined]]);
+});
+
 test('local projects appear without a cloud connection, sorted after resources', () => {
   const local = [
     { id: 'local:x', since: NOW, status: { state: 'thinking', project: 'x', character: 'codex', account: { id: 'default', provider: 'codex', displayName: 'codex default' } } },
