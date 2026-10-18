@@ -8,6 +8,7 @@ const { snapshotClock } = require('../shared/monitoring/clock.cjs');
 const { t } = require('../shared/i18n/locale.cjs');
 const { isApiToken, revokeApiToken } = require('../shared/api-token.cjs');
 
+const DEFAULT_WEB_URL = 'https://vibemon.io';
 // Web rejected the saved token. Repeating the request cannot succeed until the token changes.
 const REJECTED = new Set(['token-expired', 'permission-denied']);
 
@@ -40,6 +41,10 @@ class MonitoringClient extends EventEmitter {
     this.timer = null;
   }
   getStatus() { return this.status; }
+  /** The saved Web address, or the public service before one is saved. */
+  savedUrl() { return this.preferences.get('url') || DEFAULT_WEB_URL; }
+  /** The saved Web address as a checked origin; throws when it is not allowed here. */
+  savedOrigin() { return webOrigin(this.savedUrl(), this.allowLocalHttp); }
   hasToken() { return this.credentials.has(); }
   currentTime() { return this.reportClock ? this.reportClock() : this.now(); }
   snapshot() {
@@ -61,7 +66,7 @@ class MonitoringClient extends EventEmitter {
         .flatMap(source => displayMetrics(source).filter(metric => savedMetrics.includes(metric.key)).map(metric => metric.selectionKey))
     ])];
     return {
-      url: this.preferences.get('url') || 'https://vibemon.io',
+      url: this.savedUrl(),
       tokenConfigured: this.credentials.has(), status: this.status,
       lastSyncedAt: this.lastSyncedAt, connectionRevision: this.generation,
       evaluatedAt: now,
@@ -127,7 +132,7 @@ class MonitoringClient extends EventEmitter {
   savedCredential() {
     try {
       const token = this.credentials.get();
-      return token ? { token, origin: webOrigin(this.preferences.get('url') || 'https://vibemon.io', this.allowLocalHttp) } : null;
+      return token ? { token, origin: this.savedOrigin() } : null;
     } catch {
       return null;
     }
@@ -147,7 +152,7 @@ class MonitoringClient extends EventEmitter {
     return this.poll();
   }
   async request(path) {
-    const origin = webOrigin(this.preferences.get('url') || 'https://vibemon.io', this.allowLocalHttp);
+    const origin = this.savedOrigin();
     return this.requestWith(origin, this.credentials.get(), path);
   }
   async requestWith(origin, token, path) {
@@ -235,7 +240,7 @@ class MonitoringClient extends EventEmitter {
     const present = account ? this.accountCatalog.some(item => item.accountId === target.id)
       : this.catalog.some(item => item.sourceId === target.id && item.kind !== 'agent');
     if (!present) throw new Error(t('error.removalMissing'));
-    const origin = webOrigin(this.preferences.get('url') || 'https://vibemon.io', this.allowLocalHttp);
+    const origin = this.savedOrigin();
     const connection = await this.request('/api/v1/connection?scope=read');
     if (generation !== this.generation) throw new Error(t('error.connectionChanged'));
     if (connection.connected !== true || connection.scope !== 'read' || !validId(connection.ownerId)) throw new Error(t('error.removalUpgrade'));
