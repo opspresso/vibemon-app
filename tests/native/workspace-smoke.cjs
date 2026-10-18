@@ -78,6 +78,10 @@ startFixture().then(async fixture => {
   };
   await until(() => ui('document.querySelectorAll("#overview-resources .card").length === 3'), 'populated overview');
   await until(() => view.window.isVisible(), 'workspace shown');
+  // Calling the menu handler in code does not activate the App as a native click does.
+  app.focus({ steal: true });
+  view.window.focus();
+  web.focus();
   await until(() => ui('document.hasFocus()'), 'workspace accepts keyboard input');
   await nextFrames();
   assert.equal(client.getStatus(), 'connected');
