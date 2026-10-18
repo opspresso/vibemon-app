@@ -86,10 +86,13 @@ def test_fast_collector_responses_still_preserve_json_and_leave_no_worker_thread
 
 def test_redirects_consume_the_same_request_budget(serve):
     paths = []
+    # Each real redirect consumes 20 seconds of one 30-second budget.
+    # The third request must never reach the server.
+    clock = [0.0]
     class Handler(BaseHTTPRequestHandler):
         def do_GET(self):
             paths.append(self.path)
-            time.sleep(0.08)
+            clock[0] += 20
             try:
                 self.send_response(302)
                 self.send_header('Location', '/' + str(len(paths)))
@@ -97,11 +100,9 @@ def test_redirects_consume_the_same_request_budget(serve):
             except OSError:
                 pass
     server = serve(Handler)
-    started = time.monotonic()
     with pytest.raises((TimeoutError, URLError)):
-        DeadlineOpener().open(f'http://127.0.0.1:{server.server_port}/start', timeout=0.15)
-    assert time.monotonic() - started < 0.6
-    assert len(paths) == 2
+        DeadlineOpener(clock=lambda: clock[0]).open(f'http://127.0.0.1:{server.server_port}/start', timeout=30)
+    assert paths == ['/start', '/1']
 
 
 def test_one_opener_keeps_concurrent_and_later_request_budgets_separate(serve):

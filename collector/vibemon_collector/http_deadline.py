@@ -13,13 +13,14 @@ from urllib.request import HTTPHandler, HTTPSHandler, build_opener
 
 
 class _Budget:
-    def __init__(self, timeout):
+    def __init__(self, timeout, clock):
         if not isinstance(timeout, (int, float)) or not math.isfinite(timeout) or timeout <= 0:
             raise TimeoutError('HTTP request has no time remaining')
-        self.deadline = time.monotonic() + timeout
+        self.clock = clock
+        self.deadline = clock() + timeout
 
     def remaining(self):
-        remaining = self.deadline - time.monotonic()
+        remaining = self.deadline - self.clock()
         if remaining <= 0:
             raise TimeoutError('HTTP request deadline exceeded')
         return remaining
@@ -118,11 +119,12 @@ class _HTTPSHandler(HTTPSHandler):
 
 class DeadlineOpener:
     """Each open call owns its budget; redirects retain it and concurrent calls do not share it."""
-    def __init__(self, *handlers, context=None):
+    def __init__(self, *handlers, context=None, clock=time.monotonic):
         self.opener = build_opener(_HTTPHandler(), _HTTPSHandler(context=context), *handlers)
+        self.clock = clock
 
     def open(self, request, *, timeout):
-        token = _current_budget.set(_Budget(timeout))
+        token = _current_budget.set(_Budget(timeout, self.clock))
         try:
             return self.opener.open(request, timeout=timeout)
         finally:
