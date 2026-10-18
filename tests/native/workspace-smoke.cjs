@@ -93,6 +93,7 @@ startFixture().then(async fixture => {
   assert.equal(await text('#summary-accounts'), '4');
   assert.equal(await text('#summary-local'), '2');
   assert.equal(await text('#summary-attention'), '3');
+  assert.deepEqual(await ui('[...document.querySelectorAll("#overview-accounts .card")].map(card => card._source.sourceId)'), ['kiro:lab', 'codex:personal', 'claude:studio'], 'equal project names use account IDs before the Overview limit');
   const localClock = client.now;
   try {
     for (const offset of [-86400000, 86400000]) {
@@ -100,7 +101,12 @@ startFixture().then(async fixture => {
       await client.poll(true); await published();
       assert.equal(await text('#summary-attention'), '3', 'wall-clock skew does not add stale warnings');
       assert.equal(await ui('[...document.querySelectorAll("#overview-accounts time")].every(node => node.textContent === "Just now")'), true, 'report age uses server time');
-      assert.ok((await ui('[...document.querySelectorAll("#overview-accounts .metric-reset:not([hidden])")].map(node => node.textContent)')).includes('Resets in 2h5m'), 'reset countdowns use server time');
+      // The three-card Overview may omit the account whose reset we are checking.
+      await navigate('agents');
+      assert.equal(await ui('document.querySelectorAll("#agent-cards .card").length'), 4);
+      const resets = await ui('[...[...document.querySelectorAll("#agent-cards .card")].find(card => card._source.sourceId === "codex:team").querySelectorAll(".metric-reset:not([hidden])")].map(node => node.textContent)');
+      assert.ok(resets.includes('Resets in 2h5m'), 'reset countdowns use server time');
+      await navigate('overview');
     }
   } finally { client.now = localClock; await client.poll(true); }
   const overviewBounds = await ui('({ bottom: document.querySelector("#overview-accounts .card").getBoundingClientRect().bottom, viewport: innerHeight })');
