@@ -447,6 +447,25 @@ describe('selection saved before version 2', () => {
   });
 });
 
+describe('replacing a token deletes the replaced one on Web', () => {
+  const replacement = 'vm_' + '2'.repeat(60);
+  test('a verified replacement deletes the previous token at its own origin', async () => {
+    const { client, fetchImpl } = fixture();
+    await client.configure({ url: 'https://other.example', token: replacement });
+    const [url, options] = fetchImpl.mock.calls.at(-1);
+    expect([url, options.method, options.headers.Authorization]).toEqual(['https://web.example/api/v1/connection', 'DELETE', `Bearer ${rawToken}`]);
+    expect(client.snapshot().url).toBe('https://other.example');
+  });
+  test('the same token, a URL-only change, and a failed check delete nothing', async () => {
+    const { client, fetchImpl } = fixture();
+    await client.configure({ url: 'https://web.example', token: rawToken });
+    await client.configure({ url: 'https://web.example', token: '' });
+    fetchImpl.mockResolvedValueOnce({ ok: false, status: 401 });
+    await expect(client.configure({ url: 'https://web.example', token: replacement })).rejects.toMatchObject({ code: 'token-expired' });
+    expect(fetchImpl.mock.calls.some(([, options]) => options?.method === 'DELETE')).toBe(false);
+  });
+});
+
 describe('disconnect deletes the token on Web', () => {
   test('sends DELETE with the saved token after removing it locally, and reports a failure', async () => {
     const { client, fetchImpl } = fixture();

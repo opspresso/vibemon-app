@@ -72,8 +72,8 @@ export function setupPreferences({ getFrame, request, run, notify }) {
   }));
   $('disconnect-cloud-delivery').addEventListener('click', () => runDelivery($('disconnect-cloud-delivery'), async () => {
     $('cloud-write-token').value = '';
-    await save('disconnect-cloud-delivery');
-    notify(t('toast.writeTokenRemoved'));
+    const { tokenDeleted } = await save('disconnect-cloud-delivery');
+    notify(t(tokenDeleted ? 'toast.writeTokenRemoved' : 'toast.writeTokenKept'));
   }));
   // While the browser is open, Cancel stops waiting so the person can start again.
   const waiting = async (cancel, action) => {

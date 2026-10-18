@@ -11,12 +11,13 @@ function setup(reply = { status: 200, body: { access_token: TOKEN, token_type: '
   const signIn = new WebSignIn({ port: 19280, openExternal: async url => { opened.push(new URL(url)); }, fetchImpl, deviceName: 'studio', timeoutMs: 1000 });
   return { signIn, opened, fetchImpl };
 }
+const adopt = async token => token;
 const callback = (url, values) => new URLSearchParams({ state: url.searchParams.get('state'), ...values });
 
 describe('desktop sign-in through Web', () => {
   test('opens /authorize with PKCE and exchanges the code for a token of the asked scope', async () => {
     const { signIn, opened, fetchImpl } = setup();
-    const result = signIn.signIn('https://vibemon.io', 'read');
+    const result = signIn.signIn('https://vibemon.io', 'read', adopt);
     await new Promise(setImmediate);
     const url = opened[0];
     expect(url.origin + url.pathname).toBe('https://vibemon.io/authorize');
@@ -37,7 +38,7 @@ describe('desktop sign-in through Web', () => {
 
   test('ignores callbacks of another sign-in and reports a denial', async () => {
     const { signIn, opened } = setup();
-    const result = signIn.signIn('https://vibemon.io', 'write');
+    const result = signIn.signIn('https://vibemon.io', 'write', adopt);
     await new Promise(setImmediate);
     expect(signIn.complete(new URLSearchParams({ state: 'forged', code: 'x' })).ok).toBe(false);
     expect(signIn.complete(callback(opened[0], { error: 'access_denied' })).ok).toBe(false);
@@ -50,8 +51,8 @@ describe('desktop sign-in through Web', () => {
     jest.useFakeTimers();
     try {
       const { signIn } = setup();
-      const first = signIn.signIn('https://vibemon.io', 'read');
-      const second = signIn.signIn('https://vibemon.io', 'read');
+      const first = signIn.signIn('https://vibemon.io', 'read', adopt);
+      const second = signIn.signIn('https://vibemon.io', 'read', adopt);
       await expect(first).rejects.toMatchObject({ reason: 'cancelled' });
       jest.advanceTimersByTime(1000);
       await expect(second).rejects.toMatchObject({ reason: 'timeout' });
@@ -63,12 +64,22 @@ describe('desktop sign-in through Web', () => {
   test('rejects an expired code, an unusable answer, and an insecure address', async () => {
     for (const [reply, reason] of [[{ status: 400, body: { error: 'invalid_grant' } }, 'expired'], [{ status: 200, body: { access_token: 'nope' } }, 'rejected']]) {
       const { signIn, opened } = setup(reply);
-      const result = signIn.signIn('https://vibemon.io', 'read');
+      const result = signIn.signIn('https://vibemon.io', 'read', adopt);
       await new Promise(setImmediate);
       signIn.complete(callback(opened[0], { code: 'c' }));
       await expect(result).rejects.toMatchObject({ reason });
     }
-    await expect(setup().signIn.signIn('http://vibemon.io', 'read')).rejects.toThrow();
-    await expect(setup().signIn.signIn('https://vibemon.io', 'admin')).rejects.toBeInstanceOf(SignInError);
+    await expect(setup().signIn.signIn('http://vibemon.io', 'read', adopt)).rejects.toThrow();
+    await expect(setup().signIn.signIn('https://vibemon.io', 'admin', adopt)).rejects.toBeInstanceOf(SignInError);
+  });
+
+  test('deletes a new token on Web when the App cannot keep it', async () => {
+    const { signIn, opened, fetchImpl } = setup();
+    const result = signIn.signIn('https://vibemon.io', 'read', async () => { throw new Error('Cannot reach Web'); });
+    await new Promise(setImmediate);
+    signIn.complete(callback(opened[0], { code: 'c' }));
+    await expect(result).rejects.toThrow('Cannot reach Web');
+    const [endpoint, options] = fetchImpl.mock.calls[1];
+    expect([String(endpoint), options.method, options.headers.Authorization]).toEqual(['https://vibemon.io/api/v1/connection', 'DELETE', `Bearer ${TOKEN}`]);
   });
 });

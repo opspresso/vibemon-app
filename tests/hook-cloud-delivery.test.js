@@ -58,7 +58,7 @@ test('rejects concurrent changes and preserves externally updated credentials', 
   fetchImpl.mockReturnValue(new Promise(resolve => { finish = resolve; }));
   const save = delivery.configure({ url: 'https://vibemon.io', token });
   await expect(delivery.check()).rejects.toThrow('already in progress');
-  expect(() => delivery.disconnect()).toThrow('Wait');
+  await expect(delivery.disconnect()).rejects.toThrow('Wait');
   config.vibemon_token = 'vm_' + 'c'.repeat(60);
   finish(response());
   await expect(save).rejects.toThrow('changed while checking');
@@ -67,7 +67,7 @@ test('rejects concurrent changes and preserves externally updated credentials', 
 test('stopping cloud delivery preserves local routing and invalidates its verification', async () => {
   const { delivery, config } = fixture();
   await delivery.check();
-  delivery.disconnect();
+  await delivery.disconnect();
   expect(config.http_urls).toEqual(['http://localhost:19280']);
   expect(delivery.snapshot()).toMatchObject({ tokenConfigured: false, status: 'not-configured', checkedAt: null });
 });
@@ -84,4 +84,28 @@ test('malformed saved addresses cannot disclose embedded credentials to the rend
   config.vibemon_url = 'https://user:private-password@example.com';
   expect(delivery.snapshot()).toMatchObject({ status: 'error', url: '' });
   expect(JSON.stringify(delivery.snapshot())).not.toContain('private-password');
+});
+
+test('disconnect deletes the saved write token on Web and reports a failure', async () => {
+  const { delivery, fetchImpl, config } = fixture();
+  fetchImpl.mockResolvedValueOnce({ status: 204, ok: true });
+  await expect(delivery.disconnect()).resolves.toEqual({ tokenDeleted: true });
+  const [url, options] = fetchImpl.mock.calls.at(-1);
+  expect([url, options.method, options.headers.Authorization]).toEqual(['https://vibemon.io/api/v1/connection', 'DELETE', `Bearer ${token}`]);
+  expect(config.vibemon_token).toBe('');
+  const offline = fixture();
+  offline.fetchImpl.mockRejectedValueOnce(new Error('offline'));
+  await expect(offline.delivery.disconnect()).resolves.toEqual({ tokenDeleted: false });
+  expect(offline.config.vibemon_token).toBe('');
+});
+
+test('a verified replacement deletes the replaced write token on Web', async () => {
+  const { delivery, fetchImpl } = fixture();
+  const replacement = 'vm_' + 'b'.repeat(60);
+  await delivery.configure({ url: 'https://vibemon.io', token: replacement });
+  const [url, options] = fetchImpl.mock.calls.at(-1);
+  expect([url, options.method, options.headers.Authorization]).toEqual(['https://vibemon.io/api/v1/connection', 'DELETE', `Bearer ${token}`]);
+  fetchImpl.mockClear();
+  await delivery.configure({ url: 'https://vibemon.io', token: replacement });
+  expect(fetchImpl.mock.calls.some(([, options]) => options?.method === 'DELETE')).toBe(false);
 });

@@ -14,7 +14,7 @@ const { URL, URLSearchParams } = require('node:url');
 const { webOrigin } = require('./domain.cjs');
 const { CLOUD_REQUEST_TIMEOUT_MS, WEB_SIGN_IN_TIMEOUT_MS } = require('../shared/constants.cjs');
 const { t } = require('../shared/i18n/locale.cjs');
-const { isApiToken } = require('../shared/api-token.cjs');
+const { isApiToken, revokeApiToken } = require('../shared/api-token.cjs');
 
 const CLIENT_ID = 'vibemon-desktop';
 
@@ -48,10 +48,12 @@ class WebSignIn {
   }
 
   /**
-   * Opens the browser and resolves with a token of `scope` for `url`.
+   * Opens the browser, gets a token of `scope` for `url`, and resolves with
+   * the result of `adopt(token)`. When `adopt` fails, nothing keeps the new
+   * token, so it is deleted on Web before the error returns.
    * A new sign-in replaces one that is still waiting.
    */
-  async signIn(url, scope) {
+  async signIn(url, scope, adopt) {
     const origin = webOrigin(url, this.allowLocalHttp);
     if (!['read', 'write'].includes(scope)) throw new SignInError('invalid-scope', t('signIn.unknownScope'));
     this.cancel();
@@ -67,7 +69,13 @@ class WebSignIn {
       this.pending = { state, resolve, reject, timer };
       Promise.resolve(this.openExternal(authorize.href)).catch(error => this.finish(state, new SignInError('browser', t('signIn.browser', { error: error.message }))));
     });
-    return this.exchange(origin, code, verifier);
+    const token = await this.exchange(origin, code, verifier);
+    try {
+      return await adopt(token);
+    } catch (error) {
+      await revokeApiToken(this.fetchImpl, origin, token);
+      throw error;
+    }
   }
 
   /** Stops a waiting sign-in. */

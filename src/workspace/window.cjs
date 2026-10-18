@@ -87,11 +87,11 @@ class WorkspaceWindow {
       // Sign in through Web; the browser returns to the local HTTP server.
       case 'sign-in': {
         const url = String(args[0] ?? '');
-        return this.monitoring.configure({ url, token: await this.signIn.signIn(url, 'read') });
+        return this.signIn.signIn(url, 'read', token => this.monitoring.configure({ url, token }));
       }
       case 'sign-in-cloud-delivery': {
         const url = String(args[0] ?? '');
-        const result = await this.settings.invoke('configure-cloud-delivery', { url, token: await this.signIn.signIn(url, 'write') });
+        const result = await this.signIn.signIn(url, 'write', token => this.settings.invoke('configure-cloud-delivery', { url, token }));
         this.notify('settings');
         return result;
       }

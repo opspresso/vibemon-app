@@ -6,7 +6,7 @@ const { CLOUD_POLL_MS, CLOUD_REQUEST_TIMEOUT_MS, CLOUD_TREND_MS, CLOUD_MAX_RESPO
 const { sourceStale, sourceState, accountActivity, needsAttention, attentionCount } = require('../shared/monitoring/state.cjs');
 const { snapshotClock } = require('../shared/monitoring/clock.cjs');
 const { t } = require('../shared/i18n/locale.cjs');
-const { isApiToken } = require('../shared/api-token.cjs');
+const { isApiToken, revokeApiToken } = require('../shared/api-token.cjs');
 
 class MonitoringClient extends EventEmitter {
   constructor({ preferences, credentials, fetchImpl = fetch, allowLocalHttp = false, now = Date.now, monotonicNow = () => globalThis.performance.now() }) {
@@ -82,8 +82,11 @@ class MonitoringClient extends EventEmitter {
     const sources = validateSources(data.sources);
     const clock = snapshotClock(data.serverTime, this.monotonicNow);
     if (attempt !== this.configurationAttempt) throw new Error(t('error.connectionChanged'));
+    const replaced = token ? this.savedCredential() : null;
     if (token) this.credentials.set(token, origin);
     else this.preferences.set('url', origin);
+    // The replaced token has no other holder on this device. Web keeps it valid until it is deleted.
+    if (replaced && replaced.token !== token) revokeApiToken(this.fetch, replaced.origin, replaced.token);
     this.generation++;
     this.sources = sources;
     this.reportClock = clock;
@@ -103,10 +106,8 @@ class MonitoringClient extends EventEmitter {
   async disconnect() {
     this.configurationAttempt++;
     this.generation++;
-    const origin = this.snapshot().url;
     const saved = this.credentials.has();
-    let token = null;
-    try { token = saved ? this.credentials.get() : null; } catch { token = null; }
+    const credential = this.savedCredential();
     this.credentials.clear();
     this.sources = [];
     this.catalog = [];
@@ -117,17 +118,15 @@ class MonitoringClient extends EventEmitter {
     this.emit('sources', []);
     this.emit('change', this.snapshot());
     // A saved token that cannot be read cannot be deleted on Web either.
-    return { ...this.snapshot(), tokenDeleted: token ? await this.deleteToken(origin, token) : !saved };
+    return { ...this.snapshot(), tokenDeleted: credential ? await revokeApiToken(this.fetch, credential.origin, credential.token) : !saved };
   }
-  async deleteToken(origin, token) {
+  /** The saved token and its origin, or null when none is saved or either cannot be used. */
+  savedCredential() {
     try {
-      const response = await this.fetch(`${origin}/api/v1/connection`, {
-        method: 'DELETE', headers: { Authorization: `Bearer ${token}` }, redirect: 'error', signal: AbortSignal.timeout(CLOUD_REQUEST_TIMEOUT_MS)
-      });
-      // A token that Web no longer accepts is already gone.
-      return response.status === 204 || response.status === 401;
+      const token = this.credentials.get();
+      return token ? { token, origin: webOrigin(this.preferences.get('url') || 'https://vibemon.io', this.allowLocalHttp) } : null;
     } catch {
-      return false;
+      return null;
     }
   }
   async select({ sources, accounts = null, metrics }) {
