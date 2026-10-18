@@ -15,12 +15,14 @@ Add as many widgets as you need, for example one per server and one per coding a
 
 1. Start VibeMon. The widgets read data that the App writes.
 2. Control-click the desktop and select **Edit Widgets**, or open Notification Center and select **Edit Widgets**.
-3. Search for **VibeMon**. Drag **Resource** or **Coding Agent** to the desktop or Notification Center.
-4. Control-click the new widget and select **Edit "Resource"** or **Edit "Coding Agent"**. Choose the item to show. Coding accounts are listed as provider plus short account ID, for example `Codex · 27e702a8`, with the account name and project names below. The list includes a resource icon or agent character. Search by name, account ID, or project to narrow the choices. Each choice keeps its original full ID.
+3. Search for **VibeMon Mac**. Drag **Resource · Mac** or **Coding Agent · Mac** to the desktop or Notification Center.
+4. Control-click the new widget and select **Edit "Resource · Mac"** or **Edit "Coding Agent · Mac"**. Choose the item to show. Coding accounts are listed as provider plus short account ID, for example `Codex · 27e702a8`, with the account name and project names below. The list includes a resource icon or agent character. Search by name, account ID, or project to narrow the choices. Each choice keeps its original full ID.
 
 If VibeMon is missing from the gallery, keep the App in `/Applications`, start it once, and reopen **Edit Widgets**. The widget extension is included with the macOS App; there is no separate widget installer.
 
-A new widget shows the first item until you choose one. Click a widget to open its page in the Dashboard.
+If both apps are available, **VibeMon Mac** contains the widgets supplied by this Mac; **VibeMon iPhone** contains widgets supplied by your iPhone. Individual widget names also end in **Mac** or **iPhone**. Update the corresponding app to update its widgets.
+
+A new widget leaves its selection empty and shows the first current item until you choose one. Click a widget to open its page in the Dashboard.
 
 ## What the widget shows
 
@@ -39,9 +41,11 @@ A coding agent combines all projects of one provider account. The state of the p
 | **Open VibeMon** | The App has not written widget data on this Mac. Start VibeMon. |
 | **No resources** | No resource is selected. Connect to Web in **Settings → Connections**, then choose resources in **Customize view**. |
 | **No coding agents** | No account has reported. Install an integration in **Settings → Integrations**, or select accounts in **Customize view**. |
-| **Resource unavailable** / **Agent unavailable** | The chosen item is no longer selected or reporting. Edit the widget to choose another. |
+| **Resource unavailable** / **Choose coding account** | The saved item is no longer available. Edit the widget to choose a current resource or account. |
 | **Restart VibeMon** | The running App and the widget use different data versions, for example after an update. Quit and reopen VibeMon. |
 | **Data unavailable** | The widget data cannot be read. Quit and reopen VibeMon. |
+
+If an older coding widget stops showing measurements after automatic account detection is enabled, edit its account choice. A saved `codex:default` or `claude:default` is a different ID from the new automatically detected account. Choose the provider with its current short account ID. VibeMon preserves explicit selections and never silently points an old widget at another account. A `—` within an available account means that particular measurement was not reported.
 
 ## Refresh and privacy
 
@@ -73,7 +77,7 @@ The package verifier checks the extension metadata, App/widget versions, URL sch
 
 To check the installed App in the macOS gallery manually:
 
-1. Search for **VibeMon** and check its App icon, **Resource**, and **Coding Agent** previews.
+1. Search for **VibeMon Mac** and check its App icon, **Resource · Mac**, and **Coding Agent · Mac** previews.
 2. Add each widget, edit it, and search for a specific resource or account. Check the icon, account ID, and project names.
 3. Close the editor. Confirm the selected item remains after reopening it, and that clicking the widget opens the Dashboard.
 4. Check focused and unfocused desktop appearance, then change the selected item's name or icon and confirm it refreshes. macOS controls the final refresh timing.

@@ -1,5 +1,7 @@
 import AppKit
 import AppIntents
+import SwiftUI
+import WidgetKit
 
 // Runs against synthetic data and the images in the packaged extension.
 let args = CommandLine.arguments
@@ -8,6 +10,13 @@ let feedURL = URL(fileURLWithPath: args[1])
 WidgetIcons.directory = URL(fileURLWithPath: args[2], isDirectory: true)
 let feed = try WidgetFeed.decode(Data(contentsOf: feedURL))
 let load = FeedLoad.loaded(feed)
+let defaultAgent = await AgentQuery().defaultResult()
+let defaultResource = await ResourceQuery().defaultResult()
+precondition(defaultAgent == nil && defaultResource == nil, "A new widget must not save a potentially stale account ID")
+guard case .item(let automatic, _) = WidgetContent.resolve(load, kind: .agent, selection: nil) else {
+    fatalError("A new coding widget did not select current data")
+}
+precondition(automatic.metrics.contains { $0.value != "—" }, "New coding widget has no fixture metrics")
 
 for kind in [FeedItem.Kind.resource, .agent] {
     let entries = WidgetCatalog.items(kind, from: load)
@@ -58,8 +67,24 @@ let images = try FileManager.default.contentsOfDirectory(at: WidgetIcons.directo
 precondition(!images.isEmpty)
 for image in images { visibleImage(image) }
 visibleImage(URL(fileURLWithPath: args[3]))
-for symbol in ["host", "unified", "cluster", "resource"] {
-    precondition(NSImage(systemSymbolName: WidgetIcons.resource(symbol), accessibilityDescription: nil) != nil)
+@MainActor
+func verifyIcon(_ view: some View, mode: WidgetRenderingMode) {
+    let renderer = ImageRenderer(content: view.environment(\.widgetRenderingMode, mode))
+    renderer.scale = 3
+    guard let cg = renderer.cgImage else { fatalError("Cannot render widget icon") }
+    let bitmap = NSBitmapImageRep(cgImage: cg)
+    let edge = bitmap.colorAt(x: 1, y: bitmap.pixelsHigh / 2)!.alphaComponent
+    precondition(mode == .fullColor ? edge > 0 : edge == 0, "Opaque icon tile in monochrome mode")
+    precondition((0..<bitmap.pixelsHigh).contains { y in
+        (0..<bitmap.pixelsWide).contains { x in bitmap.colorAt(x: x, y: y)!.alphaComponent > 0.5 }
+    }, "Widget icon disappeared")
+}
+for mode in [WidgetRenderingMode.fullColor, .accented, .vibrant] {
+    for symbol in ["host", "unified", "cluster", "resource"] {
+        precondition(NSImage(systemSymbolName: WidgetIcons.resource(symbol), accessibilityDescription: nil) != nil)
+        verifyIcon(ResourceIcon(symbol: symbol), mode: mode)
+    }
+    for image in images { verifyIcon(CharacterArt(file: image.lastPathComponent), mode: mode) }
 }
 // The feed loader and future timeline use the same code as the extension.
 precondition(FeedStore.load(from: feedURL).feed?.items.count == feed.items.count)
