@@ -1,6 +1,6 @@
 {
   "name": "vibemon",
-  "version": "3.12.4",
+  "version": "3.13.0",
   "description": "AI assistant status monitor",
   "engines": {
     "node": ">=26.11.1 <27"
