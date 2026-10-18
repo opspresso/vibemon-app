@@ -2,6 +2,7 @@ import io
 import json
 import os
 import runpy
+import shutil
 import subprocess
 import sys
 import time
@@ -449,24 +450,32 @@ def test_a_real_watcher_reports_done_when_its_agent_exits(tmp_path, display):
 
 
 # The agent: a process outside WRAPPER_PROCESSES that runs one hook per stdin
-# line, as a coding agent does, and acknowledges each finished hook.
-AGENT_SCRIPT = """
-import os, subprocess, sys
-for line in sys.stdin:
-    subprocess.run([os.environ["HOOK_PYTHON"], os.environ["HOOK"]], input=line, text=True, check=True)
-    print("ok", flush=True)
+# line, as a coding agent does, and acknowledges each finished hook. It is a
+# Perl process because a renamed Python interpreter is not reliably a distinct
+# process: a framework build on macOS re-executes as Python.app, which the hook
+# correctly treats as an interpreter wrapper and skips.
+AGENT_SCRIPT = r"""
+use IPC::Open2;
+$| = 1;
+while (my $line = <STDIN>) {
+    my $pid = open2(my $out, my $in, $ENV{HOOK_PYTHON}, $ENV{HOOK});
+    print $in $line;
+    close $in;
+    my @ignored = <$out>;
+    waitpid($pid, 0);
+    die "hook failed" if $?;
+    print "ok\n";
+}
 """
 
 
-@pytest.mark.skipif(os.name == "nt", reason="names the agent process with a symlink")
+@pytest.mark.skipif(os.name == "nt" or shutil.which("perl") is None, reason="the agent is a POSIX Perl process")
 @pytest.mark.parametrize("ending", ["Stop", "exit"])
 def test_a_turn_stays_active_from_prompt_to_its_end(tmp_path, display, ending):
     """Real hooks under a real agent process: the turn stays open between tool hooks until it ends."""
     home, environment, received = display
-    executable = tmp_path / "agent"
-    executable.symlink_to(os.path.realpath(sys.executable))
     environment.update(HOOK_PYTHON=sys.executable, HOOK=str(DOCS / "claude" / "hooks" / "vibemon.py"))
-    agent = subprocess.Popen([str(executable), "-c", AGENT_SCRIPT], stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True,
+    agent = subprocess.Popen([shutil.which("perl"), "-e", AGENT_SCRIPT], stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True,
                              env=environment, cwd=tmp_path)
     path = str(home / ".vibemon" / "cache" / "activity.json")
 
