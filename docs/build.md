@@ -43,6 +43,8 @@ The current OpsPresso Windows certificate is self-signed. Windows may show an un
 
 macOS releases require code-signature, notarization ticket, and Gatekeeper verification. Every release builds the commit referenced by its tag and requires the tag to match `package.json`. Both platform builds and signature checks must pass before GitHub publication. Windows blockmaps are published with the installers; failed Homebrew dispatches fail the workflow.
 
+The macOS main executable declares Apple Events access for terminal focus. Renderer and GPU helpers use separate entitlements without that access. The package includes the permission explanation in English, Korean, and Japanese. Package verification checks the signed main/helper permissions and the bundled explanations; user consent remains controlled by macOS.
+
 ## Cloud connection checks
 
 Each App build packages `public/install/manifest.json`. Unattended hook updates run only while Web serves a byte-identical `/install/manifest.json`, so release the App from the same App commit that Web pins in `app-assets.json`. Until both match, hook updates need **Reinstall** in Settings. See [hook installation and updates](features.md#hook-installation-and-updates).

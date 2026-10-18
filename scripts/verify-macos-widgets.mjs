@@ -12,6 +12,11 @@ const { CHARACTER_CONFIG } = require('../src/shared/characters.cjs');
 const app = process.argv[2];
 assert(app && process.platform === 'darwin', 'Usage: node scripts/verify-macos-widgets.mjs <VibeMon.app> (macOS)');
 const plist = file => JSON.parse(execFileSync('plutil', ['-convert', 'json', '-o', '-', file], { encoding: 'utf8' }));
+const signedEntitlements = bundle => {
+  execFileSync('codesign', ['--verify', '--strict', bundle], { stdio: 'pipe' });
+  const xml = execFileSync('codesign', ['-d', '--entitlements', ':-', bundle], { stdio: ['ignore', 'pipe', 'pipe'] });
+  return JSON.parse(execFileSync('plutil', ['-convert', 'json', '-o', '-', '-'], { input: xml, encoding: 'utf8' }));
+};
 const contents = path.resolve(app, 'Contents');
 const extension = path.join(contents, 'PlugIns/VibeMonWidgets.appex/Contents');
 const resources = path.join(extension, 'Resources');
@@ -20,13 +25,31 @@ const info = plist(path.join(contents, 'Info.plist'));
 const widget = plist(path.join(extension, 'Info.plist'));
 assert.equal(info.CFBundleIdentifier, 'com.opspresso.vibemon');
 assert.equal(info.CFBundleDisplayName, 'VibeMon Mac');
+const automation = 'com.apple.security.automation.apple-events';
+const obsoleteAutomation = 'com.apple.security.cs.allow-apple-events';
+const mainEntitlements = signedEntitlements(path.dirname(contents));
+assert.equal(mainEntitlements[automation], true);
+assert.equal(mainEntitlements[obsoleteAutomation], undefined);
+const purpose = 'NSAppleEventsUsageDescription';
+assert.equal(typeof info[purpose], 'string');
+assert(info[purpose].trim());
+for (const locale of ['en', 'ko', 'ja']) {
+  const expected = plist(path.join(root, 'assets/macos', `${locale}.lproj/InfoPlist.strings`));
+  assert.deepEqual(plist(path.join(contents, 'Resources', `${locale}.lproj/InfoPlist.strings`)), expected);
+  if (locale === 'en') assert.equal(info[purpose], expected[purpose]);
+}
+const helpers = readdirSync(path.join(contents, 'Frameworks')).filter(name => name.endsWith('.app'));
+assert(helpers.length > 0, 'The package must contain Electron helpers');
+for (const helper of helpers) {
+  const permissions = signedEntitlements(path.join(contents, 'Frameworks', helper));
+  assert.notEqual(permissions[automation], true, `Automation granted to helper: ${helper}`);
+  assert.equal(permissions[obsoleteAutomation], undefined);
+}
 assert.equal(widget.CFBundleIdentifier, 'com.opspresso.vibemon.widgets');
 assert.equal(widget.CFBundleDisplayName, 'VibeMon Mac');
 assert.equal(widget.CFBundleShortVersionString, info.CFBundleShortVersionString);
 assert.equal(widget.NSExtension.NSExtensionPointIdentifier, 'com.apple.widgetkit-extension');
-execFileSync('codesign', ['--verify', '--strict', path.dirname(extension)], { stdio: 'pipe' });
-const entitlementXML = execFileSync('codesign', ['-d', '--entitlements', ':-', path.dirname(extension)], { stdio: ['ignore', 'pipe', 'pipe'] });
-const entitlements = JSON.parse(execFileSync('plutil', ['-convert', 'json', '-o', '-', '-'], { input: entitlementXML, encoding: 'utf8' }));
+const entitlements = signedEntitlements(path.dirname(extension));
 assert.equal(entitlements['com.apple.security.app-sandbox'], true);
 assert.deepEqual(entitlements['com.apple.security.temporary-exception.files.home-relative-path.read-only'], ['/.vibemon/widgets/']);
 assert.notEqual(entitlements['com.apple.security.network.client'], true);
@@ -57,4 +80,4 @@ execFileSync('xcrun', ['swiftc', '-swift-version', '6', '-target', `${process.ar
 execFileSync(verifier, [path.join(out, 'feed.json'), characters, icon], { stdio: 'inherit' });
 execFileSync(path.join(root, 'build/macos-widgets/Release/vibemon-widget-preview'),
   [path.join(out, 'feed.json'), characters, path.join(out, 'packaged.png')], { stdio: 'inherit' });
-console.log(`PASS: packaged widget metadata, all registered artwork, localization and App icon (${info.CFBundleShortVersionString})`);
+console.log(`PASS: packaged permissions, widget metadata, artwork, localization and App icon (${info.CFBundleShortVersionString})`);

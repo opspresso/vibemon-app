@@ -206,7 +206,7 @@ The app shows exactly one character window plus its following speech bubble:
 
 - **Position survives lock/sleep**: When macOS moves the window itself — screen lock, system sleep, or a display detaching — that move is not saved, and the window returns to its remembered position once its display is back
 - **Remembered position**: The window spawns at the position it was last dragged to
-- **Click to focus terminal**: Click the character to switch to iTerm2/Ghostty tab (macOS only)
+- **Click to focus terminal**: Click the character to select its iTerm2 tab or activate Ghostty (macOS only)
 
 ### Always on Top Modes
 
@@ -224,7 +224,7 @@ Choose **Settings → Companion → Stay on top**.
 
 ### Click to Focus Terminal (macOS)
 
-When running Claude Code in multiple terminal tabs, clicking the character window automatically switches to the corresponding terminal tab.
+Clicking the character selects the iTerm2 tab reported by its coding task. For Ghostty, it activates the application; choose the tab yourself.
 
 **Supported Terminals:**
 - iTerm2 (full tab switching support)
