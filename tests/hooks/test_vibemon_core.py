@@ -5,7 +5,7 @@ import select
 import sys
 import tempfile
 import unittest
-from contextlib import redirect_stderr
+from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 from unittest.mock import Mock, patch
 
@@ -64,6 +64,25 @@ class ParseJsonTest(unittest.TestCase):
 
     def test_invalid_json_yields_empty_dict(self):
         self.assertEqual(vibemon_core.parse_json("{not json"), {})
+
+
+class CommandOutputTest(unittest.TestCase):
+    def test_serial_lock_confirmation_preserves_the_project_as_json(self):
+        for project in ['quoted "project"', r'C:\workspace\project', '프로젝트\nnext']:
+            with self.subTest(project=project), patch.object(vibemon_core, 'try_all_targets', return_value=(True, None)) as send:
+                output = io.StringIO()
+                with redirect_stdout(output):
+                    self.assertTrue(vibemon_core.handle_command('--lock', [project]))
+                self.assertEqual(json.loads(output.getvalue()), {'success': True, 'locked': project})
+                self.assertEqual(json.loads(send.call_args.args[2]), {'command': 'lock', 'project': project})
+
+    def test_invalid_lock_mode_returns_json_without_sending_a_command(self):
+        mode = 'bad "mode"\nnext'
+        output = io.StringIO()
+        with patch.object(vibemon_core, 'try_all_targets') as send, redirect_stdout(output):
+            self.assertFalse(vibemon_core.handle_command('--lock-mode', [mode]))
+        self.assertEqual(json.loads(output.getvalue()), {'error': f'Invalid mode: {mode}. Valid modes: first-project, on-thinking'})
+        send.assert_not_called()
 
 
 class ProjectMetadataTest(unittest.TestCase):

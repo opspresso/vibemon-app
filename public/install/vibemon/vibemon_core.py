@@ -101,10 +101,6 @@ DEBUG = os.environ.get("DEBUG", "0") == "1"
 # Error messages
 ERR_NO_TARGET = '{"error":"No monitor target available. Set VIBEMON_HTTP_URLS or VIBEMON_SERIAL_PORT"}'
 ERR_NO_ESP32 = '{"error":"No ESP32 target available. Set VIBEMON_HTTP_URLS (with ESP32 URL) or VIBEMON_SERIAL_PORT"}'
-ERR_INVALID_MODE = (
-    '{"error":"Invalid mode: %s. Valid modes: first-project, on-thinking"}'
-)
-
 VALID_LOCK_MODES = frozenset(["first-project", "on-thinking"])
 
 # Serial configuration
@@ -826,7 +822,7 @@ def send_lock(project: str) -> bool:
     success, result = try_all_targets("/lock", http_data, serial_data)
 
     if success:
-        _print_result(result, f'{{"success":true,"locked":"{project}"}}')
+        _print_result(result, json.dumps({"success": True, "locked": project}))
         return True
 
     debug_log("No monitor target available")
@@ -893,7 +889,7 @@ def get_lock_mode() -> bool:
 def set_lock_mode(mode: str) -> bool:
     """Set lock mode on monitor."""
     if mode not in VALID_LOCK_MODES:
-        print(ERR_INVALID_MODE % mode)
+        print(json.dumps({"error": f"Invalid mode: {mode}. Valid modes: first-project, on-thinking"}))
         return False
 
     debug_log(f"Setting lock mode: {mode}")
@@ -904,7 +900,7 @@ def set_lock_mode(mode: str) -> bool:
     success, result = try_all_targets("/lock-mode", http_data, serial_data)
 
     if success:
-        _print_result(result, f'{{"success":true,"lockMode":"{mode}"}}')
+        _print_result(result, json.dumps({"success": True, "lockMode": mode}))
         return True
 
     debug_log("No monitor target available")
