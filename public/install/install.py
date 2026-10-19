@@ -1811,7 +1811,7 @@ def collector_unit(paths: CollectorPaths, origin: str, name: str, ident: str) ->
         "",
         "[Service]",
         f"ExecStart={command}",
-        f"Environment=PYTHONPATH={paths.base / 'app'}",
+        f'Environment="PYTHONPATH={paths.base / "app"}"',
         f"EnvironmentFile={paths.env_file}",
         "Restart=on-failure",
         "RestartSec=10",
