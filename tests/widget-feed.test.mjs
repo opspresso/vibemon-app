@@ -68,6 +68,15 @@ test('automatic resource widgets choose attention before an alphabetically earli
   assert.equal(items[0].timeline[0].state, 'error');
 });
 
+test('automatic choices place an account needing input before a healthy resource', () => {
+  const resource = host({ sourceId: 'healthy', displayName: 'Alpha healthy' });
+  const waiting = agentSource({
+    agent: { state: 'notification', character: 'clawd', project: 'Zeta input' }
+  });
+  const items = build({ cloud: cloud([resource, waiting]) }).items;
+  assert.deepEqual(items.map(item => item.id), ['agent:claude:work', 'resource:healthy']);
+});
+
 test('timeline times follow the wall clock when the server clock differs', () => {
   const skew = minutes(3);
   const [item] = build({ cloud: cloud([host({ receivedAt: iso(skew - minutes(1)) })], { evaluatedAt: NOW + skew }) }).items;
@@ -139,7 +148,7 @@ test('automatic choices keep a stable identity when names match and report order
     agentSource({ sourceId: 'agent:b', account: { provider: 'codex', id: 'b', displayName: 'B' } }),
     agentSource({ sourceId: 'agent:a', account: { provider: 'codex', id: 'a', displayName: 'A' } })
   ];
-  const expected = ['resource:a', 'resource:b', 'agent:codex:a', 'agent:codex:b'];
+  const expected = ['agent:codex:a', 'agent:codex:b', 'resource:a', 'resource:b'];
   for (const input of [sources, [...sources].reverse()]) {
     assert.deepEqual(build({ cloud: cloud(input) }).items.map(item => item.id), expected);
   }
@@ -192,7 +201,7 @@ test('cached usage without a reset time has no countdown', () => {
   assert.deepEqual(item.metrics.map(metric => [metric.value, metric.resetsAt]), [['34', undefined], ['72.4', undefined], ['20', undefined]]);
 });
 
-test('local projects appear without a cloud connection, sorted after resources', () => {
+test('local projects appear without a cloud connection and keep their links', () => {
   const local = [
     { id: 'local:x', since: NOW, status: { state: 'thinking', project: 'x', character: 'codex', account: { id: 'default', provider: 'codex', displayName: 'codex default' } } },
     { id: 'local:y', since: NOW, status: { state: 'working', project: 'y', character: 'clawd', account: { id: 'default', provider: 'claude', displayName: 'claude default' } } }
@@ -204,7 +213,9 @@ test('local projects appear without a cloud connection, sorted after resources',
 
 test('labels follow the App language', () => {
   const feed = build({ cloud: cloud([host(), agentSource()]), locale: 'ko' });
-  const [resource, agent] = feed.items;
+  const resource = feed.items.find(item => item.kind === 'resource');
+  const agent = feed.items.find(item => item.kind === 'agent');
+  assert.deepEqual(feed.items.map(item => item.kind), ['agent', 'resource']);
   assert.equal(resource.subtitle, '호스트');
   assert.deepEqual(resource.metrics.map(metric => metric.label), ['CPU', '통합 메모리', 'GPU']);
   assert.equal(resource.timeline[0].label, '정상');

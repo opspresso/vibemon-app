@@ -49,9 +49,7 @@ export function buildWidgetFeed({ cloud, local = [], usage = {}, artwork = () =>
   const selected = new Set(cloud.selectedMetrics);
   const resources = cloud.sources
     .filter(source => source.kind !== 'agent')
-    .map(source => ({ source, sourceId: source.sourceId, displayName: source.displayName, needsAttention: needsAttention(sourceState(source, reportNow)) }))
-    .sort(compareCards)
-    .map(({ source }) => resourceItem(source, selected, reportNow, wall, t));
+    .map(source => ({ source, sourceId: source.sourceId, displayName: source.displayName, needsAttention: needsAttention(sourceState(source, reportNow)) }));
   const agents = agentAccounts(cloud.sources, local, offset, now)
     .map(account => {
       const { state, project } = accountActivity(account, reportNow);
@@ -59,14 +57,15 @@ export function buildWidgetFeed({ cloud, local = [], usage = {}, artwork = () =>
         account, sourceId: account.accountId, isAccount: true, displayState: state, displayName: project,
         observedAt: account.latest.observedAt, needsAttention: needsAttention(state)
       };
-    })
-    .sort(compareCards)
-    .map(({ account }) => agentItem(account, usage[account.accountId], artwork, reportNow, wall, offset, t));
+    });
+  const items = [...resources, ...agents].sort(compareCards).map(entry => entry.isAccount
+    ? agentItem(entry.account, usage[entry.account.accountId], artwork, reportNow, wall, offset, t)
+    : resourceItem(entry.source, selected, reportNow, wall, t));
   return {
     version: WIDGET_FEED_VERSION,
     generatedAt: new Date(now).toISOString(),
     running,
-    items: [...resources, ...agents]
+    items
   };
 }
 
