@@ -159,6 +159,55 @@ test("usage and active model follow official llm_output fields and reset per run
   assert.equal(h.requests.at(-1).payload.model, "default");
 });
 
+test("invalid context measurements clear previous usage without losing active status", async (t) => {
+  const cases = {
+    "infinite budget": { contextTokenBudget: Infinity, usage: { total: 50 } },
+    "negative total": { contextTokenBudget: 100, usage: { total: -1 } },
+    "negative component": { contextTokenBudget: 100, usage: { input: -1, output: 10 } },
+    "nonfinite component": { contextTokenBudget: 100, usage: { input: 0, output: NaN } },
+    "string component": { contextTokenBudget: 100, usage: { input: 0, output: "10" } },
+    "boolean component": { contextTokenBudget: 100, usage: { input: 0, output: true } },
+    "empty usage": { contextTokenBudget: 100, usage: {} },
+    "legacy infinite budget": { usageState: { context: { usedTokens: 50, budgetTokens: Infinity } } },
+    "legacy negative tokens": { usageState: { context: { usedTokens: -1, budgetTokens: 100 } } },
+    "legacy negative percentage": { usageState: { context: { percentage: -1 } } },
+  };
+  for (const [name, event] of Object.entries(cases)) await t.test(name, async () => {
+    const h = await openclaw();
+    await h.emit("before_agent_run", {}, ctx);
+    await h.emit("llm_output", { contextTokenBudget: 100, usage: { total: 50 } }, ctx);
+    await h.emit("before_tool_call", { toolName: "read", toolCallId: "first" }, ctx);
+    assert.equal(h.requests.at(-1).payload.memory, 50);
+    await h.emit("llm_output", { model: "actual-model", ...event }, ctx);
+    await h.emit("after_tool_call", { toolName: "read", toolCallId: "first" }, ctx);
+    const payload = h.requests.at(-1).payload;
+    assert.equal(payload.memory, null);
+    assert.equal(payload.state, "thinking");
+    assert.equal(payload.model, "actual-model");
+  });
+});
+
+test("measured zero, optional components and effective-budget saturation remain available", async (t) => {
+  const cases = [
+    [{ contextTokenBudget: 100, usage: { total: 0 } }, 0],
+    [{ contextTokenBudget: 100, usage: { input: 0, output: 0 } }, 0],
+    [{ contextTokenBudget: 100, usage: { input: 20 } }, 20],
+    [{ contextTokenBudget: 100, usage: { total: 120 } }, 100],
+    [{ contextTokenBudget: 100, usage: { input: 80, output: 50 } }, 100],
+    [{ usageState: { context: { percentage: 0 } } }, 0],
+    [{ usageState: { context: { percentage: 120 } } }, 100],
+    [{ usageState: { contextWindow: { used_tokens: 0, budget_tokens: 100 } } }, 0],
+  ];
+  for (const [event, expected] of cases) await t.test(JSON.stringify(event), async () => {
+    const h = await openclaw();
+    await h.emit("before_agent_run", {}, ctx);
+    await h.emit("llm_output", event, ctx);
+    await h.emit("agent_end", {}, ctx);
+    await h.advance(3000);
+    assert.equal(h.requests.at(-1).payload.memory, expected);
+  });
+});
+
 test("compaction returns to thinking and late tool results cannot revive a run", async () => {
   const h = await openclaw();
   await h.emit("before_agent_run", {}, ctx);

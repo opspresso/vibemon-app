@@ -207,12 +207,16 @@ function refreshConfig() {
 }
 
 /**
- * Clamp a raw percentage-ish number into 0-100 without rounding, or null if not
- * a finite number.
+ * Cap an available non-negative percentage at 100 without rounding.
  */
 function clampPercent(value) {
-  if (!Number.isFinite(value)) return null;
-  return Math.max(0, Math.min(100, value));
+  if (!Number.isFinite(value) || value < 0) return null;
+  return Math.min(100, value);
+}
+
+function contextPercent(used, budget) {
+  if (!Number.isFinite(used) || used < 0 || !Number.isFinite(budget) || budget <= 0) return null;
+  return Math.min(1, used / budget) * 100;
 }
 
 /**
@@ -234,24 +238,19 @@ function extractMemoryPercent(event) {
     }
     const used = ctx.usedTokens ?? ctx.used_tokens;
     const budget = ctx.budgetTokens ?? ctx.budget_tokens;
-    if (typeof used === "number" && typeof budget === "number" && budget > 0) {
-      const pct = clampPercent((used / budget) * 100);
-      if (pct !== null) return pct;
-    }
+    const pct = contextPercent(used, budget);
+    if (pct !== null) return pct;
   }
 
   const budget = event.contextTokenBudget;
   const usage = event.usage;
-  if (typeof budget === "number" && budget > 0 && usage && typeof usage === "object") {
-    const components = [usage.input, usage.output, usage.cacheRead, usage.cacheWrite];
+  if (usage && typeof usage === "object") {
+    const components = [usage.input, usage.output, usage.cacheRead, usage.cacheWrite].filter(value => value != null);
     const used = usage.total ?? usage.totalTokens ?? usage.total_tokens
-      ?? (components.some(Number.isFinite)
-        ? components.reduce((sum, n) => sum + (Number.isFinite(n) ? n : 0), 0)
+      ?? (components.length
+        ? components.every(n => Number.isFinite(n) && n >= 0) ? components.reduce((sum, n) => sum + n, 0) : null
         : usage.inputTokens ?? usage.input_tokens);
-    if (typeof used === "number") {
-      const pct = clampPercent((used / budget) * 100);
-      if (pct !== null) return pct;
-    }
+    return contextPercent(used, budget);
   }
 
   return null;

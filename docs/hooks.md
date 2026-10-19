@@ -299,6 +299,8 @@ Then start V2 with `kiro-cli --v2 chat --agent my-agent`, or make it the default
 
 OpenClaw reads the active model and context usage from `llm_output`, resets them per run, and tracks parallel runs and tools. The plugin runs inside the gateway, so it needs no watcher process: while a run is active, it repeats the newest active state with `heartbeat: true` 60 seconds after the last report. Local HTTP targets serialize updates, keep the newest pending state, and have a 2.5-second request deadline. USB and cloud delivery use the shared Python transport with a five-second process limit. Each agent/workspace has independent delivery, heartbeat, and run state. The optional `accounts` map assigns explicit `{id, displayName}` values by OpenClaw agent ID; these take precedence over gateway environment labels. Without a mapping or explicit environment ID, each agent uses an isolated local profile. The plugin's channel `accountId` is never treated as a model-provider login. Changing the displayed character does not change the OpenClaw account provider.
 
+Percentages calculated from token counts require a finite, positive budget and non-negative counts. Invalid measurements clear the previous percentage; a measured zero stays 0%. When no total is supplied, the plugin sums the reported components only if each is valid. Usage above the effective token budget displays as 100%.
+
 ### opencode
 
 | Event | State |
