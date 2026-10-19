@@ -77,6 +77,7 @@ startFixture().then(async fixture => {
     fs.writeFileSync(path.join(output, `${name}.png`), (await web.capturePage()).toPNG());
   };
   await until(() => ui('document.querySelectorAll("#overview-resources .card").length === 3'), 'populated overview');
+  assert.equal(await text('#summary-local-note'), '2 active on this device', 'the fixture uses the production local-activity projection');
   await until(() => view.window.isVisible(), 'workspace shown');
   // Calling the menu handler in code does not activate the App as a native click does.
   app.focus({ steal: true });

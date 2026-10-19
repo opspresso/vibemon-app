@@ -1,4 +1,5 @@
 const TOKEN = 'vm_' + 'f'.repeat(60);
+const { localActivity } = require('../../src/workspace/activity.cjs');
 function memoryStore(initial = {}) {
   const data = new Map(Object.entries(initial));
   return { get: key => data.get(key), set: (key, value) => data.set(key, value), delete: key => data.delete(key) };
@@ -66,10 +67,10 @@ function createPorts() {
     },
     updateChecker: { getState: () => update, async checkForUpdates() {}, async downloadUpdate() {}, installDownloaded() {} },
     openExternal: async url => { calls.push(['external', url]); },
-    getActivity: () => [
-      { id: 'console', project: 'web-console', state: 'working', character: 'codex', model: 'Codex', tool: 'Editing files', focused: true },
-      { id: 'api', project: 'api-gateway', state: 'thinking', character: 'clawd', model: 'Claude', tool: 'Reviewing changes' }
-    ],
+    getActivity: () => localActivity({
+      console: { project: 'web-console', state: 'working', character: 'codex', model: 'Codex', tool: 'Editing files' },
+      api: { project: 'api-gateway', state: 'thinking', character: 'clawd', model: 'Claude', tool: 'Reviewing changes' }
+    }, 'console'),
     getUsage: () => ({ codex: { session: { pct: 38, resetsAt: Date.now() / 1000 + 7200 }, week: { pct: 62, resetsAt: Date.now() / 1000 + 240000 }, modelWeek: null }, claude: { session: { pct: 48, resetsAt: Date.now() / 1000 + 5400 }, week: { pct: 84, resetsAt: Date.now() / 1000 + 180000 }, modelWeek: null } }),
     showCompanion: () => calls.push(['show-companion'])
   };
