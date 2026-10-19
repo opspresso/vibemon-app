@@ -460,7 +460,13 @@ function groupFor(ctx = {}) {
       hint.manual_id = account.id;
       hint.manual_name = account.displayName;
     }
-    groups.set(key, { key, agent, cwd, project: (agent === "main" ? config.projectName : `${config.projectName} · ${agent}`).slice(0, 128), hint, identity: null,
+    // Receivers count UTF-16 units; keep complete characters at that boundary.
+    let project = "";
+    for (const character of agent === "main" ? config.projectName : `${config.projectName} · ${agent}`) {
+      if (project.length + character.length > 128) break;
+      project += character;
+    }
+    groups.set(key, { key, agent, cwd, project, hint, identity: null,
       runs: new Map(), currentState: "idle", lastSendTime: 0, lastPayload: "", lastStatus: null,
       heartbeatTimer: null, doneTimer: null });
   }

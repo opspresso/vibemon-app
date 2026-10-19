@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { okResponse, openclaw } from "./plugin_harness.mjs";
+import { validateProject } from "../../src/modules/validators.cjs";
 
 const ctx = { runId: "r", sessionId: "s", sessionKey: "agent:main:s" };
 
@@ -206,6 +207,21 @@ test("measured zero, optional components and effective-budget saturation remain 
     await h.advance(3000);
     assert.equal(h.requests.at(-1).payload.memory, expected);
   });
+});
+
+test("long project labels preserve Unicode at the receiver's UTF-16 limit", async (t) => {
+  for (const projectName of ["a".repeat(127) + "🦞", "🦞".repeat(65)]) {
+    await t.test(projectName, async () => {
+      const h = await openclaw({ pluginConfig: { projectName } });
+      await h.emit("before_agent_run", {}, ctx);
+      const project = h.requests.at(-1).payload.project;
+      assert.equal(validateProject(project).valid, true);
+      assert.ok(project.length <= 128);
+      assert.ok(projectName.startsWith(project));
+      assert.equal(project, projectName.startsWith("a") ? "a".repeat(127) : "🦞".repeat(64));
+      assert.equal(JSON.parse(h.identityChildren[0].child.raw).project, project);
+    });
+  }
 });
 
 test("compaction returns to thinking and late tool results cannot revive a run", async () => {
