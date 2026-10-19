@@ -17,7 +17,7 @@
 
 .EXAMPLE
   & ([scriptblock]::Create((irm https://vibemon.io/install/install.ps1))) --claude
-  # Enter the write token at the hidden prompt, or set VIBEMON_WRITE_TOKEN.
+  # Sign in through Web when prompted, or set VIBEMON_WRITE_TOKEN.
 
 .EXAMPLE
   & ([scriptblock]::Create((irm https://vibemon.io/install/install.ps1))) --uninstall --claude
