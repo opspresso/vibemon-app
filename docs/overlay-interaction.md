@@ -22,4 +22,4 @@
 
 | 2D | 3D | 말풍선 |
 | --- | --- | --- |
-| ![2D 캐릭터](images/overlay-2d.png) | ![3D 캐릭터](images/overlay-3d.png) | ![말풍선](images/overlay-bubble.png) |
+| ![Clawd 2D 캐릭터](images/overlay-2d.png) | ![Clawd 3D 캐릭터](images/overlay-3d.png) | ![말풍선](images/overlay-bubble.png) |

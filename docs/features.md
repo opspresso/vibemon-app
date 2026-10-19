@@ -161,10 +161,10 @@ After 10 minutes in sleep state, the window automatically closes. It reappears o
 - **Zzz**: Sleep state shows blinking Z animation
 - **Loading dots** (speech bubble): Thinking/planning/packing/working states show animated progress dots — thinking-style states run 3x slower than working
 - **Metric bars** (speech bubble): Gradient colors based on usage thresholds:
-  - 0-50%: Green
-  - 51-70%: Yellow
-  - 71-90%: Orange (warning)
-  - 91-100%: Red (critical)
+  - Below 50%: Green
+  - 50% to below 70%: Yellow
+  - 70% to below 90%: Orange (warning)
+  - 90–100%: Red (critical)
 
 ## Character Window
 
