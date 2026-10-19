@@ -161,10 +161,10 @@ After 10 minutes in sleep state, the window automatically closes. It reappears o
 - **Zzz**: Sleep state shows blinking Z animation
 - **Loading dots** (speech bubble): Thinking/planning/packing/working states show animated progress dots — thinking-style states run 3x slower than working
 - **Metric bars** (speech bubble): Gradient colors based on usage thresholds:
-  - 0-50%: Green
-  - 51-70%: Yellow
-  - 71-90%: Orange (warning)
-  - 91-100%: Red (critical)
+  - Below 50%: Green
+  - 50% to below 70%: Yellow
+  - 70% to below 90%: Orange (warning)
+  - 90–100%: Red (critical)
 
 ## Character Window
 
@@ -206,7 +206,7 @@ The app shows exactly one character window plus its following speech bubble:
 
 - **Position survives lock/sleep**: When macOS moves the window itself — screen lock, system sleep, or a display detaching — that move is not saved, and the window returns to its remembered position once its display is back
 - **Remembered position**: The window spawns at the position it was last dragged to
-- **Click to focus terminal**: Click the character to switch to iTerm2/Ghostty tab (macOS only)
+- **Click to focus terminal**: Click the character to select its iTerm2 tab or activate Ghostty (macOS only)
 
 ### Always on Top Modes
 
@@ -224,7 +224,7 @@ Choose **Settings → Companion → Stay on top**.
 
 ### Click to Focus Terminal (macOS)
 
-When running Claude Code in multiple terminal tabs, clicking the character window automatically switches to the corresponding terminal tab.
+Clicking the character selects the iTerm2 tab reported by its coding task. For Ghostty, it activates the application; choose the tab yourself.
 
 **Supported Terminals:**
 - iTerm2 (full tab switching support)

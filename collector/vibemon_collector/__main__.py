@@ -5,7 +5,7 @@ import re
 import shlex
 import time
 from .application import DeliveryFailure, run
-from .domain import HOST_METRICS, CLUSTER_METRICS
+from .domain import HOST_METRICS, CLUSTER_METRICS, valid_display_name
 from .prometheus import PrometheusSampler
 from .kubernetes import KubectlReader, KubernetesSampler
 from .disk import DISK_METRICS
@@ -30,7 +30,7 @@ def main():
     parser.add_argument("--once", action="store_true", help="Exit after one successful 30-second summary")
     parser.add_argument("--health-file", help="Write the last acknowledged delivery time for readiness checks")
     args = parser.parse_args()
-    if not re.fullmatch(r"[a-zA-Z0-9][a-zA-Z0-9_.:-]{0,127}", args.source_id) or not 1 <= len(args.name.strip()) <= 128:
+    if not re.fullmatch(r"[a-zA-Z0-9][a-zA-Z0-9_.:-]{0,127}", args.source_id) or not valid_display_name(args.name):
         parser.error("Invalid source ID or display name")
     token = os.environ.get("VIBEMON_WRITE_TOKEN", "")
     if not re.fullmatch(r"vm_[a-f0-9]{60}", token):

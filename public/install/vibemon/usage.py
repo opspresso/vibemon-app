@@ -257,10 +257,16 @@ def _codex_window_kind(bucket: Any) -> str | None:
     if not isinstance(bucket, dict):
         return None
     try:
-        window_seconds = float(bucket.get("limit_window_seconds") or 0)
+        seconds = bucket.get("limit_window_seconds")
+        if isinstance(seconds, bool):
+            return None
+        window_seconds = float(seconds or 0)
         if window_seconds <= 0:
-            window_seconds = float(bucket.get("window_minutes") or 0) * 60
-    except (TypeError, ValueError):
+            minutes = bucket.get("window_minutes")
+            if isinstance(minutes, bool):
+                return None
+            window_seconds = float(minutes or 0) * 60
+    except (TypeError, ValueError, OverflowError):
         return None
     if 0 < window_seconds <= CODEX_FIVE_HOUR_MAX_SECONDS:
         return "session"

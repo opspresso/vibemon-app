@@ -94,4 +94,81 @@ describe('desktop sign-in through Web', () => {
     await expect(signIn.signIn('https://vibemon.io', 'read', adopt)).rejects.toMatchObject({ reason: 'no-callback', message: expect.stringContaining('19280') });
     expect(opened).toEqual([]);
   });
+
+  test('cancelling after the callback but before exchange sends no request', async () => {
+    const { signIn, opened, fetchImpl } = setup();
+    const keep = jest.fn();
+    const result = signIn.signIn('https://vibemon.io', 'read', keep);
+    signIn.complete(callback(opened[0], { code: 'c' }));
+    signIn.cancel();
+    await expect(result).rejects.toMatchObject({ reason: 'cancelled' });
+    expect(fetchImpl).not.toHaveBeenCalled();
+    expect(keep).not.toHaveBeenCalled();
+  });
+
+  test('cancelling during token exchange deletes the issued token without adopting it', async () => {
+    const { signIn, opened, fetchImpl } = setup();
+    let finish;
+    fetchImpl.mockReturnValueOnce(new Promise(resolve => { finish = resolve; }));
+    const keep = jest.fn();
+    const result = signIn.signIn('https://vibemon.io', 'read', keep);
+    signIn.complete(callback(opened[0], { code: 'c' }));
+    await new Promise(setImmediate);
+    signIn.cancel();
+    finish({ ok: true, status: 200, body: jsonBody({ access_token: TOKEN, token_type: 'Bearer', scope: 'read' }) });
+    await expect(result).rejects.toMatchObject({ reason: 'cancelled' });
+    expect(keep).not.toHaveBeenCalled();
+    expect(fetchImpl.mock.calls[1][1]).toMatchObject({ method: 'DELETE', headers: { Authorization: `Bearer ${TOKEN}` } });
+  });
+
+  test('an older exchange cannot adopt its token after a newer sign-in completes', async () => {
+    const { signIn, opened, fetchImpl } = setup();
+    let finish;
+    fetchImpl.mockReturnValueOnce(new Promise(resolve => { finish = resolve; }));
+    const firstKeep = jest.fn(), secondKeep = jest.fn();
+    const first = signIn.signIn('https://vibemon.io', 'read', firstKeep);
+    signIn.complete(callback(opened[0], { code: 'old' }));
+    await new Promise(setImmediate);
+    const second = signIn.signIn('https://vibemon.io', 'write', secondKeep);
+    signIn.complete(callback(opened[1], { code: 'new' }));
+    await second;
+    finish({ ok: true, status: 200, body: jsonBody({ access_token: 'vm_' + 'b'.repeat(60), scope: 'read' }) });
+    await expect(first).rejects.toMatchObject({ reason: 'cancelled' });
+    expect(firstKeep).not.toHaveBeenCalled();
+    expect(secondKeep).toHaveBeenCalledTimes(1);
+  });
+
+  test('cancellation reaches a connection verification that is still running', async () => {
+    const { signIn, opened, fetchImpl } = setup();
+    let finish;
+    const verification = new Promise(resolve => { finish = resolve; });
+    let signal;
+    const result = signIn.signIn('https://vibemon.io', 'read', async (_token, current) => {
+      signal = current;
+      await verification;
+      current.throwIfAborted();
+    });
+    signIn.complete(callback(opened[0], { code: 'c' }));
+    await new Promise(setImmediate);
+    signIn.cancel();
+    finish();
+    await expect(result).rejects.toMatchObject({ reason: 'cancelled' });
+    expect(signal?.aborted).toBe(true);
+    expect(fetchImpl.mock.calls.at(-1)[1].method).toBe('DELETE');
+  });
+
+  test('cancellation keeps its reason when an aborted verification reports a transport error', async () => {
+    const { signIn, opened } = setup();
+    let finish;
+    const reading = new Promise(resolve => { finish = resolve; });
+    const result = signIn.signIn('https://vibemon.io', 'read', async () => {
+      await reading;
+      throw new Error('Body read aborted');
+    });
+    signIn.complete(callback(opened[0], { code: 'c' }));
+    await new Promise(setImmediate);
+    signIn.cancel();
+    finish();
+    await expect(result).rejects.toMatchObject({ reason: 'cancelled' });
+  });
 });

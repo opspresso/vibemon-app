@@ -109,3 +109,20 @@ test('a verified replacement deletes the replaced write token on Web', async () 
   await delivery.configure({ url: 'https://vibemon.io', token: replacement });
   expect(fetchImpl.mock.calls.some(([, options]) => options?.method === 'DELETE')).toBe(false);
 });
+
+test('cancelled verification preserves the saved write token and local delivery', async () => {
+  const { delivery, fetchImpl, config, configManager } = fixture();
+  const original = { ...config };
+  const controller = new globalThis.AbortController();
+  let finish;
+  fetchImpl.mockReturnValueOnce(new Promise(resolve => { finish = resolve; }));
+  const save = delivery.configure({ url: 'https://vibemon.io', token: 'vm_' + 'b'.repeat(60) }, { signal: controller.signal });
+  controller.abort(new Error('Cancelled sign-in'));
+  expect(fetchImpl.mock.calls[0][1].signal.aborted).toBe(true);
+  finish(response());
+  await expect(save).rejects.toThrow('Cancelled sign-in');
+  expect(config).toEqual(original);
+  expect(configManager.write).not.toHaveBeenCalled();
+  expect(delivery.snapshot().busy).toBe(false);
+  expect(fetchImpl).toHaveBeenCalledTimes(1);
+});

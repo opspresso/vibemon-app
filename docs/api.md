@@ -243,7 +243,7 @@ curl http://127.0.0.1:19280/dashboard-data
 ```json
 {
   "health": "ok",
-  "version": "2.4.1",
+  "version": "<installed-app-version>",
   "focusedProject": "my-project",
   "characterLock": "auto",
   "projects": [

@@ -31,14 +31,14 @@ def test_redirect_cannot_forward_bearer_credentials(monkeypatch, serve):
 
 @pytest.mark.parametrize('url', ['http://web.example/api/status', 'https://user:password@web.example/api/status', 'https://web.example/api/status?token=fixture', 'https://web.example/api/status#fragment'])
 def test_invalid_credential_destinations_never_open_network(url):
-    with patch('http_client.build_opener') as network, pytest.raises(URLError):
+    with patch('http_client.DeadlineOpener') as network, pytest.raises(URLError):
         open_credential_request(Request(url, headers={'Authorization': 'Bearer fixture-only'}), timeout=2)
     network.assert_not_called()
 
 
 def test_loopback_http_requires_explicit_test_opt_in(monkeypatch):
     monkeypatch.delenv('VIBEMON_ALLOW_HTTP_LOCAL', raising=False)
-    with patch('http_client.build_opener') as network, pytest.raises(URLError):
+    with patch('http_client.DeadlineOpener') as network, pytest.raises(URLError):
         open_credential_request(Request('http://127.0.0.1:3000/api/status'), timeout=2)
     network.assert_not_called()
 

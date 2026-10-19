@@ -5,9 +5,10 @@ const path = require('path');
  * Replaces `file` in one rename, so a reader sees the old or the new content,
  * never a partial write. Creates the parent folder when it is missing.
  *
- * `mode` and `directoryMode` also tighten a folder or a leftover temporary
- * file that already exists. Platforms without POSIX permissions (Windows)
- * may reject chmod; the write then continues with the platform defaults.
+ * On POSIX systems, `directoryMode` is enforced before writing and a new
+ * file starts with `mode`. Windows uses the account's filesystem ACLs.
+ * Each write owns a private temporary directory; leftover files and links
+ * from earlier writes cannot redirect or receive the new content.
  * @param {string} file
  * @param {string} text
  * @param {{mode?: number, directoryMode?: number}} [options]
@@ -15,15 +16,15 @@ const path = require('path');
 function writeFileAtomic(file, text, { mode, directoryMode } = {}) {
   const directory = path.dirname(file);
   fs.mkdirSync(directory, { recursive: true, mode: directoryMode });
-  const temporary = `${file}.${process.pid}.tmp`;
-  fs.writeFileSync(temporary, text, { mode });
+  if (directoryMode !== undefined && process.platform !== 'win32') fs.chmodSync(directory, directoryMode);
+  const temporaryDirectory = fs.mkdtempSync(path.join(directory, `.${path.basename(file)}-`));
+  const temporary = path.join(temporaryDirectory, 'data');
   try {
-    if (directoryMode !== undefined) fs.chmodSync(directory, directoryMode);
-    if (mode !== undefined) fs.chmodSync(temporary, mode);
-  } catch {
-    // See above: permissions are not supported on this platform.
+    fs.writeFileSync(temporary, text, { mode, flag: 'wx' });
+    fs.renameSync(temporary, file);
+  } finally {
+    fs.rmSync(temporaryDirectory, { recursive: true, force: true });
   }
-  fs.renameSync(temporary, file);
 }
 
 module.exports = { writeFileAtomic };

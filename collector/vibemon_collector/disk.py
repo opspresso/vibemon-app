@@ -6,7 +6,11 @@ DISK_METRICS = ('diskAvailableGiB', 'diskTotalGiB', 'diskUsedPercent')
 
 def checked_capacity(available, capacity):
     """Return the byte counts, or raise ValueError when they cannot describe one filesystem."""
-    if any(isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value) for value in (available, capacity)) or not 0 <= available <= capacity or capacity <= 0:
+    try:
+        valid = all(not isinstance(value, bool) and isinstance(value, (int, float)) and math.isfinite(value) for value in (available, capacity))
+    except OverflowError:
+        valid = False
+    if not valid or not 0 <= available <= capacity or capacity <= 0:
         raise ValueError('Invalid filesystem capacity')
     return available, capacity
 

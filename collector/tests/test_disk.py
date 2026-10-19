@@ -45,3 +45,13 @@ class HostDiskTests(unittest.TestCase):
             sample = sampler.sample()
         disk.assert_not_called()
         self.assertNotIn('metricDefinitions', summarize([sample] * 3, 'host', 'host', 'Host', 1000))
+
+    def test_unrepresentable_disk_counts_do_not_drop_valid_cpu_and_memory(self):
+        sampler = self.sampler()
+        for disk in [SimpleNamespace(free=10 ** 400, total=10 ** 401), SimpleNamespace(free=10, total=10 ** 400)]:
+            with self.subTest(disk=disk), patch('vibemon_collector.host.psutil.disk_usage', return_value=disk), patch('vibemon_collector.host.psutil.cpu_percent', return_value=20), patch('vibemon_collector.host.psutil.virtual_memory', return_value=SimpleNamespace(percent=40)):
+                sample = sampler.sample()
+                self.assertEqual(sample.metrics['cpuPercent'], 20)
+                self.assertEqual(sample.metrics['memoryPercent'], 40)
+                self.assertTrue(all(sample.metrics[key] is None for key in DISK_METRICS))
+                self.assertEqual(sample.health, 'error')

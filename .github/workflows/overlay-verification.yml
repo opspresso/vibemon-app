@@ -50,7 +50,7 @@ jobs:
             if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           }
       - name: Verify unpacked desktop package
-        run: pnpm exec electron-builder --dir --publish never --config.directories.output=out/package-check
+        run: pnpm exec electron-builder --dir --publish never --config.directories.output=out/package-check ${{ runner.os == 'macOS' && '--config.mac.identity=- --config.mac.notarize=false' || '' }}
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: 'false'
       - name: Verify packaged macOS widgets

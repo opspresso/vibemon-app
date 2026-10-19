@@ -19,6 +19,8 @@ Shared guides are rendered in both repositories. Use relative links only for oth
 
 `web-distribution.json` is the export allowlist. It excludes private configuration, application preferences, credentials, and authoring artifacts. Static files are exported directly from their runtime source paths, so App does not maintain a second renderer or character copy.
 
+The collector owns `collector/vibemon_collector/http_deadline.py`. The same source is exported into the collector package and `/install/vibemon/http_deadline.py`; hook installs place it beside `http_client.py`. Both paths are verified by the installer manifest. Local checkout installs resolve the hook path to the canonical collector source.
+
 ## Validate and export
 
 ```sh

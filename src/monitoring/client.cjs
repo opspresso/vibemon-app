@@ -86,15 +86,17 @@ class MonitoringClient extends EventEmitter {
       metrics: catalogMetrics, trendRefreshMs: CLOUD_TREND_MS, catalog: this.catalog, sources
     };
   }
-  async configure({ url, token }) {
+  async configure({ url, token }, { signal } = {}) {
+    signal?.throwIfAborted();
     const origin = webOrigin(url, this.allowLocalHttp);
     if (typeof token !== 'string' || (token && !isApiToken(token))) throw new Error(t('error.readTokenFormat'));
     if (origin !== this.preferences.get('url') && !token && this.credentials.has()) throw new Error(t('error.tokenForNewAddress'));
     const candidate = token || this.credentials.get();
     const attempt = ++this.configurationAttempt;
-    const data = await this.requestWith(origin, candidate, '/api/v1/sources');
+    const data = await this.requestWith(origin, candidate, '/api/v1/sources', signal);
     const sources = validateSources(data.sources);
     const clock = snapshotClock(data.serverTime, this.monotonicNow);
+    signal?.throwIfAborted();
     if (attempt !== this.configurationAttempt) throw new Error(t('error.connectionChanged'));
     const replaced = token ? this.savedCredential() : null;
     if (token) this.credentials.set(token, origin);
@@ -163,17 +165,20 @@ class MonitoringClient extends EventEmitter {
     const origin = this.savedOrigin();
     return this.requestWith(origin, this.credentials.get(), path);
   }
-  async requestWith(origin, token, path) {
-    return this.readResponse(await this.send(origin, token, path));
+  async requestWith(origin, token, path, signal) {
+    return this.readResponse(await this.send(origin, token, path, null, signal));
   }
-  async send(origin, token, path, etag = null) {
+  async send(origin, token, path, etag = null, signal) {
     if (!token) throw Object.assign(new Error('Configure a read token'), { code: 'not-configured' });
     try {
       return await this.fetch(`${origin}${path}`, {
         headers: { Authorization: `Bearer ${token}`, ...(etag ? { 'If-None-Match': etag } : {}) }, redirect: 'error',
-        signal: AbortSignal.timeout(CLOUD_REQUEST_TIMEOUT_MS)
+        signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(CLOUD_REQUEST_TIMEOUT_MS)]) : AbortSignal.timeout(CLOUD_REQUEST_TIMEOUT_MS)
       });
-    } catch { throw Object.assign(new Error('Cannot reach Web'), { code: 'connection-error' }); }
+    } catch {
+      signal?.throwIfAborted();
+      throw Object.assign(new Error('Cannot reach Web'), { code: 'connection-error' });
+    }
   }
   readResponse(response) {
     if (!response.ok) throw Object.assign(new Error('Web request failed'), { code: response.status === 401 ? 'token-expired' : response.status === 403 ? 'permission-denied' : 'connection-error' });

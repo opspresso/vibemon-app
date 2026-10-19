@@ -23,6 +23,10 @@ export function setupPreferences({ getFrame, request, run, notify }) {
     const input = $(id);
     if (!input.dataset.dirty && input.value !== String(value ?? '')) input.value = String(value ?? '');
   }
+  function acknowledgeUrl(id, submitted) {
+    const input = $(id);
+    if (input.value.trim() === submitted) delete input.dataset.dirty;
+  }
   function bind(id, action, convert = (input) => input.value, event = 'change') {
     $(id).addEventListener(event, () => {
       const input = $(id);
@@ -60,9 +64,10 @@ export function setupPreferences({ getFrame, request, run, notify }) {
     event.preventDefault();
     runDelivery($('save-cloud-delivery'), async () => {
       const token = $('cloud-write-token').value.trim();
+      const url = $('cloud-delivery-url').value.trim();
       $('cloud-write-token').value = '';
-      await save('configure-cloud-delivery', { url: $('cloud-delivery-url').value.trim(), token });
-      delete $('cloud-delivery-url').dataset.dirty;
+      await save('configure-cloud-delivery', { url, token });
+      acknowledgeUrl('cloud-delivery-url', url);
       notify(t('toast.deliverySaved'));
     });
   });
@@ -75,7 +80,7 @@ export function setupPreferences({ getFrame, request, run, notify }) {
     const { tokenDeleted } = await save('disconnect-cloud-delivery');
     notify(t(tokenDeleted ? 'toast.writeTokenRemoved' : 'toast.writeTokenKept'));
   }));
-  // While the browser is open, Cancel stops waiting so the person can start again.
+  // Cancel applies through token exchange and connection verification.
   const waiting = async (cancel, action) => {
     $(cancel).hidden = false;
     try { return await action(); } finally { $(cancel).hidden = true; }
@@ -85,8 +90,9 @@ export function setupPreferences({ getFrame, request, run, notify }) {
     run($('sign-in'), () => waiting('cancel-sign-in', async () => {
       text($('connection-saved'), t('connections.finishInBrowser'));
       try {
-        const cloud = await request('sign-in', $('web-url').value.trim());
-        delete $('web-url').dataset.dirty;
+        const url = $('web-url').value.trim();
+        const cloud = await request('sign-in', url);
+        acknowledgeUrl('web-url', url);
         text($('connection-saved'), cloud.status === 'connected' ? t('connections.connected') : connection(cloud.status)[1]);
         if (cloud.status === 'connected') notify(t('toast.connected'));
       } catch (error) {
@@ -97,17 +103,19 @@ export function setupPreferences({ getFrame, request, run, notify }) {
   );
   $('sign-in-cloud-delivery').addEventListener('click', () => runDelivery($('sign-in-cloud-delivery'), () => waiting('cancel-cloud-sign-in', async () => {
     $('cloud-delivery-help').textContent = t('connections.finishInBrowser');
-    await request('sign-in-cloud-delivery', $('cloud-delivery-url').value.trim());
-    delete $('cloud-delivery-url').dataset.dirty;
+    const url = $('cloud-delivery-url').value.trim();
+    await request('sign-in-cloud-delivery', url);
+    acknowledgeUrl('cloud-delivery-url', url);
     notify(t('toast.deliverySignedIn'));
   })));
   $('connect-form').addEventListener('submit', (event) => {
     event.preventDefault();
     run($('save-connection'), async () => {
       const token = $('read-token').value.trim();
+      const url = $('web-url').value.trim();
       $('read-token').value = '';
-      const cloud = await request('configure', { url: $('web-url').value.trim(), token });
-      delete $('web-url').dataset.dirty;
+      const cloud = await request('configure', { url, token });
+      acknowledgeUrl('web-url', url);
       text(
         $('connection-saved'),
         cloud.status === 'connected' ? t('connections.connected') : connection(cloud.status)[1]

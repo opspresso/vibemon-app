@@ -29,10 +29,16 @@ from pathlib import Path
 installer, directory = sys.argv[1:]
 Path.home = classmethod(lambda cls: Path(directory))
 sys.argv = [installer, '--vibemon']
-runpy.run_path(installer, run_name='__main__')
+try:
+    runpy.run_path(installer, run_name='__main__')
+except SystemExit as result:
+    assert result.code in (None, 0), result.code
 sys.path.insert(0, str(Path(directory) / '.vibemon'))
 import vibemon_core
 import usage
+import http_deadline
+assert Path(http_deadline.__file__).parent == Path(directory) / '.vibemon'
+print('Installed hook imports verified')
 '''
         with tempfile.TemporaryDirectory() as directory:
             result = subprocess.run(
@@ -41,7 +47,10 @@ import usage
                 capture_output=True, encoding='utf-8', timeout=15,
             )
             self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            self.assertIn('Installed hook imports verified', result.stdout)
             installed = Path(directory) / '.vibemon'
             self.assertTrue((installed / 'config.json').is_file())
             for source in (INSTALLER.parent / 'vibemon').glob('*.py'):
                 self.assertEqual((installed / source.name).read_bytes(), source.read_bytes())
+            self.assertEqual((installed / 'http_deadline.py').read_bytes(),
+                             (INSTALLER.parents[2] / 'collector/vibemon_collector/http_deadline.py').read_bytes())

@@ -77,7 +77,12 @@ startFixture().then(async fixture => {
     fs.writeFileSync(path.join(output, `${name}.png`), (await web.capturePage()).toPNG());
   };
   await until(() => ui('document.querySelectorAll("#overview-resources .card").length === 3'), 'populated overview');
+  assert.equal(await text('#summary-local-note'), '2 active on this device', 'the fixture uses the production local-activity projection');
   await until(() => view.window.isVisible(), 'workspace shown');
+  // Calling the menu handler in code does not activate the App as a native click does.
+  app.focus({ steal: true });
+  view.window.focus();
+  web.focus();
   await until(() => ui('document.hasFocus()'), 'workspace accepts keyboard input');
   await nextFrames();
   assert.equal(client.getStatus(), 'connected');
@@ -89,6 +94,7 @@ startFixture().then(async fixture => {
   assert.equal(await text('#summary-accounts'), '4');
   assert.equal(await text('#summary-local'), '2');
   assert.equal(await text('#summary-attention'), '3');
+  assert.deepEqual(await ui('[...document.querySelectorAll("#overview-accounts .card")].map(card => card._source.sourceId)'), ['kiro:lab', 'codex:personal', 'claude:studio'], 'equal project names use account IDs before the Overview limit');
   const localClock = client.now;
   try {
     for (const offset of [-86400000, 86400000]) {
@@ -96,7 +102,12 @@ startFixture().then(async fixture => {
       await client.poll(true); await published();
       assert.equal(await text('#summary-attention'), '3', 'wall-clock skew does not add stale warnings');
       assert.equal(await ui('[...document.querySelectorAll("#overview-accounts time")].every(node => node.textContent === "Just now")'), true, 'report age uses server time');
-      assert.ok((await ui('[...document.querySelectorAll("#overview-accounts .metric-reset:not([hidden])")].map(node => node.textContent)')).includes('Resets in 2h5m'), 'reset countdowns use server time');
+      // The three-card Overview may omit the account whose reset we are checking.
+      await navigate('agents');
+      assert.equal(await ui('document.querySelectorAll("#agent-cards .card").length'), 4);
+      const resets = await ui('[...[...document.querySelectorAll("#agent-cards .card")].find(card => card._source.sourceId === "codex:team").querySelectorAll(".metric-reset:not([hidden])")].map(node => node.textContent)');
+      assert.ok(resets.includes('Resets in 2h5m'), 'reset countdowns use server time');
+      await navigate('overview');
     }
   } finally { client.now = localClock; await client.poll(true); }
   const overviewBounds = await ui('({ bottom: document.querySelector("#overview-accounts .card").getBoundingClientRect().bottom, viewport: innerHeight })');
@@ -203,6 +214,24 @@ startFixture().then(async fixture => {
   state.trend = originalTrend;
 
   await navigate('agents');
+  assert.equal(await ui('document.querySelectorAll("#agent-cards .card").length'), 4);
+  await input('#agent-filter', 'codex');
+  await ui('document.getElementById("agent-filter").focus()');
+  state.sources = () => {
+    const current = originalSources();
+    const agent = current.find(source => source.kind === 'agent');
+    return [...current, { ...agent, sourceId: 'new-openclaw',
+      account: { provider: 'openclaw', id: 'new', displayName: 'New account' },
+      agent: { ...agent.agent, character: 'claw' } }];
+  };
+  await client.poll(true); await published();
+  assert.equal(await value('#agent-filter'), 'codex', 'new provider options preserve the focused filter');
+  assert.equal(await ui('document.querySelectorAll("#agent-cards .card").length'), 2);
+  assert.equal(await ui('document.activeElement.id'), 'agent-filter');
+  await input('#agent-filter', 'openclaw');
+  state.sources = originalSources;
+  await client.poll(true); await published();
+  assert.equal(await value('#agent-filter'), 'all', 'a removed provider returns to the valid default');
   assert.equal(await ui('document.querySelectorAll("#agent-cards .card").length'), 4);
   state.sources = () => originalSources().map(source => source.sourceId === 'codex-personal'
     ? { ...source, observedAt: new Date(Date.now() - 600000).toISOString() }
@@ -374,10 +403,23 @@ startFixture().then(async fixture => {
   assert.equal(client.snapshot().sources.some(source => source.sourceId === 'production'), false);
 
   await navigate('companion');
+  const invokeSetting = fixture.settings.invoke.bind(fixture.settings);
+  let releasePreference;
+  const preferenceGate = new Promise(resolve => { releasePreference = resolve; });
+  fixture.settings.invoke = async (action, ...args) => {
+    if (action === 'set-render-mode') await preferenceGate;
+    return invokeSetting(action, ...args);
+  };
   await ui('document.getElementById("render-mode").focus()');
   await input('#render-mode', '2d', 'change');
+  await until(() => ui('document.getElementById("render-mode").disabled'), 'preference save pending');
+  view.notify('activity'); await published();
+  assert.equal(await value('#render-mode'), '2d', 'an older frame preserves the pending preference choice');
+  await screenshot('preference-save-pending');
+  releasePreference();
   await until(() => ports.appearance.RenderMode === '2d', 'render mode saved');
   await until(() => ui('!document.getElementById("render-mode").disabled'), 'render control ready');
+  fixture.settings.invoke = invokeSetting;
   assert.equal(await ui('document.activeElement.id'), 'render-mode', 'saving retains keyboard focus');
   assert.equal(await value('#render-mode'), '2d', 'the save response contains authoritative preferences');
   const setRenderMode = ports.windowManager.setRenderMode;
@@ -515,6 +557,22 @@ startFixture().then(async fixture => {
   await until(() => ports.calls.some(call => call[0] === 'install-update'), 'explicit install action');
 
   await navigate('connections');
+  const originalSignIn = view.signIn;
+  let finishSignIn;
+  view.signIn = {
+    signIn: () => new Promise(resolve => { finishSignIn = resolve; }),
+    cancel() {}
+  };
+  try {
+    await input('#web-url', 'https://vibemon.io');
+    await click('#sign-in');
+    await until(() => Boolean(finishSignIn), 'sign-in request started');
+    await input('#web-url', 'https://draft.example');
+    finishSignIn(client.snapshot());
+    await until(() => ui('!document.getElementById("sign-in").disabled'), 'sign-in request settled');
+    view.notify('settings'); await published();
+    assert.equal(await value('#web-url'), 'https://draft.example', 'a pending sign-in cannot discard a newer address edit');
+  } finally { view.signIn = originalSignIn; }
   await input('#web-url', 'https://edited.example');
   await client.poll(true); await published();
   assert.equal(await value('#web-url'), 'https://edited.example', 'polling preserves unsaved connection edits');

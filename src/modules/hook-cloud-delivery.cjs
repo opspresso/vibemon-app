@@ -27,16 +27,19 @@ class HookCloudDelivery {
     };
   }
 
-  async verify(url, token) {
+  async verify(url, token, signal) {
     const origin = webOrigin(url, this.allowLocalHttp);
     if (!isApiToken(token)) throw new Error(t('delivery.tokenFormat'));
     let response;
     try {
       response = await this.fetchImpl(`${origin}/api/v1/connection?scope=write`, {
         headers: { Authorization: `Bearer ${token}` }, redirect: 'error',
-        signal: AbortSignal.timeout(CLOUD_REQUEST_TIMEOUT_MS)
+        signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(CLOUD_REQUEST_TIMEOUT_MS)]) : AbortSignal.timeout(CLOUD_REQUEST_TIMEOUT_MS)
       });
-    } catch { throw new Error(t('delivery.unreachable')); }
+    } catch {
+      signal?.throwIfAborted();
+      throw new Error(t('delivery.unreachable'));
+    }
     if (!response.ok) {
       await response.body?.cancel();
       const messages = { 401: 'delivery.rejected', 403: 'delivery.forbidden', 404: 'delivery.unsupported', 429: 'delivery.rateLimited' };
@@ -55,7 +58,8 @@ class HookCloudDelivery {
     finally { this.busy = false; this.onChange?.(); }
   }
 
-  async configure(value) {
+  async configure(value, { signal } = {}) {
+    signal?.throwIfAborted();
     if (!value || typeof value !== 'object' || Array.isArray(value) || typeof value.url !== 'string' || typeof value.token !== 'string' || Object.keys(value).some(key => !['url', 'token'].includes(key))) throw new Error(t('delivery.missingFields'));
     const origin = webOrigin(value.url.trim(), this.allowLocalHttp);
     const current = this.configManager.read();
@@ -63,7 +67,8 @@ class HookCloudDelivery {
     if (!replacement && !sameWebOrigin(origin, current.vibemon_url, this.allowLocalHttp)) throw new Error(t('delivery.tokenForNewAddress'));
     const token = replacement || current.vibemon_token;
     return this.run(async () => {
-      await this.verify(origin, token);
+      await this.verify(origin, token, signal);
+      signal?.throwIfAborted();
       if (!sameConnection(current, this.configManager.read())) throw new Error(t('delivery.changed'));
       this.configManager.write({ vibemon_url: origin, vibemon_token: token });
       this.result = { vibemon_url: origin, vibemon_token: token, status: 'verified', checkedAt: new Date(this.now()).toISOString() };

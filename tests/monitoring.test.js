@@ -128,6 +128,30 @@ describe('conditional source polling', () => {
 
 describe('cloud monitoring', () => {
   afterEach(() => jest.useRealTimers());
+  test('cancelled verification cannot replace the saved read connection or its data', async () => {
+    const { client, fetchImpl } = fixture();
+    await client.poll();
+    const before = client.snapshot();
+    const controller = new globalThis.AbortController();
+    let finish;
+    fetchImpl.mockClear();
+    fetchImpl.mockReturnValueOnce(new Promise(resolve => { finish = resolve; }));
+    const save = client.configure({ url: 'https://other.example', token: 'vm_' + '2'.repeat(60) }, { signal: controller.signal });
+    controller.abort(new Error('Cancelled sign-in'));
+    expect(fetchImpl.mock.calls[0][1].signal.aborted).toBe(true);
+    finish(okResponse({ sources: [] }));
+    await expect(save).rejects.toThrow('Cancelled sign-in');
+    expect(client.savedCredential()).toEqual({ origin: 'https://web.example', token: rawToken });
+    expect(client.snapshot()).toEqual(before);
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+  });
+  test('an already cancelled connection check makes no request', async () => {
+    const { client, fetchImpl } = fixture();
+    const controller = new globalThis.AbortController();
+    controller.abort(new Error('Cancelled sign-in'));
+    await expect(client.configure({ url: 'https://other.example', token: rawToken }, { signal: controller.signal })).rejects.toThrow('Cancelled sign-in');
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
   test.each([[401, 'token-expired'], [403, 'permission-denied'], [503, 'connection-error']])('empty selection cannot hide HTTP %s as a successful connection', async (status, expected) => {
     const { client, preferences, fetchImpl } = fixture();
     preferences.set('selectedSources', []);

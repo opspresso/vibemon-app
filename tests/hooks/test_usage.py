@@ -142,6 +142,23 @@ class UsageTest(unittest.TestCase):
             "session",
         )
 
+    def test_invalid_window_duration_preserves_the_other_usage_window(self):
+        for field, invalid in [(field, value) for field in ['limit_window_seconds', 'window_minutes'] for value in [10 ** 400, True]]:
+            primary = {'used_percent': 42, field: invalid}
+            week = {'used_percent': 0, 'window_minutes': 10080}
+            with self.subTest(field=field, invalid=invalid, source='live'):
+                result = _codex_live({'rate_limit': {
+                    'primary_window': primary,
+                    'secondary_window': {**week, 'reset_at': 90000},
+                }})
+                self.assertEqual(result, {'week_all': {'pct': 0, 'resets_at': 90000}})
+            with self.subTest(field=field, invalid=invalid, source='session'):
+                result = _codex_session_usage(json.dumps({'payload': {'rate_limits': {
+                    'primary': primary, 'secondary': {**week, 'resets_at': 90000},
+                }}}))
+                self.assertNotIn('session', result)
+                self.assertEqual(result['week_all'], {'pct': 0, 'resets_at': 90000})
+
     def test_codex_session_fallback_does_not_report_month_as_session(self):
         primary = {"used_percent": 42, "window_minutes": 43200, "resets_at": 2000}
         self.assertIsNone(_codex_session_usage(json.dumps({"payload": {"rate_limits": {"primary": primary}}})))

@@ -7,6 +7,17 @@ HOST_METRICS = ("cpuPercent", "memoryPercent", "gpuPercent", "gpuTemperatureC")
 CLUSTER_METRICS = ("cpuPercent", "memoryPercent", "nodesReady", "nodesTotal", "podsUnhealthy")
 
 
+def valid_display_name(value: str) -> bool:
+    # Match the public JavaScript contract: 128 UTF-16 units, no lone
+    # surrogates or ASCII controls. JavaScript also trims the BOM as whitespace.
+    if not value.replace('\ufeff', '').strip() or len(value) > 128 or any(ord(char) < 32 or ord(char) == 127 for char in value):
+        return False
+    try:
+        return len(value.encode('utf-16-le')) <= 256
+    except UnicodeEncodeError:
+        return False
+
+
 @dataclass
 class Sample:
     metrics: dict[str, float | None]
@@ -93,6 +104,6 @@ class TransmissionPolicy:
 
     def failed(self, now: float, retry_after: float = 0):
         self.failures += 1
-        self.retry_at = now + min(60, max(retry_after, 2 ** min(self.failures, 6)))
+        self.retry_at = now + max(retry_after, min(60, 2 ** min(self.failures, 6)))
         # Never retry an old window. The next three observations replace it.
         self.pending = None

@@ -33,8 +33,10 @@ Open the installed VibeMon application. It starts in the system tray and listens
 
 1. Click the menu-bar or tray icon and select **Dashboard**.
 2. Open **Settings → Connections** and select **Sign in with VibeMon**.
-3. In the browser, sign in with Google or an invited email account, then select **Allow**. The App receives its own read token.
+3. In the browser, sign in with Google or an email account, then select **Allow**. The App receives its own read token.
 4. In **Overview**, open **Customize view**, select resources, provider accounts, and metrics, then select **Save view**.
+
+For email sign-in, create an account on Web and confirm your email address first.
 
 A source appears after its collector or hook sends the first report. Follow [Get started](https://vibemon.io/docs) to connect a coding tool or server. Use the same VibeMon sign-in for the sending computer and Desktop. Compare one card and its report time with the [Web dashboard](https://vibemon.io/dashboard); Desktop refreshes every 30 seconds. Provider credentials remain on the source machine.
 

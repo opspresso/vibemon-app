@@ -5,7 +5,7 @@ import select
 import sys
 import tempfile
 import unittest
-from contextlib import redirect_stderr
+from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 from unittest.mock import Mock, patch
 
@@ -64,6 +64,25 @@ class ParseJsonTest(unittest.TestCase):
 
     def test_invalid_json_yields_empty_dict(self):
         self.assertEqual(vibemon_core.parse_json("{not json"), {})
+
+
+class CommandOutputTest(unittest.TestCase):
+    def test_serial_lock_confirmation_preserves_the_project_as_json(self):
+        for project in ['quoted "project"', r'C:\workspace\project', '프로젝트\nnext']:
+            with self.subTest(project=project), patch.object(vibemon_core, 'try_all_targets', return_value=(True, None)) as send:
+                output = io.StringIO()
+                with redirect_stdout(output):
+                    self.assertTrue(vibemon_core.handle_command('--lock', [project]))
+                self.assertEqual(json.loads(output.getvalue()), {'success': True, 'locked': project})
+                self.assertEqual(json.loads(send.call_args.args[2]), {'command': 'lock', 'project': project})
+
+    def test_invalid_lock_mode_returns_json_without_sending_a_command(self):
+        mode = 'bad "mode"\nnext'
+        output = io.StringIO()
+        with patch.object(vibemon_core, 'try_all_targets') as send, redirect_stdout(output):
+            self.assertFalse(vibemon_core.handle_command('--lock-mode', [mode]))
+        self.assertEqual(json.loads(output.getvalue()), {'error': f'Invalid mode: {mode}. Valid modes: first-project, on-thinking'})
+        send.assert_not_called()
 
 
 class ProjectMetadataTest(unittest.TestCase):
@@ -308,7 +327,7 @@ DEADLINE = 100.0
 class DesktopLaunchTest(unittest.TestCase):
     def test_macos_opens_installed_application_without_a_shell(self):
         with patch.object(vibemon_core, 'IS_WINDOWS', False), patch.object(sys, 'platform', 'darwin'), patch.object(vibemon_core.subprocess, 'Popen') as spawn, patch.object(vibemon_core, 'is_monitor_running', return_value=True):
-            self.assertTrue(vibemon_core.launch_desktop(URL, 10))
+            self.assertTrue(vibemon_core.launch_desktop(URL, vibemon_core.time.monotonic() + 10))
         self.assertEqual(spawn.call_args.args[0], ['/usr/bin/open', '-g', '-a', 'VibeMon'])
         self.assertTrue(spawn.call_args.kwargs['start_new_session'])
 
@@ -318,7 +337,7 @@ class DesktopLaunchTest(unittest.TestCase):
             executable.parent.mkdir(parents=True)
             executable.touch()
             with patch.dict(os.environ, {'LOCALAPPDATA': directory}, clear=True), patch.object(vibemon_core, 'IS_WINDOWS', True), patch.object(vibemon_core.subprocess, 'Popen') as spawn, patch.object(vibemon_core, 'is_monitor_running', return_value=True):
-                self.assertTrue(vibemon_core.launch_desktop(URL, 10))
+                self.assertTrue(vibemon_core.launch_desktop(URL, vibemon_core.time.monotonic() + 10))
             self.assertEqual(spawn.call_args.args[0], [str(executable)])
 
     def test_missing_windows_installation_does_not_download_an_app(self):
@@ -348,7 +367,14 @@ class DesktopLaunchTest(unittest.TestCase):
         with patch.object(vibemon_core.time, 'monotonic', return_value=10.0):
             self.assertEqual(vibemon_core.request_timeout(None), vibemon_core.HTTP_TIMEOUT_SECONDS)
             self.assertEqual(vibemon_core.request_timeout(12.0), 2.0)
-            self.assertEqual(vibemon_core.request_timeout(9.0), vibemon_core.MIN_REQUEST_TIMEOUT_SECONDS)
+            self.assertAlmostEqual(vibemon_core.request_timeout(10.1), 0.1)
+            with self.assertRaises(TimeoutError):
+                vibemon_core.request_timeout(9.0)
+
+    def test_an_expired_start_budget_makes_no_more_requests(self):
+        with patch.object(vibemon_core.time, 'monotonic', return_value=10), patch.object(vibemon_core, 'urlopen') as network:
+            self.assertEqual(vibemon_core.send_http_post(URL, '/status', '{}', deadline=9), (False, None))
+        network.assert_not_called()
 
     def test_waits_only_until_health_answers(self):
         process = Mock(poll=Mock(return_value=None))
@@ -370,7 +396,7 @@ class DesktopLaunchTest(unittest.TestCase):
         clock = iter([DEADLINE - 1, DEADLINE + 1])
         with patch.object(vibemon_core, 'is_monitor_running', return_value=False), patch.object(vibemon_core.time, 'monotonic', side_effect=lambda: next(clock)), patch.object(vibemon_core.time, 'sleep') as sleep:
             self.assertFalse(vibemon_core.wait_for_desktop(URL, process, DEADLINE))
-        self.assertEqual(sleep.call_count, 1)
+        sleep.assert_not_called()
 
 
 class SerialPortTest(unittest.TestCase):

@@ -1,6 +1,6 @@
 # VibeMon setup
 
-Install hooks to send coding-agent summaries to the local Desktop App, the Web service, or both, and install collectors for Linux hosts, DGX Spark, and Kubernetes. Python 3 is required. Web uses Google or invited email sign-in; agent-provider credentials remain on the machine running the hooks.
+Install hooks to send coding-agent summaries to the local Desktop App, the Web service, or both, and install collectors for Linux hosts, DGX Spark, and Kubernetes. Python 3 is required. Web uses Google or email account sign-in; agent-provider credentials remain on the machine running the hooks.
 
 Desktop auto-launch opens the installed macOS App or a Windows installer location (or `VibeMon.exe` on PATH). Start custom Windows installations and other platforms manually. Hooks never install or run an npm package.
 
@@ -9,7 +9,7 @@ Desktop auto-launch opens the installed macOS App or a Windows installer locatio
 The installer signs in through Web, so you do not copy tokens:
 
 1. The installer shows a code, such as `BCDF-GHJK`, and the address `https://vibemon.io/device`. In a desktop terminal it also opens that page.
-2. Sign in with Google or an invited email account, check the code, and select **Allow**.
+2. Sign in with Google or an email account, check the code, and select **Allow**. For email sign-in, create an account on Web and confirm the address first.
 3. The installer receives a write token named after the client and this host, such as `Coding agent hooks (build-box)`, and saves it.
 
 A run in a terminal signs in when no token is saved. Add `--login` to sign in again, for example to replace a deleted token or to move to another Web origin. Runs without a terminal, such as App updates, never wait for a sign-in: without a token, activity stays local.
@@ -20,7 +20,7 @@ Account lists every token. Delete a token there to disconnect its client; deleti
 
 ## 2. Install hooks
 
-Desktop users can open **Settings → Integrations** and choose **Install integration** for a detected tool. Open **Send activity to Web**, enter the Web origin and a separate write token, and select **Save and verify**. The dashboard read token remains in **Settings → Connections**. These are shared hook defaults; per-agent environment variables and plugin settings retain their precedence.
+Desktop users can open **Settings → Integrations** and choose **Install integration** for a detected tool. Open **Send activity to Web**, select **Sign in to send activity**, and approve it in the browser. To paste an existing write token, open **Use a write token instead** and select **Save and verify**. The dashboard read token remains in **Settings → Connections**. These are shared hook defaults; per-agent environment variables and plugin settings retain their precedence.
 
 For a headless macOS or Linux installation:
 
@@ -109,10 +109,10 @@ The shared directory contains the transport, session, account-identity, and usag
    ```
 
 3. Start a coding session. The local App should show its project and state.
-4. Open **Settings → Connections** in the App, enter the Web origin and read token, and select **Save and connect**. Use **Customize view** to select resources, accounts, and metrics.
+4. Open **Settings → Connections** in the App and select **Sign in with VibeMon**. Use **Customize view** to select resources, accounts, and metrics. To use an existing read token, open **Use a read token instead** and select **Save and connect**.
 5. Confirm that the same account's source appears. Missing measurements remain unavailable; they do not appear as zero.
 
-Read and write tokens must belong to the same Google owner. Resource collection is separate from hooks; see [Monitor servers and clusters](https://vibemon.io/docs/servers) and [Send your own data](https://vibemon.io/docs/api).
+Read and write tokens must belong to the same VibeMon account. Resource collection is separate from hooks; see [Monitor servers and clusters](https://vibemon.io/docs/servers) and [Send your own data](https://vibemon.io/docs/api).
 
 ## Resource collectors
 
@@ -125,15 +125,18 @@ A collector sends CPU, memory, GPU, and disk summaries of a server or cluster. I
 
 A run with a saved token reuses it only for the same Web origin; another origin, or `--login`, signs in again. Add `--name "Display name"` to choose the name on Web. The default is the host name or the kubectl context name. The source ID derives from it, such as `host-dgx-spark`.
 
-**Linux host or DGX Spark** needs Python 3.10 or later and systemd. The installer downloads the collector files checked against the manifest, installs `psutil` in its own Python environment, and starts the `vibemon-collector` service. DGX Spark unified memory and NVIDIA GPU measurements are detected automatically.
+**Linux host or DGX Spark** needs Python 3.10 or later and systemd. The installer checks the downloaded collector files against the manifest and prepares a separate Python environment before requesting sign-in or stopping an existing collector. It then starts the new version, waits up to three minutes for Web to accept an observation, and verifies the running process's command and environment. A failed switch restores the previous unit and its running state. A conflicting systemd override also causes restoration; inspect it before retrying. If restoration itself fails, the error identifies the retained runtime and unit backup for recovery. DGX Spark unified memory and NVIDIA GPU measurements are detected automatically.
 
-- As root: the service is system-wide. Files are in `/opt/vibemon-collector`, and the token is in `/etc/vibemon/collector.env` (mode 600).
-- As another user: the service is a user service, with files in `~/.local/share/vibemon-collector` and the token in `~/.config/vibemon/collector.env`. Run `sudo loginctl enable-linger $USER` so that it keeps running after you log out.
+- As root: the service is system-wide, with files in `/opt/vibemon-collector`.
+- As another user: the service is a user service, with files in `~/.local/share/vibemon-collector`. Run `sudo loginctl enable-linger $USER` so that it keeps running after you log out.
+- Each version has a private `releases/release-*` directory containing its code, Python environment, and `collector.env` token file (mode 600). The unit names that exact directory, so preparing an upgrade cannot change a running version's dependencies or credential. Re-run the installer with `--login` or `VIBEMON_WRITE_TOKEN` to change its credential. Previous version directories are removed only after the new version is ready; unrelated files are kept.
+- Older `app`, `venv`, and `/etc/vibemon/collector.env` (or `~/.config/vibemon/collector.env`) files remain during migration. The first upgrade reads that saved token; later upgrades read the active version's token.
 - Check it with `systemctl status vibemon-collector` (add `--user` for a user service).
+- Use `systemctl cat vibemon-collector` to inspect the active runtime paths and any overrides (add `--user` for a user service).
 
 **Kubernetes** needs `kubectl` with the target cluster as the current context. The installer creates the `vibemon` namespace, read-only RBAC (list nodes and pods, read node metrics), a Secret with the token, and a Deployment of the published multi-arch collector image. CPU and memory need [metrics-server](https://github.com/kubernetes-sigs/metrics-server); without it, node and pod counts still work. The installer waits until Web accepts the first summary and otherwise shows the collector's last message.
 
-To remove a collector, run the same command with `--uninstall`. On Kubernetes, it removes only objects that the installer labeled; it refuses an existing `vibemon` namespace that the installer did not create. The token stays valid until you delete it on Account. For Prometheus-based clusters and other options, see the [collector guide](https://github.com/opspresso/vibemon-app/tree/main/collector).
+To remove a collector, run the same command with `--uninstall`. On Linux, it stops and disables the owned service before removing its runtime, legacy package/environment, and readiness/token files. A stop failure leaves the files in place. Unrelated files in those parent directories are kept. On Kubernetes, it removes the installer's labeled Deployment, ServiceAccount, Secret, ClusterRole and ClusterRoleBinding. It keeps the namespace and other resources, and refuses an existing `vibemon` namespace that the installer did not create. The token stays valid until you delete it on Account. For Prometheus-based clusters and other options, see the [collector guide](https://github.com/opspresso/vibemon-app/tree/main/collector).
 
 ## Custom resources
 

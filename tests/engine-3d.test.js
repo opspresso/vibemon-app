@@ -2,11 +2,9 @@
  * Tests for the 3D rendering engine (src/engine/vibemon-engine-3d.js).
  *
  * Loaded like tests/engine.test.js: the ES module source is read,
- * import/export-stripped, and evaluated in a vm sandbox. The three.js import
- * is replaced with an empty stub and the monster-states imports with the
- * real definitions (loaded via their own sandbox) — enough to exercise the
- * state/character selection logic and the move implementations against a
- * fake rig, without a WebGL context.
+ * import/export-stripped, and evaluated in a vm sandbox. State definitions
+ * are real, and rig tests supply the installed three.js geometry/materials.
+ * State and move tests use fake joints. None needs a WebGL context.
  */
 
 const { loadBrowserModule } = require('./helpers/browser-module.cjs');
@@ -22,7 +20,7 @@ const companion = loadBrowserModule('src/engine/vibemon-companion.mjs', [
 const { VibeMonEngine3D, createVibeMonEngine, CONSTANTS, REST_POSE, MOVE_FNS, buildMonster } = loadBrowserModule(
   'src/engine/vibemon-engine-3d.js',
   ['VibeMonEngine3D', 'createVibeMonEngine', 'CONSTANTS', 'REST_POSE', 'MOVE_FNS', 'buildMonster'],
-  { THREE: {}, ...monsterStates, ...companion }
+  { ...monsterStates, ...companion }
 );
 
 // container=null: the constructor doesn't touch the DOM; init() (which does)
@@ -65,11 +63,26 @@ describe('engine state/character selection', () => {
 });
 
 describe('rig conformance', () => {
+  test('one engine keeps its graphics dependency when another engine is created', () => {
+    const library = require('three');
+    const first = { ...library, MeshToonMaterial: class FirstMaterial extends library.MeshToonMaterial {} };
+    const second = { ...library, MeshToonMaterial: class SecondMaterial extends library.MeshToonMaterial {} };
+    const engine = createVibeMonEngine(null, { THREE: first, characters: charactersRegistry.characters, defaultCharacter: 'vibemon' });
+    engine.scene = new library.Scene();
+    engine.rig = buildMonster(first, true);
+    engine.scene.add(engine.rig.group);
+    const other = createVibeMonEngine(null, { THREE: second, characters: charactersRegistry.characters });
+    try {
+      engine.setState({ character: 'clawd' });
+      expect(engine.rig.materials.body).toBeInstanceOf(first.MeshToonMaterial);
+      expect(engine.rig.materials.body).not.toBeInstanceOf(second.MeshToonMaterial);
+    } finally { engine.cleanup(); other.cleanup(); }
+  });
   test('the V companion uses matching face anchors and switching disposes its geometry', () => {
     const THREE = require('three');
     const engine = createVibeMonEngine(null, { THREE, characters: charactersRegistry.characters, defaultCharacter: 'vibemon' });
     engine.scene = new THREE.Scene();
-    engine.rig = buildMonster(true);
+    engine.rig = buildMonster(THREE, true);
     engine.scene.add(engine.rig.group);
     const face = engine.rig;
     expect(face.eyes.left.group.position.toArray()).toEqual([-0.45, -0.2, 0.37]);

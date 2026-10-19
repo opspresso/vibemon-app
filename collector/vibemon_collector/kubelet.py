@@ -4,18 +4,20 @@ import json
 import ssl
 from datetime import datetime
 from pathlib import Path
-from urllib.request import HTTPSHandler, ProxyHandler, Request, build_opener
+from urllib.request import ProxyHandler, Request
 from .disk import checked_capacity
 from .transport import NoRedirect
+from .http_deadline import DeadlineOpener, read_limited
 
 SERVICE_ACCOUNT = Path('/var/run/secrets/kubernetes.io/serviceaccount')
 
 
 class KubeletReader:
-    def __init__(self, directory=SERVICE_ACCOUNT):
+    def __init__(self, directory=SERVICE_ACCOUNT, timeout=5):
         self.token_file = directory / 'token'
+        self.timeout = timeout
         context = ssl.create_default_context(cafile=str(directory / 'ca.crt'))
-        self.opener = build_opener(ProxyHandler({}), HTTPSHandler(context=context), NoRedirect())
+        self.opener = DeadlineOpener(ProxyHandler({}), NoRedirect(), context=context)
 
     def read(self, address, port):
         address = ipaddress.ip_address(address)
@@ -25,10 +27,8 @@ class KubeletReader:
         # Projected service-account tokens rotate while the collector is running.
         token = self.token_file.read_text().strip()
         request = Request(f'https://{host}:{port}/stats/summary', headers={'Authorization': f'Bearer {token}', 'Accept': 'application/json'})
-        with self.opener.open(request, timeout=5) as response:
-            raw = response.read(4 * 1024 * 1024 + 1)
-            if len(raw) > 4 * 1024 * 1024:
-                raise ValueError('Kubelet summary exceeds the response limit')
+        with self.opener.open(request, timeout=self.timeout) as response:
+            raw = read_limited(response, 4 * 1024 * 1024)
             return json.loads(raw)
 
 
