@@ -1380,15 +1380,16 @@ class KubernetesSafetyTest(unittest.TestCase):
             if command[:3] == ['kubectl', 'get', 'namespace']:
                 return self.result(stdout=owner)
             return self.result()
-        for owner, removes_namespace in [('vibemon-installer', True), ('', False)]:
+        for owner, allows_removal in [('vibemon-installer', True), ('', False)]:
             calls.clear()
             with self.subTest(owner=owner), mock.patch.object(install.subprocess, 'run', side_effect=run), \
                     mock.patch.object(install.shutil, 'which', return_value='/usr/bin/kubectl'), mock.patch('sys.stdout', io.StringIO()), \
                     mock.patch.object(install, 'NON_INTERACTIVE', True):
-                if removes_namespace:
+                if allows_removal:
                     self.assertTrue(install.uninstall_kubernetes())
                     self.assertIn(['kubectl', 'delete', 'clusterrolebinding,clusterrole', '-l', 'app.kubernetes.io/managed-by=vibemon-installer', '--ignore-not-found'], calls)
-                    self.assertIn(['kubectl', 'delete', 'namespace', 'vibemon', '--ignore-not-found'], calls)
+                    self.assertNotIn(['kubectl', 'delete', 'namespace', 'vibemon', '--ignore-not-found'], calls)
+                    self.assertIn(['kubectl', '-n', 'vibemon', 'delete', 'deployment,serviceaccount,secret', '-l', 'app.kubernetes.io/managed-by=vibemon-installer', '--ignore-not-found'], calls)
                 else:
                     with self.assertRaises(RuntimeError):
                         install.uninstall_kubernetes()

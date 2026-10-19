@@ -133,7 +133,7 @@ A run with a saved token reuses it only for the same Web origin; another origin,
 
 **Kubernetes** needs `kubectl` with the target cluster as the current context. The installer creates the `vibemon` namespace, read-only RBAC (list nodes and pods, read node metrics), a Secret with the token, and a Deployment of the published multi-arch collector image. CPU and memory need [metrics-server](https://github.com/kubernetes-sigs/metrics-server); without it, node and pod counts still work. The installer waits until Web accepts the first summary and otherwise shows the collector's last message.
 
-To remove a collector, run the same command with `--uninstall`. On Kubernetes, it removes only objects that the installer labeled; it refuses an existing `vibemon` namespace that the installer did not create. The token stays valid until you delete it on Account. For Prometheus-based clusters and other options, see the [collector guide](https://github.com/opspresso/vibemon-app/tree/main/collector).
+To remove a collector, run the same command with `--uninstall`. On Kubernetes, it removes the installer's labeled Deployment, ServiceAccount, Secret, ClusterRole and ClusterRoleBinding. It keeps the namespace and other resources, and refuses an existing `vibemon` namespace that the installer did not create. The token stays valid until you delete it on Account. For Prometheus-based clusters and other options, see the [collector guide](https://github.com/opspresso/vibemon-app/tree/main/collector).
 
 ## Custom resources
 

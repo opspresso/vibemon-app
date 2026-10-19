@@ -1997,11 +1997,13 @@ def uninstall_kubernetes(source: FileSource = None, cli_token: str = None) -> bo
     owner = namespace_owner()
     if owner == "other":
         raise RuntimeError(f"The namespace {KUBERNETES_NAMESPACE!r} was not created by this installer; nothing was removed")
-    # Only objects that carry the installer's label are removed.
+    # A namespace label does not establish ownership of later user resources.
+    # Keep the namespace and remove only the labeled objects we install.
     selector = "app.kubernetes.io/managed-by=vibemon-installer"
     run_checked(["kubectl", "delete", "clusterrolebinding,clusterrole", "-l", selector, "--ignore-not-found"], "Removing the collector RBAC")
     if owner == "installer":
-        run_checked(["kubectl", "delete", "namespace", KUBERNETES_NAMESPACE, "--ignore-not-found"], "Removing the collector namespace")
+        run_checked(["kubectl", "-n", KUBERNETES_NAMESPACE, "delete", "deployment,serviceaccount,secret", "-l", selector, "--ignore-not-found"], "Removing the collector workloads and credentials")
+        print(f"  Kept namespace {KUBERNETES_NAMESPACE!r} and other resources.")
     print(f"  {colored('✓', 'green')} Removed the collector from {context}")
     print("  The token stays valid on Web until you delete it on Account.")
     return True
