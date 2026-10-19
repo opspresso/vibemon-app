@@ -557,6 +557,22 @@ startFixture().then(async fixture => {
   await until(() => ports.calls.some(call => call[0] === 'install-update'), 'explicit install action');
 
   await navigate('connections');
+  const originalSignIn = view.signIn;
+  let finishSignIn;
+  view.signIn = {
+    signIn: () => new Promise(resolve => { finishSignIn = resolve; }),
+    cancel() {}
+  };
+  try {
+    await input('#web-url', 'https://vibemon.io');
+    await click('#sign-in');
+    await until(() => Boolean(finishSignIn), 'sign-in request started');
+    await input('#web-url', 'https://draft.example');
+    finishSignIn(client.snapshot());
+    await until(() => ui('!document.getElementById("sign-in").disabled'), 'sign-in request settled');
+    view.notify('settings'); await published();
+    assert.equal(await value('#web-url'), 'https://draft.example', 'a pending sign-in cannot discard a newer address edit');
+  } finally { view.signIn = originalSignIn; }
   await input('#web-url', 'https://edited.example');
   await client.poll(true); await published();
   assert.equal(await value('#web-url'), 'https://edited.example', 'polling preserves unsaved connection edits');
