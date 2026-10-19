@@ -276,6 +276,9 @@ h3 {
 .status-dot.warning {
   background: var(--vm-sidebar-warning);
 }
+.status-dot.danger {
+  background: var(--vm-sidebar-danger);
+}
 /* Marks the navigation item whose page holds an issue; see shared/attention.cjs. */
 .attention-dot {
   flex: none;

@@ -43,6 +43,7 @@
   --vm-sidebar-chip: #ffffff0c;
   --vm-sidebar-good: #69cfb5;
   --vm-sidebar-warning: #efc676;
+  --vm-sidebar-danger: #f7a0b6;
   --vm-dialog-shadow: 0 30px 100px #0004;
   --vm-backdrop: #101b3066;
   --vm-shadow: 0 2px 8px light-dark(#17233b05, #00000012), 0 14px 32px light-dark(#17233b03, #00000012);
