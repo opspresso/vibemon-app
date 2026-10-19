@@ -95,6 +95,7 @@ export function empty(title, description, action, label, compact = false) {
   return node;
 }
 export function choices(select, entries, selected) {
+  const choice = document.activeElement === select || select.dataset.busy ? select.value : String(selected);
   const signature = JSON.stringify(entries);
   if (select.dataset.options !== signature) {
     select.replaceChildren(
@@ -106,7 +107,9 @@ export function choices(select, entries, selected) {
     );
     select.dataset.options = signature;
   }
-  if (document.activeElement !== select) select.value = String(selected);
+  // Keep active edits when options refresh; removed options use the caller's default.
+  const next = entries.some(([value]) => String(value) === choice) ? choice : String(selected);
+  if (select.value !== next) select.value = next;
 }
 let characterImages = new Map([['vibemon', 'vibemon-v2.png']]);
 export function configureSprites(characters) {

@@ -214,6 +214,24 @@ startFixture().then(async fixture => {
 
   await navigate('agents');
   assert.equal(await ui('document.querySelectorAll("#agent-cards .card").length'), 4);
+  await input('#agent-filter', 'codex');
+  await ui('document.getElementById("agent-filter").focus()');
+  state.sources = () => {
+    const current = originalSources();
+    const agent = current.find(source => source.kind === 'agent');
+    return [...current, { ...agent, sourceId: 'new-openclaw',
+      account: { provider: 'openclaw', id: 'new', displayName: 'New account' },
+      agent: { ...agent.agent, character: 'claw' } }];
+  };
+  await client.poll(true); await published();
+  assert.equal(await value('#agent-filter'), 'codex', 'new provider options preserve the focused filter');
+  assert.equal(await ui('document.querySelectorAll("#agent-cards .card").length'), 2);
+  assert.equal(await ui('document.activeElement.id'), 'agent-filter');
+  await input('#agent-filter', 'openclaw');
+  state.sources = originalSources;
+  await client.poll(true); await published();
+  assert.equal(await value('#agent-filter'), 'all', 'a removed provider returns to the valid default');
+  assert.equal(await ui('document.querySelectorAll("#agent-cards .card").length'), 4);
   state.sources = () => originalSources().map(source => source.sourceId === 'codex-personal'
     ? { ...source, observedAt: new Date(Date.now() - 600000).toISOString() }
     : source);
@@ -384,10 +402,23 @@ startFixture().then(async fixture => {
   assert.equal(client.snapshot().sources.some(source => source.sourceId === 'production'), false);
 
   await navigate('companion');
+  const invokeSetting = fixture.settings.invoke.bind(fixture.settings);
+  let releasePreference;
+  const preferenceGate = new Promise(resolve => { releasePreference = resolve; });
+  fixture.settings.invoke = async (action, ...args) => {
+    if (action === 'set-render-mode') await preferenceGate;
+    return invokeSetting(action, ...args);
+  };
   await ui('document.getElementById("render-mode").focus()');
   await input('#render-mode', '2d', 'change');
+  await until(() => ui('document.getElementById("render-mode").disabled'), 'preference save pending');
+  view.notify('activity'); await published();
+  assert.equal(await value('#render-mode'), '2d', 'an older frame preserves the pending preference choice');
+  await screenshot('preference-save-pending');
+  releasePreference();
   await until(() => ports.appearance.RenderMode === '2d', 'render mode saved');
   await until(() => ui('!document.getElementById("render-mode").disabled'), 'render control ready');
+  fixture.settings.invoke = invokeSetting;
   assert.equal(await ui('document.activeElement.id'), 'render-mode', 'saving retains keyboard focus');
   assert.equal(await value('#render-mode'), '2d', 'the save response contains authoritative preferences');
   const setRenderMode = ports.windowManager.setRenderMode;
