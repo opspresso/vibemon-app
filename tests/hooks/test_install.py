@@ -1318,7 +1318,7 @@ class CollectorInstallTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory, mock.patch.dict(os.environ, {
                 'XDG_DATA_HOME': f'{directory}/data', 'XDG_CONFIG_HOME': f'{directory}/config', 'XDG_STATE_HOME': f'{directory}/state'}), \
                 mock.patch.object(install.os, 'geteuid', return_value=1000), mock.patch.object(install.shutil, 'which', return_value='/bin/systemctl'), \
-                mock.patch.object(install.subprocess, 'run') as run, mock.patch('sys.stdout', io.StringIO()):
+                mock.patch.object(install.subprocess, 'run', side_effect=lambda command, **kwargs: subprocess.CompletedProcess(command, 0, f'FragmentPath={paths.unit}\nActiveState=active\nUnitFileState=enabled\n', '')) as run, mock.patch('sys.stdout', io.StringIO()):
             paths = install.CollectorPaths(system=False)
             for path in (paths.base / 'app' / 'vibemon_collector', paths.base / 'venv', paths.state):
                 path.mkdir(parents=True)
@@ -1329,7 +1329,7 @@ class CollectorInstallTest(unittest.TestCase):
             self.assertTrue(install.uninstall_collector())
             for path in (paths.base, paths.state, paths.env_file, paths.unit):
                 self.assertFalse(path.exists(), path)
-            run.assert_any_call(['systemctl', '--user', 'disable', '--now', 'vibemon-collector.service'], capture_output=True)
+            run.assert_any_call(['systemctl', '--user', 'disable', '--now', 'vibemon-collector.service'], input=None, capture_output=True, text=True, env=None, timeout=120)
 
     def test_the_token_file_is_created_owner_only(self):
         with tempfile.TemporaryDirectory() as directory:

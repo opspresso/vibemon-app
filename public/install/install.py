@@ -49,8 +49,10 @@ import shlex
 import shutil
 import subprocess
 import sys
+import tempfile
 import time
 import webbrowser
+from contextlib import contextmanager
 from pathlib import Path
 from urllib.parse import urlencode, urlsplit
 from urllib.request import HTTPRedirectHandler, Request, build_opener
@@ -234,7 +236,7 @@ def validate_token(token: str) -> None:
 # MARK: Web sign-in (OAuth device authorization, RFC 8628)
 #
 # The shell shows a code. The person opens /device on the Web origin, signs in
-# with Google or an invited email, and approves the code. The shell then
+# with Google or a confirmed email account, and approves the code. The shell then
 # receives a write token named after the client and this host.
 
 DEVICE_GRANT = "urn:ietf:params:oauth:grant-type:device_code"
@@ -1751,9 +1753,9 @@ def collector_token(cli_token: str, saved: str, saved_origin: str, origin: str, 
         raise ValueError(str(error)) from None
 
 
-def run_checked(command: list[str], description: str, input_text: str = None, env: dict = None) -> str:
+def run_checked(command: list[str], description: str, input_text: str = None, env: dict = None, timeout: float = None) -> str:
     """Run a command; raise with its error output when it fails."""
-    result = subprocess.run(command, input=input_text, capture_output=True, text=True, env=env)
+    result = subprocess.run(command, input=input_text, capture_output=True, text=True, env=env, timeout=timeout)
     if result.returncode != 0:
         detail = (result.stderr or result.stdout).strip().splitlines()[-1:] or ["no output"]
         raise RuntimeError(f"{description} failed: {detail[0]}")
@@ -1791,28 +1793,37 @@ def saved_collector_token(env_file: Path) -> tuple[str, str]:
     return (match.group(1), match.group(2)) if match else ("", "")
 
 
-def collector_unit(paths: CollectorPaths, origin: str, name: str, ident: str) -> str:
-    python = paths.base / "venv" / "bin" / "python"
-    arguments = [
+def collector_arguments(paths: CollectorPaths, origin: str, name: str, ident: str, runtime: Path = None) -> list[str]:
+    directory = runtime or paths.base
+    python = directory / "venv" / "bin" / "python"
+    return [
         str(python), "-m", "vibemon_collector", "--source-id", ident, "--name", name, "--url", origin,
         "--kind", "host", "--memory-type", "auto", "--disk", "--health-file", str(paths.state / "health"),
     ]
-    for value in arguments + [str(paths.env_file), str(paths.base)]:
+
+
+def collector_unit(paths: CollectorPaths, origin: str, name: str, ident: str, runtime: Path = None) -> str:
+    directory = runtime or paths.base
+    env_file = runtime / "collector.env" if runtime else paths.env_file
+    arguments = collector_arguments(paths, origin, name, ident, runtime)
+    for value in arguments + [str(env_file), str(directory)]:
         if any(character in value for character in '\n\r"%\\'):
             raise ValueError("A collector path or name contains a character that systemd cannot use")
     # systemd: double quotes keep each argument whole; $$ is a literal dollar sign.
     command = " ".join('"' + value.replace("$", "$$") + '"' for value in arguments)
     return "\n".join([
         "# Managed by the VibeMon installer",
+        *([f"# VibeMon runtime: {runtime}"] if runtime else []),
         "[Unit]",
         "Description=VibeMon resource collector",
         "After=network-online.target",
         "Wants=network-online.target",
         "",
         "[Service]",
+        f"WorkingDirectory={directory}",
         f"ExecStart={command}",
-        f'Environment="PYTHONPATH={paths.base / "app"}"',
-        f"EnvironmentFile={paths.env_file}",
+        f'Environment="PYTHONPATH={directory / "app"}"',
+        f"EnvironmentFile={env_file}",
         "Restart=on-failure",
         "RestartSec=10",
         # Exit code 2 means a permanent rejection (token, origin, clock): restarting cannot fix it.
@@ -1822,6 +1833,178 @@ def collector_unit(paths: CollectorPaths, origin: str, name: str, ident: str) ->
         f"WantedBy={'multi-user.target' if paths.system else 'default.target'}",
         "",
     ])
+
+
+@contextmanager
+def collector_lock(paths: CollectorPaths):
+    """Keep the lock inode outside the removable runtime directory."""
+    import fcntl
+
+    paths.env_file.parent.mkdir(parents=True, exist_ok=True)
+    descriptor = os.open(paths.env_file.parent / ".collector.lock", os.O_RDWR | os.O_CREAT, 0o600)
+    try:
+        try:
+            fcntl.flock(descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            raise RuntimeError("Another collector installation or removal is running") from None
+        yield
+    finally:
+        os.close(descriptor)
+
+
+COLLECTOR_RELEASE_MARKER = "VibeMon collector runtime v1\n"
+COLLECTOR_START_TIMEOUT_SECONDS = 180
+
+
+def collector_unit_bytes(path: Path) -> bytes | None:
+    if path.is_symlink() and not path.exists():
+        raise RuntimeError("The collector unit link is broken; its ownership cannot be verified")
+    return path.read_bytes() if path.exists() else None
+
+
+def is_collector_runtime(paths: CollectorPaths, runtime: Path) -> bool:
+    marker = runtime / ".vibemon-release"
+    return runtime.parent.resolve() == (paths.base / "releases").resolve() and runtime.name.startswith("release-") \
+        and not runtime.is_symlink() and marker.is_file() and marker.read_text() == COLLECTOR_RELEASE_MARKER
+
+
+def owned_collector_runtime(paths: CollectorPaths, unit: str) -> Path | None:
+    """Recognize only a release this installer created under its runtime root."""
+    for line in unit.splitlines():
+        if not line.startswith("# VibeMon runtime: "):
+            continue
+        runtime = Path(line.removeprefix("# VibeMon runtime: "))
+        if is_collector_runtime(paths, runtime):
+            return runtime
+        raise RuntimeError("The collector unit names an unrecognized runtime; nothing was changed")
+    return None
+
+
+def collector_service_state(paths: CollectorPaths, timeout: float = 15) -> dict:
+    output = run_checked(paths.systemctl + ["show", "vibemon-collector.service", "--property=FragmentPath,ActiveState,UnitFileState,MainPID"],
+                         "Reading the collector service", timeout=timeout)
+    state = dict(line.split("=", 1) for line in output.splitlines() if "=" in line)
+    if not state.get("ActiveState") or "FragmentPath" not in state or "UnitFileState" not in state:
+        raise RuntimeError("Cannot determine the collector service state")
+    fragment = state["FragmentPath"]
+    if fragment and Path(fragment).resolve() != paths.unit.resolve():
+        raise RuntimeError("The collector service belongs to another unit; nothing was changed")
+    return state
+
+
+def wait_for_collector(paths: CollectorPaths, clock=time.monotonic, sleep=time.sleep) -> None:
+    """Require a newly accepted observation after the previous service stopped."""
+    deadline = clock() + COLLECTOR_START_TIMEOUT_SECONDS
+    while True:
+        remaining = deadline - clock()
+        if remaining <= 0:
+            break
+        state = collector_service_state(paths, timeout=min(15, remaining))
+        if state["ActiveState"] not in {"active", "activating", "reloading"}:
+            raise RuntimeError("The collector stopped before Web accepted an observation")
+        try:
+            acknowledged = float((paths.state / "health").read_text())
+        except FileNotFoundError:
+            pass
+        except ValueError:
+            raise RuntimeError("The collector readiness file is invalid") from None
+        else:
+            if not 0 <= time.time() - acknowledged < 120:
+                raise RuntimeError("The collector readiness timestamp is invalid")
+            return
+        sleep(min(1, max(0, deadline - clock())))
+    raise RuntimeError(f"Web did not accept a collector observation within {COLLECTOR_START_TIMEOUT_SECONDS} seconds")
+
+
+def verify_collector_runtime(paths: CollectorPaths, runtime: Path, arguments: list[str], token: str, process_root=Path("/proc")) -> None:
+    """An accepted observation alone could come from an overridden older runtime."""
+    state = collector_service_state(paths)
+    if state["ActiveState"] != "active" or not state.get("MainPID", "").isdigit() or int(state["MainPID"]) <= 0:
+        raise RuntimeError("The collector has no active process to verify")
+    process = process_root / state["MainPID"]
+    actual = (process / "cmdline").read_bytes().rstrip(b"\0").split(b"\0")
+    environment = dict(entry.split(b"=", 1) for entry in (process / "environ").read_bytes().split(b"\0") if b"=" in entry)
+    if actual != [os.fsencode(argument) for argument in arguments] or (process / "cwd").resolve() != runtime \
+            or environment.get(b"PYTHONPATH") != os.fsencode(runtime / "app") \
+            or environment.get(b"VIBEMON_WRITE_TOKEN") != token.encode("ascii") or environment.get(b"PYTHONHOME"):
+        raise RuntimeError("The collector process does not use the prepared runtime; check systemd overrides")
+
+
+def activate_collector(paths: CollectorPaths, runtime: Path, unit: str, previous: bytes | None, arguments: list[str], token: str) -> None:
+    """Switch one unit to a complete runtime; restore the old unit on failure."""
+    backup_dir = None
+    try:
+        state = collector_service_state(paths)
+        if collector_unit_bytes(paths.unit) != previous:
+            raise RuntimeError("The collector unit changed during preparation; nothing was replaced")
+        was_active = state["ActiveState"] in {"active", "activating", "reloading"}
+        was_enabled = state["UnitFileState"] in {"enabled", "enabled-runtime"}
+        if was_active and previous is None:
+            raise RuntimeError("A collector is running without this installer's unit")
+        paths.unit.parent.mkdir(parents=True, exist_ok=True)
+        backup_dir = Path(tempfile.mkdtemp(prefix=".vibemon-rollback-", dir=paths.unit.parent))
+        backup = backup_dir / "unit"
+        if previous is not None:
+            shutil.copy2(paths.unit, backup, follow_symlinks=False)
+    except BaseException:
+        if backup_dir is not None:
+            shutil.rmtree(backup_dir)
+        shutil.rmtree(runtime)
+        raise
+    stopped = written = enabled = started = False
+    try:
+        if previous is not None:
+            stopped = True
+            run_checked(paths.systemctl + ["stop", "vibemon-collector.service"], "Stopping the previous collector", timeout=120)
+        if collector_unit_bytes(paths.unit) != previous:
+            raise RuntimeError("The collector unit changed while stopping; nothing was replaced")
+        write_text_atomic(paths.unit, unit)
+        written = True
+        run_checked(paths.systemctl + ["daemon-reload"], "Reloading systemd", timeout=120)
+        if not was_enabled:
+            enabled = True
+            run_checked(paths.systemctl + ["enable", "vibemon-collector.service"], "Enabling the collector", timeout=120)
+        (paths.state / "health").unlink(missing_ok=True)
+        started = True
+        run_checked(paths.systemctl + ["start", "vibemon-collector.service"], "Starting the collector", timeout=120)
+        print("  Waiting for Web to accept the first observation…")
+        wait_for_collector(paths)
+        verify_collector_runtime(paths, runtime, arguments, token)
+        if collector_unit_bytes(paths.unit) != unit.encode("utf-8"):
+            raise RuntimeError("The collector unit changed during activation")
+    except BaseException as error:
+        failures = []
+
+        def restore(action):
+            try:
+                action()
+            except Exception as failure:
+                failures.append(str(failure))
+
+        if started:
+            restore(lambda: run_checked(paths.systemctl + ["stop", "vibemon-collector.service"], "Stopping the failed collector", timeout=120))
+            restore(lambda: (paths.state / "health").unlink(missing_ok=True))
+        if enabled:
+            restore(lambda: run_checked(paths.systemctl + ["disable", "vibemon-collector.service"], "Restoring collector enablement", timeout=120))
+        if written:
+            def restore_unit():
+                if paths.unit.is_symlink() or paths.unit.read_bytes() != unit.encode("utf-8"):
+                    raise RuntimeError("The unit was edited during installation; its backup was retained")
+                if previous is None:
+                    paths.unit.unlink()
+                else:
+                    os.replace(backup, paths.unit)
+            restore(restore_unit)
+            restore(lambda: run_checked(paths.systemctl + ["daemon-reload"], "Reloading the previous unit", timeout=120))
+        if stopped and was_active and not failures:
+            restore(lambda: run_checked(paths.systemctl + ["start", "vibemon-collector.service"], "Restoring the previous collector", timeout=120))
+        if failures:
+            raise RuntimeError(f"Collector upgrade failed and restoration is incomplete. Keep {runtime} and {backup_dir} for recovery. "
+                               + "; ".join(failures)) from error
+        shutil.rmtree(backup_dir)
+        shutil.rmtree(runtime)
+        raise
+    shutil.rmtree(backup_dir)
 
 
 def install_collector(source: FileSource, cli_token: str = None) -> bool:
@@ -1834,40 +2017,65 @@ def install_collector(source: FileSource, cli_token: str = None) -> bool:
         print(f"  {colored('!', 'yellow')} The collector needs Python 3.10 or later.")
         return False
     paths = CollectorPaths(system=os.geteuid() == 0)
+    with collector_lock(paths):
+        return install_collector_locked(paths, source, cli_token)
+
+
+def install_collector_locked(paths: CollectorPaths, source: FileSource, cli_token: str = None) -> bool:
     origin = web_origin()
     name = SOURCE_NAME or device_name()
     ident = source_id("host", name)
-    if paths.unit.exists() and "# Managed by the VibeMon installer" not in paths.unit.read_text(encoding="utf-8"):
+    previous = collector_unit_bytes(paths.unit)
+    if previous is not None and b"# Managed by the VibeMon installer" not in previous:
         raise RuntimeError(f"{display_path(paths.unit)} exists and was not created by this installer")
 
-    token = collector_token(cli_token, *saved_collector_token(paths.env_file), origin, name)
+    # Validate service arguments and ownership before requesting a new credential.
+    collector_unit(paths, origin, name, ident)
+    current = owned_collector_runtime(paths, previous.decode("utf-8")) if previous is not None else None
+    service = collector_service_state(paths)
+    if previous is None and service["ActiveState"] not in {"inactive", "failed"}:
+        raise RuntimeError("A collector is running without this installer's unit")
+    supplied = cli_token or os.environ.get("VIBEMON_WRITE_TOKEN")
+    if supplied:
+        validate_token(supplied)
+    token_file = current / "collector.env" if current else paths.env_file
 
-    app_dir = paths.base / "app" / "vibemon_collector"
-    staged = paths.base / "app" / ".staged"
-    shutil.rmtree(staged, ignore_errors=True)
-    staged.mkdir(parents=True)
-    for path in COLLECTOR_FILES:
-        (staged / Path(path).name).write_text(source.get_file(path), encoding="utf-8")
-    shutil.rmtree(app_dir, ignore_errors=True)
-    staged.rename(app_dir)
-    print(f"  {colored('✓', 'green')} Collector files verified and installed in {display_path(paths.base)}")
-
-    venv = paths.base / "venv"
-    if not (venv / "bin" / "python").exists():
-        run_checked([sys.executable, "-m", "venv", str(venv)], "Creating the Python environment")
-    run_checked([str(venv / "bin" / "python"), "-m", "pip", "install", "--quiet", "--disable-pip-version-check", PSUTIL_REQUIREMENT], "Installing psutil")
-    run_checked([str(venv / "bin" / "python"), "-m", "vibemon_collector", "--help"], "Checking the collector",
-                env={**os.environ, "PYTHONPATH": str(paths.base / "app")})
-
-    paths.env_file.parent.mkdir(parents=True, exist_ok=True)
-    paths.state.mkdir(parents=True, exist_ok=True)
-    write_text_atomic(paths.env_file, f"VIBEMON_WRITE_TOKEN={token}\nVIBEMON_URL={origin}\n", mode=0o600)
-    paths.unit.parent.mkdir(parents=True, exist_ok=True)
-    write_text_atomic(paths.unit, collector_unit(paths, origin, name, ident))
-    run_checked(paths.systemctl + ["daemon-reload"], "Reloading systemd")
-    run_checked(paths.systemctl + ["enable", "vibemon-collector.service"], "Enabling the collector")
-    run_checked(paths.systemctl + ["restart", "vibemon-collector.service"], "Starting the collector")
-    print(f"  {colored('✓', 'green')} Collector running as {ident} ({name}). It appears under Resources on Web within a minute.")
+    releases = paths.base / "releases"
+    releases.mkdir(parents=True, exist_ok=True)
+    # A venv embeds its absolute path: build at its final location, never rename it.
+    runtime = Path(tempfile.mkdtemp(prefix="release-", dir=releases)).resolve()
+    try:
+        app_dir = runtime / "app" / "vibemon_collector"
+        app_dir.mkdir(parents=True)
+        for path in COLLECTOR_FILES:
+            (app_dir / Path(path).name).write_text(source.get_file(path), encoding="utf-8")
+        venv = runtime / "venv"
+        run_checked([sys.executable, "-I", "-m", "venv", str(venv)], "Creating the Python environment", timeout=120)
+        run_checked([str(venv / "bin" / "python"), "-I", "-m", "pip", "install", "--quiet", "--disable-pip-version-check", PSUTIL_REQUIREMENT], "Installing psutil", timeout=300)
+        modules = tuple(f"vibemon_collector.{Path(filename).stem}" for filename in COLLECTOR_MODULES if filename != "__init__.py")
+        verification = (
+            f"import importlib,sys; sys.path.insert(0, {str(runtime / 'app')!r}); "
+            f"[importlib.import_module(name) for name in {modules!r}]; "
+            "sys.argv=['vibemon-collector','--help']; importlib.import_module('vibemon_collector.__main__').main()"
+        )
+        run_checked([str(venv / "bin" / "python"), "-I", "-c", verification], "Checking the collector", timeout=30)
+        if collector_unit_bytes(paths.unit) != previous:
+            raise RuntimeError("The collector unit changed during preparation; nothing was replaced")
+        # A failed download or build must not create an unused sign-in credential.
+        token = collector_token(cli_token, *saved_collector_token(token_file), origin, name)
+        write_text_atomic(runtime / "collector.env", f"VIBEMON_WRITE_TOKEN={token}\nVIBEMON_URL={origin}\n", mode=0o600)
+        (runtime / ".vibemon-release").write_text(COLLECTOR_RELEASE_MARKER)
+        unit = collector_unit(paths, origin, name, ident, runtime)
+        paths.state.mkdir(parents=True, exist_ok=True)
+    except BaseException:
+        shutil.rmtree(runtime)
+        raise
+    activate_collector(paths, runtime, unit, previous, collector_arguments(paths, origin, name, ident, runtime), token)
+    # Only marked release directories belong to this layout. Keep legacy files.
+    for previous_runtime in releases.iterdir():
+        if previous_runtime.resolve() != runtime and is_collector_runtime(paths, previous_runtime):
+            shutil.rmtree(previous_runtime)
+    print(f"  {colored('✓', 'green')} Collector running as {ident} ({name}); Web accepted its first observation.")
     if not paths.system:
         linger = subprocess.run(["loginctl", "show-user", getpass_user(), "-p", "Linger", "--value"], capture_output=True, text=True)
         if linger.stdout.strip() != "yes":
@@ -1976,13 +2184,30 @@ def uninstall_collector(source: FileSource = None, cli_token: str = None) -> boo
     paths = CollectorPaths(system=os.geteuid() == 0) if hasattr(os, "geteuid") else None
     if paths is None or not shutil.which("systemctl"):
         return SKIPPED
-    if paths.unit.exists():
-        subprocess.run(paths.systemctl + ["disable", "--now", "vibemon-collector.service"], capture_output=True)
-        remove_path(paths.unit, "collector service")
-        subprocess.run(paths.systemctl + ["daemon-reload"], capture_output=True)
-    remove_path(paths.base, "collector files")
-    remove_path(paths.state, "collector state")
-    remove_path(paths.env_file, "collector token file")
+    with collector_lock(paths):
+        unit = collector_unit_bytes(paths.unit)
+        if unit is not None and b"# Managed by the VibeMon installer" not in unit:
+            raise RuntimeError("The collector unit was not created by this installer; nothing was removed")
+        service = collector_service_state(paths)
+        if unit is None and service["ActiveState"] not in {"inactive", "failed"}:
+            raise RuntimeError("A collector is running without this installer's unit; nothing was removed")
+        if unit is not None:
+            run_checked(paths.systemctl + ["disable", "--now", "vibemon-collector.service"], "Stopping and disabling the collector", timeout=120)
+            remove_path(paths.unit, "collector service")
+            run_checked(paths.systemctl + ["daemon-reload"], "Reloading systemd", timeout=120)
+        releases = paths.base / "releases"
+        if releases.exists():
+            for runtime in releases.iterdir():
+                if is_collector_runtime(paths, runtime):
+                    remove_path(runtime, "collector runtime")
+        # These are the package and venv of installations before versioned runtimes.
+        remove_path(paths.base / "app" / "vibemon_collector", "legacy collector package")
+        remove_path(paths.base / "venv", "legacy collector environment")
+        remove_path(paths.state / "health", "collector readiness")
+        remove_path(paths.env_file, "legacy collector token file")
+        for directory in (paths.base / "app", releases, paths.base, paths.state):
+            if directory.is_dir() and not directory.is_symlink() and not any(directory.iterdir()):
+                directory.rmdir()
     print("  The token stays valid on Web until you delete it on Account.")
     return True
 
