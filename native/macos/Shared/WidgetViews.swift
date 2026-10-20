@@ -167,7 +167,9 @@ struct StatusLine: View {
                 .fill(status.tone.color)
                 .frame(width: 7, height: 7)
                 .widgetAccentable()
-                .accessibilityHidden(true)
+                .accessibilityElement()
+                .accessibilityLabel(Localization.text("Saved data"))
+                .accessibilityHidden(status.state != "stale")
             if status.state != "stale" {
                 Text(status.label)
                     .font(.system(size: 11, weight: .semibold))
