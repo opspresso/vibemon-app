@@ -57,7 +57,7 @@ test('Korean notices and tray menu use the shared terms', () => {
     integrations: 'Claude Code 복구 필요 · Codex CLI 업데이트 있음 · 클라우드 전송 확인 실패',
     update: '버전 9.9.9 설치 준비됨'
   });
-  const tray = new TrayManager({ getProjectIds: () => [] }, { getVersion: () => '1.2.3', quit: jest.fn() });
+  const tray = new TrayManager({ getProjectIds: () => [], isCompanionShown: () => false }, { getVersion: () => '1.2.3', quit: jest.fn() });
   tray.setAttention(notices);
   const labels = tray.buildMenuTemplate().filter(item => item.label).map(item => item.label.split(' — ')[0]);
   expect(labels).toEqual(['VibeMon 1.2.3', '대시보드', '컴패니언 보기', '설정…', '연동…', 'VibeMon 정보', 'VibeMon 종료']);

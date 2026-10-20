@@ -163,7 +163,7 @@ curl -X POST http://127.0.0.1:19280/close \
 
 ### POST /show
 
-Show an existing character window. Use **Show companion** in the App to recreate a closed window.
+Show an existing character window. Use **Show companion** in the App to recreate a closed window. While the companion is hidden, no window exists and the response has `success: false`.
 
 ```bash
 # Show the window regardless of which project it follows

@@ -692,6 +692,34 @@ describe('restoreLastWindow', () => {
     manager.cleanup();
   });
 
+  test('a hidden companion stays closed while status updates move focus, and shows the focused project again', () => {
+    const manager = new CharacterWindowManager();
+    const window = makeMockWindow();
+    window.close = jest.fn(() => window.on.mock.calls.find(([event]) => event === 'closed')[1]());
+    const { BrowserWindow } = require('electron');
+    BrowserWindow.mockImplementationOnce(() => window);
+    manager.routeStatusUpdate('proj-a', { project: 'proj-a', state: 'working', character: 'codex' });
+    expect(manager.isCompanionShown()).toBe(true);
+
+    manager.setCompanionVisible(false);
+    expect(window.close).toHaveBeenCalled();
+    expect(manager.isCompanionShown()).toBe(false);
+    expect(manager.store.get('companionVisible')).toBe(false);
+    const creations = BrowserWindow.mock.calls.length;
+    manager.routeStatusUpdate('proj-b', { project: 'proj-b', state: 'notification', character: 'clawd' });
+    expect(BrowserWindow).toHaveBeenCalledTimes(creations);
+    expect(manager.getFocusedProjectId()).toBe('proj-b');
+    expect(manager.restoreLastWindow()).toBeNull();
+
+    manager.setCompanionVisible(true);
+    BrowserWindow.mockImplementationOnce(() => makeMockWindow());
+    const restored = manager.restoreLastWindow();
+    expect(restored.projectId).toBe('proj-b');
+    expect(restored.stateData.state).toBe('notification');
+    expect(manager.isCompanionShown()).toBe(true);
+    manager.cleanup();
+  });
+
   test('falls back to a default idle character when nothing was shown yet', () => {
     const manager = new CharacterWindowManager();
     const { BrowserWindow } = require('electron');

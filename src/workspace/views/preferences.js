@@ -56,6 +56,7 @@ export function setupPreferences({ getFrame, request, run, notify }) {
   bind('dock-corner-size', 'set-dock-auto-scale', (input) => input.value === 'shrink');
   bind('open-at-login', 'set-open-at-login', (input) => input.checked);
   bind('dev-mode', 'set-dev-mode', (input) => input.checked);
+  bind('companion-visible', 'set-companion-visible', (input) => input.checked);
   bind('vibemon-debug', 'set-vibemon-config', (input) => ({ debug: input.checked }));
   bind('vibemon-auto-launch', 'set-vibemon-config', (input) => ({ auto_launch: input.checked }));
   bind('vibemon-serial-port', 'set-vibemon-config', (input) => ({ serial_port: input.value }), 'blur');
@@ -233,6 +234,7 @@ export function setupPreferences({ getFrame, request, run, notify }) {
     for (const [id, checked] of [
       ['open-at-login', settings.openAtLogin],
       ['dev-mode', settings.devMode],
+      ['companion-visible', settings.companionVisible],
       ['vibemon-debug', settings.vibemonConfig.debug],
       ['vibemon-auto-launch', settings.vibemonConfig.auto_launch]
     ]) {

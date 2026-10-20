@@ -12,6 +12,8 @@ function fixture() {
     windowManager[`set${key}`] = value => { values[key] = value; };
   }
   windowManager.setSpeechBubbleField = (field, enabled) => { values.SpeechBubbleFields[field] = enabled; };
+  windowManager.isCompanionVisible = () => values.CompanionVisible;
+  values.CompanionVisible = true;
   const hook = { name: 'Codex', flag: '--codex', present: true, hasHook: true, changed: true, privateData: 'never expose' };
   const configuration = { debug: false, auto_launch: true, http_urls: [], serial_port: null, vibemon_url: 'https://vibemon.io', vibemon_token: 'never expose' };
   let login = false;
@@ -38,7 +40,8 @@ function fixture() {
       installDownloaded: jest.fn()
     },
     cloudDelivery: { snapshot: () => ({ status: 'not-verified', tokenConfigured: true }), configure: jest.fn(), check: jest.fn(), disconnect: jest.fn() },
-    openExternal: jest.fn(async () => {})
+    openExternal: jest.fn(async () => {}),
+    setCompanionVisible: jest.fn(visible => { values.CompanionVisible = visible; })
   };
   const settings = new WorkspaceSettings(dependencies);
   settings.onSettingsChanged = jest.fn();
@@ -62,6 +65,13 @@ test('preference actions apply through companion ports without owning a window',
   expect(settings).not.toHaveProperty('window');
 });
 
+test('the companion setting shows or hides it through main', () => {
+  const { settings, dependencies } = fixture();
+  settings.invoke('set-companion-visible', false);
+  expect(dependencies.setCompanionVisible).toHaveBeenCalledWith(false);
+  expect(settings.getSnapshot().companionVisible).toBe(false);
+});
+
 test('cloud sign-in keeps its cancellation signal through settings dispatch', () => {
   const { settings, dependencies } = fixture();
   const signal = new globalThis.AbortController().signal;
@@ -73,7 +83,7 @@ test('cloud sign-in keeps its cancellation signal through settings dispatch', ()
 test.each([
   ['set-render-mode', '4d'], ['set-character-lock', '../other'], ['set-character-scale', 7],
   ['set-edge-margin', -1], ['set-always-on-top-mode', '__proto__'], ['set-dock-auto-scale', 1],
-  ['set-dev-mode', 'false'], ['set-open-at-login', 'false'], ['set-speech-bubble-field', 'project', 'false'],
+  ['set-dev-mode', 'false'], ['set-companion-visible', 'false'], ['set-open-at-login', 'false'], ['set-speech-bubble-field', 'project', 'false'],
   ['set-speech-bubble-field', 'unknown', true], ['__proto__'], ['constructor']
 ])('invalid %s input leaves the existing preferences unchanged', (...action) => {
   const { settings } = fixture();

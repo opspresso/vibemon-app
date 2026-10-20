@@ -17,8 +17,10 @@ const EXTERNAL_LINKS = {
 };
 
 class WorkspaceSettings {
-  constructor({ windowManager, app, hookInstaller, vibemonConfigManager, updateChecker, openExternal, cloudDelivery, getAccountProfiles = () => [] }) {
+  /** `setCompanionVisible` shows or hides the companion through main.js, which also restores its window. */
+  constructor({ windowManager, app, hookInstaller, vibemonConfigManager, updateChecker, openExternal, cloudDelivery, getAccountProfiles = () => [], setCompanionVisible }) {
     this.windowManager = windowManager;
+    this.setCompanionVisible = setCompanionVisible;
     this.app = app;
     this.hookInstaller = hookInstaller;
     this.vibemonConfigManager = vibemonConfigManager;
@@ -83,6 +85,7 @@ class WorkspaceSettings {
       supportsDockCorners: process.platform === 'darwin',
       edgeMargin: this.windowManager.getEdgeMargin(),
       devMode: this.windowManager.getDevMode(),
+      companionVisible: this.windowManager.isCompanionVisible(),
       openAtLogin: this.app.getLoginItemSettings().openAtLogin,
       accountProfiles: this.getAccountProfiles(),
       hooks: this.toHookView(this.hookInstaller.getCachedStatuses()),
@@ -124,6 +127,12 @@ class WorkspaceSettings {
     preference('set-edge-margin', choice(EDGE_MARGINS), value => this.windowManager.setEdgeMargin(value));
     preference('set-dock-auto-scale', boolean, value => this.windowManager.setDockAutoScale(value));
     preference('set-dev-mode', boolean, value => this.windowManager.setDevMode(value));
+    // setCompanionVisible notifies the change itself, also for the tray and menu.
+    handle('set-companion-visible', value => {
+      if (!boolean(value)) throw new Error(t('error.invalidSetting'));
+      this.setCompanionVisible(value);
+      return true;
+    });
     preference('set-open-at-login', boolean, value => this.app.setLoginItemSettings({ openAtLogin: value }));
 
     handle('set-speech-bubble-field', (field, enabled) => {
