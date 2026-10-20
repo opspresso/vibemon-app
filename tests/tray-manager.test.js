@@ -88,18 +88,19 @@ test('the menu exposes navigation and companion visibility without duplicating p
   expect(show.mock.calls).toEqual([[true]]); expect(app.quit).toHaveBeenCalledTimes(1);
 });
 
-test('a shown companion offers Hide companion, and the change reaches the application menu', () => {
-  const setVisible = jest.fn(); manager.setCompanionVisibleHandler(setVisible);
-  const changed = jest.fn(); manager.onCompanionShownChanged = changed;
-  manager.createTray();
-  shown = true; manager.updateMenu();
-  const hide = manager.buildMenuTemplate().find(item => item.label === 'Hide companion');
-  hide.click();
-  expect(setVisible.mock.calls).toEqual([[false]]);
-  shown = false; manager.updateMenu();
-  expect(changed.mock.calls).toEqual([[false], [true], [false]]);
-  expect(native.setContextMenu.mock.calls.at(-1)[0].template.some(item => item.label === 'Show companion')).toBe(true);
-});
+test.each(['darwin', 'win32'])('%s: a shown companion offers Hide companion, and the change reaches the application menu', platform => onPlatform(platform, () => {
+    const setVisible = jest.fn(); manager.setCompanionVisibleHandler(setVisible);
+    const changed = jest.fn(); manager.onCompanionShownChanged = changed;
+    manager.createTray();
+    shown = true; manager.updateMenu();
+    const hide = manager.buildMenuTemplate().find(item => item.label === 'Hide companion');
+    hide.click();
+    expect(setVisible.mock.calls).toEqual([[false]]);
+    shown = false; manager.updateMenu();
+    expect(changed.mock.calls).toEqual([[false], [true], [false]]);
+    // Windows pops the menu on click instead of attaching it, so check the rebuilt menu itself.
+    expect(manager.contextMenu.template.some(item => item.label === 'Show companion')).toBe(true);
+}));
 
 test('250 unchanged status events do not redraw the native tray icon', async () => {
   manager.createTray(); await flush(); native.setImage.mockClear();
