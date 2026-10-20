@@ -94,7 +94,7 @@ private struct ItemView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Header(item: item)
+            Header(item: item, lastReceivedAt: status.state == "stale" ? item.observedAt : nil)
             StatusLine(status: status, age: Age.text(since: item.observedAt, now: date), running: running)
             // A resource message explains its state, so it takes the place of one metric.
             let message = item.kind == .resource ? item.message : nil
@@ -119,6 +119,7 @@ private struct ItemView: View {
 /// The icon, the title, and the subtitle.
 private struct Header: View {
     let item: FeedItem
+    let lastReceivedAt: Date?
 
     var body: some View {
         HStack(spacing: 8) {
@@ -131,18 +132,31 @@ private struct Header: View {
                     .font(.system(size: 14, weight: .semibold))
                     .foregroundStyle(Palette.foreground)
                     .lineLimit(1)
-                Text(item.subtitle)
-                    .font(.system(size: 11))
+                if let lastReceivedAt {
+                    let stamp = lastReceivedAt.formatted(.dateTime.month(.twoDigits).day(.twoDigits).hour().minute())
+                    ViewThatFits(in: .horizontal) {
+                        Text("\(item.subtitle) · \(stamp)")
+                        Text(stamp)
+                    }
+                    .font(.system(size: 10))
                     .foregroundStyle(Palette.muted)
                     .lineLimit(1)
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel(String(format: Localization.text("Last report received: %@"), stamp))
+                } else {
+                    Text(item.subtitle)
+                        .font(.system(size: 11))
+                        .foregroundStyle(Palette.muted)
+                        .lineLimit(1)
+                }
             }
         }
     }
 }
 
-/// A status dot, the state label, and the report age. After the App quits,
-/// the values are the last known ones, so a closed-App mark appears.
-private struct StatusLine: View {
+/// Stale data gets only a warning dot: a delayed widget refresh does not prove
+/// that the resource stopped responding. Other states keep their label and age.
+struct StatusLine: View {
     let status: FeedStatus
     let age: String
     let running: Bool
@@ -153,26 +167,30 @@ private struct StatusLine: View {
                 .fill(status.tone.color)
                 .frame(width: 7, height: 7)
                 .widgetAccentable()
-            Text(status.label)
-                .font(.system(size: 11, weight: .semibold))
-                .foregroundStyle(status.tone.color)
-                .lineLimit(1)
-                // Long labels, such as Needs input, share the row with the age.
-                .minimumScaleFactor(0.8)
-                .layoutPriority(1)
-            Spacer(minLength: 3)
-            if !running {
-                Image(systemName: "powersleep")
-                    .font(.system(size: 9, weight: .semibold))
+                .accessibilityHidden(true)
+            if status.state != "stale" {
+                Text(status.label)
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(status.tone.color)
+                    .lineLimit(1)
+                    // Long labels, such as Needs input, share the row with the age.
+                    .minimumScaleFactor(0.8)
+                    .layoutPriority(1)
+                Spacer(minLength: 3)
+                if !running {
+                    Image(systemName: "clock.arrow.circlepath")
+                        .font(.system(size: 9, weight: .semibold))
+                        .foregroundStyle(Palette.muted)
+                        .accessibilityLabel(Localization.text("Saved data"))
+                }
+                Text(age)
+                    .font(.system(size: 10))
+                    .monospacedDigit()
                     .foregroundStyle(Palette.muted)
-                    .accessibilityLabel(Localization.text("App closed"))
+                    .fixedSize()
             }
-            Text(age)
-                .font(.system(size: 10))
-                .monospacedDigit()
-                .foregroundStyle(Palette.muted)
-                .fixedSize()
         }
+        .frame(minHeight: 14, alignment: .leading)
     }
 }
 
