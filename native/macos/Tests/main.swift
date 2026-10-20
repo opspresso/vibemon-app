@@ -87,6 +87,85 @@ for mode in [WidgetRenderingMode.fullColor, .accented, .vibrant] {
     }
     for image in images { verifyIcon(CharacterArt(file: image.lastPathComponent), mode: mode) }
 }
+
+@MainActor
+func statusPixels(_ state: String, label: String, age: String, running: Bool) -> NSBitmapImageRep {
+    let status = FeedStatus(at: feed.generatedAt, state: state, label: label, tone: state == "stale" ? .warning : .danger)
+    let view = StatusLine(status: status, age: age, running: running)
+        .frame(width: 130, height: 18, alignment: .leading)
+        .environment(\.colorScheme, .light)
+    let renderer = ImageRenderer(content: view)
+    renderer.scale = 3
+    guard let image = renderer.cgImage else { fatalError("Cannot render widget status") }
+    return NSBitmapImageRep(cgImage: image)
+}
+
+let stale = statusPixels("stale", label: "응답 없음", age: "now", running: true)
+let old = statusPixels("stale", label: "Stale", age: "99d", running: false)
+var statusDotPixels = 0
+for y in 0..<stale.pixelsHigh {
+    for x in 0..<stale.pixelsWide {
+        let pixel = stale.colorAt(x: x, y: y)!.usingColorSpace(.deviceRGB)!
+        let other = old.colorAt(x: x, y: y)!.usingColorSpace(.deviceRGB)!
+        precondition(pixel == other, "Stale widget status must not show a label, age, or closed-App mark")
+        if pixel.alphaComponent > 0.5 {
+            statusDotPixels += 1
+            precondition(x < 24, "Only the 7-point status dot may be visible")
+            precondition(pixel.redComponent > pixel.blueComponent && pixel.greenComponent > pixel.blueComponent, "Stale status must use the yellow warning color")
+        }
+    }
+}
+precondition(statusDotPixels > 0, "The stale status dot must remain visible")
+let errorStatus = statusPixels("error", label: "Error", age: "3m", running: true)
+precondition((30..<errorStatus.pixelsWide).contains { x in
+    (0..<errorStatus.pixelsHigh).contains { y in errorStatus.colorAt(x: x, y: y)!.alphaComponent > 0.5 }
+}, "Reported errors must retain their label and age")
+
+@MainActor
+func resourceImage(_ item: FeedItem, date: Date) -> NSBitmapImageRep {
+    let view = WidgetContentView(content: .item(item, running: true), date: date)
+        .padding(16)
+        .frame(width: 170, height: 170)
+        .background(Palette.surface)
+        .environment(\.colorScheme, .light)
+    let renderer = ImageRenderer(content: view)
+    renderer.scale = 3
+    guard let image = renderer.cgImage else {
+        fatalError("Cannot render resource timestamp")
+    }
+    return NSBitmapImageRep(cgImage: image)
+}
+
+func samePixels(_ lhs: NSBitmapImageRep, _ rhs: NSBitmapImageRep) -> Bool {
+    guard lhs.pixelsWide == rhs.pixelsWide && lhs.pixelsHigh == rhs.pixelsHigh else { return false }
+    var largest = 0.0
+    for y in 0..<lhs.pixelsHigh {
+        for x in 0..<lhs.pixelsWide {
+            let a = lhs.colorAt(x: x, y: y)!.usingColorSpace(.deviceRGB)!
+            let b = rhs.colorAt(x: x, y: y)!.usingColorSpace(.deviceRGB)!
+            let delta = max(abs(a.redComponent - b.redComponent), abs(a.greenComponent - b.greenComponent), abs(a.blueComponent - b.blueComponent), abs(a.alphaComponent - b.alphaComponent))
+            largest = max(largest, delta)
+        }
+    }
+    // SwiftUI color conversion can vary by two 8-bit levels between renders.
+    return largest <= 2.0 / 255
+}
+
+guard let resource = feed.items.first(where: { $0.kind == .resource && $0.status(at: feed.generatedAt).state == "stale" }) else {
+    fatalError("A stale resource fixture is required")
+}
+do {
+    var object = try JSONSerialization.jsonObject(with: Data(contentsOf: feedURL)) as! [String: Any]
+    var items = object["items"] as! [[String: Any]]
+    let index = items.firstIndex { $0["id"] as? String == resource.id }!
+    items[index]["observedAt"] = resource.observedAt.addingTimeInterval(-86400).formatted(.iso8601)
+    object["items"] = items
+    let older = try WidgetFeed.decode(JSONSerialization.data(withJSONObject: object)).item(id: resource.id)!
+    let original = resourceImage(resource, date: feed.generatedAt)
+    let delayed = resourceImage(resource, date: feed.generatedAt.addingTimeInterval(7200))
+    precondition(samePixels(original, delayed), "The receipt timestamp must remain factual between refreshes")
+    precondition(!samePixels(original, resourceImage(older, date: feed.generatedAt)), "The report date must be visible")
+}
 // The feed loader and future timeline use the same code as the extension.
 precondition(FeedStore.load(from: feedURL).feed?.items.count == feed.items.count)
 let sample = Samples.item(.agent, now: feed.generatedAt)

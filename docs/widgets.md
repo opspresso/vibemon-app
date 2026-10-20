@@ -26,10 +26,10 @@ A new widget leaves its selection empty and shows the first item of its kind in 
 
 ## What the widget shows
 
-- **Header**: the icon, the name, and below the name the state in its color with the age of the last report, for example `3m`. The widget picker shows the account or resource type. States use the same names and rules as the Dashboard: a resource becomes **Stale** 120 seconds after its last receipt, and a coding agent ages to **Idle** and then **Inactive** when its hooks stop reporting.
-- **Detail line**: the collector's message for a resource, or **App closed** after VibeMon quits. A coding agent has no detail line.
+- **Header**: the icon, the name, and below the name the state in its color with the age of the last report, for example `3m`. A stale resource shows only a yellow dot in this status line, without a state label, age, or saved-data mark. Its header shows the absolute date and time of the last report received, so the values are not mistaken for live data. WidgetKit can delay a refresh, so old data does not prove that the resource stopped responding. The widget picker shows the account or resource type. State rules remain the same as the Dashboard: a resource becomes stale 120 seconds after its last receipt, and a coding agent ages to **Idle** and then **Inactive** when its hooks stop reporting.
+- **Detail line**: the collector's message for a resource. A coding agent has no detail line.
 - **Metrics**: the first three metrics selected in **Customize view** for a resource. A coding agent shows **Context**, **Session**, and **Weekly**. A plan usage bar uses the warning color from 70% and the danger color from 90%. Beside **Session** and **Weekly**, `↻ 2h5m` is the time until that limit resets: `now`, minutes (`42m`), hours and minutes (`2h5m`), or days and hours (`3d1h`). It counts down without new data and is absent when the hook reports no reset time. `—` means no measurement was reported.
-- **App closed**: VibeMon has quit. The values are the last known ones and keep aging.
+- **Saved data**: a clock mark identifies values from a saved snapshot after VibeMon quits. It does not claim that the App is still closed; a widget can wait for its next refresh after the App restarts.
 - **Desktop not focused**: macOS draws the widget in one color. The character is then drawn without its tile, so its outline stays visible, and gauges are white on a faint track.
 
 A coding agent combines all projects of one provider account. The state of the project that needs attention is shown first, for example a project waiting for input. Local hook reports replace the cloud copy of the same project. When a hook report has no usage, the widget uses the plan usage on this Mac.

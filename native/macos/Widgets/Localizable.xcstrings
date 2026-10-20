@@ -231,29 +231,6 @@
         }
       }
     },
-    "App closed" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "App closed"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "アプリは終了しています"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "앱 종료됨"
-          }
-        }
-      }
-    },
     "Build server" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1147,6 +1124,52 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "保存したアカウントは利用できません。ウィジェットを編集し、現在のアカウントを選択してください。"
+          }
+        }
+      }
+    },
+    "Saved data" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Saved data"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "저장된 데이터"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "保存済みデータ"
+          }
+        }
+      }
+    },
+    "Last report received: %@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Last report received: %@"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "마지막 보고 수신: %@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "最終レポート受信: %@"
           }
         }
       }
