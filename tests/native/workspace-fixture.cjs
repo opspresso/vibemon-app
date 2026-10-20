@@ -81,7 +81,7 @@ async function startFixture() {
   const settings = new WorkspaceSettings({ ...ports, cloudDelivery });
   const errors = [];
   const view = new WorkspaceWindow({ monitoring: client, settings, ...ports, reportError: error => { errors.push(error.message); } });
-  const trayManager = new TrayManager({ getProjectIds: () => [], getState: () => null }, app);
+  const trayManager = new TrayManager({ getProjectIds: () => [], getState: () => null, isCompanionShown: () => false }, app);
   // The same composition as main.js: every issue source refreshes the tray.
   const refreshAttention = () => trayManager.setAttention(attentionNotices(attentionAreas(client.snapshot(), settings.getSnapshot())));
   settings.onSettingsChanged = () => { view.notify('settings'); refreshAttention(); };
@@ -90,7 +90,7 @@ async function startFixture() {
   client.on('change', refreshAttention);
   trayManager.openDashboard = () => view.open('overview');
   trayManager.openSettings = page => view.open(page);
-  trayManager.setShowCharacterHandler(ports.showCompanion);
+  trayManager.setCompanionVisibleHandler(ports.setCompanionVisible);
   trayManager.createTray();
   trayManager.tray.setToolTip('VibeMon workspace preview');
   function cleanup() {
@@ -98,7 +98,7 @@ async function startFixture() {
   }
   app.once('before-quit', cleanup);
   await client.configure({ url: 'https://vibemon.io', token: TOKEN });
-  installWorkspaceMenu({ open: page => view.open(page), showCompanion: ports.showCompanion });
+  installWorkspaceMenu({ open: page => view.open(page), companionShown: false, setCompanionVisible: ports.setCompanionVisible });
   // Selecting the native menu action creates the workspace; the tray alone does not.
   const selectDashboard = () => Menu.buildFromTemplate(trayManager.buildMenuTemplate()).items.find(item => item.label.startsWith(t('nav.dashboard'))).click();
   assert.equal(view.window, null, 'creating the tray does not open the workspace');

@@ -13,12 +13,13 @@ const { TrayManager, createTrayIcon } = require('../src/modules/tray-manager.cjs
 const { Tray, Menu, BrowserWindow } = require('electron');
 const fs = require('fs');
 const { DEFAULT_CHARACTER } = require('../src/shared/config.cjs');
-let manager, native, events, companion, app, focused;
+let manager, native, events, companion, app, focused, shown;
 const flush = () => new Promise(setImmediate);
 beforeEach(() => {
   jest.clearAllMocks();
   focused = { project: 'one', state: 'working', character: 'codex' };
-  companion = { getProjectIds: () => focused ? ['one'] : [], getState: () => focused };
+  shown = false;
+  companion = { getProjectIds: () => focused ? ['one'] : [], getState: () => focused, isCompanionShown: () => shown };
   app = { quit: jest.fn(), getVersion: () => '9.8.7' };
   events = new Map();
   native = { on: jest.fn((name, callback) => events.set(name, callback)), setImage: jest.fn(), setToolTip: jest.fn(), setContextMenu: jest.fn(), popUpContextMenu: jest.fn(), destroy: jest.fn() };
@@ -76,7 +77,7 @@ test('tray creation requires the dashboard action to be wired', () => {
 });
 
 test('the menu exposes navigation and companion visibility without duplicating preferences', () => {
-  const show = jest.fn(); manager.setShowCharacterHandler(show);
+  const show = jest.fn(); manager.setCompanionVisibleHandler(show);
   const template = manager.buildMenuTemplate();
   expect(template.map(item => item.label ?? '—')).toEqual(['VibeMon 9.8.7', '—', 'Dashboard', 'Show companion', '—', 'Settings…', 'Integrations…', '—', 'About VibeMon', 'Quit VibeMon']);
   expect(template[0].enabled).toBe(false);
@@ -84,7 +85,20 @@ test('the menu exposes navigation and companion visibility without duplicating p
   for (const item of menu) item.click();
   expect(manager.openDashboard).toHaveBeenCalledTimes(1);
   expect(manager.openSettings.mock.calls).toEqual([['companion'], ['integrations'], ['about']]);
-  expect(show).toHaveBeenCalledTimes(1); expect(app.quit).toHaveBeenCalledTimes(1);
+  expect(show.mock.calls).toEqual([[true]]); expect(app.quit).toHaveBeenCalledTimes(1);
+});
+
+test('a shown companion offers Hide companion, and the change reaches the application menu', () => {
+  const setVisible = jest.fn(); manager.setCompanionVisibleHandler(setVisible);
+  const changed = jest.fn(); manager.onCompanionShownChanged = changed;
+  manager.createTray();
+  shown = true; manager.updateMenu();
+  const hide = manager.buildMenuTemplate().find(item => item.label === 'Hide companion');
+  hide.click();
+  expect(setVisible.mock.calls).toEqual([[false]]);
+  shown = false; manager.updateMenu();
+  expect(changed.mock.calls).toEqual([[false], [true], [false]]);
+  expect(native.setContextMenu.mock.calls.at(-1)[0].template.some(item => item.label === 'Show companion')).toBe(true);
 });
 
 test('250 unchanged status events do not redraw the native tray icon', async () => {

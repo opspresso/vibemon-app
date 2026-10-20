@@ -100,7 +100,10 @@ class TrayManager {
     this.iconKey = null;
     this.tooltip = null;
     this.openSettings = null;
-    this.showCharacterHandler = null;
+    this.companionVisibleHandler = null;
+    // Called after a menu rebuild that changed whether the companion is shown.
+    this.onCompanionShownChanged = null;
+    this.companionShown = null;
     this.openDashboard = null;
   }
 
@@ -116,13 +119,12 @@ class TrayManager {
   }
 
   /**
-   * Set the handler that re-shows the character window after it closed
-   * (sleep close-timeout or a manual close). Wired by main.js, which owns
-   * the window/state/bubble orchestration.
-   * @param {() => void} handler
+   * Set the handler of the Show/Hide companion item. Wired by main.js, which
+   * owns the window/state/bubble orchestration.
+   * @param {(visible: boolean) => void} handler
    */
-  setShowCharacterHandler(handler) {
-    this.showCharacterHandler = handler;
+  setCompanionVisibleHandler(handler) {
+    this.companionVisibleHandler = handler;
   }
 
   /**
@@ -203,7 +205,9 @@ class TrayManager {
       { label: t('tray.version', { version: this.app.getVersion() }), enabled: false },
       { type: 'separator' },
       flagged({ label: t('nav.dashboard'), click: () => this.openDashboard?.() }, dashboard),
-      { label: t('action.showCompanion'), click: () => this.showCharacterHandler?.() },
+      this.windowManager.isCompanionShown()
+        ? { label: t('action.hideCompanion'), click: () => this.companionVisibleHandler?.(false) }
+        : { label: t('action.showCompanion'), click: () => this.companionVisibleHandler?.(true) },
       { type: 'separator' },
       flagged({ label: t('action.settingsMenu'), accelerator: 'CmdOrCtrl+,', registerAccelerator: false, click: () => this.openSettings?.(connection ? 'connections' : 'companion') }, connection),
       flagged({ label: t('action.integrationsMenu'), click: () => this.openSettings?.('integrations') }, integrations),
@@ -217,7 +221,12 @@ class TrayManager {
     // macOS handles mouse-down/tracking natively. Rebuilding a menu in a JS
     // click callback delays opening and loses clicks during double-clicks,
     // so the menu is rebuilt only when its notices change.
-    const key = JSON.stringify(this.notices);
+    const companionShown = this.windowManager.isCompanionShown();
+    const key = JSON.stringify({ notices: this.notices, companionShown });
+    if (companionShown !== this.companionShown) {
+      this.companionShown = companionShown;
+      this.onCompanionShownChanged?.(companionShown);
+    }
     if (!this.tray || (this.contextMenu && this.menuKey === key)) return;
     this.menuKey = key;
     this.contextMenu = Menu.buildFromTemplate(this.buildMenuTemplate());

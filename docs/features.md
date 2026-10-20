@@ -152,6 +152,10 @@ The timeout counts from the last report. While an agent turn runs, hooks repeat 
 
 After 10 minutes in sleep state, the window automatically closes. It reappears on the next status update — or on demand via the tray menu's **Show companion** action, which reopens the character (and its speech bubble) immediately.
 
+### Show or hide the companion
+
+Select **Hide companion** in the tray menu or the **Workspace** menu, or turn off **Settings → Companion → Show companion**. The character and its speech bubble close and stay closed, also after a restart. Status updates continue: the tray icon, the dashboard, and the widgets still show them. Select **Show companion** to bring the character back at once. It shows the project that has focus now.
+
 ## Animations
 
 - **Floating**: Gentle motion (±3px horizontal, ±5px vertical, ~3.2s cycle)
@@ -243,9 +247,9 @@ A small, transparent window with input only on its visible body and tail that di
 
 ### Workspace and settings
 
-The tray icon opens a menu. Its first line shows the installed version, for example **VibeMon 3.8.5**. Below it are **Dashboard** and **Show companion**, then **Settings…** and **Integrations…**, then **About VibeMon** and **Quit VibeMon**. Select **Dashboard** to open the workspace with Overview, Resources, Coding agents, and Settings. Connections, Companion, Integrations, and About share its navigation and connection state. Preference changes apply immediately; connection and display-selection forms require Save. Search fields and unsaved choices survive automatic polling.
+The tray icon opens a menu. Its first line shows the installed version, for example **VibeMon 3.8.5**. Below it are **Dashboard** and **Show companion** or **Hide companion**, then **Settings…** and **Integrations…**, then **About VibeMon** and **Quit VibeMon**. Select **Dashboard** to open the workspace with Overview, Resources, Coding agents, and Settings. Connections, Companion, Integrations, and About share its navigation and connection state. Preference changes apply immediately; connection and display-selection forms require Save. Search fields and unsaved choices survive automatic polling.
 
-The tray menu provides Dashboard, Settings, Show companion, Integrations, About VibeMon, and Quit VibeMon. Usage and preference controls live in the workspace instead of submenus. **Show companion** restores the last shown character and speech bubble after they close, without waiting for another status event.
+The tray menu provides Dashboard, Settings, Show companion or Hide companion, Integrations, About VibeMon, and Quit VibeMon. Usage and preference controls live in the workspace instead of submenus. **Show companion** appears while the character is off the desktop. It restores the character and speech bubble without waiting for another status event. **Hide companion** appears while the character is on the desktop; see [Show or hide the companion](#show-or-hide-the-companion).
 
 See [the desktop workspace guide](monitoring.md) for navigation, connection, settings, and recovery.
 

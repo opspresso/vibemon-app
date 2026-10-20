@@ -230,9 +230,21 @@ const statusIngress = new StatusIngress(stateManager, windowManager, {
 });
 
 /**
- * Tray action "Show Character": reopen the character window — and its
- * speech bubble — after they closed (the sleep close-timeout or a manual
- * close / POST /close). restoreLastWindow recreates the window from the
+ * Show or hide the companion from the tray, the application menu, or
+ * Settings. Hiding closes the character and its bubble, and keeps them
+ * closed until the companion is shown again; status still updates the tray.
+ * Showing reopens the character at once.
+ */
+function setCompanionVisible(visible) {
+  windowManager.setCompanionVisible(visible);
+  if (visible) showCharacterAgain();
+  trayManager?.updateMenu();
+  workspaceSettings?.notifyChanged();
+}
+
+/**
+ * Reopen the character window — and its speech bubble — after they closed
+ * (the sleep close-timeout or a manual close / POST /close). restoreLastWindow recreates the window from the
  * last displayed state (or a default) through the normal routing pipeline,
  * which brings the bubble back via onStateUpdated; here we re-arm the
  * project's state timers and refresh the tray.
@@ -446,7 +458,7 @@ app.whenReady().then(() => {
   trayManager = new TrayManager(windowManager, app);
 
   const cloudDelivery = new HookCloudDelivery({ configManager: vibemonConfigManager, allowLocalHttp: !app.isPackaged });
-  workspaceSettings = new WorkspaceSettings({ windowManager, app, hookInstaller, vibemonConfigManager, updateChecker, cloudDelivery, getAccountProfiles, openExternal: url => shell.openExternal(url) });
+  workspaceSettings = new WorkspaceSettings({ windowManager, app, hookInstaller, vibemonConfigManager, updateChecker, cloudDelivery, getAccountProfiles, setCompanionVisible, openExternal: url => shell.openExternal(url) });
   const monitoringStore = new Store({ name: 'monitoring' });
   monitoringClient = new MonitoringClient({ preferences: monitoringStore, credentials: new CredentialStore(monitoringStore, safeStorage), allowLocalHttp: !app.isPackaged });
   webSignIn = new WebSignIn({
@@ -459,7 +471,7 @@ app.whenReady().then(() => {
     signIn: webSignIn,
     getActivity: () => localActivity(windowManager.getRegisteredStates(), windowManager.getWindowCount() ? windowManager.getFocusedProjectId() : null),
     getUsage: () => getUsageSnapshot(),
-    showCompanion: showCharacterAgain,
+    showCompanion: () => setCompanionVisible(true),
     reportError: error => dialog.showErrorBox(t('dialog.workspaceFailed'), error.message)
   });
   // Every source of an issue lands here: cloud polls, settings, hooks, updates.
@@ -473,8 +485,10 @@ app.whenReady().then(() => {
   if (pendingPage) workspaceWindow.open(pendingPage);
   pendingPage = null;
   trayManager.openSettings = page => workspaceWindow.open(page || 'companion');
-  installWorkspaceMenu({ open: page => workspaceWindow.open(page), showCompanion: showCharacterAgain });
-  trayManager.setShowCharacterHandler(showCharacterAgain);
+  const installMenu = companionShown => installWorkspaceMenu({ open: page => workspaceWindow.open(page), companionShown, setCompanionVisible });
+  installMenu(windowManager.isCompanionShown());
+  trayManager.onCompanionShownChanged = installMenu;
+  trayManager.setCompanionVisibleHandler(setCompanionVisible);
   trayManager.createTray();
   const cloudActivity = statusIngress.cloudActivity(() => monitoringClient.currentTime());
   monitoringClient.on('change', snapshot => {

@@ -32,6 +32,9 @@ function createPorts() {
     companion[`set${key}`] = value => { appearance[key] = value; };
   }
   companion.setSpeechBubbleField = (field, enabled) => { appearance.SpeechBubbleFields[field] = enabled; };
+  let companionVisible = true;
+  companion.isCompanionVisible = () => companionVisible;
+  companion.isCompanionShown = () => false;
   let login = false;
   const config = { debug: false, auto_launch: true, http_urls: ['http://127.0.0.1:19280'], serial_port: '', vibemon_url: 'https://vibemon.io', vibemon_token: 'fixture-secret-must-not-cross-IPC' };
   const hooks = [
@@ -72,7 +75,8 @@ function createPorts() {
       api: { project: 'api-gateway', state: 'thinking', character: 'clawd', model: 'Claude', tool: 'Reviewing changes' }
     }, 'console'),
     getUsage: () => ({ codex: { session: { pct: 38, resetsAt: Date.now() / 1000 + 7200 }, week: { pct: 62, resetsAt: Date.now() / 1000 + 240000 }, modelWeek: null }, claude: { session: { pct: 48, resetsAt: Date.now() / 1000 + 5400 }, week: { pct: 84, resetsAt: Date.now() / 1000 + 180000 }, modelWeek: null } }),
-    showCompanion: () => calls.push(['show-companion'])
+    showCompanion: () => calls.push(['show-companion']),
+    setCompanionVisible: visible => { companionVisible = visible; calls.push(['set-companion-visible', visible]); }
   };
 }
 function trend(item, now = Date.now()) {

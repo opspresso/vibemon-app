@@ -125,6 +125,7 @@ class CharacterWindowManager {
         dockAutoScale: false,  // shrink both overlays to the Dock strip only when enabled
         edgeMargin: 0,  // px kept between the window and the work area's edges, an EDGE_MARGINS entry
         devMode: false,  // tint the character area so its bounds are visible
+        companionVisible: true,  // false keeps the character and its bubble off the desktop
         windowPosition: null  // {x, y} - last dragged position, restored on next creation
       }
     });
@@ -165,6 +166,7 @@ class CharacterWindowManager {
     this.edgeMargin = EDGE_MARGINS.includes(storedEdgeMargin) ? storedEdgeMargin : 0;
 
     this.devMode = this.store.get('devMode') === true;
+    this.companionVisible = this.store.get('companionVisible') !== false;
 
     // Migrate the window position saved by earlier versions, which kept it
     // in a per-key map under the '__character__' key.
@@ -514,6 +516,34 @@ class CharacterWindowManager {
   /**
    * @returns {boolean}
    */
+  /**
+   * Whether the companion may appear on the desktop. While hidden, status
+   * updates still record states and move focus, but open no window.
+   * @returns {boolean}
+   */
+  isCompanionVisible() {
+    return this.companionVisible;
+  }
+
+  /**
+   * Hiding closes the character window, which also removes its speech
+   * bubble. Showing allows the next status update or restoreLastWindow()
+   * to open it again.
+   * @param {boolean} visible
+   */
+  setCompanionVisible(visible) {
+    this.companionVisible = visible === true;
+    this.store.set('companionVisible', this.companionVisible);
+    if (!this.companionVisible && this.isWindowValid(this.entry)) this.entry.window.close();
+  }
+
+  /**
+   * @returns {boolean} whether the companion is on the desktop now
+   */
+  isCompanionShown() {
+    return this.companionVisible && this.isWindowValid(this.entry);
+  }
+
   getDevMode() {
     return this.devMode;
   }
@@ -1088,23 +1118,27 @@ class CharacterWindowManager {
    * front; a closed one is recreated from the last displayed project's
    * latest state, or a default idle state for the default
    * character (or the Character Lock) with no project when nothing has been
-   * shown yet. Routing through routeStatusUpdate re-records the state and
+   * shown yet. A project that took focus while the companion was hidden
+   * comes first. Routing through routeStatusUpdate re-records the state and
    * fires onStateUpdated, so the speech bubble follows the recreated window.
-   * @returns {{projectId: string|null, stateData: Object|null, recreated: boolean}}
+   * A hidden companion stays closed.
+   * @returns {{projectId: string|null, stateData: Object|null, recreated: boolean}|null}
    */
   restoreLastWindow() {
+    if (!this.companionVisible) return null;
     if (this.isWindowValid(this.entry)) {
       this.entry.window.showInactive();
       return { projectId: this.entry.projectId, stateData: this.entry.state, recreated: false };
     }
 
-    const stateData = this.lastWindowState || {
+    const focused = this.focusedProjectId !== null ? this.stateRegistry.get(this.focusedProjectId) : undefined;
+    const stateData = focused || this.lastWindowState || {
       state: 'idle',
       character: this.characterLock !== 'auto' ? this.characterLock : DEFAULT_CHARACTER,
       project: null
     };
 
-    const projectId = this.lastWindowProjectId ?? stateData.project;
+    const projectId = focused ? this.focusedProjectId : this.lastWindowProjectId ?? stateData.project;
     const routeResult = this.routeStatusUpdate(projectId, stateData);
     return {
       projectId,
@@ -1309,8 +1343,8 @@ class CharacterWindowManager {
       : this.selectFocus(projectId, stateData.state);
     if (changed || previousFocus !== focusedProjectId) this.onRegistryChanged?.(projectId);
 
-    if (focusedProjectId !== projectId || (preserveFocus && !this.isWindowValid(this.entry))) {
-      // Background and timed updates do not open or retarget the companion.
+    if (focusedProjectId !== projectId || (preserveFocus && !this.isWindowValid(this.entry)) || !this.companionVisible) {
+      // Background and timed updates, and any update while the companion is hidden, do not open or retarget it.
       return {
         switchedProject: null,
         updateResult: { updated: false, stateChanged: false, infoChanged: false },

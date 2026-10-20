@@ -4,7 +4,11 @@ const { t } = require('../shared/i18n/locale.cjs');
 // Electron gives role items English labels, so every role item sets its label.
 const item = (role, key) => ({ role, label: t(key) });
 
-function installWorkspaceMenu({ open, showCompanion }) {
+/**
+ * Installs the application menu. `companionShown` chooses between Show and
+ * Hide companion; reinstall the menu when it changes.
+ */
+function installWorkspaceMenu({ open, companionShown, setCompanionVisible }) {
   const mac = process.platform === 'darwin';
   const settings = { label: t('action.settingsMenu'), accelerator: 'CmdOrCtrl+,', click: () => open('companion') };
   const about = { label: t('action.aboutApp'), click: () => open('about') };
@@ -23,7 +27,9 @@ function installWorkspaceMenu({ open, showCompanion }) {
     { type: 'separator' },
     { label: t('nav.connections'), click: () => open('connections') },
     { label: t('nav.integrations'), click: () => open('integrations') },
-    { label: t('action.showCompanion'), click: showCompanion },
+    companionShown
+      ? { label: t('action.hideCompanion'), click: () => setCompanionVisible(false) }
+      : { label: t('action.showCompanion'), click: () => setCompanionVisible(true) },
     { type: 'separator' },
     { role: 'close', label: t('action.closeWindow'), accelerator: 'CmdOrCtrl+W' }
   ];

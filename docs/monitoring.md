@@ -2,7 +2,7 @@
 
 Click the VibeMon menu-bar or tray icon to open its menu, then select **Dashboard** to open **Overview**. Resources and coding accounts appear together; local projects and available plan usage appear below them. Use the sidebar for **Resources**, **Coding agents**, or **Settings**. Select **Need attention** in Overview to show selected cloud sources with warnings, errors, stale resource data, or active projects waiting for input. Inactive coding projects do not need attention. Select it again to restore the overview. Closing the workspace keeps the companion and local hooks running. **Show companion** restores the character to the desktop.
 
-The tray menu provides Dashboard, Settings, Show companion, Integrations, About, and Quit. The application menu uses the same workspace pages. On Windows, press `Alt` to reveal the menu bar. Preferences live in the workspace. Keyboard shortcuts are `Cmd/Ctrl+1` for Overview, `Cmd/Ctrl+2` for Resources, `Cmd/Ctrl+3` for Coding agents, and `Cmd/Ctrl+,` for Companion settings. `Cmd/Ctrl+W` closes the workspace window without quitting the App.
+The tray menu provides Dashboard, Settings, Show companion or Hide companion, Integrations, About, and Quit. The application menu uses the same workspace pages. On Windows, press `Alt` to reveal the menu bar. Preferences live in the workspace. Keyboard shortcuts are `Cmd/Ctrl+1` for Overview, `Cmd/Ctrl+2` for Resources, `Cmd/Ctrl+3` for Coding agents, and `Cmd/Ctrl+,` for Companion settings. `Cmd/Ctrl+W` closes the workspace window without quitting the App.
 
 ![Overview with synthetic resource and coding-account data](images/workspace-overview.png)
 
