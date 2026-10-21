@@ -7,7 +7,7 @@
 - [Desktop workspace](monitoring.md) — Sign-in, dashboard, resource/account selection, settings, and recovery.
 - [Desktop features](features.md) — Character states, animations, settings, and tray controls.
 - [macOS widgets](widgets.md) — One resource or coding agent per desktop widget.
-- [Web connection guide](https://vibemon.io/docs) — Google login, tokens, collectors, and coding accounts.
+- [Web connection guide](https://vibemon.io/docs) — Shared Google, Apple, and email sign-in, tokens, collectors, and coding accounts.
 
 ## Integrate and develop
 
