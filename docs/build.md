@@ -17,7 +17,7 @@ Build scripts pass `--publish never`. For unsigned local macOS verification, set
 
 Desktop packages bundle Electron, so it belongs in development dependencies. Releases are distributed through GitHub and Homebrew. The root package is private and cannot be published to npm. `dist/` contains generated build artifacts and is not committed.
 
-Desktop packaging uses an explicit allowlist: `src/`, application icons, `LICENSE`, and package metadata, plus production dependencies assembled by electron-builder. Development configuration, environment files, tests, coverage, and maintenance scripts are excluded.
+Desktop packaging uses an explicit allowlist: `src/`, `public/install/manifest.json`, application icons, `LICENSE`, and package metadata, plus production dependencies assembled by electron-builder. Development configuration, environment files, tests, coverage, and maintenance scripts are excluded.
 
 ## Public distribution
 
@@ -35,7 +35,7 @@ Edit the canonical App source, update the export map when adding files, and rege
 
 The native verification workflow runs lint, unit tests, the workspace, overlays, and unpacked packaging on both macOS and Windows. These checks use the pinned pnpm version and frozen lockfile. macOS verification packages use ad-hoc signatures to check the final permissions. Release signing, notarization, and publication require their existing platform secrets; the verification workflows do not exercise them.
 
-Every pull request runs `pull-request.yml`: lint, Jest with coverage thresholds, design tests, and registry and distribution checks on Linux, plus the hook and collector tests on Linux, Windows, and macOS. The macOS job also runs the real-process widget worker smoke test. The full verification runs before a release. `build-release.yml` first calls the public-distribution and native verification workflows on the tagged commit, and the platform builds start only after both pass. Pushes do not start CI; run either release workflow by hand (`gh workflow run registry-drift.yml --ref <branch>`, `gh workflow run overlay-verification.yml --ref <branch>`) when a branch needs a hosted check. Before merging, run the matching local checks.
+Every pull request runs `pull-request.yml`: lint, Jest with coverage thresholds, design tests, and registry and distribution checks on Linux, plus the hook and collector tests on Linux, Windows, and macOS. The macOS job also runs the real-process widget worker smoke test. The full verification runs before a release. `build-release.yml` first calls the public-distribution and native verification workflows on the tagged commit, and the platform builds start only after both pass. Pushes do not start CI; run either verification workflow by hand (`gh workflow run registry-drift.yml --ref <branch>`, `gh workflow run overlay-verification.yml --ref <branch>`) when a branch needs a hosted check. Before merging, run the matching local checks.
 
 Windows release builds require `WINDOWS_CERTS` (base64 PKCS#12) and `WINDOWS_CERTS_PASSWORD`. Signing is mandatory. CI compares each EXE with the configured signer, then verifies Authenticode file integrity, the exact leaf certificate, and the timestamp with `osslsigncode`. The configured certificate is an explicit trust anchor for this check; the runner and end-user OS trust stores are not modified. A modified-file check must fail before publication.
 
@@ -44,6 +44,14 @@ The current OpsPresso Windows certificate is self-signed. Windows may show an un
 macOS releases require code-signature, notarization ticket, and Gatekeeper verification. Every release builds the commit referenced by its tag and requires the tag to match `package.json`. Both platform builds and signature checks must pass before GitHub publication. Windows blockmaps are published with the installers; failed Homebrew dispatches fail the workflow.
 
 The macOS main executable declares Apple Events access for terminal focus. Renderer and GPU helpers use separate entitlements without that access. The package includes the permission explanation in English, Korean, and Japanese. Package verification checks the signed main/helper permissions and the bundled explanations; user consent remains controlled by macOS.
+
+## Publish a version
+
+1. Update `version` in `package.json`, run the matching checks above, and merge the change.
+2. Push an annotated `vMAJOR.MINOR.PATCH` tag that matches that version; its message supplies the release notes.
+3. Wait for **Build and Release** to finish on the tagged commit. Confirm both platform signature checks, the published installers and update metadata, and the Homebrew update workflow in `opspresso/homebrew-tap`. A successful dispatch starts the tap update; verify its result separately.
+
+A documentation-only change does not require a new Desktop binary or an App distribution pin when exported files are unchanged.
 
 ## Cloud connection checks
 
