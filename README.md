@@ -33,12 +33,14 @@ Open the installed VibeMon application. It starts in the system tray and listens
 
 1. Click the menu-bar or tray icon and select **Dashboard**.
 2. Open **Settings → Connections** and select **Sign in with VibeMon**.
-3. In the browser, sign in with Google or an email account, then select **Allow**. The App receives its own read token.
+3. In the browser, sign in with Google, Apple, or an email account, then select **Allow**. The App receives its own read token.
 4. In **Overview**, open **Customize view**, select resources, provider accounts, and metrics, then select **Save view**.
+
+The same verified email shares one VibeMon account across Web, Desktop, iPhone, and Android, regardless of the sign-in method. Each device receives its own scoped token. Apple Hide My Email supplies a different address; link it from Web Account if you want it to open an existing account.
 
 For email sign-in, create an account on Web and confirm your email address first.
 
-A source appears after its collector or hook sends the first report. Follow [Get started](https://vibemon.io/docs) to connect a coding tool or server. Use the same VibeMon sign-in for the sending computer and Desktop. Compare one card and its report time with the [Web dashboard](https://vibemon.io/dashboard); Desktop refreshes every 30 seconds. Provider credentials remain on the source machine.
+A source appears after its collector or hook sends the first report. Follow [Get started](https://vibemon.io/docs) to connect a coding tool or server. Use the same verified email for the sending computer and Desktop. Compare one card and its report time with the [Web dashboard](https://vibemon.io/dashboard); Desktop refreshes every 30 seconds. Provider credentials remain on the source machine.
 
 If you already have a read token from [Account](https://vibemon.io/account), open **Use a read token instead**, enter the Web origin and token, then select **Save and connect**. The App keeps it in OS secure storage. **Disconnect this device** clears the local connection and attempts to delete that token on Web. If Web is unreachable, delete it on Account. Other clients using that token also lose access. See [the desktop workspace guide](docs/monitoring.md) for selection, missing data, stale sources, and troubleshooting.
 

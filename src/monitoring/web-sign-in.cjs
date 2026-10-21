@@ -3,7 +3,7 @@
  * (RFC 6749, RFC 7636) and a loopback redirect (RFC 8252).
  *
  * The App opens /authorize in the default browser. The person signs in with
- * Google or an email account and selects Allow. Web then opens
+ * Google, Apple, or an email account and selects Allow. Web then opens
  * http://127.0.0.1:{port}/auth/callback, which the App's local HTTP server
  * passes to complete(). The App exchanges the code with its verifier for an
  * API token. The verifier never leaves this process before the exchange.
