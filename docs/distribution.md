@@ -2,7 +2,7 @@
 
 The public `vibemon-app` repository owns hooks, collectors, the Desktop App, and shared rendering contracts. Private `vibemon-web` owns authentication, ingestion, storage, the dashboard, and the documentation site. This guide describes their public file distribution.
 
-[VibeMon Touch](https://github.com/opspresso/vibemon-esp32) has its own firmware repository. It pins App-owned monitoring rules and design tokens, and reads summaries from Web over HTTPS.
+The iPhone, [Android](https://github.com/opspresso/vibemon-android), and [Touch](https://github.com/opspresso/vibemon-esp32) clients each have their own repository. They pin App-owned monitoring rules and design tokens in `app-contract.json`, generate platform sources from that snapshot, and read summaries from Web over HTTPS. Updating an App export does not advance their pins.
 
 | Content | Source in App | Web destination |
 | --- | --- | --- |
@@ -11,11 +11,11 @@ The public `vibemon-app` repository owns hooks, collectors, the Desktop App, and
 | Product design tokens and mark | `src/shared/design/` | `/static/design/*` |
 | Character images | `src/assets/characters/` | `/static/characters/*` |
 | Shared renderers and resource schema | `src/engine/`, `src/shared/bubble/`, `src/shared/resource-schema.*` | `/static/js/*`, `/static/css/*` |
-| Hook and collector guides | `docs/hooks.md`, `collector/README.md` | `/docs/hooks`, `/docs/collector` |
+| Hook and collector references | `docs/hooks.md`, `collector/README.md` | Repository files `docs/HOOKS.md`, `docs/guides/COLLECTOR.md` |
 | Python resource collector | `collector/` | Install from this public repository |
 | Sprite authoring tools and references | `tools/sprites/` | Not included in runtime packages |
 
-Shared guides are rendered in both repositories. Use relative links only for other exported paths; use absolute public App URLs for repository-only references.
+The reference files are copied into Web for repository readers. Web publishes its own user guides at `/docs/coding-agents` and `/docs/servers`; legacy `/docs/hooks` and `/docs/collector` routes redirect there. The copied references are not separate published pages. Use relative links only for other exported paths; use absolute public App URLs for repository-only references.
 
 `web-distribution.json` is the export allowlist. It excludes private configuration, application preferences, credentials, and authoring artifacts. Static files are exported directly from their runtime source paths, so App does not maintain a second renderer or character copy.
 
