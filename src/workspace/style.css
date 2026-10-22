@@ -1422,6 +1422,12 @@ dialog::backdrop {
   display: contents;
   font-size: 11px;
 }
+.compact-card .metric-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .compact-card .metric-line strong {
   display: block;
   font-size: 15px;

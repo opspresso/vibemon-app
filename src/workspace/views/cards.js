@@ -57,6 +57,8 @@ function createMetric() {
 function updateMetric(node, { metric, value, label, precise = false, now = Date.now() }) {
   const { name, value: output, amount, unit, bar, fill, reset, resetPrefix, resetTime, resetSuffix } = node._parts;
   text(name, label || metricName(metric));
+  // Compact cards truncate a long label to one line; the tooltip keeps it readable.
+  name.title = name.textContent;
   text(amount, reading(value, metric.unit, precise, '—', false));
   text(unit, typeof value === 'number' && Number.isFinite(value) ? measurementUnit(metric.unit) : '');
   output.title = reading(value, metric.unit, true);
