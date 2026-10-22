@@ -60,14 +60,14 @@ struct Provider<Selection: ItemSelection>: AppIntentTimelineProvider {
     let kind: FeedItem.Kind
 
     func placeholder(in context: Context) -> Entry {
-        Entry(date: .now, content: .item(Samples.item(kind), running: true))
+        Entry(date: .now, content: .item(Samples.item(kind)))
     }
 
     func snapshot(for configuration: Selection, in context: Context) async -> Entry {
         let content = content(for: configuration)
         // The gallery shows an example until VibeMon has an item of this kind.
         if context.isPreview, case .notice = content {
-            return Entry(date: .now, content: .item(Samples.item(kind), running: true))
+            return Entry(date: .now, content: .item(Samples.item(kind)))
         }
         return Entry(date: .now, content: content)
     }
@@ -96,7 +96,7 @@ struct EntryView: View {
 
     private var link: URL {
         switch entry.content {
-        case .item(let item, _): item.link
+        case .item(let item): item.link
         case .notice(let notice): notice.link
         }
     }

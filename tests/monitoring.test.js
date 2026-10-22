@@ -294,15 +294,15 @@ describe('cloud monitoring', () => {
     expect(client.snapshot().status).toBe(expected);
     expect(client.snapshot().sources).toHaveLength(1);
   });
-  test('marks cached data stale during an outage and recovers without clearing it to zero', async () => {
+  test('puts cached data on standby during an outage and recovers without clearing it to zero', async () => {
     let now = 1000000;
     const { client, fetchImpl } = fixture(now); client.now = () => now; client.monotonicNow = () => now;
     await client.poll(); now += 120000;
     fetchImpl.mockRejectedValueOnce(new Error('Offline'));
     await client.poll();
-    expect(client.snapshot().sources[0]).toMatchObject({ stale: true, metrics: { cpuPercent: 35, gpuPercent: null } });
+    expect(client.snapshot().sources[0]).toMatchObject({ displayState: 'standby', needsAttention: false, metrics: { cpuPercent: 35, gpuPercent: null } });
     fetchImpl.mockResolvedValue(okResponse({ sources: [source(now)], serverTime: new Date(now).toISOString() }));
-    await client.poll(); expect(client.snapshot().sources[0].stale).toBe(false);
+    await client.poll(); expect(client.snapshot().sources[0].displayState).toBe('ok');
   });
   test.each([-86400000, 86400000])('server receipt age ignores a reader clock offset of %i ms', async offset => {
     const { client, fetchImpl } = fixture();
@@ -317,7 +317,8 @@ describe('cloud monitoring', () => {
     elapsed++;
     fetchImpl.mockRejectedValue(new Error('Offline'));
     await client.poll();
-    expect(client.snapshot()).toMatchObject({ attentionCount: 1, evaluatedAt: 1120000 });
+    expect(client.snapshot()).toMatchObject({ attentionCount: 0, evaluatedAt: 1120000 });
+    expect(client.snapshot().sources[0].displayState).toBe('standby');
     fetchImpl.mockResolvedValue(okResponse({ sources: [source(1120000)], serverTime: null }));
     await client.poll();
     expect(client.snapshot().sources[0].receivedAt).toBe(new Date(1000000).toISOString());

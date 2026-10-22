@@ -6,9 +6,11 @@ const rule = state => Object.hasOwn(states, state) ? states[state] : {};
 const attention = Object.keys(states).filter(state => states[state].attentionRank).sort((a, b) => states[a].attentionRank - states[b].attentionRank);
 const needsAttention = state => attention.includes(state);
 const dominantState = (states, fallback = 'unknown') => attention.find(state => states.includes(state)) ?? fallback;
-// Collectors report resources periodically, so silence means lost data. Coding
-// hooks report events plus a heartbeat while a turn runs, so agent liveness
-// comes from the event clock: a turn that stops reporting ages to idle.
+// A source that no longer reports is on standby: the display keeps its last
+// observation without raising attention. Collectors report resources
+// periodically, so a resource is on standby when its receipts stop. Coding
+// hooks report events plus a heartbeat while a turn runs, so a project is on
+// standby when its event clock ages to sleep.
 const sourceStale = (source, now = Date.now()) => source.kind !== 'agent' && (Boolean(source.stale) || now - Date.parse(source.receivedAt) >= constants.CLOUD_STALE_MS);
 
 function agentTransition(state) {
@@ -29,32 +31,31 @@ function idleAgentState(state, observedAt, now = Date.now()) {
 
 function sourceState(source, now = Date.now()) {
   if (source.agent) {
-    // A project whose event clock reached sleep has stopped reporting.
     const state = idleAgentState(source.agent.state, source.observedAt, now);
-    if (state === 'sleep') return 'inactive';
+    if (state === 'sleep') return 'standby';
     // Health belongs to the event; once its state has aged, so has its health.
     return state === source.agent.state ? dominantState([source.health, state], state) : state;
   }
-  return sourceStale(source, now) ? 'stale' : source.health;
+  return sourceStale(source, now) ? 'standby' : source.health;
 }
 
 function codingAccountState(states) {
-  const reporting = states.filter(state => state !== 'inactive');
-  return dominantState(reporting, reporting[0] ?? 'inactive');
+  const reporting = states.filter(state => state !== 'standby');
+  return dominantState(reporting, reporting[0] ?? 'standby');
 }
 
 const accountState = (account, now = Date.now()) => codingAccountState(account.sources.map(source => sourceState(source, now)));
 function accountActivity(account, now = Date.now()) {
   const state = accountState(account, now);
   // Sources are newest first. Select the project responsible for the badge,
-  // including older input requests; when inactive, retain the last project.
+  // including older input requests; on standby, retain the last project.
   const source = account.sources.find(source => sourceState(source, now) === state);
   const project = source?.agent?.project?.trim() || source?.displayName || account.displayName;
   return { state, source, project };
 }
 function companionState(source, now = Date.now()) {
   const state = sourceState(source, now);
-  const mapped = { inactive: 'sleep', stale: 'sleep', error: 'alert', warning: 'notification', unknown: 'idle', ok: 'idle' };
+  const mapped = { standby: 'sleep', error: 'alert', warning: 'notification', unknown: 'idle', ok: 'idle' };
   return Object.hasOwn(mapped, state) ? mapped[state] : state;
 }
 const accountKey = account => `${account.provider}:${account.id}`;

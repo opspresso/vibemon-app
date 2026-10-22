@@ -11,7 +11,7 @@ enum TimelinePlan {
     static let horizon: TimeInterval = 60 * 60
 
     static func dates(for content: WidgetContent, now: Date) -> [Date] {
-        guard case .item(let item, _) = content else { return [now] }
+        guard case .item(let item) = content else { return [now] }
         let end = now.addingTimeInterval(horizon)
         let countdowns = item.metrics.prefix(3).compactMap(\.resetsAt).flatMap { countdownChanges(until: $0, after: now, until: end) }
         let changes = item.changes(after: now) + ageChanges(since: item.observedAt, after: now, until: end) + countdowns

@@ -4,7 +4,7 @@ import WidgetKit
 
 /// What one widget shows at one moment.
 enum WidgetContent: Sendable {
-    case item(FeedItem, running: Bool)
+    case item(FeedItem)
     case notice(Notice)
 }
 
@@ -56,8 +56,8 @@ struct WidgetContentView: View {
 
     var body: some View {
         switch content {
-        case .item(let item, let running):
-            ItemView(item: item, status: item.status(at: date), date: date, running: running)
+        case .item(let item):
+            ItemView(item: item, status: item.status(at: date), date: date)
         case .notice(let notice):
             NoticeView(notice: notice)
         }
@@ -65,7 +65,7 @@ struct WidgetContentView: View {
 
     /// The tone that tints the widget background.
     var tone: Tone {
-        if case .item(let item, _) = content { return item.status(at: date).tone }
+        if case .item(let item) = content { return item.status(at: date).tone }
         return .neutral
     }
 }
@@ -90,12 +90,11 @@ private struct ItemView: View {
     let item: FeedItem
     let status: FeedStatus
     let date: Date
-    let running: Bool
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Header(item: item, lastReceivedAt: status.state == "stale" ? item.observedAt : nil)
-            StatusLine(status: status, age: Age.text(since: item.observedAt, now: date), running: running)
+            Header(item: item)
+            StatusLine(status: status, age: Age.text(since: item.observedAt, now: date))
             // A resource message explains its state, so it takes the place of one metric.
             let message = item.kind == .resource ? item.message : nil
             if let message {
@@ -119,7 +118,6 @@ private struct ItemView: View {
 /// The icon, the title, and the subtitle.
 private struct Header: View {
     let item: FeedItem
-    let lastReceivedAt: Date?
 
     var body: some View {
         HStack(spacing: 8) {
@@ -132,34 +130,20 @@ private struct Header: View {
                     .font(.system(size: 14, weight: .semibold))
                     .foregroundStyle(Palette.foreground)
                     .lineLimit(1)
-                if let lastReceivedAt {
-                    let stamp = lastReceivedAt.formatted(.dateTime.month(.twoDigits).day(.twoDigits).hour().minute())
-                    ViewThatFits(in: .horizontal) {
-                        Text("\(item.subtitle) · \(stamp)")
-                        Text(stamp)
-                    }
-                    .font(.system(size: 10))
+                Text(item.subtitle)
+                    .font(.system(size: 11))
                     .foregroundStyle(Palette.muted)
                     .lineLimit(1)
-                    .accessibilityElement(children: .ignore)
-                    .accessibilityLabel(String(format: Localization.text("Last report received: %@"), stamp))
-                } else {
-                    Text(item.subtitle)
-                        .font(.system(size: 11))
-                        .foregroundStyle(Palette.muted)
-                        .lineLimit(1)
-                }
             }
         }
     }
 }
 
-/// Stale data gets only a warning dot: a delayed widget refresh does not prove
-/// that the resource stopped responding. Other states keep their label and age.
+/// The state in its color, then the age of the last report. Every state,
+/// including Standby, uses this one layout.
 struct StatusLine: View {
     let status: FeedStatus
     let age: String
-    let running: Bool
 
     var body: some View {
         HStack(spacing: 4) {
@@ -167,30 +151,20 @@ struct StatusLine: View {
                 .fill(status.tone.color)
                 .frame(width: 7, height: 7)
                 .widgetAccentable()
-                .accessibilityElement()
-                .accessibilityLabel(Localization.text("Saved data"))
-                .accessibilityHidden(status.state != "stale")
-            if status.state != "stale" {
-                Text(status.label)
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundStyle(status.tone.color)
-                    .lineLimit(1)
-                    // Long labels, such as Needs input, share the row with the age.
-                    .minimumScaleFactor(0.8)
-                    .layoutPriority(1)
-                Spacer(minLength: 3)
-                if !running {
-                    Image(systemName: "clock.arrow.circlepath")
-                        .font(.system(size: 9, weight: .semibold))
-                        .foregroundStyle(Palette.muted)
-                        .accessibilityLabel(Localization.text("Saved data"))
-                }
-                Text(age)
-                    .font(.system(size: 10))
-                    .monospacedDigit()
-                    .foregroundStyle(Palette.muted)
-                    .fixedSize()
-            }
+                .accessibilityHidden(true)
+            Text(status.label)
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(status.tone.color)
+                .lineLimit(1)
+                // Long labels, such as Needs input, share the row with the age.
+                .minimumScaleFactor(0.8)
+                .layoutPriority(1)
+            Spacer(minLength: 3)
+            Text(age)
+                .font(.system(size: 10))
+                .monospacedDigit()
+                .foregroundStyle(Palette.muted)
+                .fixedSize()
         }
         .frame(minHeight: 14, alignment: .leading)
     }

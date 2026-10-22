@@ -256,7 +256,7 @@ test('only the workspace main frame receives the App language and its messages',
     expect(trusted.returnValue.locale).toBe('ko');
     expect(trusted.returnValue.messages.ko['nav.overview']).toBe('개요');
     expect(trusted.returnValue.messages.en['nav.overview']).toBe('Overview');
-    expect(trusted.returnValue.messages.ko['state.inactive']).toBe('비활성');
+    expect(trusted.returnValue.messages.ko['state.standby']).toBe('대기');
     const frame = { sender: native.webContents, senderFrame: {} };
     reply(frame);
     expect(frame.returnValue).toBeNull();

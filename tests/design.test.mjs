@@ -78,17 +78,17 @@ test('account freshness follows reporting projects while preserving stopped proj
   const state = sources => accountState({ sources }, now);
   assert.equal(state([fresh, old]), 'working');
   assert.equal(state([old, fresh]), 'working');
-  assert.equal(sourceState(old, now), 'inactive');
-  assert.equal(state([old, { ...fresh, observedAt: old.observedAt }]), 'inactive');
+  assert.equal(sourceState(old, now), 'standby');
+  assert.equal(state([old, { ...fresh, observedAt: old.observedAt }]), 'standby');
   assert.equal(needsAttention(state([old])), false);
-  assert.deepEqual(statePresentation('inactive'), ['Inactive', 'neutral']);
+  assert.deepEqual(statePresentation('standby'), ['Standby', 'neutral']);
   assert.equal(state([fresh, { ...fresh, agent: { state: 'notification' } }, old]), 'notification');
   assert.equal(state([fresh, { ...fresh, health: 'error' }, old]), 'error');
 });
 
 test('an account surfaces attention from any reporting project', () => {
   assert.equal(dominantState(['working', 'notification'], 'working'), 'notification');
-  assert.equal(dominantState(['warning', 'alert', 'stale'], 'working'), 'alert');
+  assert.equal(dominantState(['warning', 'alert', 'standby'], 'working'), 'alert');
   assert.equal(dominantState(['ok', 'idle'], 'idle'), 'idle');
   assert.equal(needsAttention('notification'), true);
   assert.equal(needsAttention('thinking'), false);

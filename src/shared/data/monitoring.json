@@ -19,13 +19,8 @@
       "label": "Unknown health",
       "tone": "neutral"
     },
-    "stale": {
-      "label": "Stale",
-      "tone": "warning",
-      "attentionRank": 5
-    },
-    "inactive": {
-      "label": "Inactive",
+    "standby": {
+      "label": "Standby",
       "tone": "neutral"
     },
     "working": {

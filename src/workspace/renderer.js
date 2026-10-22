@@ -1,5 +1,5 @@
 import { $, text, hydrateIcons, connection, isConnectionStatus, choices, configureSprites, ago, providerName } from './dom.js';
-import { renderCards, renderActivity, renderUsage, accountCard, needsAttention } from './views/cards.js';
+import { renderCards, renderActivity, renderUsage, accountCard, needsAttention, sourceState } from './views/cards.js';
 import { setupPreferences } from './views/preferences.js';
 import { setupSelection } from './views/selection.js';
 import { setupDetail } from './views/detail.js';
@@ -213,7 +213,7 @@ function render(value) {
     $('summary-resource-note'),
     resources.length
       ? t('summary.resourcesNote', {
-        healthy: resources.filter((item) => !needsAttention(item) && item.health === 'ok').length,
+        healthy: resources.filter((item) => sourceState(item) === 'ok').length,
         attention: resources.filter(needsAttention).length
       })
       : t('summary.resourcesEmpty')
@@ -284,7 +284,7 @@ function render(value) {
       (item) =>
         `${item.displayName} ${item.resourceType || item.kind}`.toLowerCase().includes(search) &&
         (filter === 'all' ||
-          (filter === 'attention' ? needsAttention(item) : !needsAttention(item) && item.health === 'ok'))
+          (filter === 'attention' ? needsAttention(item) : sourceState(item) === 'ok'))
     );
     text($('resources-heading'), t('resources.headingCount', { count: matches.length }));
     const filtered = search || filter !== 'all';

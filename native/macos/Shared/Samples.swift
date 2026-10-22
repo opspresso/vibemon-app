@@ -26,6 +26,6 @@ enum Samples {
             """
         }
         // The literals above are fixed and valid; a decoding failure is a programming error.
-        return try! WidgetFeed.decode(Data(#"{"version":1,"generatedAt":"\#(at)","running":true,"items":[\#(json)]}"#.utf8)).items[0]
+        return try! WidgetFeed.decode(Data(#"{"version":2,"generatedAt":"\#(at)","items":[\#(json)]}"#.utf8)).items[0]
     }
 }

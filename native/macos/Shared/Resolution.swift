@@ -14,9 +14,9 @@ extension WidgetContent {
         }
         if let selection {
             guard let item = feed.item(id: selection), item.kind == kind else { return .notice(.unavailable(kind)) }
-            return .item(item, running: feed.running)
+            return .item(item)
         }
         guard let item = feed.items(of: kind).first else { return .notice(.empty(kind)) }
-        return .item(item, running: feed.running)
+        return .item(item)
     }
 }
