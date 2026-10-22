@@ -34,10 +34,10 @@ const build = (input) => buildWidgetFeed({ now: NOW, artwork: name => `${name}.p
 
 test('an empty workspace produces a versioned feed without items', () => {
   const feed = build({ cloud: cloud([], { selectedMetrics: [] }), running: false });
-  assert.deepEqual(feed, { version: WIDGET_FEED_VERSION, generatedAt: iso(0), running: false, items: [] });
+  assert.deepEqual(feed, { version: WIDGET_FEED_VERSION, generatedAt: iso(0), items: [] });
 });
 
-test('a resource shows its selected metrics, formatted by the shared rules, and turns stale on time', () => {
+test('a resource shows its selected metrics, formatted by the shared rules, and goes on standby on time', () => {
   const [item] = build({ cloud: cloud([host()], { selectedMetrics: ['memoryPercent', 'gpuPercent', 'gpuTemperatureC'] }) }).items;
   assert.equal(item.id, 'resource:mac-studio');
   assert.equal(item.subtitle, 'Host');
@@ -49,8 +49,20 @@ test('a resource shows its selected metrics, formatted by the shared rules, and 
   ]);
   assert.deepEqual(item.timeline, [
     { at: iso(0), state: 'ok', label: 'Healthy', tone: 'good' },
-    { at: iso(constants.CLOUD_STALE_MS - minutes(1)), state: 'stale', label: 'Stale', tone: 'warning' }
+    { at: iso(constants.CLOUD_STALE_MS - minutes(1)), state: 'standby', label: 'Standby', tone: 'neutral' }
   ]);
+});
+
+test('the feed of a closed App keeps every item on standby without later changes', () => {
+  const working = agentSource({ agent: { state: 'notification', character: 'clawd', project: 'web' } });
+  const items = build({ cloud: cloud([host(), working]), running: false }).items;
+  assert.deepEqual(items.map(item => item.timeline), [
+    [{ at: iso(0), state: 'standby', label: 'Standby', tone: 'neutral' }],
+    [{ at: iso(0), state: 'standby', label: 'Standby', tone: 'neutral' }]
+  ]);
+  // An input request is not attention after the App quits; standby items put the most recently active first.
+  assert.deepEqual(items.map(item => item.kind), ['resource', 'agent']);
+  assert.equal(build({ cloud: cloud([host()]), running: false, locale: 'ko' }).items[0].timeline[0].label, '대기');
 });
 
 test('a resource shows at most three metrics and its collector message', () => {
@@ -85,7 +97,7 @@ test('timeline times follow the wall clock when the server clock differs', () =>
   assert.equal(item.timeline[1].at, iso(constants.CLOUD_STALE_MS - minutes(1)));
 });
 
-test('a coding account ages through idle to inactive', () => {
+test('a coding account ages through idle to standby', () => {
   const [item] = build({ cloud: cloud([agentSource()]) }).items;
   assert.equal(item.id, 'agent:claude:work');
   assert.equal(item.title, 'Claude Code');
@@ -94,7 +106,7 @@ test('a coding account ages through idle to inactive', () => {
   assert.deepEqual(item.timeline, [
     { at: iso(0), state: 'working', label: 'Working', tone: 'active' },
     { at: iso(constants.SLEEP_TIMEOUT_MS - minutes(2)), state: 'idle', label: 'Idle', tone: 'neutral' },
-    { at: iso(2 * constants.SLEEP_TIMEOUT_MS - minutes(2)), state: 'inactive', label: 'Inactive', tone: 'neutral' }
+    { at: iso(2 * constants.SLEEP_TIMEOUT_MS - minutes(2)), state: 'standby', label: 'Standby', tone: 'neutral' }
   ]);
   assert.deepEqual(item.metrics.map(({ label, value, tone }) => [label, value, tone]), [['Context', '34', 'normal'], ['Session', '72.4', 'warning'], ['Weekly', '91', 'danger']]);
 });
@@ -108,21 +120,21 @@ test('an input request from an older project outranks newer work on the same acc
   assert.deepEqual(item.timeline[1], { at: iso(constants.SLEEP_TIMEOUT_MS - minutes(3)), state: 'working', label: 'Working', tone: 'active' });
 });
 
-test('automatic coding widgets prioritize attention and put inactive accounts last, newest first', () => {
+test('automatic coding widgets prioritize attention and put standby accounts last, newest first', () => {
   const account = (id, provider, project, state, age) => agentSource({
     sourceId: `agent:${id}`, observedAt: iso(-age),
     account: { id, provider, displayName: id }, agent: { state, character: provider === 'claude' ? 'clawd' : 'codex', project }
   });
-  const inactiveAge = 2 * constants.SLEEP_TIMEOUT_MS;
+  const standbyAge = 2 * constants.SLEEP_TIMEOUT_MS;
   const sources = [
-    account('old', 'claude', 'Alpha old', 'working', inactiveAge + minutes(10)),
+    account('old', 'claude', 'Alpha old', 'working', standbyAge + minutes(10)),
     account('active', 'codex', 'Beta active', 'working', 1000),
-    account('recent', 'claude', 'Zeta recent', 'working', inactiveAge + minutes(1)),
+    account('recent', 'claude', 'Zeta recent', 'working', standbyAge + minutes(1)),
     account('waiting', 'codex', 'Zeta input', 'notification', 1000)
   ];
   const items = build({ cloud: cloud(sources) }).items;
   assert.deepEqual(items.map(item => item.id), ['agent:codex:waiting', 'agent:codex:active', 'agent:claude:recent', 'agent:claude:old']);
-  assert.deepEqual(items.map(item => item.timeline[0].state), ['notification', 'working', 'inactive', 'inactive']);
+  assert.deepEqual(items.map(item => item.timeline[0].state), ['notification', 'working', 'standby', 'standby']);
 });
 
 test('coding widget name ordering uses the project responsible for the account state', () => {
@@ -161,7 +173,7 @@ test('local delivery replaces the cloud copy of a source and fills usage from th
   }];
   const usage = { 'claude:work': { session: { pct: 55, resetsAt: NOW / 1000 + 3600 }, week: null } };
   const [item] = build({ cloud: cloud([agentSource()]), local, usage }).items;
-  assert.deepEqual(item.timeline.map(entry => entry.state), ['done', 'idle', 'inactive']);
+  assert.deepEqual(item.timeline.map(entry => entry.state), ['done', 'idle', 'standby']);
   assert.equal(item.timeline[1].at, iso(constants.IDLE_TIMEOUT_MS - 30000));
   assert.deepEqual(item.metrics.map(metric => metric.value), ['12', '55', '—']);
   assert.equal(item.observedAt, iso(-30000));

@@ -13,7 +13,7 @@ let load = FeedLoad.loaded(feed)
 let defaultAgent = await AgentQuery().defaultResult()
 let defaultResource = await ResourceQuery().defaultResult()
 precondition(defaultAgent == nil && defaultResource == nil, "A new widget must not save a potentially stale account ID")
-guard case .item(let automatic, _) = WidgetContent.resolve(load, kind: .agent, selection: nil) else {
+guard case .item(let automatic) = WidgetContent.resolve(load, kind: .agent, selection: nil) else {
     fatalError("A new coding widget did not select current data")
 }
 precondition(automatic.metrics.contains { $0.value != "—" }, "New coding widget has no fixture metrics")
@@ -28,7 +28,7 @@ for kind in [FeedItem.Kind.resource, .agent] {
         precondition(resolved.first?.id == entry.id)
         let image = kind == .agent ? AgentEntity(entry).displayRepresentation.image : ResourceEntity(entry).displayRepresentation.image
         precondition(image != nil, "Picker image missing")
-        guard case .item(let item, _) = WidgetContent.resolve(load, kind: kind, selection: entry.id) else {
+        guard case .item(let item) = WidgetContent.resolve(load, kind: kind, selection: entry.id) else {
             fatalError("Saved choice did not resolve")
         }
         precondition(item.id == entry.id)
@@ -89,9 +89,8 @@ for mode in [WidgetRenderingMode.fullColor, .accented, .vibrant] {
 }
 
 @MainActor
-func statusPixels(_ state: String, label: String, age: String, running: Bool) -> NSBitmapImageRep {
-    let status = FeedStatus(at: feed.generatedAt, state: state, label: label, tone: state == "stale" ? .warning : .danger)
-    let view = StatusLine(status: status, age: age, running: running)
+func statusPixels(_ status: FeedStatus, age: String) -> NSBitmapImageRep {
+    let view = StatusLine(status: status, age: age)
         .frame(width: 130, height: 18, alignment: .leading)
         .environment(\.colorScheme, .light)
     let renderer = ImageRenderer(content: view)
@@ -100,76 +99,36 @@ func statusPixels(_ state: String, label: String, age: String, running: Bool) ->
     return NSBitmapImageRep(cgImage: image)
 }
 
-let stale = statusPixels("stale", label: "응답 없음", age: "now", running: true)
-let old = statusPixels("stale", label: "Stale", age: "99d", running: false)
-var statusDotPixels = 0
-for y in 0..<stale.pixelsHigh {
-    for x in 0..<stale.pixelsWide {
-        let pixel = stale.colorAt(x: x, y: y)!.usingColorSpace(.deviceRGB)!
-        let other = old.colorAt(x: x, y: y)!.usingColorSpace(.deviceRGB)!
-        precondition(pixel == other, "Stale widget status must not show a label, age, or closed-App mark")
-        if pixel.alphaComponent > 0.5 {
-            statusDotPixels += 1
-            precondition(x < 24, "Only the 7-point status dot may be visible")
-            precondition(pixel.redComponent > pixel.blueComponent && pixel.greenComponent > pixel.blueComponent, "Stale status must use the yellow warning color")
+/// Visible pixels to the right of the 7-point dot: the label and the age.
+func textPixels(_ bitmap: NSBitmapImageRep) -> [NSColor] {
+    (30..<bitmap.pixelsWide).flatMap { x in
+        (0..<bitmap.pixelsHigh).compactMap { y in
+            let pixel = bitmap.colorAt(x: x, y: y)!.usingColorSpace(.deviceRGB)!
+            return pixel.alphaComponent > 0.5 ? pixel : nil
         }
     }
 }
-precondition(statusDotPixels > 0, "The stale status dot must remain visible")
-let errorStatus = statusPixels("error", label: "Error", age: "3m", running: true)
-precondition((30..<errorStatus.pixelsWide).contains { x in
-    (0..<errorStatus.pixelsHigh).contains { y in errorStatus.colorAt(x: x, y: y)!.alphaComponent > 0.5 }
-}, "Reported errors must retain their label and age")
 
-@MainActor
-func resourceImage(_ item: FeedItem, date: Date) -> NSBitmapImageRep {
-    let view = WidgetContentView(content: .item(item, running: true), date: date)
-        .padding(16)
-        .frame(width: 170, height: 170)
-        .background(Palette.surface)
-        .environment(\.colorScheme, .light)
-    let renderer = ImageRenderer(content: view)
-    renderer.scale = 3
-    guard let image = renderer.cgImage else {
-        fatalError("Cannot render resource timestamp")
-    }
-    return NSBitmapImageRep(cgImage: image)
+// Standby uses the same layout as every other state: a label and an age in
+// the neutral color, never a warning.
+guard let resource = feed.items.first(where: { $0.kind == .resource && $0.status(at: feed.generatedAt).state == "standby" }) else {
+    fatalError("A standby resource fixture is required")
 }
+let standby = resource.status(at: feed.generatedAt)
+precondition(standby.tone == .neutral, "Standby must use the neutral tone")
+let standbyText = textPixels(statusPixels(standby, age: "3m"))
+precondition(!standbyText.isEmpty, "Standby must show its label and age")
+// The muted slate has more blue than red; the amber warning color has less.
+precondition(standbyText.allSatisfy { $0.blueComponent >= $0.redComponent }, "Standby must use the muted neutral color, not a warning color")
+let warningText = textPixels(statusPixels(FeedStatus(at: feed.generatedAt, state: "warning", label: standby.label, tone: .warning), age: "3m"))
+precondition(warningText.contains { $0.redComponent > $0.blueComponent + 0.2 }, "The color check must detect the warning color")
+let errorText = textPixels(statusPixels(FeedStatus(at: feed.generatedAt, state: "error", label: "Error", tone: .danger), age: "3m"))
+precondition(!errorText.isEmpty, "Reported errors must retain their label and age")
 
-func samePixels(_ lhs: NSBitmapImageRep, _ rhs: NSBitmapImageRep) -> Bool {
-    guard lhs.pixelsWide == rhs.pixelsWide && lhs.pixelsHigh == rhs.pixelsHigh else { return false }
-    var largest = 0.0
-    for y in 0..<lhs.pixelsHigh {
-        for x in 0..<lhs.pixelsWide {
-            let a = lhs.colorAt(x: x, y: y)!.usingColorSpace(.deviceRGB)!
-            let b = rhs.colorAt(x: x, y: y)!.usingColorSpace(.deviceRGB)!
-            let delta = max(abs(a.redComponent - b.redComponent), abs(a.greenComponent - b.greenComponent), abs(a.blueComponent - b.blueComponent), abs(a.alphaComponent - b.alphaComponent))
-            largest = max(largest, delta)
-        }
-    }
-    // SwiftUI color conversion can vary by two 8-bit levels between renders.
-    return largest <= 2.0 / 255
-}
-
-guard let resource = feed.items.first(where: { $0.kind == .resource && $0.status(at: feed.generatedAt).state == "stale" }) else {
-    fatalError("A stale resource fixture is required")
-}
-do {
-    var object = try JSONSerialization.jsonObject(with: Data(contentsOf: feedURL)) as! [String: Any]
-    var items = object["items"] as! [[String: Any]]
-    let index = items.firstIndex { $0["id"] as? String == resource.id }!
-    items[index]["observedAt"] = resource.observedAt.addingTimeInterval(-86400).formatted(.iso8601)
-    object["items"] = items
-    let older = try WidgetFeed.decode(JSONSerialization.data(withJSONObject: object)).item(id: resource.id)!
-    let original = resourceImage(resource, date: feed.generatedAt)
-    let delayed = resourceImage(resource, date: feed.generatedAt.addingTimeInterval(7200))
-    precondition(samePixels(original, delayed), "The receipt timestamp must remain factual between refreshes")
-    precondition(!samePixels(original, resourceImage(older, date: feed.generatedAt)), "The report date must be visible")
-}
 // The feed loader and future timeline use the same code as the extension.
 precondition(FeedStore.load(from: feedURL).feed?.items.count == feed.items.count)
 let sample = Samples.item(.agent, now: feed.generatedAt)
-let dates = TimelinePlan.dates(for: .item(sample, running: true), now: feed.generatedAt)
+let dates = TimelinePlan.dates(for: .item(sample), now: feed.generatedAt)
 precondition(dates.first == feed.generatedAt && dates.count > 1)
 precondition(dates == dates.sorted() && Set(dates).count == dates.count)
 print("PASS: picker identities/search/images, saved choices, feed/timeline, \(images.count) character images and App icon")

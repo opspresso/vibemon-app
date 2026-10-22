@@ -36,11 +36,10 @@ if let language = ProcessInfo.processInfo.environment["VIBEMON_LOCALE"],
 }
 let now = arguments.count == 5 ? (try? Date.ISO8601FormatStyle(includingFractionalSeconds: true).parse(arguments[4])) ?? feed.generatedAt : feed.generatedAt
 
-// After the feed items: notices, the first item after the App quits, and the gallery samples.
-let contents: [WidgetContent] = feed.items.map { .item($0, running: feed.running) }
+// After the feed items: notices and the gallery samples.
+let contents: [WidgetContent] = feed.items.map { .item($0) }
     + [.notice(.appMissing), .notice(.empty(.resource)), .notice(.unavailable(.agent))]
-    + feed.items.prefix(1).map { .item($0, running: false) }
-    + [.item(Samples.item(.resource, now: now), running: true), .item(Samples.item(.agent, now: now), running: true)]
+    + [.item(Samples.item(.resource, now: now)), .item(Samples.item(.agent, now: now))]
 
 struct Tile: View {
     let content: WidgetContent

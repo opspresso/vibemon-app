@@ -7,12 +7,10 @@ import Foundation
 /// current time and lays it out.
 struct WidgetFeed: Decodable, Sendable {
     /// The feed format that this widget build reads.
-    static let supportedVersion = 1
+    static let supportedVersion = 2
 
     let version: Int
     let generatedAt: Date
-    /// `false` after the App quits. The values are then the last known ones.
-    let running: Bool
     let items: [FeedItem]
 
     func items(of kind: FeedItem.Kind) -> [FeedItem] {

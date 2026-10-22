@@ -27,7 +27,9 @@ function setup() {
     collect: () => ({ cloud: { sources: [] }, states, usage: {} }),
     build: input => {
       inputs.push(input);
-      return { version: 1, generatedAt: iso(input.now), running: input.running, items };
+      // Like buildWidgetFeed, the feed of a closed App puts every item on standby.
+      const shown = input.running === false ? items.map(entry => ({ ...entry, timeline: [{ at: iso(input.now), state: 'standby', label: 'Standby', tone: 'neutral' }] })) : items;
+      return { version: 2, generatedAt: iso(input.now), items: shown };
     },
     write: (file, text) => writes.push(JSON.parse(text)),
     reload: () => reloads.push(now),
@@ -127,7 +129,7 @@ describe('WidgetPublisher', () => {
 
   test('does not reload when the feed reaches a state that the previous feed predicted', () => {
     const { publisher, reloads, writes, setItems, advance } = setup();
-    const aging = [{ at: iso(T0), state: 'ok', label: 'Healthy', tone: 'good' }, { at: iso(T0 + 120000), state: 'stale', label: 'Stale', tone: 'warning' }];
+    const aging = [{ at: iso(T0), state: 'ok', label: 'Healthy', tone: 'good' }, { at: iso(T0 + 120000), state: 'standby', label: 'Standby', tone: 'neutral' }];
     setItems([item({ timeline: aging })]);
     publisher.publish();
     advance(120000);
@@ -159,12 +161,13 @@ describe('WidgetPublisher', () => {
     expect(inputs.at(-1).local).toEqual([]);
   });
 
-  test('stop writes a final feed for a closed App and reloads at once', () => {
-    const { publisher, writes, reloads, timers } = setup();
+  test('stop writes a final standby feed for a closed App and reloads at once', () => {
+    const { publisher, inputs, writes, reloads, timers } = setup();
     publisher.publish();
     publisher.schedule();
     publisher.stop();
-    expect(writes.at(-1).running).toBe(false);
+    expect(inputs.at(-1).running).toBe(false);
+    expect(writes.at(-1).items.map(entry => entry.timeline[0].state)).toEqual(['standby']);
     expect(reloads).toEqual([T0, T0]);
     expect(timers).toHaveLength(0);
     publisher.schedule();

@@ -3,7 +3,8 @@
 // Pure: the App decides every state, label, tone, and number format here, and
 // the widget only lays the result out. One item is one resource or one coding
 // agent account. Each item carries a timeline of its future display states,
-// so a widget keeps aging correctly between App writes.
+// so a widget keeps aging correctly between App writes. The last feed before
+// the App quits shows every item on standby: nothing updates it any more.
 import { accountName, formatMeasurement, measurementUnit, metricLabel, metricTone, providerLabel, resourceType, sharedTranslator, stateLabel, stateTone } from '../shared/design/presentation.mjs';
 import { compareCards } from '../shared/design/card-order.mjs';
 import monitoring from '../shared/monitoring/state.cjs';
@@ -13,10 +14,10 @@ import constants from '../shared/constants.cjs';
 const { accountActivity, agentTransition, groupAccounts, needsAttention, sourceState } = monitoring;
 const { usageResetAt } = clock;
 
-export const WIDGET_FEED_VERSION = 1;
+export const WIDGET_FEED_VERSION = 2;
 // A small widget shows three metric rows.
 const METRIC_LIMIT = 3;
-// Every agent state chain ends within this window; resources turn stale sooner.
+// Every agent state chain ends within this window; resources go on standby sooner.
 const HORIZON_MS = 60 * 60 * 1000;
 // `label` is a shared message key; agent rows use the short usage labels.
 const AGENT_METRICS = [
@@ -47,29 +48,34 @@ export function buildWidgetFeed({ cloud, local = [], usage = {}, artwork = () =>
   const offset = reportNow - now;
   const wall = time => new Date(time - offset).toISOString();
   const selected = new Set(cloud.selectedMetrics);
+  // After the App quits, nothing updates the widgets, so every item stays on standby.
+  const live = evaluate => running ? evaluate : () => 'standby';
   const resources = cloud.sources
     .filter(source => source.kind !== 'agent')
-    .map(source => ({ source, sourceId: source.sourceId, displayName: source.displayName, needsAttention: needsAttention(sourceState(source, reportNow)) }));
+    .map(source => card(source, live(time => sourceState(source, time)), reportNow, {
+      sourceId: source.sourceId, displayName: source.displayName, observedAt: source.receivedAt
+    }));
   const agents = agentAccounts(cloud.sources, local, offset, now)
-    .map(account => {
-      const { state, project } = accountActivity(account, reportNow);
-      return {
-        account, sourceId: account.accountId, isAccount: true, displayState: state, displayName: project,
-        observedAt: account.latest.observedAt, needsAttention: needsAttention(state)
-      };
-    });
+    .map(account => card(account, live(time => accountActivity(account, time).state), reportNow, {
+      sourceId: account.accountId, isAccount: true, displayName: accountActivity(account, reportNow).project, observedAt: account.latest.observedAt
+    }));
   const items = [...resources, ...agents].sort(compareCards).map(entry => entry.isAccount
-    ? agentItem(entry.account, usage[entry.account.accountId], artwork, reportNow, wall, offset, t)
-    : resourceItem(entry.source, selected, reportNow, wall, t));
+    ? agentItem(entry.subject, entry.stateAt, usage[entry.subject.accountId], artwork, reportNow, wall, offset, t)
+    : resourceItem(entry.subject, entry.stateAt, selected, reportNow, wall, t));
   return {
     version: WIDGET_FEED_VERSION,
     generatedAt: new Date(now).toISOString(),
-    running,
     items
   };
 }
 
-function resourceItem(source, selected, now, wall, t) {
+/** The card-order fields of a resource or account, with its state at a report-clock time. */
+function card(subject, stateAt, now, fields) {
+  const displayState = stateAt(now);
+  return { subject, stateAt, ...fields, displayState, needsAttention: needsAttention(displayState) };
+}
+
+function resourceItem(source, stateAt, selected, now, wall, t) {
   const receivedAt = Date.parse(source.receivedAt);
   const symbol = source.kind === 'cluster' ? 'cluster' : source.memoryType === 'unified' ? 'unified' : source.kind;
   return {
@@ -84,7 +90,7 @@ function resourceItem(source, selected, now, wall, t) {
       .filter(metric => selected.has(metric.selectionKey))
       .slice(0, METRIC_LIMIT)
       .map(metric => metricEntry({ ...metric, label: metricLabel(metric.key, metric.label, t) }, source.metrics[metric.key])),
-    timeline: timeline([receivedAt + constants.CLOUD_STALE_MS], now, wall, time => status(sourceState(source, time), t)),
+    timeline: timeline([receivedAt + constants.CLOUD_STALE_MS], now, wall, time => status(stateAt(time), t)),
     link: LINKS.resource
   };
 }
@@ -114,7 +120,7 @@ function localSource({ id, since, status }, offset, now) {
   };
 }
 
-function agentItem(account, usage, artwork, now, wall, offset, t) {
+function agentItem(account, stateAt, usage, artwork, now, wall, offset, t) {
   const latest = account.latest;
   const metrics = AGENT_METRICS.map(({ key, label: message, usage: bucket }) => {
     const label = t(message);
@@ -137,7 +143,7 @@ function agentItem(account, usage, artwork, now, wall, offset, t) {
     artwork: artwork(latest.agent.character),
     observedAt: wall(Date.parse(latest.observedAt)),
     metrics,
-    timeline: timeline(changes, now, wall, time => status(accountActivity(account, time).state, t)),
+    timeline: timeline(changes, now, wall, time => status(stateAt(time), t)),
     link: LINKS.agent
   };
 }
