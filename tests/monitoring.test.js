@@ -594,7 +594,7 @@ describe('selection saved before version 2', () => {
   });
 });
 
-describe('replacing a token deletes the replaced one on Web', () => {
+describe('replacing a token deletes the replaced one from VibeMon', () => {
   const replacement = 'vm_' + '2'.repeat(60);
   test('a verified replacement deletes the previous token at its own origin', async () => {
     const { client, fetchImpl } = fixture();
@@ -613,7 +613,7 @@ describe('replacing a token deletes the replaced one on Web', () => {
   });
 });
 
-describe('disconnect deletes the token on Web', () => {
+describe('disconnect deletes the token from VibeMon', () => {
   test('sends DELETE with the saved token after removing it locally, and reports a failure', async () => {
     const { client, fetchImpl } = fixture();
     fetchImpl.mockResolvedValueOnce({ status: 204, ok: true });
@@ -656,11 +656,11 @@ describe('removal handoff', () => {
     await expect(client.removalUrl({ kind: 'account', id: 'codex:unknown' })).rejects.toThrow('no longer');
     await expect(client.removalUrl({ kind: 'source', id: '../bad' })).rejects.toThrow('Invalid');
   });
-  test('rejects an older Web server or a changed connection before opening the browser', async () => {
+  test('rejects an older VibeMon server or a changed connection before opening the browser', async () => {
     const { client, fetchImpl } = fixture();
     await client.poll(true);
     fetchImpl.mockResolvedValue(okResponse({ connected: true }));
-    await expect(client.removalUrl({ kind: 'source', id: 'spark' })).rejects.toThrow('Update Web');
+    await expect(client.removalUrl({ kind: 'source', id: 'spark' })).rejects.toThrow('Update VibeMon');
     fetchImpl.mockImplementation(async () => { client.generation++; return okResponse({ connected: true, scope: 'read', ownerId: 'other-owner' }); });
     await expect(client.removalUrl({ kind: 'source', id: 'spark' })).rejects.toThrow('connection');
   });

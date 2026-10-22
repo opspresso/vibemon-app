@@ -265,7 +265,7 @@ test('only the workspace main frame receives the App language and its messages',
   }
 });
 
-test('signs in through Web: a read token connects the workspace, a write token goes to hook delivery', async () => {
+test('signs in through VibeMon: a read token connects the workspace, a write token goes to hook delivery', async () => {
   open();
   ports.monitoring.configure.mockResolvedValue({ status: 'connected' });
   await expect(invoke(event, 'sign-in', ['https://vibemon.io'])).resolves.toEqual({ ok: true, value: { status: 'connected' } });
@@ -277,8 +277,8 @@ test('signs in through Web: a read token connects the workspace, a write token g
   await invoke(event, 'cancel-sign-in', []);
   expect(ports.signIn.cancel).toHaveBeenCalled();
   // A sign-in failure reaches the page as a sentence, without token values.
-  ports.signIn.signIn.mockRejectedValueOnce(Object.assign(new Error('You selected Deny on VibeMon Web.'), { reason: 'denied' }));
-  await expect(invoke(event, 'sign-in', ['https://vibemon.io'])).resolves.toEqual({ ok: false, error: 'You selected Deny on VibeMon Web.' });
+  ports.signIn.signIn.mockRejectedValueOnce(Object.assign(new Error('You selected Deny on VibeMon.'), { reason: 'denied' }));
+  await expect(invoke(event, 'sign-in', ['https://vibemon.io'])).resolves.toEqual({ ok: false, error: 'You selected Deny on VibeMon.' });
 });
 
 test.each([

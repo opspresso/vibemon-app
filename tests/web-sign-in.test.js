@@ -19,7 +19,7 @@ function setup(reply = { status: 200, body: { access_token: TOKEN, token_type: '
 const adopt = async token => token;
 const callback = (url, values) => new URLSearchParams({ state: url.searchParams.get('state'), ...values });
 
-describe('desktop sign-in through Web', () => {
+describe('desktop sign-in through VibeMon', () => {
   test('opens /authorize with PKCE and exchanges the code for a token of the asked scope', async () => {
     const { signIn, opened, fetchImpl } = setup();
     const result = signIn.signIn('https://vibemon.io', 'read', adopt);
@@ -78,12 +78,12 @@ describe('desktop sign-in through Web', () => {
     await expect(setup().signIn.signIn('https://vibemon.io', 'admin', adopt)).rejects.toBeInstanceOf(SignInError);
   });
 
-  test('deletes a new token on Web when the App cannot keep it', async () => {
+  test('deletes a new token from VibeMon when the App cannot keep it', async () => {
     const { signIn, opened, fetchImpl } = setup();
-    const result = signIn.signIn('https://vibemon.io', 'read', async () => { throw new Error('Cannot reach Web'); });
+    const result = signIn.signIn('https://vibemon.io', 'read', async () => { throw new Error('Cannot reach VibeMon'); });
     await new Promise(setImmediate);
     signIn.complete(callback(opened[0], { code: 'c' }));
-    await expect(result).rejects.toThrow('Cannot reach Web');
+    await expect(result).rejects.toThrow('Cannot reach VibeMon');
     const [endpoint, options] = fetchImpl.mock.calls[1];
     expect([String(endpoint), options.method, options.headers.Authorization]).toEqual(['https://vibemon.io/api/v1/connection', 'DELETE', `Bearer ${TOKEN}`]);
   });
