@@ -35,7 +35,7 @@ test('requires explicit replacement before sending a saved token to another orig
 });
 test.each(['http://remote.example', 'https://user:secret@example.com', 'https://example.com/api', 'https://example.com?secret=x'])('rejects unsafe origins before transmitting credentials: %s', async url => {
   const { delivery, fetchImpl } = fixture();
-  await expect(delivery.configure({ url, token })).rejects.toThrow('HTTPS Web origin');
+  await expect(delivery.configure({ url, token })).rejects.toThrow('HTTPS VibeMon address');
   expect(fetchImpl).not.toHaveBeenCalled();
 });
 test('rejects unexpected or oversized success responses instead of claiming verification', async () => {

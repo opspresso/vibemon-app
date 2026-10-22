@@ -1123,7 +1123,7 @@ def configure_vibemon_config(source: FileSource, cli_token: str = None) -> str:
     if origin:
         origin = checked_download_url(origin)
         if urlsplit(origin).path not in ("", "/"):
-            raise ValueError("VIBEMON_URL must be a Web origin without a path")
+            raise ValueError("VIBEMON_URL must be a VibeMon address without a path")
         previous = str(config.get("vibemon_url", "")).rstrip("/")
         if origin != previous and config.get("vibemon_token") and not (cli_token or os.environ.get("VIBEMON_WRITE_TOKEN") or SIGN_IN):
             raise ValueError("Changing VIBEMON_URL requires --login or a matching VIBEMON_WRITE_TOKEN")
@@ -1722,7 +1722,7 @@ def web_origin() -> str:
     """The Web origin that receives collector summaries: VIBEMON_URL or vibemon.io."""
     origin = checked_download_url(os.environ.get("VIBEMON_URL") or "https://vibemon.io")
     if urlsplit(origin).path not in ("", "/"):
-        raise ValueError("VIBEMON_URL must be a Web origin without a path")
+        raise ValueError("VIBEMON_URL must be a VibeMon address without a path")
     return origin
 
 

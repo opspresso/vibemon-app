@@ -164,7 +164,7 @@ Features: frameless floating window, always on top, system tray integration, sna
 
 ### ESP32 Hardware
 
-VibeMon Touch runs on the four-inch ESP32-S3 board and polls the same HTTPS summaries as Desktop. Configure Wi-Fi, the Web origin, and a read token on its screen. Hooks send activity to VibeMon with a write token; Touch does not receive those events through `http_urls` or `serial_port`. See the [firmware repository](https://github.com/opspresso/vibemon-esp32) for setup.
+VibeMon Touch runs on the four-inch ESP32-S3 board and polls the same HTTPS summaries as Desktop. Configure Wi-Fi, the VibeMon address, and a read token on its screen. Hooks send activity to VibeMon with a write token; Touch does not receive those events through `http_urls` or `serial_port`. See the [firmware repository](https://github.com/opspresso/vibemon-esp32) for setup.
 
 Existing ESP32-C6 devices use the [previous firmware](https://github.com/opspresso/vibemon-esp32/tree/e6c272c) and can retain local HTTP/serial delivery. Do not flash the Touch build to a C6 board. The retired cloud WebSocket endpoint is unavailable.
 

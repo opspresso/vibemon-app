@@ -8,7 +8,7 @@ The tray menu provides Dashboard, Settings, Show companion or Hide companion, In
 
 ## Connect your cloud workspace
 
-1. Open **Settings → Connections** in Desktop and select **Sign in with VibeMon**. Your browser opens the Web address.
+1. Open **Settings → Connections** in Desktop and select **Sign in with VibeMon**. Your browser opens the VibeMon address.
 2. Sign in with Google, Apple, or an email account and select **Allow**. For email sign-in, create an account on Web and confirm the address first. The browser returns to the App on `http://127.0.0.1:19280/auth/callback`, and the App receives a read token named **VibeMon Desktop (host name) · read**.
 3. Open **Customize view**. Select resources, provider accounts, and visible metrics, then select **Save view**. **Discover sources** refreshes the available list without discarding unsaved choices. When every listed item in a group is selected, the view follows that whole group, including accounts, resources, and metrics that appear later. A partial selection shows only the chosen items; open **Customize view** to add new ones. Selections saved by Desktop 3.7.2 or earlier reset to all accounts, resources, and metrics once, because those versions saved a full selection as a fixed list.
 
@@ -64,7 +64,7 @@ Equal project names across accounts remain separate. Use separate signed-in tool
 
 ## Settings
 
-- **Connections**: Web origin, read token, connection recovery, and dashboard selection.
+- **Connections**: VibeMon address, read token, connection recovery, and dashboard selection.
 - **Companion**: 3D or pixel art, character, size, always-on-top behavior, edge distance, macOS Dock scaling, speech-bubble fields, workspace appearance, and login preference.
 - **Integrations**: hook installation and repair, installation prompts, and advanced HTTP/serial delivery settings.
 - **About**: App version, update actions, documentation, and release notes.
@@ -84,7 +84,7 @@ Preference changes save automatically. Connection and selection forms save only 
 | **Token not accepted** | Select **Sign in with VibeMon** again, or paste an active read token from Web Account. |
 | **Read access required** | Replace the token with one that has read permission. |
 | **Replace saved token** | The local credential cannot be decrypted. Enter it again from Web Account. |
-| **Connection interrupted** | Check the Web address and connectivity. Retained readings remain visible and go on Standby after 120 seconds. |
+| **Connection interrupted** | Check the VibeMon address and connectivity. Retained readings remain visible and go on Standby after 120 seconds. |
 | No selected resources or accounts | Use **Customize view**, or start collection in the same VibeMon account. |
 
 ## Verify changes

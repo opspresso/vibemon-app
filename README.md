@@ -42,7 +42,7 @@ For email sign-in, create an account on Web and confirm your email address first
 
 A source appears after its collector or hook sends the first report. Follow [Get started](https://vibemon.io/docs) to connect a coding tool or server. Use the same verified email for the sending computer and Desktop. Compare one card and its report time with the [Web dashboard](https://vibemon.io/dashboard); Desktop refreshes every 30 seconds. Provider credentials remain on the source machine.
 
-If you already have a read token from [Account](https://vibemon.io/account), open **Use a read token instead**, enter the Web origin and token, then select **Save and connect**. The App keeps it in OS secure storage. **Disconnect this device** clears the local connection and attempts to delete that token from VibeMon. If VibeMon is unreachable, delete it on Web Account. Other clients using that token also lose access. See [the desktop workspace guide](docs/monitoring.md) for selection, missing data, sources on standby, and troubleshooting.
+If you already have a read token from [Account](https://vibemon.io/account), open **Use a read token instead**, enter the VibeMon address and token, then select **Save and connect**. The App keeps it in OS secure storage. **Disconnect this device** clears the local connection and attempts to delete that token from VibeMon. If VibeMon is unreachable, delete it on Web Account. Other clients using that token also lose access. See [the desktop workspace guide](docs/monitoring.md) for selection, missing data, sources on standby, and troubleshooting.
 
 ## Connect local coding tools
 

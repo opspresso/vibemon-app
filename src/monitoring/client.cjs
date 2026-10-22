@@ -48,9 +48,9 @@ class MonitoringClient extends EventEmitter {
     this.conditional = null;
   }
   getStatus() { return this.status; }
-  /** The saved Web address, or the public service before one is saved. */
+  /** The saved VibeMon address, or the public service before one is saved. */
   savedUrl() { return this.preferences.get('url') || DEFAULT_WEB_URL; }
-  /** The saved Web address as a checked origin; throws when it is not allowed here. */
+  /** The saved VibeMon address as a checked origin; throws when it is not allowed here. */
   savedOrigin() { return webOrigin(this.savedUrl(), this.allowLocalHttp); }
   currentTime() { return this.reportClock ? this.reportClock() : this.now(); }
   snapshot() {

@@ -123,7 +123,7 @@ A collector sends CPU, memory, GPU, and disk summaries of a server or cluster. I
 | Linux host or DGX Spark | `curl -fsSL https://vibemon.io/install/install.py \| python3 - --collector` |
 | Kubernetes (current kubectl context) | `curl -fsSL https://vibemon.io/install/install.py \| python3 - --kubernetes` |
 
-A run with a saved token reuses it only for the same Web origin; another origin, or `--login`, signs in again. Add `--name "Display name"` to choose the name on VibeMon. The default is the host name or the kubectl context name. The source ID derives from it, such as `host-dgx-spark`.
+A run with a saved token reuses it only for the same VibeMon address; another origin, or `--login`, signs in again. Add `--name "Display name"` to choose the name on VibeMon. The default is the host name or the kubectl context name. The source ID derives from it, such as `host-dgx-spark`.
 
 **Linux host or DGX Spark** needs Python 3.10 or later and systemd. The installer checks the downloaded collector files against the manifest and prepares a separate Python environment before requesting sign-in or stopping an existing collector. It then starts the new version, waits up to three minutes for VibeMon to accept an observation, and verifies the running process's command and environment. A failed switch restores the previous unit and its running state. A conflicting systemd override also causes restoration; inspect it before retrying. If restoration itself fails, the error identifies the retained runtime and unit backup for recovery. DGX Spark unified memory and NVIDIA GPU measurements are detected automatically.
 
@@ -169,6 +169,6 @@ For hook event mappings and configuration details, see the [hook reference](http
 
 ## VibeMon Touch and legacy devices
 
-VibeMon Touch on the four-inch ESP32-S3 board reads summaries from VibeMon over HTTPS. Configure Wi-Fi, the Web origin, and a read token on the device. Hooks deliver to VibeMon with a write token; neither `http_urls` nor `serial_port` configures Touch. See the [Touch setup guide](https://github.com/opspresso/vibemon-esp32#set-up-the-device).
+VibeMon Touch on the four-inch ESP32-S3 board reads summaries from VibeMon over HTTPS. Configure Wi-Fi, the VibeMon address, and a read token on the device. Hooks deliver to VibeMon with a write token; neither `http_urls` nor `serial_port` configures Touch. See the [Touch setup guide](https://github.com/opspresso/vibemon-esp32#set-up-the-device).
 
 Local HTTP/serial delivery remains available for ESP32-C6 devices using the [previous firmware](https://github.com/opspresso/vibemon-esp32/tree/e6c272c). The Touch firmware is not compatible with C6 boards.
