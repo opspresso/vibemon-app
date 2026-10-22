@@ -129,7 +129,7 @@ startFixture().then(async fixture => {
   await ui('window.focusTrace = []; for (const type of ["focusin", "focusout"]) document.addEventListener(type, event => window.focusTrace.push({ type, id: event.target.id, page: document.documentElement.dataset.page }));');
   assert.equal(await ui('document.querySelectorAll("#resource-cards .card").length'), 4);
   assert.ok((await text('#resource-cards')).includes('Unified memory'));
-  assert.ok((await text('#resource-cards')).includes('Stale'));
+  assert.ok((await text('#resource-cards')).includes('Standby'));
   assert.ok((await text('#resource-cards')).includes('—'), 'missing readings remain unavailable');
   const uneditedSources = state.sources;
   state.sources = () => uneditedSources().map(source => source.sourceId === 'gpu-workstation' ? {
@@ -290,7 +290,7 @@ startFixture().then(async fixture => {
     ...source, observedAt: new Date(Date.now() - 600000).toISOString(), receivedAt: new Date(Date.now() - 600000).toISOString()
   }));
   await client.poll(true);
-  await until(() => ui('[...document.querySelectorAll("#agent-cards .chip")].every(chip => chip.textContent === "Inactive")'), 'stopped coding hooks are neutral in every card');
+  await until(() => ui('[...document.querySelectorAll("#agent-cards .chip")].every(chip => chip.textContent === "Standby")'), 'stopped coding hooks are on neutral standby in every card');
   assert.equal(await ui('[...document.querySelectorAll("#agent-cards .card")].every(card => card.dataset.agentTone === "neutral" && getComputedStyle(card.querySelector(".vm-agent-edge"), "::before").animationName === "none")'), true);
   assert.equal(client.snapshot().attentionCount, 0);
   assert.equal(trayManager.notices.dashboard, null, 'inactive agents do not mark the Dashboard menu item');
