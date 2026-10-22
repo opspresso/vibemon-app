@@ -53,7 +53,7 @@ export function buildWidgetFeed({ cloud, local = [], usage = {}, artwork = () =>
   const resources = cloud.sources
     .filter(source => source.kind !== 'agent')
     .map(source => card(source, live(time => sourceState(source, time)), reportNow, {
-      sourceId: source.sourceId, displayName: source.displayName, observedAt: source.receivedAt
+      sourceId: source.sourceId, displayName: source.displayName, receivedAt: source.receivedAt
     }));
   const agents = agentAccounts(cloud.sources, local, offset, now)
     .map(account => card(account, live(time => accountActivity(account, time).state), reportNow, {

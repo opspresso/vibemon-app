@@ -31,7 +31,8 @@ test('equal names and activity times use stable source or account IDs', () => {
 });
 
 test('standby resources go last with standby accounts, the most recently active first', () => {
-  const resource = (displayName, displayState, minutes) => ({ displayName, displayState, observedAt: at(minutes), sourceId: displayName });
+  // A resource's activity is its receipt time; its collector clock (observedAt) does not order it.
+  const resource = (displayName, displayState, minutes) => ({ displayName, displayState, receivedAt: at(minutes), observedAt: at(59 - minutes), sourceId: displayName });
   assert.deepEqual(names([
     resource('a-silent', 'standby', 5), account('b-idle', 'standby', 30), resource('c-live', 'ok', 1),
     resource('d-error', 'error', 2), account('e-working', 'working', 3)
