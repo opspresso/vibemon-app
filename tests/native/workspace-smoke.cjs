@@ -616,6 +616,10 @@ startFixture().then(async fixture => {
   const compactBounds = await ui('({ bottom: document.querySelector("#overview-accounts .card").getBoundingClientRect().bottom, viewport: innerHeight })');
   await screenshot('compact-overview');
   assert.ok(compactBounds.bottom < compactBounds.viewport, `both categories fit the minimum window: ${JSON.stringify(compactBounds)}`);
+  // A wrapped label would make one card taller than the others and push the second category down.
+  const wrappedLabels = await ui('[...document.querySelectorAll(".compact-card .metric-label")].filter(node => { const range = document.createRange(); range.selectNodeContents(node); return new Set([...range.getClientRects()].map(rect => Math.round(rect.top))).size > 1; }).map(node => node.textContent)');
+  assert.deepEqual(wrappedLabels, [], 'compact metric labels stay on one line');
+  assert.equal(await ui('[...document.querySelectorAll(".compact-card .metric-label")].every(node => node.title === node.textContent)'), true, 'truncated labels keep their full text as a tooltip');
   const beforeGeneratedAccount = state.sources;
   const previousSelection = { sources: client.snapshot().selectedSources, accounts: client.snapshot().selectedAccounts, metrics: client.snapshot().selectedMetrics };
   const generatedId = `auto:27e702a8${'a'.repeat(56)}`;
