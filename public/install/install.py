@@ -112,7 +112,7 @@ AUTO_APPROVE = False
 # Prompts resolve to their `unattended` answer instead of blocking on input().
 NON_INTERACTIVE = False
 
-# Sign in through Web even when a token is saved (--login).
+# Sign in to VibeMon even when a token is saved (--login).
 SIGN_IN = False
 
 # Returned by an installer when its tool isn't present. Distinct from False so
@@ -233,7 +233,7 @@ def validate_token(token: str) -> None:
         raise ValueError("Enter a generated write token from your Web Account page")
 
 
-# MARK: Web sign-in (OAuth device authorization, RFC 8628)
+# MARK: VibeMon sign-in (OAuth device authorization, RFC 8628)
 #
 # The shell shows a code. The person opens /device on the Web origin, signs in
 # with Google or a confirmed email account, and approves the code. The shell then
@@ -244,7 +244,7 @@ MAX_RESPONSE_BYTES = 64 * 1024
 
 
 class SignInError(RuntimeError):
-    """Web sign-in did not finish; the message says why."""
+    """VibeMon sign-in did not finish; the message says why."""
 
 
 def post_form(url: str, fields: dict) -> tuple[int, dict]:
@@ -271,12 +271,12 @@ def device_name() -> str:
 
 
 def sign_in_to_web(origin: str, client_id: str, name: str = None, sleep=time.sleep, now=time.monotonic) -> str:
-    """Return a write token after the person approves this shell on Web."""
+    """Return a write token after the person approves this shell on VibeMon."""
     origin = checked_download_url(origin)
     status, start = post_form(f"{origin}/api/oauth/device", {"client_id": client_id, "device_name": name or device_name()})
     code, user_code, uri = start.get("device_code"), start.get("user_code"), start.get("verification_uri")
     if status != 200 or not all(isinstance(value, str) for value in (code, user_code, uri)):
-        raise SignInError(start.get("error_description") or f"Web sign-in is unavailable (HTTP {status})")
+        raise SignInError(start.get("error_description") or f"VibeMon sign-in is unavailable (HTTP {status})")
     interval = max(1, int(start.get("interval", 5)))
     deadline = now() + int(start.get("expires_in", 600))
     complete = start.get("verification_uri_complete") if isinstance(start.get("verification_uri_complete"), str) else uri
@@ -304,25 +304,25 @@ def sign_in_to_web(origin: str, client_id: str, name: str = None, sleep=time.sle
                 interval += 5
                 continue
             if error == "access_denied":
-                raise SignInError("The request was denied on Web")
+                raise SignInError("The request was denied on VibeMon")
             if error == "expired_token":
                 break
-            raise SignInError(reply.get("error_description") or f"Web sign-in failed (HTTP {status})")
+            raise SignInError(reply.get("error_description") or f"VibeMon sign-in failed (HTTP {status})")
     except KeyboardInterrupt:
         raise SignInError("Sign-in was canceled") from None
     raise SignInError("The code expired. Run the installer again to sign in.")
 
 
 def configure_token(config: dict, cli_token: str = None) -> dict:
-    """Configure the write token: supplied, saved, or from a Web sign-in.
+    """Configure the write token: supplied, saved, or from a VibeMon sign-in.
 
     A supplied token (--token, VIBEMON_WRITE_TOKEN) wins. A saved generated
     token is kept unless --login asks for a new sign-in. Without a token, a
-    run in a terminal signs in through Web; other runs, such as App updates,
+    run in a terminal signs in to VibeMon; other runs, such as App updates,
     never wait for a person and keep local delivery only.
     """
     current_token = config.get("vibemon_token", "")
-    print(f"\n{colored('VibeMon Web delivery:', 'cyan')}")
+    print(f"\n{colored('VibeMon delivery:', 'cyan')}")
 
     supplied = cli_token or os.environ.get("VIBEMON_WRITE_TOKEN")
     if supplied:
@@ -348,10 +348,10 @@ def configure_token(config: dict, cli_token: str = None) -> dict:
             return config
 
     # Upgrades must validate saved credentials too; legacy arbitrary tokens
-    # cannot authenticate to Web even when local delivery still works.
+    # cannot authenticate to VibeMon even when local delivery still works.
     if current_token:
-        raise ValueError("Saved Web token is not a generated write token. Run the installer with --login, or set VIBEMON_WRITE_TOKEN.")
-    print(f"  {colored('!', 'yellow')} Not signed in. Activity stays local. Run with --login to send it to Web.")
+        raise ValueError("Saved VibeMon token is not a generated write token. Run the installer with --login, or set VIBEMON_WRITE_TOKEN.")
+    print(f"  {colored('!', 'yellow')} Not signed in. Activity stays local. Run with --login to send it to VibeMon.")
     return config
 
 
@@ -1700,7 +1700,7 @@ def install_vibemon(source: FileSource, cli_token: str = None) -> bool:
 # --collector installs the summary collector as a systemd service on a Linux
 # host. DGX Spark is a Linux host: the collector detects its unified memory.
 # --kubernetes runs the published collector image in the current kubectl
-# context and reads the Kubernetes Metrics API. Both sign in through Web
+# context and reads the Kubernetes Metrics API. Both sign in to VibeMon
 # (client "vibemon-collector") unless a write token is supplied.
 
 COLLECTOR_MODULES = (
@@ -1736,7 +1736,7 @@ def source_id(prefix: str, name: str) -> str:
 
 
 def collector_token(cli_token: str, saved: str, saved_origin: str, origin: str, name: str) -> str:
-    """The write token: supplied, saved for the same origin (unless --login), or from a Web sign-in.
+    """The write token: supplied, saved for the same origin (unless --login), or from a VibeMon sign-in.
 
     A saved token never moves to another Web origin: a new origin signs in again.
     """
@@ -1901,7 +1901,7 @@ def wait_for_collector(paths: CollectorPaths, clock=time.monotonic, sleep=time.s
             break
         state = collector_service_state(paths, timeout=min(15, remaining))
         if state["ActiveState"] not in {"active", "activating", "reloading"}:
-            raise RuntimeError("The collector stopped before Web accepted an observation")
+            raise RuntimeError("The collector stopped before VibeMon accepted an observation")
         try:
             acknowledged = float((paths.state / "health").read_text())
         except FileNotFoundError:
@@ -1913,7 +1913,7 @@ def wait_for_collector(paths: CollectorPaths, clock=time.monotonic, sleep=time.s
                 raise RuntimeError("The collector readiness timestamp is invalid")
             return
         sleep(min(1, max(0, deadline - clock())))
-    raise RuntimeError(f"Web did not accept a collector observation within {COLLECTOR_START_TIMEOUT_SECONDS} seconds")
+    raise RuntimeError(f"VibeMon did not accept a collector observation within {COLLECTOR_START_TIMEOUT_SECONDS} seconds")
 
 
 def verify_collector_runtime(paths: CollectorPaths, runtime: Path, arguments: list[str], token: str, process_root=Path("/proc")) -> None:
@@ -1967,7 +1967,7 @@ def activate_collector(paths: CollectorPaths, runtime: Path, unit: str, previous
         (paths.state / "health").unlink(missing_ok=True)
         started = True
         run_checked(paths.systemctl + ["start", "vibemon-collector.service"], "Starting the collector", timeout=120)
-        print("  Waiting for Web to accept the first observation…")
+        print("  Waiting for VibeMon to accept the first observation…")
         wait_for_collector(paths)
         verify_collector_runtime(paths, runtime, arguments, token)
         if collector_unit_bytes(paths.unit) != unit.encode("utf-8"):
@@ -2075,7 +2075,7 @@ def install_collector_locked(paths: CollectorPaths, source: FileSource, cli_toke
     for previous_runtime in releases.iterdir():
         if previous_runtime.resolve() != runtime and is_collector_runtime(paths, previous_runtime):
             shutil.rmtree(previous_runtime)
-    print(f"  {colored('✓', 'green')} Collector running as {ident} ({name}); Web accepted its first observation.")
+    print(f"  {colored('✓', 'green')} Collector running as {ident} ({name}); VibeMon accepted its first observation.")
     if not paths.system:
         linger = subprocess.run(["loginctl", "show-user", getpass_user(), "-p", "Linger", "--value"], capture_output=True, text=True)
         if linger.stdout.strip() != "yes":
@@ -2146,13 +2146,13 @@ def install_kubernetes(source: FileSource, cli_token: str = None) -> bool:
     run_checked(["kubectl", "apply", "-f", "-"], "Applying the collector", kubernetes_manifest(name, ident, origin, token))
     # A new token or image needs a new pod.
     run_checked(["kubectl", "-n", KUBERNETES_NAMESPACE, "rollout", "restart", "deployment/vibemon-collector"], "Restarting the collector")
-    # Ready means Web accepted the first summary, so a rejected token never becomes ready.
+    # Ready means VibeMon accepted the first summary, so a rejected token never becomes ready.
     if subprocess.run(["kubectl", "-n", KUBERNETES_NAMESPACE, "rollout", "status", "deployment/vibemon-collector", "--timeout=180s"],
                       capture_output=True).returncode != 0:
         logs = subprocess.run(["kubectl", "-n", KUBERNETES_NAMESPACE, "logs", "deployment/vibemon-collector", "--tail=1"], capture_output=True, text=True)
         reason = logs.stdout.strip() or "no collector output"
         raise RuntimeError(f"The collector did not become ready: {reason}. Check with: kubectl -n {KUBERNETES_NAMESPACE} logs deployment/vibemon-collector")
-    print(f"  {colored('✓', 'green')} Collector running in {context} as {ident} ({name}). It appears under Resources on Web within a minute.")
+    print(f"  {colored('✓', 'green')} Collector running in {context} as {ident} ({name}). It appears under Resources on VibeMon within a minute.")
     return True
 
 
@@ -2208,7 +2208,7 @@ def uninstall_collector(source: FileSource = None, cli_token: str = None) -> boo
         for directory in (paths.base / "app", releases, paths.base, paths.state):
             if directory.is_dir() and not directory.is_symlink() and not any(directory.iterdir()):
                 directory.rmdir()
-    print("  The token stays valid on Web until you delete it on Account.")
+    print("  The token stays valid until you delete it on Web Account.")
     return True
 
 
@@ -2230,7 +2230,7 @@ def uninstall_kubernetes(source: FileSource = None, cli_token: str = None) -> bo
         run_checked(["kubectl", "-n", KUBERNETES_NAMESPACE, "delete", "deployment,serviceaccount,secret", "-l", selector, "--ignore-not-found"], "Removing the collector workloads and credentials")
         print(f"  Kept namespace {KUBERNETES_NAMESPACE!r} and other resources.")
     print(f"  {colored('✓', 'green')} Removed the collector from {context}")
-    print("  The token stays valid on Web until you delete it on Account.")
+    print("  The token stays valid until you delete it on Web Account.")
     return True
 
 
@@ -2483,7 +2483,7 @@ Examples:
   Interactive mode:
     curl -fsSL https://vibemon.io/install/install.py | python3
 
-  Sign in through Web (shows a code to approve at vibemon.io/device):
+  Sign in to VibeMon (shows a code to approve at vibemon.io/device):
     curl -fsSL https://vibemon.io/install/install.py | python3 - --claude --login
 
   Non-interactive (for AI agents):
@@ -2497,7 +2497,7 @@ Examples:
     irm https://vibemon.io/install/install.ps1 | iex
     & ([scriptblock]::Create((irm https://vibemon.io/install/install.ps1))) --claude
 
-  Resource collector (signs in through Web):
+  Resource collector (signs in to VibeMon):
     curl -fsSL https://vibemon.io/install/install.py | python3 - --collector
     curl -fsSL https://vibemon.io/install/install.py | python3 - --kubernetes --name "Production"
 
@@ -2536,7 +2536,7 @@ another selected platform succeeded; a run in which nothing succeeded exits 1.
 
     # Configuration options
     parser.add_argument("--login", action="store_true",
-                        help="Sign in through VibeMon Web and save a new write token, even when one is saved")
+                        help="Sign in to VibeMon and save a new write token, even when one is saved")
     parser.add_argument("--token", type=valid_token_arg, metavar="TOKEN",
                         help="Generated write token; prefer VIBEMON_WRITE_TOKEN to keep it out of process arguments")
     parser.add_argument("-y", "--yes", action="store_true",

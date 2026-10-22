@@ -29,7 +29,7 @@ def run(sampler, sender, source_id, kind, name, metrics, wall_clock, monotonic, 
             try:
                 result = sender(payload)
                 if not isinstance(result, dict) or not isinstance(result.get("accepted"), bool):
-                    raise DeliveryFailure("Web returned an invalid ingest acknowledgement; check the API origin", retryable=False)
+                    raise DeliveryFailure("VibeMon returned an invalid ingest acknowledgement; check the API origin", retryable=False)
             except Exception as error:
                 if isinstance(error, DeliveryFailure) and not error.retryable:
                     raise

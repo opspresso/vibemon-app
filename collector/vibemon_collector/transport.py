@@ -23,7 +23,7 @@ def checked_url(value: str, allow_local_http: bool = False, origin_only: bool = 
         raise ValueError("Use an HTTPS URL without credentials or a fragment")
     _ = url.port
     if origin_only and url.path not in ("", "/"):
-        raise ValueError("The Web URL must be an origin without a path")
+        raise ValueError("The VibeMon URL must be an origin without a path")
     return value.rstrip("/")
 
 
@@ -32,7 +32,7 @@ def retry_after_seconds(value: str, now: float) -> float:
     if value.isascii() and value.isdigit():
         delay = float(value)
         if not math.isfinite(delay):
-            raise DeliveryFailure("Web returned an unsupported Retry-After delay; check the API origin", retryable=False)
+            raise DeliveryFailure("VibeMon returned an unsupported Retry-After delay; check the API origin", retryable=False)
         return delay
     try:
         date = parsedate_to_datetime(value)
@@ -70,11 +70,11 @@ class JsonClient:
                 raise
             retryable = error.code in (408, 425, 429, 500, 502, 503, 504)
             retry_after = retry_after_seconds((error.headers or {}).get('Retry-After', ''), self.wall_clock()) if retryable else 0
-            detail = f"Web returned HTTP {error.code}"
+            detail = f"VibeMon returned HTTP {error.code}"
             if not retryable:
-                detail += "; check the Web origin, write token permissions, and source definition"
+                detail += "; check the VibeMon origin, write token permissions, and source definition"
             raise DeliveryFailure(detail, retryable=retryable, retry_after=retry_after) from None
         except (ValueError, UnicodeError):
             if payload is None:
                 raise
-            raise DeliveryFailure("Web returned an invalid JSON summary response; check the API origin", retryable=False) from None
+            raise DeliveryFailure("VibeMon returned an invalid JSON summary response; check the API origin", retryable=False) from None

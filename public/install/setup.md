@@ -1,12 +1,12 @@
 # VibeMon setup
 
-Install hooks to send coding-agent summaries to the local Desktop App, the Web service, or both, and install collectors for Linux hosts, DGX Spark, and Kubernetes. Python 3 is required. Web uses Google or email account sign-in; agent-provider credentials remain on the machine running the hooks.
+Install hooks to send coding-agent summaries to the local Desktop App, VibeMon, or both, and install collectors for Linux hosts, DGX Spark, and Kubernetes. Python 3 is required. VibeMon uses Google or email account sign-in; agent-provider credentials remain on the machine running the hooks.
 
 Desktop auto-launch opens the installed macOS App or a Windows installer location (or `VibeMon.exe` on PATH). Start custom Windows installations and other platforms manually. Hooks never install or run an npm package.
 
 ## 1. Sign in
 
-The installer signs in through Web, so you do not copy tokens:
+The installer signs in to VibeMon, so you do not copy tokens:
 
 1. The installer shows a code, such as `BCDF-GHJK`, and the address `https://vibemon.io/device`. In a desktop terminal it also opens that page.
 2. Sign in with Google or an email account, check the code, and select **Allow**. For email sign-in, create an account on Web and confirm the address first.
@@ -20,7 +20,7 @@ Account lists every token. Delete a token there to disconnect its client; deleti
 
 ## 2. Install hooks
 
-Desktop users can open **Settings → Integrations** and choose **Install integration** for a detected tool. Open **Send activity to Web**, select **Sign in to send activity**, and approve it in the browser. To paste an existing write token, open **Use a write token instead** and select **Save and verify**. The dashboard read token remains in **Settings → Connections**. These are shared hook defaults; per-agent environment variables and plugin settings retain their precedence.
+Desktop users can open **Settings → Integrations** and choose **Install integration** for a detected tool. Open **Send activity to VibeMon**, select **Sign in to send activity**, and approve it in the browser. To paste an existing write token, open **Use a write token instead** and select **Save and verify**. The dashboard read token remains in **Settings → Connections**. These are shared hook defaults; per-agent environment variables and plugin settings retain their precedence.
 
 For a headless macOS or Linux installation:
 
@@ -58,7 +58,7 @@ The installer backs up modified configuration to `.bak`, writes atomically, and 
 
 ## Self-hosted installation
 
-`VIBEMON_DOCS_URL` selects the installer file base, including its manifest and every helper/template. `VIBEMON_URL` selects the Web API origin and is saved in hook configuration when supplied. The two can use different hosts, for example when installation files are served by a CDN.
+`VIBEMON_DOCS_URL` selects the installer file base, including its manifest and every helper/template. `VIBEMON_URL` selects the VibeMon API origin and is saved in hook configuration when supplied. The two can use different hosts, for example when installation files are served by a CDN.
 
 ```sh
 export VIBEMON_DOCS_URL=https://monitor.example/install
@@ -88,7 +88,7 @@ Shared transmission settings are in `~/.vibemon/config.json`:
 
 Set `vibemon_token` to the generated write token. Cloud transport requires HTTPS. `http_urls` controls local targets separately. Restrict access to this file: installation uses mode `0600` on POSIX; Windows access must be restricted through the user's filesystem permissions.
 
-Upgrades reject saved legacy tokens that do not use the server-generated format. Supply `VIBEMON_WRITE_TOKEN` or enter a replacement at the hidden prompt. Format validation does not check revocation or permissions. Hooks report Web delivery failures on stderr even with `debug: false`: HTTP 401 requires an active token, and HTTP 403 requires write permission. Local delivery can succeed while Web delivery fails; verify a recent receipt in the Web dashboard after a real hook event.
+Upgrades reject saved legacy tokens that do not use the server-generated format. Supply `VIBEMON_WRITE_TOKEN` or enter a replacement at the hidden prompt. Format validation does not check revocation or permissions. Hooks report VibeMon delivery failures on stderr even with `debug: false`: HTTP 401 requires an active token, and HTTP 403 requires write permission. Local delivery can succeed while VibeMon delivery fails; verify a recent receipt in the Web dashboard after a real hook event.
 
 Codex and Claude subscription logins are identified automatically. Install the integration in each signed-in `CODEX_HOME` or `CLAUDE_CONFIG_DIR`, then start a new coding session. Desktop discovers those profiles from hook reports and refreshes their usage separately. See [multiple-account setup](https://vibemon.io/docs/coding-agents#keep-several-accounts-apart) for commands, tool-specific limits, and verification.
 
@@ -116,16 +116,16 @@ Read and write tokens must belong to the same VibeMon account. Resource collecti
 
 ## Resource collectors
 
-A collector sends CPU, memory, GPU, and disk summaries of a server or cluster. It signs in through Web the same way.
+A collector sends CPU, memory, GPU, and disk summaries of a server or cluster. It signs in to VibeMon the same way.
 
 | Target | Command |
 | --- | --- |
 | Linux host or DGX Spark | `curl -fsSL https://vibemon.io/install/install.py \| python3 - --collector` |
 | Kubernetes (current kubectl context) | `curl -fsSL https://vibemon.io/install/install.py \| python3 - --kubernetes` |
 
-A run with a saved token reuses it only for the same Web origin; another origin, or `--login`, signs in again. Add `--name "Display name"` to choose the name on Web. The default is the host name or the kubectl context name. The source ID derives from it, such as `host-dgx-spark`.
+A run with a saved token reuses it only for the same Web origin; another origin, or `--login`, signs in again. Add `--name "Display name"` to choose the name on VibeMon. The default is the host name or the kubectl context name. The source ID derives from it, such as `host-dgx-spark`.
 
-**Linux host or DGX Spark** needs Python 3.10 or later and systemd. The installer checks the downloaded collector files against the manifest and prepares a separate Python environment before requesting sign-in or stopping an existing collector. It then starts the new version, waits up to three minutes for Web to accept an observation, and verifies the running process's command and environment. A failed switch restores the previous unit and its running state. A conflicting systemd override also causes restoration; inspect it before retrying. If restoration itself fails, the error identifies the retained runtime and unit backup for recovery. DGX Spark unified memory and NVIDIA GPU measurements are detected automatically.
+**Linux host or DGX Spark** needs Python 3.10 or later and systemd. The installer checks the downloaded collector files against the manifest and prepares a separate Python environment before requesting sign-in or stopping an existing collector. It then starts the new version, waits up to three minutes for VibeMon to accept an observation, and verifies the running process's command and environment. A failed switch restores the previous unit and its running state. A conflicting systemd override also causes restoration; inspect it before retrying. If restoration itself fails, the error identifies the retained runtime and unit backup for recovery. DGX Spark unified memory and NVIDIA GPU measurements are detected automatically.
 
 - As root: the service is system-wide, with files in `/opt/vibemon-collector`.
 - As another user: the service is a user service, with files in `~/.local/share/vibemon-collector`. Run `sudo loginctl enable-linger $USER` so that it keeps running after you log out.
@@ -134,7 +134,7 @@ A run with a saved token reuses it only for the same Web origin; another origin,
 - Check it with `systemctl status vibemon-collector` (add `--user` for a user service).
 - Use `systemctl cat vibemon-collector` to inspect the active runtime paths and any overrides (add `--user` for a user service).
 
-**Kubernetes** needs `kubectl` with the target cluster as the current context. The installer creates the `vibemon` namespace, read-only RBAC (list nodes and pods, read node metrics), a Secret with the token, and a Deployment of the published multi-arch collector image. CPU and memory need [metrics-server](https://github.com/kubernetes-sigs/metrics-server); without it, node and pod counts still work. The installer waits until Web accepts the first summary and otherwise shows the collector's last message.
+**Kubernetes** needs `kubectl` with the target cluster as the current context. The installer creates the `vibemon` namespace, read-only RBAC (list nodes and pods, read node metrics), a Secret with the token, and a Deployment of the published multi-arch collector image. CPU and memory need [metrics-server](https://github.com/kubernetes-sigs/metrics-server); without it, node and pod counts still work. The installer waits until VibeMon accepts the first summary and otherwise shows the collector's last message.
 
 To remove a collector, run the same command with `--uninstall`. On Linux, it stops and disables the owned service before removing its runtime, legacy package/environment, and readiness/token files. A stop failure leaves the files in place. Unrelated files in those parent directories are kept. On Kubernetes, it removes the installer's labeled Deployment, ServiceAccount, Secret, ClusterRole and ClusterRoleBinding. It keeps the namespace and other resources, and refuses an existing `vibemon` namespace that the installer did not create. The token stays valid until you delete it on Account. For Prometheus-based clusters and other options, see the [collector guide](https://github.com/opspresso/vibemon-app/tree/main/collector).
 
@@ -142,7 +142,7 @@ To remove a collector, run the same command with `--uninstall`. On Linux, it sto
 
 Open [Custom resource](https://vibemon.io/resources/new) to define any resource type and up to 32 numeric measurements. Choose each metric's label, unit, and number or gauge display. Download the definition and use it in your collector. Its first authenticated observation registers the resource; generating the definition alone does not connect a source.
 
-Send measurements with `kind: "resource"` to `/api/v1/ingest` using a write token. Web and App display the supplied definitions and status message. Use null for unavailable measurements. See [Send a resource](https://vibemon.io/docs/api#send-a-resource) for JSON and limits.
+Send measurements with `kind: "resource"` to `/api/v1/ingest` using a write token. The Web dashboard and App display the supplied definitions and status message. Use null for unavailable measurements. See [Send a resource](https://vibemon.io/docs/api#send-a-resource) for JSON and limits.
 
 On the Web dashboard, open resource **Details → Edit resource and metrics** to change labels, units, display ranges, and order, including Spark and Kubernetes presets. In Desktop, open **Details → Edit resource on Web** to reach the editor. Reorder with the handles, arrow buttons, or Alt+Up/Down on a handle, then select **Save changes**. Both clients use the saved order; later collection does not overwrite it. New keys or units remain unavailable until the collector supplies matching definitions. Display-only edits do not change receipt time or erase retained measurements.
 
@@ -169,6 +169,6 @@ For hook event mappings and configuration details, see the [hook reference](http
 
 ## VibeMon Touch and legacy devices
 
-VibeMon Touch on the four-inch ESP32-S3 board reads summaries from Web over HTTPS. Configure Wi-Fi, the Web origin, and a read token on the device. Hooks deliver to Web with a write token; neither `http_urls` nor `serial_port` configures Touch. See the [Touch setup guide](https://github.com/opspresso/vibemon-esp32#set-up-the-device).
+VibeMon Touch on the four-inch ESP32-S3 board reads summaries from VibeMon over HTTPS. Configure Wi-Fi, the Web origin, and a read token on the device. Hooks deliver to VibeMon with a write token; neither `http_urls` nor `serial_port` configures Touch. See the [Touch setup guide](https://github.com/opspresso/vibemon-esp32#set-up-the-device).
 
 Local HTTP/serial delivery remains available for ESP32-C6 devices using the [previous firmware](https://github.com/opspresso/vibemon-esp32/tree/e6c272c). The Touch firmware is not compatible with C6 boards.

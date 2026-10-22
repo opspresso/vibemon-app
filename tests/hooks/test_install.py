@@ -1201,11 +1201,11 @@ class TokenEnvironmentTest(unittest.TestCase):
         output = io.StringIO()
         output.isatty = lambda: True
         with mock.patch.dict(os.environ, {}, clear=True), mock.patch('sys.stdout', output), \
-                mock.patch.object(install, 'sign_in_to_web', side_effect=install.SignInError('The request was denied on Web')):
+                mock.patch.object(install, 'sign_in_to_web', side_effect=install.SignInError('The request was denied on VibeMon')):
             self.assertEqual(install.configure_token({'vibemon_token': ''})['vibemon_token'], '')
         self.assertIn('Activity stays local', output.getvalue())
         with mock.patch.dict(os.environ, {}, clear=True), mock.patch.object(install, 'SIGN_IN', True), mock.patch('sys.stdout', io.StringIO()), \
-                mock.patch.object(install, 'sign_in_to_web', side_effect=install.SignInError('The request was denied on Web')), self.assertRaises(ValueError):
+                mock.patch.object(install, 'sign_in_to_web', side_effect=install.SignInError('The request was denied on VibeMon')), self.assertRaises(ValueError):
             install.configure_token({'vibemon_token': ''})
 
     def test_app_updates_never_wait_for_a_sign_in(self):

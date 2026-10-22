@@ -391,7 +391,7 @@ async function sendVibeMonApi(payload, target = config) {
     VIBEMON_URL: target.vibemonUrl,
     VIBEMON_TOKEN: target.vibemonToken,
   });
-  if (!ok) logger?.warn?.("[vibemon] Cloud delivery failed. Check Python, the shared installation, and the Web write-token configuration.");
+  if (!ok) logger?.warn?.("[vibemon] Cloud delivery failed. Check Python, the shared installation, and the VibeMon write-token configuration.");
   return ok;
 }
 

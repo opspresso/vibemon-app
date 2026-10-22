@@ -706,14 +706,14 @@ def send_vibemon_api(url: str, token: str, payload: dict[str, Any], context: dic
         guidance = {
             401: "Replace vibemon_token in ~/.vibemon/config.json with an active write token from your Web Account page.",
             403: "The configured token needs write permission; select a write token from your Web Account page.",
-            429: "Web rate limit reached; reduce hook update frequency.",
-        }.get(error.code, "Check the Web service and hook configuration.")
+            429: "VibeMon rate limit reached; reduce hook update frequency.",
+        }.get(error.code, "Check the VibeMon service and hook configuration.")
         # Response bodies, exception text and URLs may contain credentials.
-        print(f"[vibemon] Web update rejected (HTTP {error.code}). {guidance}", file=sys.stderr)
+        print(f"[vibemon] VibeMon update rejected (HTTP {error.code}). {guidance}", file=sys.stderr)
         error.close()
         return False
     except (URLError, TimeoutError, OSError, HTTPException) as error:
-        print(f"[vibemon] Web update failed ({type(error).__name__}). Check the Web connection and vibemon_url in ~/.vibemon/config.json.", file=sys.stderr)
+        print(f"[vibemon] VibeMon update failed ({type(error).__name__}). Check the VibeMon connection and vibemon_url in ~/.vibemon/config.json.", file=sys.stderr)
         return False
 
 
