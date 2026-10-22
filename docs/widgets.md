@@ -39,7 +39,7 @@ A coding agent combines all projects of one provider account. The state of the p
 | Notice | Meaning and action |
 | --- | --- |
 | **Open VibeMon** | The App has not written widget data on this Mac. Start VibeMon. |
-| **No resources** | No resource is selected. Connect to Web in **Settings → Connections**, then choose resources in **Customize view**. |
+| **No resources** | No resource is selected. Connect your account in **Settings → Connections**, then choose resources in **Customize view**. |
 | **No coding agents** | No account has reported. Install an integration in **Settings → Integrations**, or select accounts in **Customize view**. |
 | **Resource unavailable** / **Choose coding account** | The saved item is no longer available. Edit the widget to choose a current resource or account. |
 | **Restart VibeMon** | The running App and the widget use different data versions, for example after an update. Quit and reopen VibeMon. |

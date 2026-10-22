@@ -8,7 +8,7 @@ import pytest
 import vibemon_core
 
 
-@pytest.mark.parametrize('code, guidance', [(401, 'write token'), (403, 'write permission'), (429, 'rate limit'), (503, 'Web service')])
+@pytest.mark.parametrize('code, guidance', [(401, 'write token'), (403, 'write permission'), (429, 'rate limit'), (503, 'VibeMon service')])
 def test_cloud_http_errors_are_visible_without_debug_and_without_secrets(code, guidance, capsys):
     token = 'vm_' + 'a' * 60
     error = HTTPError('https://web.example/' + token, code, token, {}, io.BytesIO(token.encode()))
@@ -27,5 +27,5 @@ def test_cloud_network_errors_do_not_interrupt_other_targets(capsys):
         vibemon_core.send_to_all({'project': 'fixture', 'character': 'codex'}, False)
     local.assert_called_once()
     output = capsys.readouterr()
-    assert 'Web connection' in output.err
+    assert 'VibeMon connection' in output.err
     assert 'fixture-secret' not in output.err + output.out

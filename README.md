@@ -42,13 +42,13 @@ For email sign-in, create an account on Web and confirm your email address first
 
 A source appears after its collector or hook sends the first report. Follow [Get started](https://vibemon.io/docs) to connect a coding tool or server. Use the same verified email for the sending computer and Desktop. Compare one card and its report time with the [Web dashboard](https://vibemon.io/dashboard); Desktop refreshes every 30 seconds. Provider credentials remain on the source machine.
 
-If you already have a read token from [Account](https://vibemon.io/account), open **Use a read token instead**, enter the Web origin and token, then select **Save and connect**. The App keeps it in OS secure storage. **Disconnect this device** clears the local connection and attempts to delete that token on Web. If Web is unreachable, delete it on Account. Other clients using that token also lose access. See [the desktop workspace guide](docs/monitoring.md) for selection, missing data, sources on standby, and troubleshooting.
+If you already have a read token from [Account](https://vibemon.io/account), open **Use a read token instead**, enter the VibeMon address and token, then select **Save and connect**. The App keeps it in OS secure storage. **Disconnect this device** clears the local connection and attempts to delete that token from VibeMon. If VibeMon is unreachable, delete it on Web Account. Other clients using that token also lose access. See [the desktop workspace guide](docs/monitoring.md) for selection, missing data, sources on standby, and troubleshooting.
 
 ## Connect local coding tools
 
-Open **Settings → Integrations → Install integration** for the tool you use, then restart that tool. Local character updates do not require Web login. To send the same activity to Web, select **Sign in to send activity** in **Send activity to Web** and approve it in the browser. To use an existing write token, open **Use a write token instead** and select **Save and verify**. The App's read token is never reused for hooks.
+Open **Settings → Integrations → Install integration** for the tool you use, then restart that tool. Local character updates do not require a VibeMon sign-in. To send the same activity to VibeMon, select **Sign in to send activity** in **Send activity to VibeMon** and approve it in the browser. To use an existing write token, open **Use a write token instead** and select **Save and verify**. The App's read token is never reused for hooks.
 
-Start a coding task. Check its activity under **On this device** in the App to confirm local hook delivery, then check the project's report time on Web to confirm Web delivery. A character can also follow a selected cloud project, so its movement alone does not identify the delivery path. The App does not install coding tools themselves or start collection on remote servers.
+Start a coding task. Check its activity under **On this device** in the App to confirm local hook delivery, then check the project's report time on the Web dashboard to confirm VibeMon delivery. A character can also follow a selected cloud project, so its movement alone does not identify the delivery path. The App does not install coding tools themselves or start collection on remote servers.
 
 Tool detection honors `CLAUDE_CONFIG_DIR`, `CODEX_HOME`, `KIRO_HOME`, and `OPENCODE_CONFIG_DIR`. These variables must reach both the tool and App processes. OpenClaw installation is supported on macOS/Linux. See [Monitor coding agents](https://vibemon.io/docs/coding-agents) for terminal and Windows setup, and the [hook reference](docs/hooks.md) for event mappings.
 
@@ -78,7 +78,7 @@ Web development normally runs on `http://localhost:3030`; the unpackaged App acc
 - [Documentation index](docs/README.md) — Desktop user and developer guides.
 - [Local HTTP API](docs/api.md) — Loopback status, window, and health endpoints.
 - [Send your own data](https://vibemon.io/docs/api) — Web API to send and read summaries with a token.
-- [Web service](https://vibemon.io) — Login, source configuration, and browser dashboard.
+- [VibeMon service](https://vibemon.io) — Login, source configuration, and browser dashboard.
 - [Hooks and collector source](docs/distribution.md) — Public installers, collector, shared schema, registries, and rendering assets live in this repository.
 - [Web source](https://github.com/opspresso/vibemon-web) — Private service implementation; App installation, builds, and CI do not require access.
 - [VibeMon Touch](https://github.com/opspresso/vibemon-esp32) — Four-inch ESP32-S3 display using the same HTTPS summaries, status rules, and palette. Legacy C6 devices use the previous firmware.

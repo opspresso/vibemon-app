@@ -19,7 +19,7 @@ def main():
     parser.add_argument("--source-id", required=True)
     parser.add_argument("--name", required=True)
     parser.add_argument("--kind", choices=["host", "cluster"], default="host")
-    parser.add_argument("--url", required=True, help="Web origin; ingest path is appended")
+    parser.add_argument("--url", required=True, help="VibeMon origin; ingest path is appended")
     parser.add_argument("--metrics", help="Comma-separated metric names; default depends on kind")
     parser.add_argument("--memory-type", choices=["auto", "ram", "unified"], default="auto")
     parser.add_argument("--prometheus-url")

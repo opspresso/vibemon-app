@@ -75,8 +75,8 @@ curl -X POST http://127.0.0.1:19280/status \
 | `state` | string | `start`, `idle`, `thinking`, `planning`, `working`, `packing`, `notification`, `done`, `sleep`, `alert` |
 | `tool` | string | Tool name (e.g., `Bash`, `Read`, `Edit`) |
 | `project` | string | Project name |
-| `sourceId` | string | Optional stable source identity, using the Web source-ID rules |
-| `account` | object | Optional `{ provider, id, displayName }`, with the same identity rules as Web |
+| `sourceId` | string | Optional stable source identity, using the VibeMon source-ID rules |
+| `account` | object | Optional `{ provider, id, displayName }`, with the same identity rules as VibeMon |
 | `observedAt` | string | Optional UTC event time; at most 120 seconds old or 30 seconds ahead |
 | `heartbeat` | boolean | Optional. `true` repeats a running turn's current state. It refreshes the state timeout but does not take focus from another project. |
 | `model` | string | Model name (e.g., `opus`, `sonnet`) |
@@ -104,7 +104,7 @@ Agent bridges usually set `character` automatically:
 
 Unknown character names are accepted and normalized to `vibemon`; they do not reject the status update or become Character Lock options. OpenCode uses the same `POST /status` endpoint and cloud relay payload as the other bridges. Its adapter omits context and plan-usage fields because it does not collect usage metrics.
 
-Current hooks send the same `sourceId`, account metadata and event timestamp to Desktop and Web. Desktop keys these local events as `local:<sourceId>`; cloud observations use `cloud:<sourceId>`. Project labels remain unchanged. Accounts and workspaces with the same project name stay separate. Untimestamped legacy payloads without a source ID continue to use the project name as their key.
+Current hooks send the same `sourceId`, account metadata and event timestamp to Desktop and VibeMon. Desktop keys these local events as `local:<sourceId>`; cloud observations use `cloud:<sourceId>`. Project labels remain unchanged. Accounts and workspaces with the same project name stay separate. Untimestamped legacy payloads without a source ID continue to use the project name as their key.
 
 For a timestamped source, duplicate or older events return `skipped: true` with `reason: "duplicate_or_older"`. They do not replace state or refresh timers. A source ID cannot move between accounts. `GET /status` exposes the resulting project keys; use those keys with `/close` and `/show`.
 

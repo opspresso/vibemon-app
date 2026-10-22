@@ -48,9 +48,9 @@ class MonitoringClient extends EventEmitter {
     this.conditional = null;
   }
   getStatus() { return this.status; }
-  /** The saved Web address, or the public service before one is saved. */
+  /** The saved VibeMon address, or the public service before one is saved. */
   savedUrl() { return this.preferences.get('url') || DEFAULT_WEB_URL; }
-  /** The saved Web address as a checked origin; throws when it is not allowed here. */
+  /** The saved VibeMon address as a checked origin; throws when it is not allowed here. */
   savedOrigin() { return webOrigin(this.savedUrl(), this.allowLocalHttp); }
   currentTime() { return this.reportClock ? this.reportClock() : this.now(); }
   snapshot() {
@@ -116,8 +116,8 @@ class MonitoringClient extends EventEmitter {
     return snapshot;
   }
   /**
-   * Removes the connection on this device, then deletes its token on Web.
-   * `tokenDeleted` is false when Web could not delete it (for example offline);
+   * Removes the connection on this device, then deletes its token from VibeMon.
+   * `tokenDeleted` is false when VibeMon could not delete it (for example offline);
    * the token then stays valid until it is deleted on Web Account.
    */
   async disconnect() {
@@ -135,7 +135,7 @@ class MonitoringClient extends EventEmitter {
     this.status = 'not-configured';
     const snapshot = this.snapshot();
     this.emit('change', snapshot);
-    // A saved token that cannot be read cannot be deleted on Web either.
+    // A saved token that cannot be read cannot be deleted from VibeMon either.
     return { ...snapshot, tokenDeleted: credential ? await revokeApiToken(this.fetch, credential.origin, credential.token) : !saved };
   }
   /** The saved token and its origin, or null when none is saved or either cannot be used. */
@@ -177,11 +177,11 @@ class MonitoringClient extends EventEmitter {
       });
     } catch {
       signal?.throwIfAborted();
-      throw Object.assign(new Error('Cannot reach Web'), { code: 'connection-error' });
+      throw Object.assign(new Error('Cannot reach VibeMon'), { code: 'connection-error' });
     }
   }
   readResponse(response) {
-    if (!response.ok) throw Object.assign(new Error('Web request failed'), { code: response.status === 401 ? 'token-expired' : response.status === 403 ? 'permission-denied' : 'connection-error' });
+    if (!response.ok) throw Object.assign(new Error('VibeMon request failed'), { code: response.status === 401 ? 'token-expired' : response.status === 403 ? 'permission-denied' : 'connection-error' });
     return readJsonResponse(response, CLOUD_MAX_RESPONSE_BYTES);
   }
   /**

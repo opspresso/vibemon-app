@@ -8,11 +8,11 @@ The tray menu provides Dashboard, Settings, Show companion or Hide companion, In
 
 ## Connect your cloud workspace
 
-1. Open **Settings → Connections** in Desktop and select **Sign in with VibeMon**. Your browser opens the Web address.
+1. Open **Settings → Connections** in Desktop and select **Sign in with VibeMon**. Your browser opens the VibeMon address.
 2. Sign in with Google, Apple, or an email account and select **Allow**. For email sign-in, create an account on Web and confirm the address first. The browser returns to the App on `http://127.0.0.1:19280/auth/callback`, and the App receives a read token named **VibeMon Desktop (host name) · read**.
 3. Open **Customize view**. Select resources, provider accounts, and visible metrics, then select **Save view**. **Discover sources** refreshes the available list without discarding unsaved choices. When every listed item in a group is selected, the view follows that whole group, including accounts, resources, and metrics that appear later. A partial selection shows only the chosen items; open **Customize view** to add new ones. Selections saved by Desktop 3.7.2 or earlier reset to all accounts, resources, and metrics once, because those versions saved a full selection as a fixed list.
 
-Web resolves Google, Apple, and email sign-ins with the same verified email to one account. Desktop uses the owner returned by Web; it never derives an owner from a provider name or email. Its read token and the hooks' write tokens remain separate credentials for that same account. Different addresses, including Apple private relay addresses, need explicit linking from Web Account. See [one account on every platform](https://vibemon.io/docs#one-account-on-every-platform). A Google or Apple login does not set an email password; adding password sign-in requires email account creation and confirmation. The available methods are managed on Web Account.
+VibeMon resolves Google, Apple, and email sign-ins with the same verified email to one account. Desktop uses the owner returned by VibeMon; it never derives an owner from a provider name or email. Its read token and the hooks' write tokens remain separate credentials for that same account. Different addresses, including Apple private relay addresses, need explicit linking from Web Account. See [one account on every platform](https://vibemon.io/docs#one-account-on-every-platform). A Google or Apple login does not set an email password; adding password sign-in requires email account creation and confirmation. The available methods are managed on Web Account.
 
 ![Desktop connection with shared-account guidance](images/shared-account-connection.png)
 
@@ -20,9 +20,9 @@ Sign-in uses OAuth authorization code with PKCE and a loopback redirect: the cod
 
 **Cancel**, a new sign-in, a manual connection change, or disconnect prevents an unfinished sign-in from saving its connection. This includes token exchange and the access check after it. An exchange already in progress finishes within its request timeout so the App can delete any token it received; it never adopts that token after cancellation. Read access and cloud delivery use the same cancellation rule.
 
-A replacement read token is verified before it replaces the saved connection. Failed checks preserve the current workspace and credential. After a replacement, the App deletes the replaced token on Web (`DELETE /api/v1/connection`) because no other part of this device uses it. When a sign-in gets a token but the App cannot save it, the App deletes that new token on Web before it shows the error. These deletions are best effort: a token that Web cannot delete stays in Web Account. The read token is encrypted with Electron `safeStorage`, backed by the operating system keychain or secret service. The saved value never returns to the renderer. Linux `basic_text` storage is rejected. Unlock or configure secure storage if the App cannot save a token. **Disconnect this device** removes the local credential and displayed cloud data, then deletes that token on Web (`DELETE /api/v1/connection`). When Web cannot be reached, the App says so; delete the token in Web Account. Dashboard read tokens are never copied to hook configuration.
+A replacement read token is verified before it replaces the saved connection. Failed checks preserve the current workspace and credential. After a replacement, the App deletes the replaced token from VibeMon (`DELETE /api/v1/connection`) because no other part of this device uses it. When a sign-in gets a token but the App cannot save it, the App deletes that new token from VibeMon before it shows the error. These deletions are best effort: a token that VibeMon cannot delete stays in Web Account. The read token is encrypted with Electron `safeStorage`, backed by the operating system keychain or secret service. The saved value never returns to the renderer. Linux `basic_text` storage is rejected. Unlock or configure secure storage if the App cannot save a token. **Disconnect this device** removes the local credential and displayed cloud data, then deletes that token on Web (`DELETE /api/v1/connection`). When VibeMon cannot be reached, the App says so; delete the token in Web Account. Dashboard read tokens are never copied to hook configuration.
 
-Latest state is polled every 30 seconds, restricted to the saved selection. When Web rejects the token (HTTP 401 or 403), scheduled polls stop until you sign in, save a token, change the view, or select refresh. Selecting no sources pauses data requests and preserves the connection result. The local project and usage panels work without a cloud connection. HTTPS is required; an unpackaged development App also accepts loopback HTTP for isolated tests.
+Latest state is polled every 30 seconds, restricted to the saved selection. When VibeMon rejects the token (HTTP 401 or 403), scheduled polls stop until you sign in, save a token, change the view, or select refresh. Selecting no sources pauses data requests and preserves the connection result. The local project and usage panels work without a cloud connection. HTTPS is required; an unpackaged development App also accepts loopback HTTP for isolated tests.
 
 Scheduled and manual polls of `GET /api/v1/sources` are conditional. The App sends `If-None-Match` with the `ETag` of the last 200 response for the same Web origin, token, and query (`ids` and `accounts`). On 304 Not Modified, the App keeps those sources and takes the server time from the `X-Server-Time` header. A 304 without a valid `X-Server-Time`, or without a cached 200 response, is an invalid response and the poll fails. The App forgets the cached response when the origin, token, or query changes, when you disconnect or polling stops, and after any failed poll; the next request is then unconditional. Each completed poll still sends one update to the dashboard, as before.
 
@@ -42,15 +42,15 @@ Use **Add resource** to define a database, queue, sensor, or another resource on
 
 **Details** shows current readings, collection status, and the recent hour. History loads on demand and refreshes every minute while visible. Closing the detail dialog or hiding the workspace stops its refresh timer. Signed values and measurements outside a display range remain visible in the chart. Historical values use the definitions returned with their history response.
 
-Chart gaps mean no recorded measurement. Resource heartbeats include fresh measurements and add minute samples. Agent heartbeats refresh status without adding activity samples. A single observed minute appears as a point. Web serves minute history for 24 hours and, with Pro, hour history for 7 or 30 days. Desktop requests only the recent hour, even when the shared account has Pro. A status-only resource has no numeric history.
+Chart gaps mean no recorded measurement. Resource heartbeats include fresh measurements and add minute samples. Agent heartbeats refresh status without adding activity samples. A single observed minute appears as a point. VibeMon serves minute history for 24 hours and, with Pro, hour history for 7 or 30 days. Desktop requests only the recent hour, even when the shared account has Pro. A status-only resource has no numeric history.
 
 History details show minute averages and maxima with gaps for unavailable observations. A failed history request keeps its error visible until a successful retry. Hidden metrics do not trigger history requests.
 
-## Send local activity to Web
+## Send local activity to VibeMon
 
-Open **Settings → Integrations → Send activity to Web** and select **Sign in to send activity**. After you allow it on Web, the App saves a write token named **VibeMon Desktop (host name) · write** for the local hooks. To paste a write token instead, open **Use a write token instead** and select **Save and verify**. Verification checks permissions without creating a source or test observation. Only a successful check replaces the saved connection; the next real hook event sends data.
+Open **Settings → Integrations → Send activity to VibeMon** and select **Sign in to send activity**. After you allow it in the browser, the App saves a write token named **VibeMon Desktop (host name) · write** for the local hooks. To paste a write token instead, open **Use a write token instead** and select **Save and verify**. Verification checks permissions without creating a source or test observation. Only a successful check replaces the saved connection; the next real hook event sends data.
 
-**Check saved connection** checks the current token again. Rejected, read-only, unreachable, and unsupported servers have separate messages. The displayed check time is explicit; it is not a continuous delivery guarantee. A different Web origin requires a new write token. A successful replacement deletes the replaced write token on Web. **Remove saved write token** removes the shared hook credential, then deletes it on Web, while preserving local delivery and the independent read connection. When Web cannot be reached, the App says so; delete the token in Web Account. Replacing or removing the shared write token stops every client that uses the same token value, including hooks or collectors where you pasted it by hand. Agent environment variables and OpenClaw plugin settings can override these shared defaults. Stored write tokens never return to the settings renderer.
+**Check saved connection** checks the current token again. Rejected, read-only, unreachable, and unsupported servers have separate messages. The displayed check time is explicit; it is not a continuous delivery guarantee. A different Web origin requires a new write token. A successful replacement deletes the replaced write token from VibeMon. **Remove saved write token** removes the shared hook credential, then deletes it from VibeMon, while preserving local delivery and the independent read connection. When VibeMon cannot be reached, the App says so; delete the token in Web Account. Replacing or removing the shared write token stops every client that uses the same token value, including hooks or collectors where you pasted it by hand. Agent environment variables and OpenClaw plugin settings can override these shared defaults. Stored write tokens never return to the settings renderer.
 
 ## Coding accounts and local activity
 
@@ -64,7 +64,7 @@ Equal project names across accounts remain separate. Use separate signed-in tool
 
 ## Settings
 
-- **Connections**: Web origin, read token, connection recovery, and dashboard selection.
+- **Connections**: VibeMon address, read token, connection recovery, and dashboard selection.
 - **Companion**: 3D or pixel art, character, size, always-on-top behavior, edge distance, macOS Dock scaling, speech-bubble fields, workspace appearance, and login preference.
 - **Integrations**: hook installation and repair, installation prompts, and advanced HTTP/serial delivery settings.
 - **About**: App version, update actions, documentation, and release notes.
@@ -84,8 +84,8 @@ Preference changes save automatically. Connection and selection forms save only 
 | **Token not accepted** | Select **Sign in with VibeMon** again, or paste an active read token from Web Account. |
 | **Read access required** | Replace the token with one that has read permission. |
 | **Replace saved token** | The local credential cannot be decrypted. Enter it again from Web Account. |
-| **Connection interrupted** | Check the Web address and connectivity. Retained readings remain visible and go on Standby after 120 seconds. |
-| No selected resources or accounts | Use **Customize view**, or start collection in the same Web account. |
+| **Connection interrupted** | Check the VibeMon address and connectivity. Retained readings remain visible and go on Standby after 120 seconds. |
+| No selected resources or accounts | Use **Customize view**, or start collection in the same VibeMon account. |
 
 ## Verify changes
 

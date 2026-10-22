@@ -19,7 +19,7 @@ test('verifies write access before saving and never exposes stored credentials',
   expect(delivery.snapshot()).toMatchObject({ status: 'verified', checkedAt: new Date(1000000).toISOString(), tokenConfigured: true });
   expect(JSON.stringify(delivery.snapshot())).not.toContain(token);
 });
-test.each([[401, 'rejected'], [403, 'write permission'], [404, 'Update Web'], [503, 'service is available']])('failed verification (%s) cannot replace a working credential', async (status, message) => {
+test.each([[401, 'rejected'], [403, 'write permission'], [404, 'Update VibeMon'], [503, 'service is available']])('failed verification (%s) cannot replace a working credential', async (status, message) => {
   const { delivery, fetchImpl, configManager } = fixture();
   fetchImpl.mockResolvedValue({ ok: false, status });
   await expect(delivery.configure({ url: 'https://vibemon.io', token: 'vm_' + 'b'.repeat(60) })).rejects.toThrow(message);
@@ -35,7 +35,7 @@ test('requires explicit replacement before sending a saved token to another orig
 });
 test.each(['http://remote.example', 'https://user:secret@example.com', 'https://example.com/api', 'https://example.com?secret=x'])('rejects unsafe origins before transmitting credentials: %s', async url => {
   const { delivery, fetchImpl } = fixture();
-  await expect(delivery.configure({ url, token })).rejects.toThrow('HTTPS Web origin');
+  await expect(delivery.configure({ url, token })).rejects.toThrow('HTTPS VibeMon address');
   expect(fetchImpl).not.toHaveBeenCalled();
 });
 test('rejects unexpected or oversized success responses instead of claiming verification', async () => {
@@ -49,7 +49,7 @@ test('rejects unexpected or oversized success responses instead of claiming veri
 test('connection failures do not leak request details through the workspace', async () => {
   const { delivery, fetchImpl } = fixture();
   fetchImpl.mockRejectedValue(new Error(`private request ${token}`));
-  await expect(delivery.check()).rejects.toThrow('Cannot reach Web');
+  await expect(delivery.check()).rejects.toThrow('Cannot reach VibeMon');
   expect(JSON.stringify(delivery.snapshot())).not.toContain(token);
 });
 test('rejects concurrent changes and preserves externally updated credentials', async () => {
@@ -86,7 +86,7 @@ test('malformed saved addresses cannot disclose embedded credentials to the rend
   expect(JSON.stringify(delivery.snapshot())).not.toContain('private-password');
 });
 
-test('disconnect deletes the saved write token on Web and reports a failure', async () => {
+test('disconnect deletes the saved write token from VibeMon and reports a failure', async () => {
   const { delivery, fetchImpl, config } = fixture();
   fetchImpl.mockResolvedValueOnce({ status: 204, ok: true });
   await expect(delivery.disconnect()).resolves.toEqual({ tokenDeleted: true });
@@ -99,7 +99,7 @@ test('disconnect deletes the saved write token on Web and reports a failure', as
   expect(offline.config.vibemon_token).toBe('');
 });
 
-test('a verified replacement deletes the replaced write token on Web', async () => {
+test('a verified replacement deletes the replaced write token from VibeMon', async () => {
   const { delivery, fetchImpl } = fixture();
   const replacement = 'vm_' + 'b'.repeat(60);
   await delivery.configure({ url: 'https://vibemon.io', token: replacement });

@@ -199,7 +199,7 @@ class HttpServer {
   }
 
   /**
-   * The browser returns here after VibeMon Web sign-in (see web-sign-in.cjs).
+   * The browser returns here after VibeMon sign-in (see web-sign-in.cjs).
    * The page shows fixed text only; it never echoes the query.
    */
   handleSignInCallback(req, res) {

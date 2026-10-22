@@ -33,7 +33,7 @@ struct Notice: Sendable, Equatable {
     static func empty(_ kind: FeedItem.Kind) -> Notice {
         switch kind {
         case .resource:
-            Notice(symbol: "server.rack", title: Localization.text("No resources"), detail: Localization.text("Connect to Web in VibeMon Settings, then choose resources in Customize view."), link: resources)
+            Notice(symbol: "server.rack", title: Localization.text("No resources"), detail: Localization.text("Connect your account in VibeMon Settings, then choose resources in Customize view."), link: resources)
         case .agent:
             Notice(symbol: "sparkles", title: Localization.text("No coding agents"), detail: Localization.text("Agents appear after an integration reports activity."), link: agents)
         }

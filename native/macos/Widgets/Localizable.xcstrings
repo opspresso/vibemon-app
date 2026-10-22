@@ -369,25 +369,25 @@
         }
       }
     },
-    "Connect to Web in VibeMon Settings, then choose resources in Customize view." : {
+    "Connect your account in VibeMon Settings, then choose resources in Customize view." : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Connect to Web in VibeMon Settings, then choose resources in Customize view."
+            "value" : "Connect your account in VibeMon Settings, then choose resources in Customize view."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "VibeMonの設定でWebに接続してから、「表示をカスタマイズ」でリソースを選択してください。"
+            "value" : "VibeMonの設定でアカウントを接続してから、「表示をカスタマイズ」でリソースを選択してください。"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "VibeMon 설정에서 Web에 연결한 뒤 보기 설정에서 리소스를 선택하세요."
+            "value" : "VibeMon 설정에서 계정을 연결한 뒤 보기 설정에서 리소스를 선택하세요."
           }
         }
       }
