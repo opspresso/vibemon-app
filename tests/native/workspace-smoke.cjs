@@ -93,14 +93,15 @@ startFixture().then(async fixture => {
   assert.equal(await text('#summary-resources'), '4');
   assert.equal(await text('#summary-accounts'), '4');
   assert.equal(await text('#summary-local'), '2');
-  assert.equal(await text('#summary-attention'), '3');
+  // The silent build runner is on standby, which needs no attention.
+  assert.equal(await text('#summary-attention'), '2');
   assert.deepEqual(await ui('[...document.querySelectorAll("#overview-accounts .card")].map(card => card._source.sourceId)'), ['kiro:lab', 'codex:personal', 'claude:studio'], 'equal project names use account IDs before the Overview limit');
   const localClock = client.now;
   try {
     for (const offset of [-86400000, 86400000]) {
       client.now = () => Date.now() + offset;
       await client.poll(true); await published();
-      assert.equal(await text('#summary-attention'), '3', 'wall-clock skew does not add stale warnings');
+      assert.equal(await text('#summary-attention'), '2', 'wall-clock skew does not change standby or attention');
       assert.equal(await ui('[...document.querySelectorAll("#overview-accounts time")].every(node => node.textContent === "Just now")'), true, 'report age uses server time');
       // The three-card Overview may omit the account whose reset we are checking.
       await navigate('agents');
@@ -117,7 +118,7 @@ startFixture().then(async fixture => {
   await click('#overview-attention');
   assert.equal(await ui('document.getElementById("overview-attention").getAttribute("aria-pressed")'), 'true');
   assert.equal(await ui('[...document.querySelectorAll("#overview-resources .card, #overview-accounts .card")].some(card => card.classList.contains("compact-card"))'), false, 'attention view expands every reused card');
-  assert.deepEqual(await ui('[...document.querySelectorAll("#overview-resources .card h3")].map(node => node.textContent)'), ['Build runner', 'Cache service']);
+  assert.deepEqual(await ui('[...document.querySelectorAll("#overview-resources .card h3")].map(node => node.textContent)'), ['Cache service']);
   assert.deepEqual(await ui('[...document.querySelectorAll("#overview-accounts .card h3")].map(node => node.textContent)'), ['experiments']);
   await client.poll(true); await published();
   assert.equal(await ui('document.querySelectorAll("#overview-accounts .card").length'), 1, 'background refresh preserves the attention filter');
@@ -140,7 +141,8 @@ startFixture().then(async fixture => {
   assert.ok((await text('#resource-cards')).includes('0.123456'), 'edited presets retain custom precision');
   state.sources = uneditedSources; await client.poll(true);
   const orderingSources = state.sources;
-  await ui('document.querySelector(\'[aria-label="View Production cluster details"]\').focus()');
+  // Overview also lists Production cluster; focus the card on this page.
+  await ui('document.querySelector(\'#resource-cards [aria-label="View Production cluster details"]\').focus()');
   state.sources = () => orderingSources().map(source => source.sourceId === 'production' ? { ...source, health: 'error' } : source);
   await client.poll(true); await published();
   assert.equal(await ui('document.activeElement.getAttribute("aria-label")'), 'View Production cluster details', 'attention reordering preserves keyboard focus');
