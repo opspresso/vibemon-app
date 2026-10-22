@@ -13,7 +13,7 @@ test.each([86400000, -86400000])('reader wall-clock skew of %i ms does not chang
     elapsed += 119999;
     expect(sourceState(source, clock())).toBe('ok');
     elapsed++;
-    expect(sourceState(source, clock())).toBe('stale');
+    expect(sourceState(source, clock())).toBe('standby');
     const agent = { ...source, kind: 'agent', observedAt: source.receivedAt, agent: { state: 'working' } };
     expect(sourceState(agent, clock())).toBe('working');
     elapsed += 180000;

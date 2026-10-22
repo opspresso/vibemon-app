@@ -3,7 +3,7 @@ const { EventEmitter } = require('events');
 const { URL, URLSearchParams } = require('node:url');
 const { METRICS, validId, validAccountId, accountId, groupAccounts, webOrigin, validateSources, validateTrend, validateDefinitions, validateOrder, displayMetrics, metricCatalog } = require('./domain.cjs');
 const { CLOUD_POLL_MS, CLOUD_REQUEST_TIMEOUT_MS, CLOUD_TREND_MS, CLOUD_MAX_RESPONSE_BYTES, CLOUD_MAX_ETAG_LENGTH } = require('../shared/constants.cjs');
-const { sourceStale, sourceState, accountActivity, needsAttention, attentionCount } = require('../shared/monitoring/state.cjs');
+const { sourceState, accountActivity, needsAttention, attentionCount } = require('../shared/monitoring/state.cjs');
 const { snapshotClock } = require('../shared/monitoring/clock.cjs');
 const { t } = require('../shared/i18n/locale.cjs');
 const { isApiToken, revokeApiToken } = require('../shared/api-token.cjs');
@@ -62,7 +62,7 @@ class MonitoringClient extends EventEmitter {
       : selectedSources === null || selectedSources.includes(source.sourceId));
     const sources = selected.map(source => {
       const displayState = sourceState(source, now);
-      return { ...source, displayMetrics: displayMetrics(source, now), stale: sourceStale(source, now), displayState, needsAttention: needsAttention(displayState) };
+      return { ...source, displayMetrics: displayMetrics(source, now), displayState, needsAttention: needsAttention(displayState) };
     });
     const catalogMetrics = metricCatalog(this.catalog);
     const savedMetrics = this.preferences.get('selectedMetrics');

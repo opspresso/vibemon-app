@@ -16,12 +16,8 @@ export default {
     "Unknown health",
     "neutral"
   ],
-  "stale": [
-    "Stale",
-    "warning"
-  ],
-  "inactive": [
-    "Inactive",
+  "standby": [
+    "Standby",
     "neutral"
   ],
   "working": [

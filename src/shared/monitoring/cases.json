@@ -164,7 +164,7 @@
       }
     },
     {
-      "name": "reported sleep is inactive",
+      "name": "reported sleep is on standby",
       "elapsedMs": 0,
       "sources": [
         {
@@ -175,7 +175,7 @@
       ],
       "expected": {
         "accounts": {
-          "codex:work": "inactive"
+          "codex:work": "standby"
         }
       }
     },
@@ -197,7 +197,7 @@
       }
     },
     {
-      "name": "host stale boundary",
+      "name": "host standby boundary",
       "elapsedMs": 1,
       "sources": [
         {
@@ -208,12 +208,12 @@
       ],
       "expected": {
         "resources": {
-          "resource": "stale"
+          "resource": "standby"
         }
       }
     },
     {
-      "name": "cluster stale boundary",
+      "name": "cluster standby boundary",
       "elapsedMs": 1,
       "sources": [
         {
@@ -224,12 +224,12 @@
       ],
       "expected": {
         "resources": {
-          "resource": "stale"
+          "resource": "standby"
         }
       }
     },
     {
-      "name": "resource stale boundary",
+      "name": "resource standby boundary",
       "elapsedMs": 1,
       "sources": [
         {
@@ -240,7 +240,7 @@
       ],
       "expected": {
         "resources": {
-          "resource": "stale"
+          "resource": "standby"
         }
       }
     },
@@ -291,7 +291,7 @@
       ],
       "expected": {
         "accounts": {
-          "codex:work": "inactive"
+          "codex:work": "standby"
         }
       }
     },
@@ -342,7 +342,7 @@
       ],
       "expected": {
         "accounts": {
-          "codex:work": "inactive"
+          "codex:work": "standby"
         }
       }
     },
@@ -359,7 +359,7 @@
       ],
       "expected": {
         "accounts": {
-          "codex:work": "inactive"
+          "codex:work": "standby"
         }
       }
     },
@@ -395,7 +395,7 @@
       ],
       "expected": {
         "accounts": {
-          "codex:work": "inactive"
+          "codex:work": "standby"
         }
       }
     },
@@ -432,7 +432,7 @@
       ],
       "expected": {
         "accounts": {
-          "codex:work": "inactive"
+          "codex:work": "standby"
         }
       }
     },
@@ -516,7 +516,7 @@
       ],
       "expected": {
         "accounts": {
-          "codex:work": "inactive"
+          "codex:work": "standby"
         },
         "latest": {
           "codex:work": "old"

@@ -35,7 +35,7 @@ test('the renderer receives its locale with the English fallback only', () => {
   const { locale, messages } = rendererLanguage();
   expect(locale).toBe('ja');
   expect(Object.keys(messages).sort()).toEqual(['en', 'ja']);
-  expect(messages.ja['state.inactive']).toBe('非アクティブ');
+  expect(messages.ja['state.standby']).toBe('待機');
 });
 
 test('Korean notices and tray menu use the shared terms', () => {

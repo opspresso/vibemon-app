@@ -11,15 +11,15 @@ test.each(['working', 'thinking', 'planning', 'packing', 'notification', 'alert'
   expect(sourceState(source, now + 299999)).toBe(state);
   expect(sourceState({ ...source, stale: true }, now)).toBe(state);
   expect(sourceState(source, now + 300000)).toBe('idle');
-  expect(sourceState(source, now + 600000)).toBe('inactive');
+  expect(sourceState(source, now + 600000)).toBe('standby');
   expect(needsAttention(sourceState(source, now + 600000))).toBe(false);
 });
 
-test.each(['host', 'cluster', 'resource'])('%s silence still requires attention', kind => {
+test.each(['host', 'cluster', 'resource'])('%s silence is standby, not attention', kind => {
   const source = { ...agent, kind, agent: null, account: null };
   expect(sourceState(source, now + 119999)).toBe('ok');
-  expect(sourceState(source, now + 120000)).toBe('stale');
-  expect(needsAttention(sourceState(source, now + 120000))).toBe(true);
+  expect(sourceState(source, now + 120000)).toBe('standby');
+  expect(needsAttention(sourceState(source, now + 120000))).toBe(false);
 });
 
 test('fresh errors and input requests are visible, and recovery clears the account once', () => {
@@ -28,7 +28,7 @@ test('fresh errors and input requests are visible, and recovery clears the accou
   const failed = { ...agent, sourceId: 'failed', health: 'error' };
   expect(attentionCount([agent, old], now)).toBe(0);
   expect(accountState({ sources: [agent, old] }, now)).toBe('working');
-  expect(accountState({ sources: [old] }, now)).toBe('inactive');
+  expect(accountState({ sources: [old] }, now)).toBe('standby');
   expect(accountState({ sources: [agent, waiting, failed] }, now)).toBe('error');
   expect(attentionCount([agent, waiting, failed], now)).toBe(1);
   expect(accountState({ sources: [agent, waiting] }, now)).toBe('notification');
@@ -39,7 +39,7 @@ test('event-age transitions ignore receipt freshness', () => {
   const source = { ...agent, observedAt: new Date(now - 60000).toISOString(), agent: { ...agent.agent, state: 'done' } };
   expect(sourceState(source, now - 1)).toBe('done');
   expect(sourceState(source, now)).toBe('idle');
-  expect(sourceState({ ...source, observedAt: new Date(now - 360000).toISOString() }, now)).toBe('inactive');
+  expect(sourceState({ ...source, observedAt: new Date(now - 360000).toISOString() }, now)).toBe('standby');
 });
 
 test('an agent source without activity details falls back to its health', () => {
@@ -65,12 +65,12 @@ test('accounts use timestamp order and stable ties without mutating input or ble
   expect(input).toEqual([first, second, other]);
 });
 
-test('the title follows the project driving the state and keeps the last project when inactive', () => {
+test('the title follows the project driving the state and keeps the last project on standby', () => {
   const waiting = { ...agent, sourceId: 'review', observedAt: new Date(now - 1000).toISOString(), agent: { ...agent.agent, project: 'release-review', state: 'notification' } };
   const account = groupAccounts([waiting, agent])[0];
   expect(accountActivity(account, now)).toEqual({ state: 'notification', source: waiting, project: 'release-review' });
-  expect(accountActivity(account, now + 610000)).toEqual({ state: 'inactive', source: agent, project: agent.agent.project });
-  expect(accountActivity({ ...account, sources: [] }, now)).toEqual({ state: 'inactive', source: undefined, project: account.displayName });
+  expect(accountActivity(account, now + 610000)).toEqual({ state: 'standby', source: agent, project: agent.agent.project });
+  expect(accountActivity({ ...account, sources: [] }, now)).toEqual({ state: 'standby', source: undefined, project: account.displayName });
   expect(accountActivity({ ...account, sources: [{ ...agent, agent: { ...agent.agent, project: ' ' } }] }, now).project).toBe(agent.displayName);
 });
 
@@ -82,11 +82,11 @@ test('desktop cards, account counts and tray snapshot share the same selected-so
   let snapshot = client.snapshot();
   expect(snapshot.attentionCount).toBe(0);
   expect(snapshot.accounts[0]).toMatchObject({ displayState: 'working', displayProject: agent.agent.project, needsAttention: false });
-  expect(snapshot.sources[1]).toMatchObject({ displayState: 'inactive', needsAttention: false });
+  expect(snapshot.sources[1]).toMatchObject({ displayState: 'standby', needsAttention: false });
   clock += 600000;
   snapshot = client.snapshot();
   expect(snapshot.attentionCount).toBe(0);
-  expect(snapshot.accounts[0]).toMatchObject({ displayState: 'inactive', needsAttention: false });
+  expect(snapshot.accounts[0]).toMatchObject({ displayState: 'standby', needsAttention: false });
   client.sources.push({ ...sources(clock)[0], health: 'warning' });
   expect(client.snapshot().attentionCount).toBe(1);
   preferences.set('selectedSources', []);

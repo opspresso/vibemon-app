@@ -1,13 +1,12 @@
 export type CardOrder = {
   sourceId: string;
   displayName: string;
-  needsAttention?: boolean;
-} & ({
-  isAccount: true;
+  /** The presentation state from the shared monitoring rules. */
   displayState: string;
+  /** The last observation; it orders standby cards. */
   observedAt: string;
-} | {
-  isAccount?: false;
-});
+  needsAttention?: boolean;
+  isAccount?: boolean;
+};
 
 export function compareCards(a: CardOrder, b: CardOrder): number;
