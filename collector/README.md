@@ -4,7 +4,7 @@ A headless collector sends display summaries from Linux servers, DGX Spark, macO
 
 ## Install with sign-in
 
-The VibeMon installer installs the collector and signs in through Web; no token is copied:
+The VibeMon installer installs the collector and signs in to VibeMon; no token is copied:
 
 ```sh
 # Linux host or DGX Spark (systemd service)
@@ -33,7 +33,7 @@ Generate the token at [Account](https://vibemon.io/account) and select **Show to
 | --- | --- |
 | `--source-id` | Owner-local stable ID; required |
 | `--name` | Display name; required |
-| `--url` | Web HTTPS origin; required |
+| `--url` | VibeMon HTTPS origin; required |
 | `--kind host` | Read local CPU, RAM, and available NVIDIA GPU metrics (default) |
 | `--kind cluster --prometheus-url URL` | Read five aggregate Prometheus queries (default cluster backend) |
 | `--kind cluster --cluster-backend metrics-api` | Read existing Kubernetes Metrics API, node capacity/readiness, and pod health |
@@ -45,7 +45,7 @@ Generate the token at [Account](https://vibemon.io/account) and select **Show to
 | `--health-file PATH` | Atomically record the last newly accepted observation time for readiness checks |
 | `--allow-local-http` | Permit HTTP on loopback addresses only for isolated development |
 
-`VIBEMON_WRITE_TOKEN` supplies the Web token. `PROMETHEUS_TOKEN`, if set, supplies a separate read credential for Prometheus. TLS certificate verification is always enabled. Redirects are rejected to avoid forwarding credentials to another host.
+`VIBEMON_WRITE_TOKEN` supplies the VibeMon write token. `PROMETHEUS_TOKEN`, if set, supplies a separate read credential for Prometheus. TLS certificate verification is always enabled. Redirects are rejected to avoid forwarding credentials to another host.
 
 ## Observation and retry rules
 
@@ -53,13 +53,13 @@ The collector observes every 10 seconds and summarizes three observations. It se
 
 Only the current three samples and the newest pending summary remain in memory. Transmission failures discard the old pending window; the next window replaces it. Exponential backoff caps at 60 seconds. Recovery sends current state without replaying old samples. A slow adapter never triggers a burst of catch-up observations. Collection and transmission failures are logged by exception type without credentials or response bodies.
 
-Web, Prometheus, and kubelet HTTP requests have a five-second monotonic I/O budget that includes response headers and bodies. Partial reads and chunked responses do not restart the budget. Web/Prometheus bodies are limited to 64 KiB; kubelet summaries are limited to 4 MiB. The operating system DNS resolver cannot be cancelled by socket timeouts; its elapsed time consumes the budget before network I/O continues. TLS verification, the kubelet service-account CA, and redirect rejection remain enabled.
+VibeMon, Prometheus, and kubelet HTTP requests have a five-second monotonic I/O budget that includes response headers and bodies. Partial reads and chunked responses do not restart the budget. VibeMon/Prometheus bodies are limited to 64 KiB; kubelet summaries are limited to 4 MiB. The operating system DNS resolver cannot be cancelled by socket timeouts; its elapsed time consumes the budget before network I/O continues. TLS verification, the kubelet service-account CA, and redirect rejection remain enabled.
 
 Temporary delivery failures (network errors, HTTP 408/425/429/500/502/503/504) retry with bounded backoff. A valid [`Retry-After`](https://www.rfc-editor.org/rfc/rfc9110.html#name-retry-after), in seconds or HTTP-date form, is a minimum wait and can exceed the 60-second backoff limit. The collector converts it to a monotonic deadline when the response arrives, keeps sampling, and sends only the newest completed window after the wait. Invalid or past hints leave the normal backoff in force. A delay too large to represent stops delivery instead of retrying early.
 
-Other HTTP rejections and invalid acknowledgements stop with exit code **2** instead of retrying indefinitely. Correct the Web origin, write token, permissions, source definition, or clock, then restart. A process supervisor should not automatically restart exit code 2. Diagnostics include the HTTP status but never credential values or response bodies. `--url` must be an origin without an API/page path; a Prometheus URL may include a reverse-proxy prefix.
+Other HTTP rejections and invalid acknowledgements stop with exit code **2** instead of retrying indefinitely. Correct the VibeMon origin, write token, permissions, source definition, or clock, then restart. A process supervisor should not automatically restart exit code 2. Diagnostics include the HTTP status but never credential values or response bodies. `--url` must be an origin without an API/page path; a Prometheus URL may include a reverse-proxy prefix.
 
-Window maxima accompany means so the Web minute aggregate retains peaks. Missing, unsupported, nonfinite, or failed measurements remain `null`. If a metric fails on the last observation of a window, that metric is `null` for the entire transmitted window; earlier success cannot hide a current failure.
+Window maxima accompany means so the VibeMon minute aggregate retains peaks. Missing, unsupported, nonfinite, or failed measurements remain `null`. If a metric fails on the last observation of a window, that metric is `null` for the entire transmitted window; earlier success cannot hide a current failure.
 
 ## Host disk capacity
 
@@ -103,7 +103,7 @@ Kubelet reads use at most eight workers and one batch of node requests. If a bat
 
 Disk-enabled cluster observations include `resourceType`, `metricDefinitions`, and `metricOrder`, preserving the cluster source ID and existing client rendering. Deploy Web support for extended host/cluster definitions before enabling the flag. The flag is off by default and is unsupported with the Prometheus backend.
 
-The CLI reads only the selected summary fields from node/pod objects. Pod specs, credentials and logs are not part of the Python result or Web payload. Python 3.10+ is still required; this backend does not import the host-only `psutil` adapter.
+The CLI reads only the selected summary fields from node/pod objects. Pod specs, credentials and logs are not part of the Python result or VibeMon payload. Python 3.10+ is still required; this backend does not import the host-only `psutil` adapter.
 
 ## Tests
 
@@ -135,4 +135,4 @@ Use `--health-file /tmp/vibemon-health` and a readiness probe:
 python -m vibemon_collector.health /tmp/vibemon-health --max-age 120
 ```
 
-Readiness is false until Web accepts a new observation, expires at 120 seconds without another acceptance, and resets on process start. A `duplicate_or_older` acknowledgement discards the obsolete window without refreshing readiness because it does not refresh the server receipt. The file contains no credentials or measurements. Readiness failure must not restart a working collector during a Web outage. Kubernetes still exposes a permanent configuration failure through its container restart/backoff state; repair the Secret or arguments and restart the deployment. A systemd service can use `RestartPreventExitStatus=2` to wait for an operator instead.
+Readiness is false until VibeMon accepts a new observation, expires at 120 seconds without another acceptance, and resets on process start. A `duplicate_or_older` acknowledgement discards the obsolete window without refreshing readiness because it does not refresh the server receipt. The file contains no credentials or measurements. Readiness failure must not restart a working collector during a VibeMon outage. Kubernetes still exposes a permanent configuration failure through its container restart/backoff state; repair the Secret or arguments and restart the deployment. A systemd service can use `RestartPreventExitStatus=2` to wait for an operator instead.

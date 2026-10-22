@@ -1,6 +1,6 @@
 # Coding-agent hooks
 
-Hooks convert coding-agent events into local status updates and authenticated Web summaries. The Desktop App displays local activity and selected cloud accounts. Provider credentials remain on the source machine.
+Hooks convert coding-agent events into local status updates and authenticated summaries for VibeMon. The Desktop App displays local activity and selected cloud accounts. Provider credentials remain on the source machine.
 
 Desktop auto-launch opens the installed macOS App or a Windows installer location (or `VibeMon.exe` on PATH). Start custom Windows installations and other platforms manually. Hooks never install or run an npm package.
 
@@ -73,7 +73,7 @@ Explicit `VIBEMON_<PROVIDER>_ACCOUNT_ID` takes precedence over `VIBEMON_ACCOUNT_
 
 Desktop shows the registry in **Settings → Integrations → Accounts on this machine**. It aggregates fresh usage from registered cache paths without merging different account IDs. A missing usage reading does not stop activity delivery.
 
-Context and plan-usage percentages retain their measured precision in the cache and both local and Web payloads. The statusline and dashboards format percentages to at most two decimal places. Formatting never becomes the input to a later cache write. Missing or invalid readings stay unavailable; a measured zero remains zero.
+Context and plan-usage percentages retain their measured precision in the cache and both local and VibeMon payloads. The statusline and dashboards format percentages to at most two decimal places. Formatting never becomes the input to a later cache write. Missing or invalid readings stay unavailable; a measured zero remains zero.
 
 Optional statusline token, cost, and elapsed-time fields use `—` for unavailable values. Added and removed lines are shown independently, including changes that only remove lines.
 
@@ -156,7 +156,7 @@ On Windows PowerShell, run the same commands as
 
 Electron app with system tray for macOS, Windows, Linux. See [Installation](#installation) above to install.
 
-Desktop signs in through Web for its read token in **Settings → Connections** and for the hook write token in **Settings → Integrations → Send activity to Web**. The installer signs in with `--login`, and the token can also be set directly in the hook configuration. Select **Dashboard** from the menu-bar or tray menu to view resources and coding accounts.
+Desktop signs in to VibeMon for its read token in **Settings → Connections** and for the hook write token in **Settings → Integrations → Send activity to VibeMon**. The installer signs in with `--login`, and the token can also be set directly in the hook configuration. Select **Dashboard** from the menu-bar or tray menu to view resources and coding accounts.
 
 It shows a single character window with a speech bubble that follows it. The window retargets to whichever project is currently active instead of opening one window per project.
 
@@ -164,13 +164,13 @@ Features: frameless floating window, always on top, system tray integration, sna
 
 ### ESP32 Hardware
 
-VibeMon Touch runs on the four-inch ESP32-S3 board and polls the same HTTPS summaries as Desktop. Configure Wi-Fi, the Web origin, and a read token on its screen. Hooks send activity to Web with a write token; Touch does not receive those events through `http_urls` or `serial_port`. See the [firmware repository](https://github.com/opspresso/vibemon-esp32) for setup.
+VibeMon Touch runs on the four-inch ESP32-S3 board and polls the same HTTPS summaries as Desktop. Configure Wi-Fi, the Web origin, and a read token on its screen. Hooks send activity to VibeMon with a write token; Touch does not receive those events through `http_urls` or `serial_port`. See the [firmware repository](https://github.com/opspresso/vibemon-esp32) for setup.
 
 Existing ESP32-C6 devices use the [previous firmware](https://github.com/opspresso/vibemon-esp32/tree/e6c272c) and can retain local HTTP/serial delivery. Do not flash the Touch build to a C6 board. The retired cloud WebSocket endpoint is unavailable.
 
 ## API
 
-Hooks deliver coding activity to Web with a generated write token. The [Web API](https://vibemon.io/docs/api) defines account identity, resource summaries, selected-source reads, and trends. Local Desktop endpoints use a separate [HTTP API](https://github.com/opspresso/vibemon-app/blob/main/docs/api.md).
+Hooks deliver coding activity to VibeMon with a generated write token. The [Web API](https://vibemon.io/docs/api) defines account identity, resource summaries, selected-source reads, and trends. Local Desktop endpoints use a separate [HTTP API](https://github.com/opspresso/vibemon-app/blob/main/docs/api.md).
 
 ## State Mapping
 
@@ -180,7 +180,7 @@ Hooks report edges: a prompt starts a turn, a tool starts or ends, and a turn st
 
 1. An event with an active state (`thinking`, `planning`, `working`, `packing`, or `notification`) opens the session's turn.
 2. The hook that opens the turn starts one detached watcher process for the session. The watcher runs `python3 ~/.vibemon/vibemon_core.py --watch-session <session_id>`.
-3. While the turn is open, the watcher repeats the last state every 60 seconds without another event. The report has `heartbeat: true`. A heartbeat refreshes the state clock, but it does not take display focus and does not add a Web activity sample. It counts the payload's reset countdowns down by the time since the hook built it, so they stay correct against the new observation time.
+3. While the turn is open, the watcher repeats the last state every 60 seconds without another event. The report has `heartbeat: true`. A heartbeat refreshes the state clock, but it does not take display focus and does not add a VibeMon activity sample. It counts the payload's reset countdowns down by the time since the hook built it, so they stay correct against the new observation time.
 4. The turn closes when the agent reports `done` (`Stop`, `StopFailure`, `Interrupt`, or `SessionEnd`) or `start` (a new session).
 5. The watcher also closes the turn and reports `done` within 5 seconds when:
    - the agent process exits without a `SessionEnd` hook, or
@@ -203,7 +203,7 @@ When an event carries `session_id`, the hook records the session in `~/.vibemon/
 - **Ordering.** The same lock issues strictly increasing timestamps, so hooks that start out of order cannot place an older state after a newer one.
 - **Heartbeat payload.** The last display payload and the agent process ID let the watcher repeat the state. The cache holds no prompts, tool inputs, or responses.
 
-Python hooks capture the observation time after mapping the event, before Git discovery or usage-cache reads. Local and Web delivery share that timestamp, so delayed metadata collection cannot make an older event appear newer. If the lock stays busy for 0.5 seconds, the hook reports its mapped state with the current time and starts no watcher.
+Python hooks capture the observation time after mapping the event, before Git discovery or usage-cache reads. Local and VibeMon delivery share that timestamp, so delayed metadata collection cannot make an older event appear newer. If the lock stays busy for 0.5 seconds, the hook reports its mapped state with the current time and starts no watcher.
 
 Claude and Codex subagent `Agent` calls pass through the matcher-free tool hooks. The running `Agent` tool keeps the parent session `working` until the subagent returns, so separate subagent hooks would only duplicate those transitions.
 
@@ -353,6 +353,6 @@ opencode 1.x sends `session.idle` after every completed, failed, or aborted prom
 
 ## Related Projects
 
-- [VibeMon Web](https://vibemon.io) - Cloud dashboard and API
+- [VibeMon](https://vibemon.io) - Cloud dashboard and API
 - [vibemon-app](https://github.com/opspresso/vibemon-app) - Desktop App
 - [Public App source](https://github.com/opspresso/vibemon-app) - Hooks, collectors, registries, renderers, and character images

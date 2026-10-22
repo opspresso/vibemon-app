@@ -1,5 +1,5 @@
 /**
- * Desktop sign-in through VibeMon Web: OAuth authorization code with PKCE
+ * Desktop sign-in through VibeMon: OAuth authorization code with PKCE
  * (RFC 6749, RFC 7636) and a loopback redirect (RFC 8252).
  *
  * The App opens /authorize in the default browser. The person signs in with
@@ -54,7 +54,7 @@ class WebSignIn {
    * Opens the browser, gets a token of `scope` for `url`, and resolves with
    * the result of `adopt(token, signal)`. The adopter must check `signal`
    * before saving the connection. When `adopt` fails, nothing keeps the new
-   * token, so it is deleted on Web before the error returns.
+   * token, so it is deleted from VibeMon before the error returns.
    * A new sign-in cancels the previous attempt, including exchange and verification.
    */
   async signIn(url, scope, adopt) {

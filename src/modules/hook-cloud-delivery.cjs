@@ -93,8 +93,8 @@ class HookCloudDelivery {
   }
 
   /**
-   * Removes the saved write token, then deletes it on Web.
-   * `tokenDeleted` is false when Web could not delete it; the token then stays
+   * Removes the saved write token, then deletes it from VibeMon.
+   * `tokenDeleted` is false when VibeMon could not delete it; the token then stays
    * valid until it is deleted on Web Account.
    */
   async disconnect() {

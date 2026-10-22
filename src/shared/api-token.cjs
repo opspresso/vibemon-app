@@ -8,9 +8,9 @@ const isApiToken = value => typeof value === 'string' && API_TOKEN.test(value);
 const redactApiTokens = text => String(text).replace(API_TOKEN_ANYWHERE, '[redacted]');
 
 /**
- * Deletes `token` on Web (`DELETE /api/v1/connection`). Web deletes the token
+ * Deletes `token` from VibeMon (`DELETE /api/v1/connection`). VibeMon deletes the token
  * that sends the request, for read and write scope. Never throws.
- * @returns {Promise<boolean>} true when Web deleted the token or no longer accepts it
+ * @returns {Promise<boolean>} true when VibeMon deleted the token or no longer accepts it
  */
 async function revokeApiToken(fetchImpl, origin, token) {
   try {
