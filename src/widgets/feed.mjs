@@ -48,20 +48,22 @@ export function buildWidgetFeed({ cloud, local = [], usage = {}, artwork = () =>
   const offset = reportNow - now;
   const wall = time => new Date(time - offset).toISOString();
   const selected = new Set(cloud.selectedMetrics);
-  // After the App quits, nothing updates the widgets, so every item stays on standby.
-  const live = evaluate => running ? evaluate : () => 'standby';
   const resources = cloud.sources
     .filter(source => source.kind !== 'agent')
-    .map(source => card(source, live(time => sourceState(source, time)), reportNow, {
+    .map(source => card(source, time => sourceState(source, time), reportNow, {
       sourceId: source.sourceId, displayName: source.displayName, receivedAt: source.receivedAt
     }));
   const agents = agentAccounts(cloud.sources, local, offset, now)
-    .map(account => card(account, live(time => accountActivity(account, time).state), reportNow, {
+    .map(account => card(account, time => accountActivity(account, time).state, reportNow, {
       sourceId: account.accountId, isAccount: true, displayName: accountActivity(account, reportNow).project, observedAt: account.latest.observedAt
     }));
+  // The order follows the reported states, so a widget without a choice keeps
+  // its item after the App quits. Only the display changes: nothing updates
+  // the widgets any more, so every item stays on standby.
+  const shown = entry => running ? entry.stateAt : () => 'standby';
   const items = [...resources, ...agents].sort(compareCards).map(entry => entry.isAccount
-    ? agentItem(entry.subject, entry.stateAt, usage[entry.subject.accountId], artwork, reportNow, wall, offset, t)
-    : resourceItem(entry.subject, entry.stateAt, selected, reportNow, wall, t));
+    ? agentItem(entry.subject, shown(entry), usage[entry.subject.accountId], artwork, reportNow, wall, offset, t)
+    : resourceItem(entry.subject, shown(entry), selected, reportNow, wall, t));
   return {
     version: WIDGET_FEED_VERSION,
     generatedAt: new Date(now).toISOString(),
@@ -69,7 +71,7 @@ export function buildWidgetFeed({ cloud, local = [], usage = {}, artwork = () =>
   };
 }
 
-/** The card-order fields of a resource or account, with its state at a report-clock time. */
+/** The card-order fields of a resource or account, with its reported state at a report-clock time. */
 function card(subject, stateAt, now, fields) {
   const displayState = stateAt(now);
   return { subject, stateAt, ...fields, displayState, needsAttention: needsAttention(displayState) };

@@ -60,8 +60,10 @@ test('the feed of a closed App keeps every item on standby without later changes
     [{ at: iso(0), state: 'standby', label: 'Standby', tone: 'neutral' }],
     [{ at: iso(0), state: 'standby', label: 'Standby', tone: 'neutral' }]
   ]);
-  // An input request is not attention after the App quits; standby items put the most recently active first.
-  assert.deepEqual(items.map(item => item.kind), ['resource', 'agent']);
+  // The order stays the reported one, so a widget without a choice keeps its item: the input request first.
+  const live = build({ cloud: cloud([host(), working]) }).items;
+  assert.deepEqual(items.map(item => item.id), live.map(item => item.id));
+  assert.deepEqual(items.map(item => item.kind), ['agent', 'resource']);
   assert.equal(build({ cloud: cloud([host()]), running: false, locale: 'ko' }).items[0].timeline[0].label, '대기');
 });
 
