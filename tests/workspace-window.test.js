@@ -159,6 +159,18 @@ test('hidden windows suspend rendering and receive the newest state when reopene
   expect(ports.getUsage).toHaveBeenCalledTimes(1);
 });
 
+test('a command that returns a frame does not publish the same frame again', async () => {
+  open();
+  jest.advanceTimersByTime(WORKSPACE_UPDATE_MS * 2);
+  native.webContents.send.mockClear();
+  expect(await invoke(event, 'navigate', ['agents'])).toMatchObject({ ok: true, value: { route: 'agents' } });
+  jest.advanceTimersByTime(WORKSPACE_UPDATE_MS * 2);
+  expect(native.webContents.send).not.toHaveBeenCalledWith('workspace:changed', expect.anything());
+  view.notify('activity');
+  jest.advanceTimersByTime(WORKSPACE_UPDATE_MS);
+  expect(native.webContents.send).toHaveBeenCalledWith('workspace:changed', expect.objectContaining({ route: 'agents' }));
+});
+
 test('forwards monitoring commands and reports secure-storage failures without exposing tokens', async () => {
   open();
   const config = { url: 'https://vibemon.io', token: `vm_${'f'.repeat(60)}` };

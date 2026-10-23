@@ -53,7 +53,10 @@ class WorkspaceWindow {
     return Boolean(this.window) && !this.window.isDestroyed() && event.sender === this.window.webContents && event.senderFrame === this.window.webContents.mainFrame;
   }
 
+  /** The current frame. It supersedes a pending publish, which would resend the same frame. */
   snapshot() {
+    if (this.timer) clearTimeout(this.timer);
+    this.timer = null;
     for (const section of this.dirty) {
       if (section === 'settings') this.cache.settings = this.settings.getSnapshot();
       if (section === 'activity') this.cache.activity = this.getActivity();
