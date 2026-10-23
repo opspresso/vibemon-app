@@ -139,6 +139,24 @@ describe('WidgetPublisher', () => {
     expect(reloads).toEqual([T0]);
   });
 
+  test('a predicted project change keeps its timeline without an extra reload', () => {
+    const { publisher, reloads, setItems, advance } = setup();
+    const aging = [
+      { at: iso(T0), state: 'notification', label: 'Needs input', tone: 'warning', project: 'web' },
+      { at: iso(T0 + 120000), state: 'working', label: 'Working', tone: 'active', project: 'api' }
+    ];
+    const account = (title, timeline) => ({ ...item({ id: 'agent:codex:a', timeline }), kind: 'agent', title, subtitle: 'Codex · a' });
+    setItems([account('web', aging)]);
+    publisher.publish();
+    advance(120000);
+    setItems([account('api', [aging[1]])]);
+    publisher.publish();
+    expect(reloads).toEqual([T0]);
+    setItems([account('renamed', [{ ...aging[1], project: 'renamed' }])]);
+    publisher.publish();
+    expect(reloads).toEqual([T0, T0 + 120000]);
+  });
+
   test('a timer transition keeps the predicted phase start; a new report starts a new phase', () => {
     const { publisher, inputs, setStates, advance, at } = setup();
     const account = { provider: 'claude', id: 'default', displayName: 'claude default' };

@@ -62,7 +62,7 @@ export function buildWidgetFeed({ cloud, local = [], usage = {}, artwork = () =>
   // the widgets any more, so every item stays on standby.
   const shown = entry => running ? entry.stateAt : () => 'standby';
   const items = [...resources, ...agents].sort(compareCards).map(entry => entry.isAccount
-    ? agentItem(entry.subject, shown(entry), usage[entry.subject.accountId], artwork, reportNow, wall, offset, t)
+    ? agentItem(entry.subject, shown(entry), usage[entry.subject.accountId], artwork, reportNow, wall, offset, t, running)
     : resourceItem(entry.subject, shown(entry), selected, reportNow, wall, t));
   return {
     version: WIDGET_FEED_VERSION,
@@ -122,8 +122,9 @@ function localSource({ id, since, status }, offset, now) {
   };
 }
 
-function agentItem(account, stateAt, usage, artwork, now, wall, offset, t) {
+function agentItem(account, stateAt, usage, artwork, now, wall, offset, t, running) {
   const latest = account.latest;
+  const project = accountActivity(account, now).project;
   const metrics = AGENT_METRICS.map(({ key, label: message, usage: bucket }) => {
     const label = t(message);
     if (typeof latest.metrics[key] === 'number') {
@@ -138,14 +139,17 @@ function agentItem(account, stateAt, usage, artwork, now, wall, offset, t) {
   return {
     id: `agent:${account.accountId}`,
     kind: 'agent',
-    title: providerLabel(account.provider),
-    subtitle: accountName(account.accountId),
+    title: project,
+    subtitle: `${providerLabel(account.provider)} · ${accountName(account.accountId)}`,
     selectionTitle: `${providerLabel(account.provider)} · ${accountName(account.accountId)}`,
     selectionSubtitle: [...new Set([account.displayName, ...account.sources.map(source => source.agent?.project || source.displayName)])].slice(0, 4).join(' · '),
     artwork: artwork(latest.agent.character),
     observedAt: wall(Date.parse(latest.observedAt)),
     metrics,
-    timeline: timeline(changes, now, wall, time => status(stateAt(time), t)),
+    timeline: timeline(changes, now, wall, time => ({
+      ...status(stateAt(time), t),
+      project: running ? accountActivity(account, time).project : project
+    })),
     link: LINKS.agent
   };
 }

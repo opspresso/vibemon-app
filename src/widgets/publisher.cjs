@@ -33,7 +33,7 @@ function current(item, at) {
 /** Items, titles, artwork, and current tones: changes the user must see now. */
 function urgentKey(feed, at) {
   return JSON.stringify(feed.items.map(item => [
-    item.id, item.kind, item.title, item.subtitle, item.selectionTitle, item.selectionSubtitle,
+    item.id, item.kind, current(item, at).project ?? item.title, item.subtitle, item.selectionTitle, item.selectionSubtitle,
     item.symbol, item.artwork, item.link, current(item, at).tone
   ]));
 }
@@ -51,7 +51,7 @@ function sameRendering(previous, next, at) {
     const after = next.items[index];
     const plan = item => item.timeline.filter(entry => entry.at > at);
     const [old, upcoming] = [plan(before), plan(after)];
-    const state = entry => JSON.stringify([entry.state, entry.label]);
+    const state = entry => JSON.stringify([entry.state, entry.label, entry.project]);
     return state(current(before, at)) === state(current(after, at))
       && before.message === after.message
       && sameMetrics(before.metrics, after.metrics)
