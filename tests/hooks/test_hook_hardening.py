@@ -10,6 +10,8 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from unittest.mock import patch
 
+import pytest
+
 import cache_io
 import vibemon_core as core
 from test_hook_events import DOCS, run_hook_script
@@ -117,6 +119,7 @@ def test_the_installed_http_client_imports_from_a_shallow_home(tmp_path):
     assert callable(namespace["open_request"])
 
 
+@pytest.mark.skipif(core.fcntl is None, reason='POSIX serial transport')
 def test_a_deadline_bounds_the_serial_configuration_command(tmp_path):
     port = tmp_path / "tty"
     port.write_text("")
