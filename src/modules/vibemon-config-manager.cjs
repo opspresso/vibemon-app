@@ -138,8 +138,14 @@ class VibemonConfigManager {
           break;
         }
         case 'http_urls': {
-          const urls = Array.isArray(value) ? value : [];
-          next[key] = [...new Set(urls.map(u => String(u).trim()).filter(Boolean))];
+          const urls = [...new Set((Array.isArray(value) ? value : []).map(u => String(u).trim()).filter(Boolean))];
+          const previous = Array.isArray(current.http_urls) ? current.http_urls : [];
+          // New destinations are http(s) URLs without credentials. Entries that
+          // the file already holds stay editable even when they predate this rule.
+          if (urls.some(url => !previous.includes(url) && !validHttpUrl(url))) throw new Error(t('error.httpUrl'));
+          // This app's own receiver is required; ensureDesktopUrl() would add it again.
+          if (previous.includes(DESKTOP_HTTP_URL) && !urls.includes(DESKTOP_HTTP_URL)) throw new Error(t('error.desktopUrlRequired'));
+          next[key] = urls;
           break;
         }
       }
@@ -162,6 +168,7 @@ class VibemonConfigManager {
    * @returns {object} the fresh config after writing (same shape as read())
    */
   addHttpUrl(url) {
+    // write() ignores a blank entry; adding one is a mistake to report.
     if (!validHttpUrl(url)) throw new Error(t('error.httpUrl'));
     const current = this.read();
     return this.write({ http_urls: [...current.http_urls, url] });
@@ -175,8 +182,6 @@ class VibemonConfigManager {
    * @returns {object} the fresh config after writing (same shape as read())
    */
   removeHttpUrl(url) {
-    // This app's own receiver is required; ensureDesktopUrl() would add it again.
-    if (url === DESKTOP_HTTP_URL) throw new Error(t('error.desktopUrlRequired'));
     const current = this.read();
     return this.write({ http_urls: current.http_urls.filter(u => u !== url) });
   }

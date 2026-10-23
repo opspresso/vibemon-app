@@ -331,24 +331,50 @@ describe('cloud monitoring', () => {
     expect(client.snapshot().sources[0].receivedAt).toBe(new Date(1000000).toISOString());
     expect(client.snapshot().status).toBe('connection-error');
   });
-  test('system sleep ages an unrefreshed snapshot and resume polls at once', async () => {
+  test('system sleep ages an unrefreshed snapshot by the time the monotonic clock missed', async () => {
     const { client, fetchImpl } = fixture();
     let elapsed = 0;
+    let wall = 1000000;
     client.monotonicNow = () => elapsed;
+    client.now = () => wall;
     client.start();
     await client.inflight;
     try {
-      const agent = { ...source(1000000), sourceId: 'claude', kind: 'agent', agent: { state: 'working' }, account: { provider: 'claude', id: 'work', displayName: 'Work' } };
+      const agent = { ...source(1000000), sourceId: 'claude', kind: 'agent', agent: { state: 'working', character: 'clawd', project: 'vibemon' }, account: { provider: 'claude', id: 'work', displayName: 'Work' } };
       fetchImpl.mockResolvedValueOnce(okResponse({ sources: [source(1000000), agent] }));
-      await client.poll(true);
-      elapsed = 60000;
+      expect((await client.poll(true)).status).toBe('connected');
+      expect(client.snapshot().sources.find(item => item.sourceId === 'claude').displayState).toBe('working');
+      elapsed = 60000; wall += 60000;
+      client.suspend();
+      // macOS and Linux: one hour of sleep that the monotonic clock did not count.
+      wall += 3600000;
       fetchImpl.mockRejectedValue(new Error('Offline'));
       const calls = fetchImpl.mock.calls.length;
-      await client.resume(3600000);
+      await client.resume();
       expect(fetchImpl.mock.calls.length).toBe(calls + 1);
       expect(client.snapshot().evaluatedAt).toBe(1000000 + 3660000);
-      expect(client.snapshot().sources.every(item => item.displayState === 'standby')).toBe(true);
+      expect(client.snapshot().sources.map(item => item.displayState)).toEqual(['standby', 'standby']);
+      // Windows can keep counting during sleep; that time is not added twice.
+      client.suspend();
+      wall += 600000; elapsed += 600000;
+      await client.resume();
+      expect(client.snapshot().evaluatedAt).toBe(1000000 + 4260000);
     } finally { client.stop(); }
+  });
+  test('resume reports the aged snapshot when a rejected token paused polling', async () => {
+    const { client, fetchImpl } = fixture();
+    client.start();
+    await client.inflight;
+    fetchImpl.mockResolvedValueOnce({ ok: false, status: 401 });
+    await client.poll();
+    const changes = jest.fn();
+    client.on('change', changes);
+    const calls = fetchImpl.mock.calls.length;
+    client.suspend();
+    await client.resume();
+    expect(fetchImpl.mock.calls.length).toBe(calls);
+    expect(changes).toHaveBeenCalledWith(expect.objectContaining({ status: 'token-expired' }));
+    client.stop();
   });
   test('late responses cannot restore data after disconnect', async () => {
     const { client, fetchImpl } = fixture();

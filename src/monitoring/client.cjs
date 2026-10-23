@@ -32,9 +32,11 @@ class MonitoringClient extends EventEmitter {
     this.fetch = fetchImpl;
     this.allowLocalHttp = allowLocalHttp;
     this.now = now;
-    // macOS and Linux monotonic clocks stop during system sleep. resume() adds
-    // the slept time so a snapshot that cannot be refreshed still ages.
+    // macOS and Linux monotonic clocks stop during system sleep; Windows may
+    // keep counting. resume() adds the sleep that the monotonic clock missed,
+    // so a snapshot that cannot be refreshed still ages.
     this.suspendedMs = 0;
+    this.suspendedAt = null;
     this.monotonicNow = monotonicNow;
     this.elapsedNow = () => this.monotonicNow() + this.suspendedMs;
     this.reportClock = null;
@@ -319,14 +321,25 @@ class MonitoringClient extends EventEmitter {
       if (this.credentials.has() && !REJECTED.has(this.status)) this.poll();
     }, CLOUD_POLL_MS);
   }
+  /** Called when the system goes to sleep. */
+  suspend() {
+    this.suspendedAt = { wall: this.now(), monotonic: this.monotonicNow() };
+  }
   /**
-   * Called after system sleep with the wall-clock time spent asleep. Ages the
-   * current snapshot by that time and polls without waiting for the schedule.
+   * Called after system sleep. Ages the current snapshot by the wall-clock
+   * time that the monotonic clock did not count, then polls without waiting
+   * for the schedule, or reports the aged snapshot when polling is paused.
    */
-  resume(sleptMs) {
-    if (Number.isFinite(sleptMs) && sleptMs > 0) this.suspendedMs += sleptMs;
+  resume() {
+    if (this.suspendedAt) {
+      const missed = (this.now() - this.suspendedAt.wall) - (this.monotonicNow() - this.suspendedAt.monotonic);
+      if (Number.isFinite(missed) && missed > 0) this.suspendedMs += missed;
+      this.suspendedAt = null;
+    }
     if (this.timer && this.credentials.has() && !REJECTED.has(this.status)) return this.poll();
-    return Promise.resolve(this.snapshot());
+    const snapshot = this.snapshot();
+    this.emit('change', snapshot);
+    return Promise.resolve(snapshot);
   }
   stop() {
     if (this.timer) clearInterval(this.timer);

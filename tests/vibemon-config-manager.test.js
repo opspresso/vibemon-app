@@ -224,6 +224,15 @@ describe('VibemonConfigManager', () => {
       expect(fs.writeFileSync).not.toHaveBeenCalled();
     });
 
+    test('write() applies the same destination rules to a full list', () => {
+      fs.existsSync.mockReturnValue(true);
+      fs.readFileSync.mockReturnValue(JSON.stringify({ http_urls: [manager.desktopUrl, 'legacy-entry'] }));
+
+      expect(() => manager.write({ http_urls: [manager.desktopUrl, 'legacy-entry', 'ftp://a'] })).toThrow();
+      expect(() => manager.write({ http_urls: ['legacy-entry'] })).toThrow();
+      expect(manager.write({ http_urls: [manager.desktopUrl, 'legacy-entry', 'https://b'] }).http_urls).toEqual([manager.desktopUrl, 'legacy-entry', 'https://b']);
+    });
+
     test("removeHttpUrl keeps this app's own receiver", () => {
       fs.existsSync.mockReturnValue(true);
       fs.readFileSync.mockReturnValue(JSON.stringify({ http_urls: [manager.desktopUrl, 'http://a'] }));
