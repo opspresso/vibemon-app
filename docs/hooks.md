@@ -1,6 +1,6 @@
 # Coding-agent hooks
 
-Hooks convert coding-agent events into local status updates and authenticated summaries for VibeMon. The Desktop App displays local activity and selected cloud accounts. Provider credentials remain on the source machine.
+Hooks convert coding-agent events into local status updates and authenticated summaries for VibeMon. The Desktop App displays local activity and selected coding accounts from VibeMon. Provider credentials remain on the source machine.
 
 Desktop auto-launch opens the installed macOS App or a Windows installer location (or `VibeMon.exe` on PATH). Start custom Windows installations and other platforms manually. Hooks never install or run an npm package.
 
