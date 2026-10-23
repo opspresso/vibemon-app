@@ -1785,6 +1785,8 @@ PSUTIL_REQUIREMENT = "psutil>=5.9,<8"
 # The multi-arch image (amd64, arm64) built by collector-image.yml.
 COLLECTOR_IMAGE = "public.ecr.aws/z5d8x0d6/vibemon-collector@sha256:c06284e916e34d643313795ffad31131526757f88e4108710e7d6ab79d0855c3"
 KUBERNETES_NAMESPACE = "vibemon"
+# Default context names of k3s and kubeadm clusters; they do not tell clusters apart.
+GENERIC_KUBERNETES_CONTEXTS = frozenset({"default", "kubernetes-admin@kubernetes"})
 SOURCE_ID_PATTERN = re.compile(r"^[a-zA-Z0-9][a-zA-Z0-9_.:-]{0,127}$")
 
 # Display name for the collector (--name); defaults to the host or context name.
@@ -2207,14 +2209,29 @@ def kubernetes_manifest(name: str, ident: str, origin: str, token: str) -> str:
     return json.dumps({"apiVersion": "v1", "kind": "List", "items": documents})
 
 
+def kubectl_context() -> str:
+    """The current kubectl context; explains a kubeconfig that this user cannot read."""
+    current = subprocess.run(["kubectl", "config", "current-context"], capture_output=True, text=True)
+    if current.returncode != 0:
+        detail = ((current.stderr or current.stdout).strip().splitlines() or [""])[-1]
+        raise RuntimeError(f"kubectl cannot read the cluster configuration: {detail}. "
+                           "On k3s, run the installer with sudo, or set KUBECONFIG to a kubeconfig that you can read")
+    return current.stdout.strip()
+
+
 def install_kubernetes(source: FileSource, cli_token: str = None) -> bool:
     """Run the collector in the current kubectl context (Kubernetes Metrics API)."""
     print(f"\n{colored('Installing the resource collector for Kubernetes...', 'cyan')}")
     if not shutil.which("kubectl"):
         print(f"  {colored('!', 'yellow')} kubectl is required. Select the cluster with kubectl first.")
         return False
-    context = run_checked(["kubectl", "config", "current-context"], "Reading the kubectl context").strip()
+    context = kubectl_context()
     print(f"  kubectl context: {colored(context, 'yellow')}")
+    if SOURCE_NAME is None and context in GENERIC_KUBERNETES_CONTEXTS:
+        # Every k3s or kubeadm cluster has this context name. Two clusters with
+        # one source ID would overwrite each other's reports.
+        raise RuntimeError(f"The kubectl context {context!r} does not name this cluster. "
+                           'Pass --name with a name for it, for example --name "Production"')
     if not ask_yes_no(f"  Install into {context}?", default=True, unattended=True):
         print("  Skipped.")
         return SKIPPED
@@ -2327,7 +2344,7 @@ def uninstall_collector(source: FileSource = None, cli_token: str = None) -> boo
 def uninstall_kubernetes(source: FileSource = None, cli_token: str = None) -> bool:
     if not shutil.which("kubectl"):
         return SKIPPED
-    context = run_checked(["kubectl", "config", "current-context"], "Reading the kubectl context").strip()
+    context = kubectl_context()
     print(f"  kubectl context: {colored(context, 'yellow')}")
     if not ask_yes_no(f"  Remove the collector from {context}?", default=True, unattended=True):
         return SKIPPED

@@ -1438,6 +1438,33 @@ class KubernetesSafetyTest(unittest.TestCase):
                 mock.patch.object(install, 'sign_in_to_web', side_effect=sign_in):
             return install.install_kubernetes(None)
 
+    def test_a_generic_or_unreadable_context_stops_before_any_cluster_change(self):
+        for context in ('default', 'kubernetes-admin@kubernetes'):
+            calls = []
+            run = self.fake_kubectl(calls)
+            def generic(command, **kwargs):
+                if command[:3] == ['kubectl', 'config', 'current-context']:
+                    calls.append((command, None))
+                    return self.result(stdout=context + '\n')
+                return run(command, **kwargs)
+            with self.subTest(context=context), self.assertRaisesRegex(RuntimeError, '--name'):
+                self.install_with(generic, sign_in=AssertionError('no sign-in'))
+            self.assertEqual([command for command, _ in calls], [['kubectl', 'config', 'current-context']])
+        with mock.patch.object(install, 'SOURCE_NAME', 'Production'):
+            calls = []
+            run = self.fake_kubectl(calls)
+            def named(command, **kwargs):
+                if command[:3] == ['kubectl', 'config', 'current-context']:
+                    return self.result(stdout='default\n')
+                return run(command, **kwargs)
+            self.assertTrue(self.install_with(named, sign_in=lambda *args: 'vm_' + 'a' * 60))
+            applied = [text for command, text in calls if command == ['kubectl', 'apply', '-f', '-']]
+            self.assertTrue(applied and 'k8s-production' in applied[0])
+        def unreadable(command, **kwargs):
+            return self.result(1, stderr='error: error loading config file "/etc/rancher/k3s/k3s.yaml": open /etc/rancher/k3s/k3s.yaml: permission denied')
+        with self.assertRaisesRegex(RuntimeError, 'run the installer with sudo'):
+            self.install_with(unreadable, sign_in=AssertionError('no sign-in'))
+
     def test_missing_permission_fails_before_sign_in_and_apply(self):
         cases = [
             ({'denied': ('create secrets',)}, 'cannot create secrets'),
