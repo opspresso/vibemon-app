@@ -1323,9 +1323,10 @@ class CollectorInstallTest(unittest.TestCase):
             for path in (paths.base / 'app' / 'vibemon_collector', paths.base / 'venv', paths.state):
                 path.mkdir(parents=True)
             paths.env_file.parent.mkdir(parents=True)
-            paths.env_file.write_text('secret', encoding='utf-8')
+            paths.env_file.write_text('VIBEMON_WRITE_TOKEN=vm_' + 'a' * 60 + '\nVIBEMON_URL=https://vibemon.io\n', encoding='utf-8')
             paths.unit.parent.mkdir(parents=True)
-            paths.unit.write_text('# Managed by the VibeMon installer\n', encoding='utf-8')
+            paths.unit.write_text(f'# Managed by the VibeMon installer\n--health-file "{paths.state / "health"}"\n', encoding='utf-8')
+            (paths.state / 'health').write_text('1')
             self.assertTrue(install.uninstall_collector())
             for path in (paths.base, paths.state, paths.env_file, paths.unit):
                 self.assertFalse(path.exists(), path)

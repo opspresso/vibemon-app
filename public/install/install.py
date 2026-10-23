@@ -1793,12 +1793,18 @@ def saved_collector_token(env_file: Path) -> tuple[str, str]:
     return (match.group(1), match.group(2)) if match else ("", "")
 
 
+def collector_health(paths: CollectorPaths, runtime: Path = None) -> Path:
+    """The readiness file. A release keeps its own, so another collector that
+    shares the legacy state path cannot satisfy this installer's readiness check."""
+    return runtime / "health" if runtime else paths.state / "health"
+
+
 def collector_arguments(paths: CollectorPaths, origin: str, name: str, ident: str, runtime: Path = None) -> list[str]:
     directory = runtime or paths.base
     python = directory / "venv" / "bin" / "python"
     return [
         str(python), "-m", "vibemon_collector", "--source-id", ident, "--name", name, "--url", origin,
-        "--kind", "host", "--memory-type", "auto", "--disk", "--health-file", str(paths.state / "health"),
+        "--kind", "host", "--memory-type", "auto", "--disk", "--health-file", str(collector_health(paths, runtime)),
     ]
 
 
@@ -1892,8 +1898,9 @@ def collector_service_state(paths: CollectorPaths, timeout: float = 15) -> dict:
     return state
 
 
-def wait_for_collector(paths: CollectorPaths, clock=time.monotonic, sleep=time.sleep) -> None:
+def wait_for_collector(paths: CollectorPaths, runtime: Path = None, clock=time.monotonic, sleep=time.sleep) -> None:
     """Require a newly accepted observation after the previous service stopped."""
+    health = collector_health(paths, runtime)
     deadline = clock() + COLLECTOR_START_TIMEOUT_SECONDS
     while True:
         remaining = deadline - clock()
@@ -1903,7 +1910,7 @@ def wait_for_collector(paths: CollectorPaths, clock=time.monotonic, sleep=time.s
         if state["ActiveState"] not in {"active", "activating", "reloading"}:
             raise RuntimeError("The collector stopped before VibeMon accepted an observation")
         try:
-            acknowledged = float((paths.state / "health").read_text())
+            acknowledged = float(health.read_text())
         except FileNotFoundError:
             pass
         except ValueError:
@@ -1964,11 +1971,11 @@ def activate_collector(paths: CollectorPaths, runtime: Path, unit: str, previous
         if not was_enabled:
             enabled = True
             run_checked(paths.systemctl + ["enable", "vibemon-collector.service"], "Enabling the collector", timeout=120)
-        (paths.state / "health").unlink(missing_ok=True)
+        collector_health(paths, runtime).unlink(missing_ok=True)
         started = True
         run_checked(paths.systemctl + ["start", "vibemon-collector.service"], "Starting the collector", timeout=120)
         print("  Waiting for VibeMon to accept the first observation…")
-        wait_for_collector(paths)
+        wait_for_collector(paths, runtime)
         verify_collector_runtime(paths, runtime, arguments, token)
         if collector_unit_bytes(paths.unit) != unit.encode("utf-8"):
             raise RuntimeError("The collector unit changed during activation")
@@ -1983,7 +1990,7 @@ def activate_collector(paths: CollectorPaths, runtime: Path, unit: str, previous
 
         if started:
             restore(lambda: run_checked(paths.systemctl + ["stop", "vibemon-collector.service"], "Stopping the failed collector", timeout=120))
-            restore(lambda: (paths.state / "health").unlink(missing_ok=True))
+            restore(lambda: collector_health(paths, runtime).unlink(missing_ok=True))
         if enabled:
             restore(lambda: run_checked(paths.systemctl + ["disable", "vibemon-collector.service"], "Restoring collector enablement", timeout=120))
         if written:
@@ -2066,11 +2073,13 @@ def install_collector_locked(paths: CollectorPaths, source: FileSource, cli_toke
         write_text_atomic(runtime / "collector.env", f"VIBEMON_WRITE_TOKEN={token}\nVIBEMON_URL={origin}\n", mode=0o600)
         (runtime / ".vibemon-release").write_text(COLLECTOR_RELEASE_MARKER)
         unit = collector_unit(paths, origin, name, ident, runtime)
-        paths.state.mkdir(parents=True, exist_ok=True)
     except BaseException:
         shutil.rmtree(runtime)
         raise
     activate_collector(paths, runtime, unit, previous, collector_arguments(paths, origin, name, ident, runtime), token)
+    # The previous unit's legacy readiness file is no longer written by this installation.
+    if previous is not None and os.fsencode(collector_health(paths)) in previous:
+        collector_health(paths).unlink(missing_ok=True)
     # Only marked release directories belong to this layout. Keep legacy files.
     for previous_runtime in releases.iterdir():
         if previous_runtime.resolve() != runtime and is_collector_runtime(paths, previous_runtime):
@@ -2203,8 +2212,11 @@ def uninstall_collector(source: FileSource = None, cli_token: str = None) -> boo
         # These are the package and venv of installations before versioned runtimes.
         remove_path(paths.base / "app" / "vibemon_collector", "legacy collector package")
         remove_path(paths.base / "venv", "legacy collector environment")
-        remove_path(paths.state / "health", "collector readiness")
-        remove_path(paths.env_file, "legacy collector token file")
+        # Another tool may share the legacy paths: remove only files in this installer's format or named by its unit.
+        if unit is not None and os.fsencode(collector_health(paths)) in unit:
+            remove_path(collector_health(paths), "collector readiness")
+        if saved_collector_token(paths.env_file)[0]:
+            remove_path(paths.env_file, "legacy collector token file")
         for directory in (paths.base / "app", releases, paths.base, paths.state):
             if directory.is_dir() and not directory.is_symlink() and not any(directory.iterdir()):
                 directory.rmdir()

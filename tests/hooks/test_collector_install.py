@@ -55,14 +55,15 @@ class CollectorFixture:
             self.enabled = True
         return ''
 
-    def ready(self, paths):
-        assert not (paths.state / 'health').exists(), 'previous readiness must be cleared'
+    def ready(self, paths, runtime):
+        health = install.collector_health(paths, runtime)
+        assert not health.exists(), 'previous readiness must be cleared'
         if self.before_ready:
             self.before_ready()
         if self.failure == 'readiness':
             self.failure = None
             raise RuntimeError('fixture failed: readiness')
-        (paths.state / 'health').write_text(str(time.time()))
+        health.write_text(str(time.time()))
 
     def __enter__(self):
         self.stack = ExitStack()
@@ -279,6 +280,28 @@ class CollectorUpgradeTest(unittest.TestCase):
             for path in files:
                 self.assertEqual(path.read_text(), 'keep')
 
+    def test_legacy_paths_shared_with_another_collector_are_kept(self):
+        with tempfile.TemporaryDirectory() as directory, CollectorFixture(Path(directory)) as fixture:
+            self.assertTrue(fixture.install())
+            runtime = install.owned_collector_runtime(fixture.paths, fixture.paths.unit.read_text())
+            self.assertIn(str(runtime / 'health'), fixture.paths.unit.read_text())
+            # Another service can use the legacy token and readiness paths with its own format.
+            foreign_env = 'VIBEMON_WRITE_TOKEN=vm_' + 'c' * 60 + '\n'
+            fixture.paths.env_file.write_text(foreign_env)
+            fixture.paths.state.mkdir(parents=True, exist_ok=True)
+            (fixture.paths.state / 'health').write_text(str(time.time()))
+            self.assertTrue(install.uninstall_collector())
+            self.assertEqual(fixture.paths.env_file.read_text(), foreign_env)
+            self.assertTrue((fixture.paths.state / 'health').exists())
+            self.assertFalse(runtime.exists())
+
+    def test_an_upgrade_removes_the_legacy_readiness_file_of_the_previous_unit(self):
+        with tempfile.TemporaryDirectory() as directory, CollectorFixture(Path(directory)) as fixture:
+            fixture.paths.state.mkdir()
+            (fixture.paths.state / 'health').write_text(str(time.time()))
+            self.assertTrue(fixture.install())
+            self.assertFalse((fixture.paths.state / 'health').exists())
+
 
 class CollectorReadinessTest(unittest.TestCase):
     @unittest.skipUnless(hasattr(os, 'geteuid'), 'Service process inspection uses POSIX process files')
@@ -338,3 +361,18 @@ class CollectorReadinessTest(unittest.TestCase):
             self.assertEqual(now[0], 1)
             with mock.patch.object(install, 'collector_service_state', return_value={'ActiveState': 'failed'}), self.assertRaisesRegex(RuntimeError, 'stopped'):
                 install.wait_for_collector(paths)
+
+    def test_a_release_ignores_readiness_written_to_the_shared_legacy_path(self):
+        with tempfile.TemporaryDirectory() as directory:
+            paths = mock.Mock(state=Path(directory) / 'state')
+            runtime = Path(directory) / 'release-1'
+            paths.state.mkdir()
+            runtime.mkdir()
+            now = [0]
+            def sleep(seconds):
+                now[0] += seconds
+                (paths.state / 'health').write_text(str(time.time()))
+            with mock.patch.object(install, 'collector_service_state', return_value={'ActiveState': 'active'}), \
+                    mock.patch.object(install, 'COLLECTOR_START_TIMEOUT_SECONDS', 2), \
+                    self.assertRaisesRegex(RuntimeError, 'within 2 seconds'):
+                install.wait_for_collector(paths, runtime, clock=lambda: now[0], sleep=sleep)
