@@ -480,6 +480,7 @@ class PosixInstall(PosixFake):
     def patches(self):
         return super().patches() + [
             mock.patch.object(install.Path, "home", staticmethod(lambda: self.home)),
+            mock.patch.object(install, "resolve_vibemon_config"),
             mock.patch.object(install, "configure_vibemon_config"),
             mock.patch.object(install, "install_vibemon_shared", return_value=True),
         ]

@@ -20,7 +20,7 @@ class OpenClawRegistrationTests(unittest.TestCase):
                 config_file.write_text(json.dumps({'agents': {'defaults': {'model': 'keep-model'}}}))
                 source = install.FileSource(Path(__file__).parents[2] / 'public' / 'install')
                 output = io.StringIO()
-                with patch.object(Path, 'home', return_value=home), patch.object(install, 'IS_WINDOWS', False), patch.object(install, 'configure_vibemon_config', return_value=''), patch.object(install, 'install_vibemon_shared', return_value=True), patch.object(install.shutil, 'which', return_value='/fixture/openclaw'), patch.object(install.subprocess, 'run', return_value=subprocess.CompletedProcess([], 1, '', 'fixture-private-diagnostic')), contextlib.redirect_stdout(output):
+                with patch.object(Path, 'home', return_value=home), patch.object(install, 'IS_WINDOWS', False), patch.object(install, 'resolve_vibemon_config', return_value={}), patch.object(install, 'configure_vibemon_config', return_value=''), patch.object(install, 'install_vibemon_shared', return_value=True), patch.object(install.shutil, 'which', return_value='/fixture/openclaw'), patch.object(install.subprocess, 'run', return_value=subprocess.CompletedProcess([], 1, '', 'fixture-private-diagnostic')), contextlib.redirect_stdout(output):
                     self.assertFalse(install.run_install('OpenClaw', action, source))
                 self.assertEqual(json.loads(config_file.read_text())['agents']['defaults']['model'], 'keep-model')
                 self.assertNotIn('fixture-private-diagnostic', output.getvalue())
@@ -44,7 +44,7 @@ class MalformedConfigShapeTests(unittest.TestCase):
         config_file.parent.mkdir(parents=True, exist_ok=True)
         config_file.write_text(content)
         source = install.FileSource(Path(__file__).parents[2] / 'public' / 'install')
-        with patch.object(Path, 'home', return_value=home), patch.dict(install.os.environ, {'CLAUDE_CONFIG_DIR': ''}), patch.object(install, 'IS_WINDOWS', False), patch.object(install, 'configure_vibemon_config', return_value=''), patch.object(install, 'install_vibemon_shared', return_value=True), patch.object(install.shutil, 'which', return_value=which), patch.object(install.subprocess, 'run', return_value=subprocess.CompletedProcess([], 0, '', '')), contextlib.redirect_stdout(io.StringIO()):
+        with patch.object(Path, 'home', return_value=home), patch.dict(install.os.environ, {'CLAUDE_CONFIG_DIR': ''}), patch.object(install, 'IS_WINDOWS', False), patch.object(install, 'resolve_vibemon_config', return_value={}), patch.object(install, 'configure_vibemon_config', return_value=''), patch.object(install, 'install_vibemon_shared', return_value=True), patch.object(install.shutil, 'which', return_value=which), patch.object(install.subprocess, 'run', return_value=subprocess.CompletedProcess([], 0, '', '')), contextlib.redirect_stdout(io.StringIO()):
             result = install.run_install('fixture', action, source)
         return result, config_file
 

@@ -1056,6 +1056,9 @@ class FileSource:
         self.local_dir = local_dir
         self.is_online = True
         self.base_url = checked_download_url(os.environ.get("VIBEMON_DOCS_URL") or DOCS_BASE_URL)
+        # prepare_install() reads every payload before the first write; the
+        # installer then writes these same verified bytes.
+        self._files = {}
 
         if local_dir is not None:
             # Check if running from local directory with install files
@@ -1072,6 +1075,11 @@ class FileSource:
         Remote content is checked against manifest.json before any caller can
         write it to disk; a mismatch raises IntegrityError.
         """
+        if path not in self._files:
+            self._files[path] = self._read(path)
+        return self._files[path]
+
+    def _read(self, path: str) -> str:
         if self.is_online:
             load_manifest(self)
             url = f"{self.base_url}/{path}"
@@ -1106,18 +1114,23 @@ SHARED_SCRIPTS = (
 VIBEMON_CONFIG_CACHE = {}
 
 
-def configure_vibemon_config(source: FileSource, cli_token: str = None) -> str:
-    """Configure ~/.vibemon/config.json once per run and return the resolved token."""
-    if "token" in VIBEMON_CONFIG_CACHE:
-        return VIBEMON_CONFIG_CACHE["token"]
+def resolve_vibemon_config(source: FileSource, cli_token: str = None) -> dict:
+    """Return the ~/.vibemon/config.json content for this run without writing anything.
 
-    vibemon_home = Path.home() / ".vibemon"
-    vibemon_home.mkdir(parents=True, exist_ok=True)
-    config_path = vibemon_home / "config.json"
+    This step runs every check of the configuration: the VIBEMON_URL rules,
+    the token rules and the sign-in. A failure raises before any file changes.
+    The result is cached, so a run signs in at most once.
+    """
+    if "config" in VIBEMON_CONFIG_CACHE:
+        return VIBEMON_CONFIG_CACHE["config"]
+
+    config_path = Path.home() / ".vibemon" / "config.json"
     config_content = source.get_file(CONFIG_EXAMPLE_FILE)
 
     print("\nConfiguring VibeMon:")
-    config = load_or_create_config(config_path, config_content)
+    config = read_json_object(config_path) if config_path.exists() else None
+    if config is None:
+        config = json.loads(config_content)
 
     origin = os.environ.get("VIBEMON_URL")
     if origin:
@@ -1135,6 +1148,21 @@ def configure_vibemon_config(source: FileSource, cli_token: str = None) -> str:
         print(f"  {colored('✓', 'green')} ~/.vibemon/config.json exists")
 
     config = configure_token(config, cli_token)
+    VIBEMON_CONFIG_CACHE["config"] = config
+    return config
+
+
+def configure_vibemon_config(source: FileSource, cli_token: str = None) -> str:
+    """Write ~/.vibemon/config.json once per run and return the resolved token."""
+    if "token" in VIBEMON_CONFIG_CACHE:
+        return VIBEMON_CONFIG_CACHE["token"]
+
+    config = resolve_vibemon_config(source, cli_token)
+    vibemon_home = Path.home() / ".vibemon"
+    vibemon_home.mkdir(parents=True, exist_ok=True)
+    config_path = vibemon_home / "config.json"
+    # Copy it aside before it is saved over: it may hold a hand-edited vibemon_token.
+    backup_file(config_path)
 
     # 0600: this file holds the VibeMon API token. A failed write must fail the
     # platform (run_install reports it) instead of silently reporting success
@@ -1166,6 +1194,21 @@ def install_vibemon_shared(source: FileSource) -> bool:
         ok = write_file_with_diff(Path.home() / ".vibemon" / name, content, f"~/.vibemon/{name}", executable=name == "usage.py") and ok
     VIBEMON_CONFIG_CACHE["shared_installed"] = ok
     return ok
+
+
+def prepare_install(source: FileSource, cli_token: str, paths: tuple = ()) -> None:
+    """Run every check that can fail before an installer writes its first file.
+
+    It reads and integrity-checks the tool payloads in `paths` and the shared
+    ~/.vibemon payloads, then resolves the VibeMon configuration (URL, token,
+    sign-in). A failure raises here and leaves the tool files and ~/.vibemon
+    unchanged, so a new hook never runs with shared scripts of an older
+    version. Sign-in comes last, so a failed download creates no token.
+    """
+    for path in (*paths, CONFIG_EXAMPLE_FILE, *(f"vibemon/{name}" for name in SHARED_SCRIPTS)):
+        source.get_file(path)
+    resolve_vibemon_config(source, cli_token)
+    print()
 
 
 def configure_statusline_config(source: FileSource) -> bool:
@@ -1208,6 +1251,10 @@ def install_claude(source: FileSource, cli_token: str = None) -> bool:
         return SKIPPED
 
     print(f"\n{colored('Installing VibeMon for Claude Code...', 'cyan')}\n")
+
+    prepare_install(source, cli_token, (
+        "claude/statusline.py", "claude/hooks/vibemon.py", "claude/settings.json", STATUSLINE_EXAMPLE_FILE,
+    ))
 
     claude_home.mkdir(parents=True, exist_ok=True)
     (claude_home / "hooks").mkdir(parents=True, exist_ok=True)
@@ -1320,6 +1367,8 @@ def install_codex(source: FileSource, cli_token: str = None) -> bool:
 
     print(f"\n{colored('Installing VibeMon for Codex CLI...', 'cyan')}\n")
 
+    prepare_install(source, cli_token, ("codex/hooks/vibemon.py", "codex/hooks.json"))
+
     codex_home.mkdir(parents=True, exist_ok=True)
     (codex_home / "hooks").mkdir(parents=True, exist_ok=True)
 
@@ -1396,6 +1445,8 @@ def install_kiro(source: FileSource, cli_token: str = None) -> bool:
         return SKIPPED
 
     print(f"\n{colored('Installing VibeMon for Kiro...', 'cyan')}\n")
+
+    prepare_install(source, cli_token, ("kiro/hooks/vibemon.py", *KIRO_HOOK_CONFIG_FILES))
 
     kiro_home.mkdir(parents=True, exist_ok=True)
     (kiro_home / "hooks").mkdir(parents=True, exist_ok=True)
@@ -1506,6 +1557,8 @@ def install_openclaw(source: FileSource, cli_token: str = None) -> bool:
         return SKIPPED
 
     print(f"\n{colored('Installing VibeMon Plugin for OpenClaw...', 'cyan')}\n")
+
+    prepare_install(source, cli_token, ("openclaw/extensions/openclaw.plugin.json", "openclaw/extensions/index.mjs"))
 
     # The plugin reads transmission settings (http_urls, serial_port,
     # vibemon_url, vibemon_token) from ~/.vibemon/config.json as fallback,
@@ -1636,6 +1689,8 @@ def install_opencode(source: FileSource, cli_token: str = None) -> bool:
 
     print(f"\n{colored('Installing VibeMon for opencode...', 'cyan')}\n")
 
+    prepare_install(source, cli_token, ("opencode/hooks/vibemon.py", "opencode/plugin/vibemon.js"))
+
     # Shared assets: the adapter reads transmission settings from
     # ~/.vibemon/config.json through vibemon_core.py, like every other tool.
     configure_vibemon_config(source, cli_token)
@@ -1684,6 +1739,7 @@ def install_vibemon(source: FileSource, cli_token: str = None) -> bool:
     """
     print(f"\n{colored('Installing VibeMon shared scripts...', 'cyan')}\n")
 
+    prepare_install(source, cli_token)
     configure_vibemon_config(source, cli_token)
     ok = install_vibemon_shared(source)
 
