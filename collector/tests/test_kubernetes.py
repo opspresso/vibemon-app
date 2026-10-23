@@ -42,6 +42,28 @@ class KubernetesTests(unittest.TestCase):
         for item in reader.usage['items']: item['usage']['cpu'] = '0'
         result = self.sample(reader)
         self.assertEqual(result.metrics['cpuPercent'], 0); self.assertEqual(result.metrics['podsUnhealthy'], 0)
+    def test_pod_list_is_read_once_per_summary_window_and_failures_are_retried(self):
+        reader, now, reads = Reader(), [1000], []
+        original = reader.read
+        def counted(kind):
+            reads.append(kind)
+            return original(kind)
+        reader.read = counted
+        sampler = KubernetesSampler(reader, CLUSTER_METRICS, lambda: now[0])
+        for tick in (1000, 1010, 1020):
+            now[0] = tick
+            self.assertEqual(sampler.sample().metrics['podsUnhealthy'], 3)
+        self.assertEqual(reads.count('pods'), 1)
+        self.assertEqual(reads.count('usage'), 3)
+        now[0] = 1030
+        reader.pods = [['Running', 'True']]
+        self.assertEqual(sampler.sample().metrics['podsUnhealthy'], 0)
+        reader.pods = [['Bogus', '']]
+        now[0] = 1060
+        self.assertIsNone(sampler.sample().metrics['podsUnhealthy'])
+        reader.pods = [['Running', 'False']]
+        now[0] = 1070
+        self.assertEqual(sampler.sample().metrics['podsUnhealthy'], 1)
     def test_quantities(self):
         for value, expected in [('250m', .25), ('1Gi', 1073741824), ('1e3', 1000), ('5M', 5000000), ('0', 0)]: self.assertEqual(quantity(value), expected)
         for value in ['NaN', '-1', 'inf', '1unknown', '1e999']:
@@ -72,6 +94,26 @@ class DiskTests(unittest.TestCase):
         sample = self.sample()
         self.assertEqual({key: sample.metrics[key] for key in DISK_METRICS}, {'diskAvailableGiB': 40, 'diskTotalGiB': 100, 'diskUsedPercent': 60})
         self.assertEqual(sample.metrics['cpuPercent'], 25)
+
+    def test_kubelet_summaries_are_reused_within_a_summary_window(self):
+        now, requests = [1000], []
+        original = self.read
+        def counted(address, port):
+            requests.append(address)
+            return original(address, port)
+        self.read = counted
+        sampler = KubernetesSampler(self.reader, CLUSTER_METRICS + DISK_METRICS, lambda: now[0], self)
+        try:
+            for tick in (1000, 1010, 1020):
+                now[0] = tick
+                self.assertEqual(sampler.sample().metrics['diskAvailableGiB'], 40)
+            self.assertEqual(len(requests), 2)
+            now[0] = 1030
+            for response in self.responses.values(): response['node']['fs']['time'] = '1970-01-01T00:17:10Z'
+            self.assertEqual(sampler.sample().metrics['diskAvailableGiB'], 40)
+            self.assertEqual(len(requests), 4)
+        finally:
+            sampler.disk_executor.shutdown(wait=True)
 
     def test_full_disk_is_zero_available(self):
         for response in self.responses.values(): response['node']['fs']['availableBytes'] = 0
