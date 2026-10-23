@@ -59,10 +59,11 @@ jobs:
           inventory() {
             local container directory=$(mktemp -d) packages=usr/local/lib/python3.12/site-packages
             container=$(docker create --platform "$2" "$1")
-            docker export "$container" | tar -x -C "$directory" --wildcards "$packages/vibemon_collector/*.py" \
+            docker export "$container" | tar -x -C "$directory" --wildcards "$packages/vibemon_collector" \
               "$packages/vibemon_collector-*.dist-info/METADATA" "$packages/vibemon_collector-*.dist-info/entry_points.txt" "$packages/psutil-*.dist-info/METADATA"
             docker rm -f "$container" > /dev/null
-            (cd "$directory/$packages" && find . -type f -print0 | sort -z | xargs -0 sha256sum)
+            # Every package file, including subpackages; bytecode caches are build output.
+            (cd "$directory/$packages" && find . -type f ! -path '*/__pycache__/*' -print0 | sort -z | xargs -0 sha256sum)
           }
           inventory vibemon-collector:check linux/arm64 > /tmp/built.txt
           # The classic image store keeps one platform per index digest, so each
