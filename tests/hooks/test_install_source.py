@@ -69,3 +69,21 @@ class InstallerSourceTests(unittest.TestCase):
             path.write_text(original)
             with self.assertRaisesRegex(ValueError, 'matching VIBEMON_WRITE_TOKEN'): install.configure_vibemon_config(source)
             self.assertEqual(path.read_text(), original)
+
+    def test_only_a_repository_checkout_reads_files_locally(self):
+        docs = Path(install.__file__).parent
+        self.assertFalse(install.FileSource(docs).is_online)
+        parent = install.FileSource(docs.parent)
+        self.assertEqual((parent.is_online, parent.local_dir), (False, docs))
+        with tempfile.TemporaryDirectory() as directory:
+            # A copied installer beside payload-like files, as in a temporary download folder.
+            folder = Path(directory) / 'repo' / 'public' / 'install'
+            (folder / 'claude').mkdir(parents=True)
+            (folder / 'install.py').write_text('', encoding='utf-8')
+            (folder / 'manifest.json').write_text('{"files": {}}', encoding='utf-8')
+            self.assertTrue(install.FileSource(folder).is_online)
+            self.assertTrue(install.FileSource(folder.parent).is_online)
+            scripts = Path(directory) / 'repo' / 'scripts'
+            scripts.mkdir()
+            (scripts / 'generate_manifest.py').write_text('', encoding='utf-8')
+            self.assertFalse(install.FileSource(folder).is_online)

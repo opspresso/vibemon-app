@@ -1052,6 +1052,18 @@ def adapt_opencode_plugin(content: str, opencode_home: Path = None) -> str:
     return result
 
 
+def is_repository_checkout(directory: Path) -> bool:
+    """True when `directory` is public/install in a vibemon-app repository checkout.
+
+    The checkout has manifest.json, the installed payloads (claude/) and, two
+    levels up, the script that generates the manifest.
+    """
+    if len(directory.parents) < 2:
+        return False
+    return ((directory / MANIFEST_PATH).is_file() and (directory / "claude").is_dir()
+            and (directory.parents[1] / "scripts" / "generate_manifest.py").is_file())
+
+
 class FileSource:
     """Abstract file source for local or remote files."""
 
@@ -1064,13 +1076,15 @@ class FileSource:
         self._files = {}
 
         if local_dir is not None:
-            # Check if running from local directory with install files
-            # Files may be in local_dir/claude/ or local_dir/install/claude/
-            if (local_dir / "claude").exists():
-                self.is_online = False
-            elif (local_dir / "install" / "claude").exists():
-                self.local_dir = local_dir / "install"
-                self.is_online = False
+            # Read files locally only from public/install in a repository
+            # checkout (or its parent, public/). Any other directory, such as
+            # the temporary folder install.ps1 saves install.py to, downloads
+            # the files and checks them against manifest.json.
+            for directory in (local_dir, local_dir / "install"):
+                if is_repository_checkout(directory):
+                    self.local_dir = directory
+                    self.is_online = False
+                    break
 
     def get_file(self, path: str) -> str:
         """Get file content from local or remote source.
