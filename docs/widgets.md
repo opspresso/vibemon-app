@@ -5,7 +5,7 @@ VibeMon adds two small widgets to macOS 14 or later. Each widget shows one item:
 | Widget | Shows | Source |
 | --- | --- | --- |
 | **Resource** | State, collector message, and up to three metrics of one resource | Resources selected in **Customize view** |
-| **Coding Agent** | State, context, session usage, and weekly usage of one provider account | Selected cloud accounts and local hook activity |
+| **Coding Account** | State, context, session usage, and weekly usage of one provider account | Selected coding accounts and local hook activity |
 
 Add as many widgets as you need, for example one per server and one per coding account.
 
@@ -15,8 +15,8 @@ Add as many widgets as you need, for example one per server and one per coding a
 
 1. Start VibeMon. The widgets read data that the App writes.
 2. Control-click the desktop and select **Edit Widgets**, or open Notification Center and select **Edit Widgets**.
-3. Search for **VibeMon Mac**. Drag **Resource · Mac** or **Coding Agent · Mac** to the desktop or Notification Center.
-4. Control-click the new widget and select **Edit "Resource · Mac"** or **Edit "Coding Agent · Mac"**. Choose the item to show. Coding accounts are listed as provider plus short account ID, for example `Codex · 27e702a8`, with the account name and project names below. The list includes a resource icon or agent character. Search by name, account ID, or project to narrow the choices. Each choice keeps its original full ID.
+3. Search for **VibeMon Mac**. Drag **Resource · Mac** or **Coding Account · Mac** to the desktop or Notification Center.
+4. Control-click the new widget and select **Edit "Resource · Mac"** or **Edit "Coding Account · Mac"**. Choose the item to show. Coding accounts are listed as provider plus short account ID, for example `Codex · 27e702a8`, with the account name and project names below. The list includes a resource icon or agent character. Search by name, account ID, or project to narrow the choices. Each choice keeps its original full ID.
 
 If VibeMon is missing from the gallery, keep the App in `/Applications`, start it once, and reopen **Edit Widgets**. The widget extension is included with the macOS App; there is no separate widget installer.
 
@@ -81,7 +81,7 @@ The package verifier checks the extension metadata, App/widget versions, URL sch
 
 To check the installed App in the macOS gallery manually:
 
-1. Search for **VibeMon Mac** and check its App icon, **Resource · Mac**, and **Coding Agent · Mac** previews.
+1. Search for **VibeMon Mac** and check its App icon, **Resource · Mac**, and **Coding Account · Mac** previews.
 2. Add each widget, edit it, and search for a specific resource or account. Check the icon, account ID, and project names.
 3. Close the editor. Confirm the selected item remains after reopening it, and that clicking the widget opens the Dashboard.
 4. Check focused and unfocused desktop appearance, then change the selected item's name or icon and confirm it refreshes. macOS controls the final refresh timing.

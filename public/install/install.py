@@ -277,8 +277,11 @@ def sign_in_to_web(origin: str, client_id: str, name: str = None, sleep=time.sle
     code, user_code, uri = start.get("device_code"), start.get("user_code"), start.get("verification_uri")
     if status != 200 or not all(isinstance(value, str) for value in (code, user_code, uri)):
         raise SignInError(start.get("error_description") or f"VibeMon sign-in is unavailable (HTTP {status})")
-    interval = max(1, int(start.get("interval", 5)))
-    deadline = now() + int(start.get("expires_in", 600))
+    try:
+        interval = max(1, int(start.get("interval", 5)))
+        deadline = now() + int(start.get("expires_in", 600))
+    except (TypeError, ValueError, OverflowError):
+        raise SignInError("VibeMon sign-in returned an invalid polling interval or expiry") from None
     complete = start.get("verification_uri_complete") if isinstance(start.get("verification_uri_complete"), str) else uri
     print(f"\n  {colored('Sign in to VibeMon', 'cyan')}")
     print(f"  1. Open {colored(uri, 'cyan')}")
@@ -1049,6 +1052,18 @@ def adapt_opencode_plugin(content: str, opencode_home: Path = None) -> str:
     return result
 
 
+def is_repository_checkout(directory: Path) -> bool:
+    """True when `directory` is public/install in a vibemon-app repository checkout.
+
+    The checkout has manifest.json, the installed payloads (claude/) and, two
+    levels up, the script that generates the manifest.
+    """
+    if len(directory.parents) < 2:
+        return False
+    return ((directory / MANIFEST_PATH).is_file() and (directory / "claude").is_dir()
+            and (directory.parents[1] / "scripts" / "generate_manifest.py").is_file())
+
+
 class FileSource:
     """Abstract file source for local or remote files."""
 
@@ -1056,15 +1071,20 @@ class FileSource:
         self.local_dir = local_dir
         self.is_online = True
         self.base_url = checked_download_url(os.environ.get("VIBEMON_DOCS_URL") or DOCS_BASE_URL)
+        # prepare_install() reads every payload before the first write; the
+        # installer then writes these same verified bytes.
+        self._files = {}
 
         if local_dir is not None:
-            # Check if running from local directory with install files
-            # Files may be in local_dir/claude/ or local_dir/install/claude/
-            if (local_dir / "claude").exists():
-                self.is_online = False
-            elif (local_dir / "install" / "claude").exists():
-                self.local_dir = local_dir / "install"
-                self.is_online = False
+            # Read files locally only from public/install in a repository
+            # checkout (or its parent, public/). Any other directory, such as
+            # the temporary folder install.ps1 saves install.py to, downloads
+            # the files and checks them against manifest.json.
+            for directory in (local_dir, local_dir / "install"):
+                if is_repository_checkout(directory):
+                    self.local_dir = directory
+                    self.is_online = False
+                    break
 
     def get_file(self, path: str) -> str:
         """Get file content from local or remote source.
@@ -1072,6 +1092,11 @@ class FileSource:
         Remote content is checked against manifest.json before any caller can
         write it to disk; a mismatch raises IntegrityError.
         """
+        if path not in self._files:
+            self._files[path] = self._read(path)
+        return self._files[path]
+
+    def _read(self, path: str) -> str:
         if self.is_online:
             load_manifest(self)
             url = f"{self.base_url}/{path}"
@@ -1106,18 +1131,23 @@ SHARED_SCRIPTS = (
 VIBEMON_CONFIG_CACHE = {}
 
 
-def configure_vibemon_config(source: FileSource, cli_token: str = None) -> str:
-    """Configure ~/.vibemon/config.json once per run and return the resolved token."""
-    if "token" in VIBEMON_CONFIG_CACHE:
-        return VIBEMON_CONFIG_CACHE["token"]
+def resolve_vibemon_config(source: FileSource, cli_token: str = None) -> dict:
+    """Return the ~/.vibemon/config.json content for this run without writing anything.
 
-    vibemon_home = Path.home() / ".vibemon"
-    vibemon_home.mkdir(parents=True, exist_ok=True)
-    config_path = vibemon_home / "config.json"
+    This step runs every check of the configuration: the VIBEMON_URL rules,
+    the token rules and the sign-in. A failure raises before any file changes.
+    The result is cached, so a run signs in at most once.
+    """
+    if "config" in VIBEMON_CONFIG_CACHE:
+        return VIBEMON_CONFIG_CACHE["config"]
+
+    config_path = Path.home() / ".vibemon" / "config.json"
     config_content = source.get_file(CONFIG_EXAMPLE_FILE)
 
     print("\nConfiguring VibeMon:")
-    config = load_or_create_config(config_path, config_content)
+    config = read_json_object(config_path) if config_path.exists() else None
+    if config is None:
+        config = json.loads(config_content)
 
     origin = os.environ.get("VIBEMON_URL")
     if origin:
@@ -1135,6 +1165,21 @@ def configure_vibemon_config(source: FileSource, cli_token: str = None) -> str:
         print(f"  {colored('✓', 'green')} ~/.vibemon/config.json exists")
 
     config = configure_token(config, cli_token)
+    VIBEMON_CONFIG_CACHE["config"] = config
+    return config
+
+
+def configure_vibemon_config(source: FileSource, cli_token: str = None) -> str:
+    """Write ~/.vibemon/config.json once per run and return the resolved token."""
+    if "token" in VIBEMON_CONFIG_CACHE:
+        return VIBEMON_CONFIG_CACHE["token"]
+
+    config = resolve_vibemon_config(source, cli_token)
+    vibemon_home = Path.home() / ".vibemon"
+    vibemon_home.mkdir(parents=True, exist_ok=True)
+    config_path = vibemon_home / "config.json"
+    # Copy it aside before it is saved over: it may hold a hand-edited vibemon_token.
+    backup_file(config_path)
 
     # 0600: this file holds the VibeMon API token. A failed write must fail the
     # platform (run_install reports it) instead of silently reporting success
@@ -1166,6 +1211,21 @@ def install_vibemon_shared(source: FileSource) -> bool:
         ok = write_file_with_diff(Path.home() / ".vibemon" / name, content, f"~/.vibemon/{name}", executable=name == "usage.py") and ok
     VIBEMON_CONFIG_CACHE["shared_installed"] = ok
     return ok
+
+
+def prepare_install(source: FileSource, cli_token: str, paths: tuple = ()) -> None:
+    """Run every check that can fail before an installer writes its first file.
+
+    It reads and integrity-checks the tool payloads in `paths` and the shared
+    ~/.vibemon payloads, then resolves the VibeMon configuration (URL, token,
+    sign-in). A failure raises here and leaves the tool files and ~/.vibemon
+    unchanged, so a new hook never runs with shared scripts of an older
+    version. Sign-in comes last, so a failed download creates no token.
+    """
+    for path in (*paths, CONFIG_EXAMPLE_FILE, *(f"vibemon/{name}" for name in SHARED_SCRIPTS)):
+        source.get_file(path)
+    resolve_vibemon_config(source, cli_token)
+    print()
 
 
 def configure_statusline_config(source: FileSource) -> bool:
@@ -1208,6 +1268,10 @@ def install_claude(source: FileSource, cli_token: str = None) -> bool:
         return SKIPPED
 
     print(f"\n{colored('Installing VibeMon for Claude Code...', 'cyan')}\n")
+
+    prepare_install(source, cli_token, (
+        "claude/statusline.py", "claude/hooks/vibemon.py", "claude/settings.json", STATUSLINE_EXAMPLE_FILE,
+    ))
 
     claude_home.mkdir(parents=True, exist_ok=True)
     (claude_home / "hooks").mkdir(parents=True, exist_ok=True)
@@ -1320,6 +1384,8 @@ def install_codex(source: FileSource, cli_token: str = None) -> bool:
 
     print(f"\n{colored('Installing VibeMon for Codex CLI...', 'cyan')}\n")
 
+    prepare_install(source, cli_token, ("codex/hooks/vibemon.py", "codex/hooks.json"))
+
     codex_home.mkdir(parents=True, exist_ok=True)
     (codex_home / "hooks").mkdir(parents=True, exist_ok=True)
 
@@ -1396,6 +1462,8 @@ def install_kiro(source: FileSource, cli_token: str = None) -> bool:
         return SKIPPED
 
     print(f"\n{colored('Installing VibeMon for Kiro...', 'cyan')}\n")
+
+    prepare_install(source, cli_token, ("kiro/hooks/vibemon.py", *KIRO_HOOK_CONFIG_FILES))
 
     kiro_home.mkdir(parents=True, exist_ok=True)
     (kiro_home / "hooks").mkdir(parents=True, exist_ok=True)
@@ -1506,6 +1574,8 @@ def install_openclaw(source: FileSource, cli_token: str = None) -> bool:
         return SKIPPED
 
     print(f"\n{colored('Installing VibeMon Plugin for OpenClaw...', 'cyan')}\n")
+
+    prepare_install(source, cli_token, ("openclaw/extensions/openclaw.plugin.json", "openclaw/extensions/index.mjs"))
 
     # The plugin reads transmission settings (http_urls, serial_port,
     # vibemon_url, vibemon_token) from ~/.vibemon/config.json as fallback,
@@ -1636,6 +1706,8 @@ def install_opencode(source: FileSource, cli_token: str = None) -> bool:
 
     print(f"\n{colored('Installing VibeMon for opencode...', 'cyan')}\n")
 
+    prepare_install(source, cli_token, ("opencode/hooks/vibemon.py", "opencode/plugin/vibemon.js"))
+
     # Shared assets: the adapter reads transmission settings from
     # ~/.vibemon/config.json through vibemon_core.py, like every other tool.
     configure_vibemon_config(source, cli_token)
@@ -1684,6 +1756,7 @@ def install_vibemon(source: FileSource, cli_token: str = None) -> bool:
     """
     print(f"\n{colored('Installing VibeMon shared scripts...', 'cyan')}\n")
 
+    prepare_install(source, cli_token)
     configure_vibemon_config(source, cli_token)
     ok = install_vibemon_shared(source)
 
@@ -2145,13 +2218,16 @@ def install_kubernetes(source: FileSource, cli_token: str = None) -> bool:
     if not ask_yes_no(f"  Install into {context}?", default=True, unattended=True):
         print("  Skipped.")
         return SKIPPED
-    if namespace_owner() == "other":
+    owner = namespace_owner()
+    if owner == "other":
         raise RuntimeError(f"The namespace {KUBERNETES_NAMESPACE!r} exists and was not created by this installer")
     if subprocess.run(["kubectl", "get", "apiservice", "v1beta1.metrics.k8s.io"], capture_output=True).returncode != 0:
         print(f"  {colored('!', 'yellow')} metrics-server is not installed. Node and pod counts work; CPU and memory stay unavailable until it is installed.")
     origin = web_origin()
     name = SOURCE_NAME or context
     ident = source_id("k8s", name)
+    # A sign-in creates a Web token, so it comes after the permission check.
+    check_kubernetes_access(owner, name, ident, origin)
     token = collector_token(cli_token, *saved_secret(), origin, name)
     run_checked(["kubectl", "apply", "-f", "-"], "Applying the collector", kubernetes_manifest(name, ident, origin, token))
     # A new token or image needs a new pod.
@@ -2164,6 +2240,29 @@ def install_kubernetes(source: FileSource, cli_token: str = None) -> bool:
         raise RuntimeError(f"The collector did not become ready: {reason}. Check with: kubectl -n {KUBERNETES_NAMESPACE} logs deployment/vibemon-collector")
     print(f"  {colored('✓', 'green')} Collector running in {context} as {ident} ({name}). It appears under Resources on VibeMon within a minute.")
     return True
+
+
+def check_kubernetes_access(owner: str, name: str, ident: str, origin: str) -> None:
+    """Fail when the current kubectl user cannot install the collector.
+
+    A server-side dry run of `kubectl apply` checks each object as the API
+    server would, including the RBAC escalation rules for the ClusterRole and
+    its binding. A dry run does not create the namespace, so when the namespace
+    is new, only the cluster-scoped objects are dry-run and `kubectl auth can-i`
+    checks that the namespaced objects can be created. The rollout restart
+    needs permission to patch the Deployment. The Secret holds a placeholder,
+    so this check needs no write token.
+    """
+    manifest = json.loads(kubernetes_manifest(name, ident, origin, "vm_" + "0" * 60))
+    checks = [("patch", "deployments.apps")]
+    if owner == "none":
+        manifest["items"] = [item for item in manifest["items"] if "namespace" not in item["metadata"]]
+        checks = [("create", "serviceaccounts"), ("create", "secrets"), ("create", "deployments.apps")] + checks
+    denied = [f"{verb} {resource}" for verb, resource in checks
+              if subprocess.run(["kubectl", "auth", "can-i", verb, resource, "-n", KUBERNETES_NAMESPACE], capture_output=True, text=True).returncode != 0]
+    if denied:
+        raise RuntimeError(f"The current kubectl user cannot {', '.join(denied)} in namespace {KUBERNETES_NAMESPACE!r}. Nothing was installed and no token was created")
+    run_checked(["kubectl", "apply", "--dry-run=server", "-f", "-"], "Checking permission to apply the collector", json.dumps(manifest))
 
 
 def namespace_owner() -> str:

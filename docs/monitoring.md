@@ -60,7 +60,7 @@ Equal project names across accounts remain separate. Use separate signed-in tool
 
 **Details → Remove on Web** opens a removal confirmation in your browser. Sign in with the same VibeMon account as Desktop. The App checks which workspace its read token belongs to before opening the link. Removing an account removes its registered projects; an active hook or collector can register them again.
 
-**On this device** lists local hook activity independently of cloud accounts. Fresh selected cloud observations also enter the existing companion routing path under cloud-specific IDs, and a new cloud event competes for the companion like a local one. A source that this device's hooks deliver locally is shown only through local delivery, which is immediate and supports terminal focus; it replaces an earlier cloud copy. Local and cloud projects cannot overwrite each other by sharing a name.
+**On this device** lists local hook activity independently of coding accounts from VibeMon. Fresh selected cloud observations also enter the existing companion routing path under cloud-specific IDs, and a new cloud event competes for the companion like a local one. A source that this device's hooks deliver locally is shown only through local delivery, which is immediate and supports terminal focus; it replaces an earlier cloud copy. Local and cloud projects cannot overwrite each other by sharing a name.
 
 ## Settings
 

@@ -23,6 +23,7 @@ jobs:
     steps:
       - uses: actions/checkout@v6
         with:
+          persist-credentials: false
           fetch-depth: 0
       - name: Resolve immutable release source
         id: release
@@ -61,6 +62,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
         with:
+          persist-credentials: false
           fetch-depth: 0
           ref: ${{ needs.resolve.outputs.commit }}
 
@@ -157,6 +159,7 @@ jobs:
     steps:
       - uses: actions/checkout@v6
         with:
+          persist-credentials: false
           ref: ${{ needs.resolve.outputs.commit }}
       - uses: actions/download-artifact@v8
         with:
@@ -189,6 +192,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
         with:
+          persist-credentials: false
           fetch-depth: 0
           ref: ${{ needs.resolve.outputs.commit }}
 

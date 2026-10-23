@@ -54,7 +54,7 @@ Tool detection honors `CLAUDE_CONFIG_DIR`, `CODEX_HOME`, `KIRO_HOME`, and `OPENC
 
 ## macOS widgets
 
-On macOS 14 or later, select **Edit Widgets** on the desktop and search for **VibeMon Mac**. Add a **Resource · Mac** or **Coding Agent · Mac** widget for each item you want to watch, then edit the widget to choose the item. See [macOS widgets](docs/widgets.md).
+On macOS 14 or later, select **Edit Widgets** on the desktop and search for **VibeMon Mac**. Add a **Resource · Mac** or **Coding Account · Mac** widget for each item you want to watch, then edit the widget to choose the item. See [macOS widgets](docs/widgets.md).
 
 ## Character display
 

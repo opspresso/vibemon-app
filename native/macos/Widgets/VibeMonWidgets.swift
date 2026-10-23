@@ -32,8 +32,8 @@ struct AgentWidget: Widget {
         AppIntentConfiguration(kind: WidgetKind.agent, intent: AgentSelection.self, provider: Provider<AgentSelection>(kind: .agent)) { entry in
             EntryView(entry: entry)
         }
-        .configurationDisplayName("Coding Agent · Mac")
-        .description("State and usage of one coding agent account.")
+        .configurationDisplayName("Coding Account · Mac")
+        .description("State and usage of one coding account.")
         .supportedFamilies([.systemSmall])
     }
 }

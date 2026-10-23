@@ -1,3 +1,4 @@
+import json
 import os
 import subprocess
 import sys
@@ -20,6 +21,38 @@ class InstallerRuntimeTest(unittest.TestCase):
                 )
                 self.assertEqual(result.returncode, 0, result.stderr)
                 self.assertIn('--vibemon', result.stdout)
+
+    def test_a_rejected_saved_token_changes_no_file(self):
+        # An unattended update with a legacy token must fail before any write.
+        # Otherwise a new hook runs against the older shared ~/.vibemon scripts.
+        with tempfile.TemporaryDirectory() as directory:
+            home = Path(directory)
+            seeded = {
+                '.vibemon/config.json': json.dumps({'vibemon_token': 'old_arbitrary_token'}),
+                '.vibemon/vibemon_core.py': '# older shared core\n',
+                '.claude/settings.json': json.dumps({'hooks': {}, 'statusLine': {'type': 'command', 'command': 'mine'}}),
+                '.claude/hooks/vibemon.py': '# older Claude hook\n',
+                '.codex/hooks.json': '{}',
+                '.kiro/hooks/vibemon.py': '# older Kiro hook\n',
+                '.config/opencode/opencode.json': '{}',
+                '.openclaw/openclaw.json': '{}',
+            }
+            for relative, content in seeded.items():
+                (home / relative).parent.mkdir(parents=True, exist_ok=True)
+                (home / relative).write_text(content, encoding='utf-8')
+
+            def snapshot():
+                return {str(path.relative_to(home)): None if path.is_dir() else path.read_bytes() for path in home.rglob('*')}
+
+            before = snapshot()
+            overrides = ('VIBEMON_', 'CLAUDE_CONFIG_DIR', 'CODEX_HOME', 'KIRO_HOME', 'OPENCODE_CONFIG_DIR', 'XDG_CONFIG_HOME')
+            env = {key: value for key, value in os.environ.items() if not key.startswith(overrides)}
+            env.update(HOME=directory, USERPROFILE=directory)
+            result = subprocess.run([sys.executable, str(INSTALLER), '--all'], env=env, capture_output=True, encoding='utf-8', timeout=60)
+
+            self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+            self.assertIn('not a generated write token', result.stdout)
+            self.assertEqual(snapshot(), before)
 
     def test_shared_scripts_install_and_import_in_isolated_home(self):
         script = '''

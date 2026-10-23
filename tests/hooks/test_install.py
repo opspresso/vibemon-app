@@ -480,6 +480,7 @@ class PosixInstall(PosixFake):
     def patches(self):
         return super().patches() + [
             mock.patch.object(install.Path, "home", staticmethod(lambda: self.home)),
+            mock.patch.object(install, "resolve_vibemon_config"),
             mock.patch.object(install, "configure_vibemon_config"),
             mock.patch.object(install, "install_vibemon_shared", return_value=True),
         ]
@@ -1265,6 +1266,21 @@ class WebSignInTest(unittest.TestCase):
                 with self.assertRaisesRegex(install.SignInError, message):
                     install.sign_in_to_web('https://web.example', 'vibemon-hooks', 'box', sleep=lambda _: None, now=lambda: 0)
 
+    def test_an_invalid_interval_or_expiry_is_a_sign_in_error(self):
+        start = {'device_code': 'dc', 'user_code': 'BCDF-GHJK', 'verification_uri': 'https://web.example/device'}
+        for field, value in [('interval', 'soon'), ('interval', None), ('interval', []), ('expires_in', 'later'), ('expires_in', {}), ('expires_in', float('inf'))]:
+            _, post = self.replies((200, {**start, field: value}))
+            with self.subTest(field=field, value=value), mock.patch.object(install, 'post_form', post), mock.patch('sys.stdout', io.StringIO()):
+                with self.assertRaisesRegex(install.SignInError, 'invalid polling interval or expiry'):
+                    install.sign_in_to_web('https://web.example', 'vibemon-hooks', 'box', sleep=lambda _: None, now=lambda: 0)
+        # A terminal install then keeps local delivery instead of failing.
+        _, post = self.replies((200, {**start, 'interval': 'soon'}))
+        output = io.StringIO()
+        output.isatty = lambda: True
+        with mock.patch.dict(os.environ, {}, clear=True), mock.patch.object(install, 'post_form', post), mock.patch('sys.stdout', output):
+            self.assertEqual(install.configure_token({'vibemon_token': '', 'vibemon_url': 'https://web.example'})['vibemon_token'], '')
+        self.assertIn('Activity stays local', output.getvalue())
+
     def test_refuses_an_insecure_origin(self):
         with self.assertRaises(ValueError):
             install.sign_in_to_web('http://web.example', 'vibemon-hooks')
@@ -1395,6 +1411,63 @@ class KubernetesSafetyTest(unittest.TestCase):
                     with self.assertRaises(RuntimeError):
                         install.uninstall_kubernetes()
                     self.assertFalse(any(command[:2] == ['kubectl', 'delete'] for command in calls))
+
+    def fake_kubectl(self, calls, denied=(), dry_run_error='', namespace_stdout=None):
+        """A kubectl that records each call and answers like a cluster with the given permissions."""
+        def run(command, **kwargs):
+            calls.append((command, kwargs.get('input')))
+            if command[:3] == ['kubectl', 'config', 'current-context']:
+                return self.result(stdout='kind-test\n')
+            if command[:3] == ['kubectl', 'get', 'namespace']:
+                if namespace_stdout is None:
+                    return self.result(1, stderr='Error from server (NotFound): namespaces "vibemon" not found')
+                return self.result(stdout=namespace_stdout)
+            if command[:3] == ['kubectl', 'auth', 'can-i']:
+                return self.result(1, stdout='no\n') if f'{command[3]} {command[4]}' in denied else self.result(stdout='yes\n')
+            if command[:3] == ['kubectl', 'apply', '--dry-run=server']:
+                return self.result(1, stderr=dry_run_error) if dry_run_error else self.result()
+            if 'secret' in command:
+                return self.result(1, stderr='NotFound')
+            return self.result()
+        return run
+
+    def install_with(self, run, sign_in):
+        with mock.patch.object(install.subprocess, 'run', side_effect=run), \
+                mock.patch.object(install.shutil, 'which', return_value='/usr/bin/kubectl'), mock.patch('sys.stdout', io.StringIO()), \
+                mock.patch.object(install, 'NON_INTERACTIVE', True), mock.patch.dict(os.environ, {}, clear=True), \
+                mock.patch.object(install, 'sign_in_to_web', side_effect=sign_in):
+            return install.install_kubernetes(None)
+
+    def test_missing_permission_fails_before_sign_in_and_apply(self):
+        cases = [
+            ({'denied': ('create secrets',)}, 'cannot create secrets'),
+            ({'dry_run_error': 'Error from server (Forbidden): clusterroles.rbac.authorization.k8s.io is forbidden'}, 'forbidden'),
+            ({'denied': ('patch deployments.apps',), 'namespace_stdout': 'vibemon-installer'}, 'cannot patch deployments.apps'),
+        ]
+        for fake, message in cases:
+            calls = []
+            with self.subTest(message=message):
+                with self.assertRaisesRegex(RuntimeError, message):
+                    self.install_with(self.fake_kubectl(calls, **fake), AssertionError('must not sign in'))
+                self.assertFalse([command for command, _ in calls if command[:2] == ['kubectl', 'apply'] and '--dry-run=server' not in command])
+                self.assertFalse([command for command, _ in calls if 'rollout' in command])
+
+    def test_permission_check_runs_before_sign_in_and_never_sends_the_token(self):
+        token = 'vm_' + 'b' * 60
+        for namespace_stdout, dry_run_kinds in [(None, ['Namespace', 'ClusterRole', 'ClusterRoleBinding']),
+                                                ('vibemon-installer', ['Namespace', 'ServiceAccount', 'ClusterRole', 'ClusterRoleBinding', 'Secret', 'Deployment'])]:
+            calls = []
+            with self.subTest(namespace=namespace_stdout):
+                self.assertTrue(self.install_with(self.fake_kubectl(calls, namespace_stdout=namespace_stdout), lambda *_: calls.append(('sign-in', None)) or token))
+                order = [command if command == 'sign-in' else ' '.join(command[:3]) for command, _ in calls]
+                self.assertLess(order.index('kubectl apply --dry-run=server'), order.index('sign-in'))
+                self.assertLess(order.index('sign-in'), order.index('kubectl apply -f'))
+                checked = [command[3:5] for command, _ in calls if command[:3] == ['kubectl', 'auth', 'can-i']]
+                expected = [['create', 'serviceaccounts'], ['create', 'secrets'], ['create', 'deployments.apps']] if namespace_stdout is None else []
+                self.assertEqual(checked, expected + [['patch', 'deployments.apps']])
+                dry_run = next(text for command, text in calls if command[:3] == ['kubectl', 'apply', '--dry-run=server'])
+                self.assertEqual([item['kind'] for item in json.loads(dry_run)['items']], dry_run_kinds)
+                self.assertNotIn(token, dry_run)
 
     def test_a_saved_secret_without_its_origin_is_not_reused(self):
         token = base64.b64encode(('vm_' + 'a' * 60).encode()).decode()
