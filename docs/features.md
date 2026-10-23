@@ -118,7 +118,7 @@ one entry per state.
 | `thinking` | Purple | sprite eyes + thought bubble | Thinking | Prompt submitted, or a tool ended |
 | `planning` | Teal | sprite eyes + thought bubble | Planning | `thinking` or `working` in plan mode |
 | `working` | Blue | glasses + sparkle | (tool-based) | Tool running |
-| `packing` | Gray | sprite eyes + thought bubble | Packing | Context compacting |
+| `packing` | Gray | sprite eyes + thought bubble | Compacting | Context compacting |
 | `notification` | Yellow | sprite eyes + question mark | Input? | User answer or approval needed |
 | `done` | Green | happy eyes | Done! | Turn ended (stop, interrupt, or session end) |
 | `sleep` | Navy | closed eyes + Z | Zzz... | `idle` aged 5 minutes |
