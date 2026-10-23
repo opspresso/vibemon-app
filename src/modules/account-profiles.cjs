@@ -3,9 +3,10 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { validAccountId } = require('../monitoring/domain.cjs');
+const { providers } = require('../shared/data/monitoring.json');
 
 const REGISTRY_PATH = path.join(os.homedir(), '.vibemon', 'accounts.json');
-const PROVIDERS = new Set(['claude', 'codex', 'kiro', 'opencode', 'openclaw']);
+const PROVIDERS = new Set(providers.map(provider => provider.id));
 const KINDS = new Set(['account', 'credential', 'profile', 'manual']);
 const snapshots = new Map();
 const plain = value => value && typeof value === 'object' && !Array.isArray(value);

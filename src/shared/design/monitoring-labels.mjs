@@ -63,3 +63,4 @@ export default {
 };
 export const unitFractionDigits = {"%":2,"GiB":2};
 export const measurementTones = [{"keyPrefix":"usage","warningFrom":70,"dangerFrom":90}];
+export const codingProviders = [{"id":"codex","name":"Codex","character":"codex"},{"id":"claude","name":"Claude Code","character":"clawd"},{"id":"kiro","name":"Kiro","character":"kiro"},{"id":"openclaw","name":"OpenClaw","character":"claw"},{"id":"opencode","name":"OpenCode","character":"vibemon"}];

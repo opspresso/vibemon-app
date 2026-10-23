@@ -102,6 +102,13 @@
       }
     }
   },
+  "providers": [
+    { "id": "codex", "name": "Codex", "character": "codex" },
+    { "id": "claude", "name": "Claude Code", "character": "clawd" },
+    { "id": "kiro", "name": "Kiro", "character": "kiro" },
+    { "id": "openclaw", "name": "OpenClaw", "character": "claw" },
+    { "id": "opencode", "name": "OpenCode", "character": "vibemon" }
+  ],
   "measurements": {
     "unitFractionDigits": {
       "%": 2,

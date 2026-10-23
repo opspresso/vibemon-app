@@ -1,20 +1,14 @@
 // Pure display rules shared by the Desktop renderer and the private Web client.
 // Functions that return text take an optional translator `t` (see
 // ../i18n/translate.mjs); without one they return English.
-import states, { measurementTones, unitFractionDigits } from './monitoring-labels.mjs';
+import states, { codingProviders as providers, measurementTones, unitFractionDigits } from './monitoring-labels.mjs';
 import messages from '../i18n/shared-messages.mjs';
 import { createTranslator } from '../i18n/translate.mjs';
 
 const english = createTranslator('en', messages);
 /** A translator for the shared display messages in `locale`. */
 export const sharedTranslator = locale => createTranslator(locale, messages);
-export const codingProviders = Object.freeze([
-  { id: 'codex', name: 'Codex', character: 'codex' },
-  { id: 'claude', name: 'Claude Code', character: 'clawd' },
-  { id: 'kiro', name: 'Kiro', character: 'kiro' },
-  { id: 'openclaw', name: 'OpenClaw', character: 'claw' },
-  { id: 'opencode', name: 'OpenCode', character: 'vibemon' }
-].map(Object.freeze));
+export const codingProviders = Object.freeze(providers.map(Object.freeze));
 export const providerLabel = provider => codingProviders.find(item => item.id === provider)?.name ?? provider;
 // Compact labels never change the full identity used for selection or API calls.
 export function accountName(accountKey) {
