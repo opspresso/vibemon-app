@@ -2182,7 +2182,9 @@ def kubernetes_manifest(name: str, ident: str, origin: str, token: str) -> str:
         {"apiVersion": "v1", "kind": "ServiceAccount", "metadata": {"name": "vibemon-collector", "namespace": namespace, "labels": labels}},
         {"apiVersion": "rbac.authorization.k8s.io/v1", "kind": "ClusterRole", "metadata": {"name": "vibemon-collector", "labels": labels},
          "rules": [{"apiGroups": [""], "resources": ["nodes", "pods"], "verbs": ["list"]},
-                   {"apiGroups": ["metrics.k8s.io"], "resources": ["nodes"], "verbs": ["get", "list"]}]},
+                   {"apiGroups": ["metrics.k8s.io"], "resources": ["nodes"], "verbs": ["get", "list"]},
+                   # Root-disk capacity from each kubelet's Summary API (--disk).
+                   {"apiGroups": [""], "resources": ["nodes/stats"], "verbs": ["get"]}]},
         {"apiVersion": "rbac.authorization.k8s.io/v1", "kind": "ClusterRoleBinding", "metadata": {"name": "vibemon-collector", "labels": labels},
          "roleRef": {"apiGroup": "rbac.authorization.k8s.io", "kind": "ClusterRole", "name": "vibemon-collector"},
          "subjects": [{"kind": "ServiceAccount", "name": "vibemon-collector", "namespace": namespace}]},
@@ -2195,7 +2197,7 @@ def kubernetes_manifest(name: str, ident: str, origin: str, token: str) -> str:
                       "securityContext": {"runAsNonRoot": True, "runAsUser": 65532, "runAsGroup": 65532, "seccompProfile": {"type": "RuntimeDefault"}},
                       "containers": [{
                           "name": "collector", "image": COLLECTOR_IMAGE,
-                          "args": ["--source-id", ident, "--name", name, "--kind", "cluster", "--cluster-backend", "metrics-api",
+                          "args": ["--source-id", ident, "--name", name, "--kind", "cluster", "--cluster-backend", "metrics-api", "--disk",
                                    "--kubectl-command", "kubectl --cache-dir=/tmp/kubectl", "--url", origin, "--health-file", "/tmp/vibemon-health"],
                           "env": [{"name": "VIBEMON_WRITE_TOKEN", "valueFrom": {"secretKeyRef": {"name": "vibemon-collector", "key": "VIBEMON_WRITE_TOKEN"}}}],
                           "securityContext": {"allowPrivilegeEscalation": False, "readOnlyRootFilesystem": True, "capabilities": {"drop": ["ALL"]}},
@@ -2596,6 +2598,13 @@ UNINSTALLERS = {
 }
 
 
+def valid_name_arg(value: str) -> str:
+    """A display name with visible text; a blank one would fall back to a shared default."""
+    if not value.strip():
+        raise argparse.ArgumentTypeError("the name must contain visible text")
+    return value.strip()
+
+
 def valid_token_arg(value: str) -> str:
     """Validate an explicitly supplied server-generated token."""
     if not TOKEN_PATTERN.match(value):
@@ -2660,7 +2669,7 @@ another selected platform succeeded; a run in which nothing succeeded exits 1.
                         help="Install the resource collector for this Linux host or DGX Spark (systemd)")
     parser.add_argument("--kubernetes", action="store_true",
                         help="Install the resource collector in the current kubectl context")
-    parser.add_argument("--name", metavar="NAME",
+    parser.add_argument("--name", metavar="NAME", type=valid_name_arg,
                         help="Display name of the collected resource; defaults to the host or context name")
 
     # Configuration options

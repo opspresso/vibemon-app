@@ -1438,6 +1438,20 @@ class KubernetesSafetyTest(unittest.TestCase):
                 mock.patch.object(install, 'sign_in_to_web', side_effect=sign_in):
             return install.install_kubernetes(None)
 
+    def test_the_cluster_manifest_collects_root_disks(self):
+        items = install.json.loads(install.kubernetes_manifest('Production', 'k8s-production', 'https://vibemon.io', 'vm_' + 'a' * 60))['items']
+        role = next(item for item in items if item['kind'] == 'ClusterRole')
+        self.assertIn({'apiGroups': [''], 'resources': ['nodes/stats'], 'verbs': ['get']}, role['rules'])
+        self.assertNotIn('nodes/proxy', install.json.dumps(role))
+        container = next(item for item in items if item['kind'] == 'Deployment')['spec']['template']['spec']['containers'][0]
+        self.assertIn('--disk', container['args'])
+
+    def test_a_blank_name_is_rejected(self):
+        for value in ('', '   '):
+            with self.subTest(value=value), self.assertRaises(install.argparse.ArgumentTypeError):
+                install.valid_name_arg(value)
+        self.assertEqual(install.valid_name_arg(' Production '), 'Production')
+
     def test_a_generic_or_unreadable_context_stops_before_any_cluster_change(self):
         for context in ('default', 'kubernetes-admin@kubernetes'):
             calls = []
