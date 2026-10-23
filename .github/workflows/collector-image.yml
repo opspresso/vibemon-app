@@ -48,12 +48,21 @@ jobs:
           assert health.ready(time.time())
           health.reset()
           assert not health.ready(time.time())'
-      - name: Verify the installer's pinned image contains this collector source
+      - name: Verify the installer's pinned image matches this collector build
         run: |
           image=$(python3 -c 'import re; print(re.search(r"^COLLECTOR_IMAGE = \"([^\"]+)\"", open("public/install/install.py").read(), re.M)[1])')
-          digests='import hashlib, pathlib, sys; root = pathlib.Path(sys.argv[1]); print("\n".join(f"{hashlib.sha256(p.read_bytes()).hexdigest()}  {p.name}" for p in sorted(root.glob("*.py"))))'
-          docker run --rm --entrypoint python "$image" -c "import vibemon_collector, os; print(os.path.dirname(vibemon_collector.__file__))" > /tmp/package-dir
-          docker run --rm --entrypoint python "$image" -c "$digests" "$(cat /tmp/package-dir)" > /tmp/pinned.txt
-          python3 -c "$digests" collector/vibemon_collector > /tmp/source.txt
+          # Anonymous ECR Public pulls from shared runners can hit its data limit.
+          for attempt in 1 2 3; do docker pull -q "$image" && break; [ "$attempt" = 3 ] && exit 1; sleep 30; done
+          # Package files and installed metadata: version, dependencies, entry points, and psutil.
+          inventory='import hashlib, importlib.metadata as m, pathlib, vibemon_collector
+          root = pathlib.Path(vibemon_collector.__file__).parent
+          for path in sorted(root.glob("*.py")): print(hashlib.sha256(path.read_bytes()).hexdigest(), path.name)
+          collector = m.distribution("vibemon-collector")
+          print("version", collector.version)
+          for requirement in sorted(collector.requires or []): print("requires", requirement)
+          for entry in sorted(collector.entry_points, key=lambda item: item.name): print("entry", entry.group, entry.name, entry.value)
+          print("psutil", m.version("psutil"))'
+          docker run --rm --entrypoint python vibemon-collector:check -c "$inventory" > /tmp/built.txt
+          docker run --rm --entrypoint python "$image" -c "$inventory" > /tmp/pinned.txt
           # Publish a new multi-arch image and pin its digest when this fails.
-          diff /tmp/source.txt /tmp/pinned.txt
+          diff /tmp/built.txt /tmp/pinned.txt
