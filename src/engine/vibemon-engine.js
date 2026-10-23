@@ -336,6 +336,7 @@ export class VibeMonEngine {
     this.lastFrameTime = 0;
     this.animationRunning = false;
     this.animationFrameId = null;
+    this.frameTimer = null;
     this.characterRenderer = null;
     this.reducedMotion = false;
 
@@ -416,8 +417,9 @@ export class VibeMonEngine {
   _animationLoop(timestamp) {
     if (!this.animationRunning) return;
 
+    this.animationFrameId = null;
     if (timestamp - this.lastFrameTime < CONSTANTS.FRAME_INTERVAL) {
-      this.animationFrameId = requestAnimationFrame(this.boundAnimationLoop);
+      this._scheduleFrame(CONSTANTS.FRAME_INTERVAL - (timestamp - this.lastFrameTime));
       return;
     }
 
@@ -439,7 +441,16 @@ export class VibeMonEngine {
       }
     }
 
-    this.animationFrameId = requestAnimationFrame(this.boundAnimationLoop);
+    this._scheduleFrame(CONSTANTS.FRAME_INTERVAL);
+  }
+
+  // Frames draw at FRAME_INTERVAL. Waiting with a timer before requesting the
+  // display frame avoids waking the renderer on every display refresh.
+  _scheduleFrame(delay) {
+    this.frameTimer = setTimeout(() => {
+      this.frameTimer = null;
+      if (this.animationRunning) this.animationFrameId = requestAnimationFrame(this.boundAnimationLoop);
+    }, Math.max(0, delay - 1));
   }
 
   startAnimation() {
@@ -450,6 +461,10 @@ export class VibeMonEngine {
 
   stopAnimation() {
     this.animationRunning = false;
+    if (this.frameTimer) {
+      clearTimeout(this.frameTimer);
+      this.frameTimer = null;
+    }
     if (this.animationFrameId) {
       cancelAnimationFrame(this.animationFrameId);
       this.animationFrameId = null;

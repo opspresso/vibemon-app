@@ -14,11 +14,14 @@ function loadInteraction() {
     createElement: () => ({ getContext: () => context }),
     documentElement: { setPointerCapture: jest.fn(), hasPointerCapture: () => true, releasePointerCapture: jest.fn() }
   };
+  const frames = [];
+  const requestAnimationFrame = jest.fn(callback => frames.push(callback));
   const module = loadBrowserModule('src/shared/window-interaction.js', ['createCharacterHitTest', 'hitTestBubble', 'installWindowInteraction'], {
     document, window: { ...target, electronAPI: api },
-    requestAnimationFrame: jest.fn(), cancelAnimationFrame: jest.fn()
+    requestAnimationFrame, cancelAnimationFrame: jest.fn()
   });
-  return { ...module, context, api, events, document };
+  const runFrame = () => frames.splice(0).forEach(callback => callback());
+  return { ...module, context, api, events, document, requestAnimationFrame, runFrame };
 }
 
 describe('createCharacterHitTest', () => {
@@ -186,4 +189,23 @@ test('a non-primary contact does not start a drag', () => {
   events.get('pointerdown')({ pointerId: 2, isPrimary: false, button: 0, clientX: 20, clientY: 20 });
   expect(api.beginWindowDrag).not.toHaveBeenCalled();
   cleanup();
+});
+
+describe('installWindowInteraction frame callbacks', () => {
+  test('hit testing runs per frame only while a pointer is over the window', () => {
+    const { installWindowInteraction, events, requestAnimationFrame, runFrame } = loadInteraction();
+    const hitTest = jest.fn(() => false);
+    installWindowInteraction({ hitTest });
+    expect(requestAnimationFrame).not.toHaveBeenCalled();
+    events.get('mousemove')({ clientX: 10, clientY: 10 });
+    expect(requestAnimationFrame).toHaveBeenCalledTimes(1);
+    runFrame();
+    runFrame();
+    expect(requestAnimationFrame).toHaveBeenCalledTimes(3);
+    expect(hitTest).toHaveBeenCalledTimes(3);
+    events.get('mouseleave')();
+    runFrame();
+    runFrame();
+    expect(requestAnimationFrame).toHaveBeenCalledTimes(3);
+  });
 });
