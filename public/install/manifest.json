@@ -1,5 +1,5 @@
 {
-  "installer": "3f36acd52ce55cc4afc28e09ed33257078438ac745e30313d276b553b3899388",
+  "installer": "54d0c5ac1cfdecedf2429f0f136801386df1da812591b4fd3038c1aa57bc19b9",
   "files": {
     "claude/settings.json": "16364280f11c2e94a7c70d01b0f019aaf736ea82c8b0d8a2a9936072d0cfe009",
     "codex/hooks.json": "a5087e967b9d88aa214e50221a558262b0952bc7607fe8d7c8f452fcc7b6210d",
