@@ -194,7 +194,7 @@ def load_usage_cache(cache_path: str) -> dict[str, Any] | None:
         with open(cache_path, encoding="utf-8") as f:
             data = json.load(f)
         return data if isinstance(data, dict) else None
-    except (OSError, json.JSONDecodeError):
+    except (OSError, ValueError):
         return None
 
 

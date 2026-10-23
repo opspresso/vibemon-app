@@ -21,7 +21,8 @@ NO_WINDOW_FLAGS = getattr(subprocess, "CREATE_NO_WINDOW", 0)
 
 # Prefer the matching checkout's helpers; installed scripts use ~/.vibemon.
 VIBEMON_HOME = Path.home() / ".vibemon"
-for helper_dir in (Path(__file__).resolve().parent.parent / "vibemon", VIBEMON_HOME):
+_checkout = Path(__file__).resolve().parent.parent
+for helper_dir in (*([_checkout / "vibemon"] if _checkout.parts[-2:] == ("public", "install") else []), VIBEMON_HOME):
     if (helper_dir / "usage_cache.py").is_file():
         sys.path.insert(0, str(helper_dir))
         break
@@ -59,11 +60,11 @@ def load_config() -> None:
 
     def _load(path: Path) -> dict[str, Any]:
         try:
-            with open(path, encoding="utf-8") as f:
+            with open(path, encoding="utf-8-sig") as f:
                 value = json.load(f)
         except FileNotFoundError:
             return {}
-        except (json.JSONDecodeError, OSError):
+        except (ValueError, OSError):
             print(f"[vibemon] Cannot read {path.name}; ignoring its statusline settings", file=sys.stderr)
             return {}
         if not isinstance(value, dict):

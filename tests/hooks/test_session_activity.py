@@ -121,6 +121,28 @@ def test_a_permission_request_marks_its_running_tool_as_waiting(path, clock):
     assert activity.record(path, event("PostToolUse", tool_use_id="b"), Transition("thinking")).state == "notification"
 
 
+def test_a_permission_request_without_a_tool_id_waits_for_a_tool_of_that_name(path, clock):
+    # Claude Code and Codex permission requests carry tool_name but no tool_use_id.
+    open_turn(path)
+    activity.record(path, event("PreToolUse", tool_use_id="a", tool_name="Read"), Transition("working"))
+    activity.record(path, event("PreToolUse", tool_use_id="b", tool_name="Bash"), Transition("working"))
+    assert activity.record(path, event("PermissionRequest", tool_name="Bash"), Transition("notification")).state == "notification"
+    assert activity.record(path, event("PostToolUse", tool_use_id="a", tool_name="Read"), Transition("thinking")).state == "notification"
+    assert activity.record(path, event("PostToolUse", tool_use_id="b", tool_name="Bash"), Transition("thinking")).state == "thinking"
+    activity.record(path, event("PermissionRequest", tool_name="Bash"), Transition("notification"))
+    assert activity.record(path, event("PermissionDenied", tool_name="Bash"), Transition("thinking")).state == "thinking"
+
+
+def test_a_permission_request_waits_until_every_call_with_that_name_resolves(path, clock):
+    open_turn(path)
+    activity.record(path, event("PreToolUse", tool_use_id="a", tool_name="Bash"), Transition("working"))
+    activity.record(path, event("PreToolUse", tool_use_id="b", tool_name="Bash"), Transition("working"))
+    activity.record(path, event("PermissionRequest", tool_name="Bash"), Transition("notification"))
+    assert activity.record(path, event("PostToolUse", tool_use_id="a", tool_name="Bash"), Transition("thinking")).state == "notification"
+    assert activity.record(path, event("PostToolUse", tool_use_id="b", tool_name="Bash"), Transition("thinking")).state == "thinking"
+    assert cache(path)["sessions"]["s1"]["toolNames"] == {}
+
+
 def test_a_stop_that_waits_for_background_work_keeps_the_turn_open(path, clock):
     open_turn(path)
     activity.record(path, event("PreToolUse", tool_use_id="a"), Transition("working"))
@@ -341,7 +363,7 @@ def run_hook(tmp_path, payload, agent):
         patch.object(core, "get_project_name", return_value="project"),
         patch.object(core, "get_project_metadata", return_value={}),
         patch.object(core, "get_usage_metadata", return_value={}),
-        patch.object(core, "send_to_all", side_effect=lambda p, start, context=None: sent.append((p, context))),
+        patch.object(core, "send_to_all", side_effect=lambda p, start, context=None, deadline=None: sent.append((p, context))),
         patch.object(activity, "agent_process", return_value=agent),
         patch.object(activity, "start_watcher", side_effect=lambda *args: started.append(args)),
         pytest.raises(SystemExit),

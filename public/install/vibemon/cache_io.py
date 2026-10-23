@@ -91,7 +91,8 @@ def update_json_cache(path: str, update, timeout: float = 0.5) -> bool:
             try:
                 with open(path, encoding='utf-8') as source:
                     current = json.load(source)
-            except (FileNotFoundError, json.JSONDecodeError):
+            except (FileNotFoundError, ValueError):
+                # Invalid JSON or UTF-8 is replaced, so one damaged file cannot stop every later hook.
                 current = {}
             result = update(current if isinstance(current, dict) else {})
             with tempfile.NamedTemporaryFile(mode='w', encoding='utf-8', dir=Path(path).parent, prefix='.vibemon-cache-', delete=False) as output:

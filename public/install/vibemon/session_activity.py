@@ -179,23 +179,41 @@ def record(path: str, data: dict[str, Any], transition: Transition) -> Report | 
         stamp = _stamp(cache, now)
         tools = _tools(entry)
         elicitations = entry.get("elicitations") if isinstance(entry.get("elicitations"), int) else 0
+        name = data.get("tool_name") if isinstance(data.get("tool_name"), str) else ""
+        names = {key: value for key, value in (entry.get("toolNames") or {}).items() if key in tools and isinstance(value, str)} if isinstance(entry.get("toolNames"), dict) else {}
         if isinstance(tool, str) and tool and event in ("PreToolUse", "PermissionRequest"):
             # A permission prompt or question waits on the user until the tool resolves.
             tools[tool] = "notification" if transition.state == "notification" else tools.get(tool, "working")
+            if name:
+                names[tool] = name
         elif isinstance(tool, str) and tool:
             tools.pop(tool, None)
+            names.pop(tool, None)
+        if event == "PermissionRequest" and not (isinstance(tool, str) and tool):
+            # Claude Code and Codex send a permission request without tool_use_id.
+            # Every running call with that name may be the one that waits, so the
+            # request stays open until all of them resolve.
+            waiting = [key for key, value in names.items() if value == name and name]
+            for key in waiting:
+                tools[key] = "notification"
+            if not waiting:
+                tools["permission:" + name] = "notification"
+        elif event in TOOL_FINISHED_EVENTS and not any(value == name for value in names.values()):
+            tools.pop("permission:" + name, None)
+            tools.pop("permission:", None)
         if transition.state not in ACTIVE_STATES or event == "UserPromptSubmit" or event == "Stop":
             # A new or ended turn has no running tools or open elicitations.
             # A Stop that keeps the turn open waits for background work, not
             # for a tool call.
             tools.clear()
+            names.clear()
             elicitations = 0
         if event == "Elicitation":
             elicitations += 1
         elif event == "ElicitationResult":
             elicitations = max(0, elicitations - 1)
         state = _resolve(transition.state, tools, elicitations, event if isinstance(event, str) else "")
-        entry.update(tools=tools, elicitations=elicitations, updatedMs=now, reportedMs=now, eventStampMs=stamp, state=state, open=state in ACTIVE_STATES)
+        entry.update(tools=tools, toolNames=names, elicitations=elicitations, updatedMs=now, reportedMs=now, eventStampMs=stamp, state=state, open=state in ACTIVE_STATES)
         transcript = data.get("transcript_path")
         if isinstance(transcript, str) and transcript:
             entry["transcript"] = transcript

@@ -25,7 +25,7 @@ def run_hook(
     def build_payload(state, tool, project, data):
         return {"state": state, "tool": tool, "project": project}
 
-    def capture_send(payload, is_start, context=None):
+    def capture_send(payload, is_start, context=None, deadline=None):
         sent.append(payload)
 
     stdin = io.StringIO(json.dumps(event))
@@ -209,7 +209,7 @@ class SerialDebounceLockTest(unittest.TestCase):
             patch.object(
                 vibemon_core,
                 "send_serial_raw",
-                side_effect=lambda p, d: sent.append((p, d)) or True,
+                side_effect=lambda p, d, deadline=None: sent.append((p, d)) or True,
             ),
         ):
             result = vibemon_core.send_serial(str(port), '{"x":1}')

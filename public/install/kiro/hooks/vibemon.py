@@ -14,9 +14,11 @@ from pathlib import Path
 from typing import Any
 
 # Locate vibemon_core.py: repo checkout first (public/install/vibemon/), then the
-# installed copy (~/.vibemon/).
+# installed copy (~/.vibemon/). An installed hook (~/.codex/hooks/) must not
+# load a vibemon_core.py from an unrelated ~/vibemon or ~/.config/vibemon.
+_checkout = Path(__file__).resolve().parent.parent.parent
 for _core_dir in (
-    Path(__file__).resolve().parent.parent.parent / "vibemon",
+    *([_checkout / "vibemon"] if _checkout.parts[-2:] == ("public", "install") else []),
     Path.home() / ".vibemon",
 ):
     if (_core_dir / "vibemon_core.py").is_file():
