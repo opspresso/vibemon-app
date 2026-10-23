@@ -49,7 +49,7 @@ Generate the token at [Account](https://vibemon.io/account) and select **Show to
 
 ## Observation and retry rules
 
-The collector observes every 10 seconds and summarizes three observations. It sends a new summary when a window mean differs by at least 2 percentage points or 2 °C from the last successful transmission, a node/pod count or disk capacity changes, measurement availability changes, or health changes. Unchanged state sends a heartbeat every 60 seconds.
+The collector observes every 10 seconds and summarizes three observations. It sends a new summary when a window mean differs by at least 2 percentage points, 2 °C, or 1 GiB from the last successful transmission, a node/pod count changes, measurement availability changes, or health changes. Unchanged state sends a heartbeat every 60 seconds.
 
 Only the current three samples and the newest pending summary remain in memory. Transmission failures discard the old pending window; the next window replaces it. Exponential backoff caps at 60 seconds. Recovery sends current state without replaying old samples. A slow adapter never triggers a burst of catch-up observations. Collection and transmission failures are logged by exception type without credentials or response bodies.
 
@@ -99,7 +99,7 @@ For an in-cluster collector, add `--disk` to read each node's root filesystem fr
 
 `diskAvailableGiB` and `diskTotalGiB` sum root-filesystem bytes across all nodes and divide by 2^30. `diskUsedPercent` is `100 × (1 − available / total)`, including space unavailable to workloads. These are node root disks, not PVC totals or a sum of container overlay mounts. If any node is missing, fails, or has filesystem statistics older than 120 seconds, all three disk values are `null`; CPU, memory, and pod health remain independent. A genuinely full disk reports zero available GiB. The existing three-sample window supplies means and maxima.
 
-Kubelet reads use at most eight workers and one batch of node requests. If a batch misses its deadline, disk values remain unavailable until its running requests end; later ticks keep collecting the other metrics without adding more disk work. The next batch requests fresh statistics rather than publishing late results from the previous tick.
+The Metrics API backend reads node capacity and usage every 10 seconds. It reuses a successful pod list and kubelet disk batch for 30 seconds, one summary window; failed reads are retried on the next tick. Kubelet reads use at most eight workers and one batch of node requests. If a batch misses its deadline, disk values remain unavailable until its running requests end; later ticks keep collecting the other metrics without adding more disk work. The next batch requests fresh statistics rather than publishing late results from the previous tick.
 
 Disk-enabled cluster observations include `resourceType`, `metricDefinitions`, and `metricOrder`, preserving the cluster source ID and existing client rendering. Deploy Web support for extended host/cluster definitions before enabling the flag. The flag is off by default and is unsupported with the Prometheus backend.
 

@@ -12,6 +12,9 @@ from .disk import CLUSTER_DEFINITIONS, DISK_METRICS, disk_values
 from .kubelet import filesystem
 
 DISK_QUERY_TIMEOUT = 5
+# Pod lists and kubelet summaries are the expensive reads. Reuse a successful
+# result for one 30-second summary window instead of repeating it every tick.
+SLOW_READ_REUSE_SECONDS = 30
 
 # Output only capacity/readiness fields; pod specs, environment and logs are not read into Python.
 NODE_FIELDS = '{range .items[*]}{.metadata.name}{"\\t"}{.status.capacity.cpu}{"\\t"}{.status.capacity.memory}{"\\t"}{.status.conditions[?(@.type=="Ready")].status}{"\\n"}{end}'
@@ -58,6 +61,16 @@ class KubernetesSampler:
         self.metric_definitions = CLUSTER_DEFINITIONS if set(metrics).intersection(DISK_METRICS) else None
         self.disk_executor = None
         self.disk_futures = []
+        self.reused = {}
+
+    def reuse(self, name):
+        cached = self.reused.get(name)
+        if cached and 0 <= self.clock() - cached[0] < SLOW_READ_REUSE_SECONDS:
+            return cached[1]
+        return None
+
+    def remember(self, name, values):
+        self.reused[name] = (self.clock(), values)
 
     def sample(self):
         values = {key: None for key in self.metrics}
@@ -94,7 +107,11 @@ class KubernetesSampler:
                     except (KeyError, TypeError, ValueError, ZeroDivisionError): failed = True
             except (OSError, ValueError, KeyError, TypeError, AttributeError, subprocess.TimeoutExpired):
                 failed = True
-        if set(values).intersection(DISK_METRICS) and nodes:
+        disk_keys = set(values).intersection(DISK_METRICS)
+        reused_disk = self.reuse('disk') if disk_keys and nodes else None
+        if reused_disk is not None:
+            values.update({key: reused_disk[key] for key in disk_keys})
+        elif disk_keys and nodes:
             try:
                 # Cancelling a queued Future does not remove its executor work item.
                 # Keep one batch until its work items drain, including after the deadline.
@@ -129,12 +146,18 @@ class KubernetesSampler:
                 capacity = sum(item[1] for item in disks)
                 measured = disk_values(available, capacity)
                 values.update({key: value for key, value in measured.items() if key in values})
+                if all(measured[key] is not None for key in disk_keys):
+                    self.remember('disk', measured)
             except (OSError, ValueError, KeyError, TypeError, AttributeError, IndexError, subprocess.TimeoutExpired):
                 failed = True
-        if 'podsUnhealthy' in values:
+        reused_pods = self.reuse('pods') if 'podsUnhealthy' in values else None
+        if reused_pods is not None:
+            values['podsUnhealthy'] = reused_pods
+        elif 'podsUnhealthy' in values:
             try:
                 rows = self.reader.read('pods')
                 if any(len(row) != 2 or row[0] not in {'Pending', 'Running', 'Succeeded', 'Failed', 'Unknown'} for row in rows): raise ValueError('Invalid pod summary')
                 values['podsUnhealthy'] = sum(phase in {'Pending', 'Failed', 'Unknown'} or (phase == 'Running' and ready != 'True') for phase, ready in rows)
+                self.remember('pods', values['podsUnhealthy'])
             except (OSError, ValueError, TypeError, subprocess.TimeoutExpired): failed = True
         return Sample(values, cluster_health(values, failed), metric_definitions=self.metric_definitions)

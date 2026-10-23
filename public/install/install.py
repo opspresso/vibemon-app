@@ -1783,7 +1783,7 @@ COLLECTOR_MODULES = (
 COLLECTOR_FILES = tuple(f"collector/vibemon_collector/{name}" for name in COLLECTOR_MODULES)
 PSUTIL_REQUIREMENT = "psutil>=5.9,<8"
 # The multi-arch image (amd64, arm64) built by collector-image.yml.
-COLLECTOR_IMAGE = "public.ecr.aws/z5d8x0d6/vibemon-collector@sha256:ac200839a44bd62c41ce2c1feb3a919b8308f6c029c0cac55b9a084382f9e93a"
+COLLECTOR_IMAGE = "public.ecr.aws/z5d8x0d6/vibemon-collector@sha256:c06284e916e34d643313795ffad31131526757f88e4108710e7d6ab79d0855c3"
 KUBERNETES_NAMESPACE = "vibemon"
 SOURCE_ID_PATTERN = re.compile(r"^[a-zA-Z0-9][a-zA-Z0-9_.:-]{0,127}$")
 

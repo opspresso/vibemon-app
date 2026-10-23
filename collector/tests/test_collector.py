@@ -35,6 +35,21 @@ class PolicyTests(unittest.TestCase):
         self.window(policy, 22, 90)
         self.assertFalse(policy.next_payload(90)["heartbeat"])
 
+    def test_disk_writes_below_one_gib_wait_for_the_heartbeat(self):
+        policy = TransmissionPolicy()
+
+        def disk(available, wall):
+            for _ in range(3):
+                metrics = {"cpuPercent": 20, "diskAvailableGiB": available, "diskTotalGiB": 100, "diskUsedPercent": 100 - available}
+                policy.observe(Sample(metrics), "host-1", "host", "Host", wall)
+
+        disk(40, 30)
+        policy.succeeded(policy.next_payload(30), 30)
+        disk(39.99, 60)
+        self.assertIsNone(policy.next_payload(60))
+        disk(38.9, 90)
+        self.assertFalse(policy.next_payload(90)["heartbeat"])
+
     def test_heartbeat_and_failure_transition(self):
         policy = TransmissionPolicy()
         self.window(policy, 20)
