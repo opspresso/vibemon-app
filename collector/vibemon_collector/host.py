@@ -5,7 +5,7 @@ import shutil
 import subprocess
 import psutil
 from .domain import Sample
-from .disk import DISK_METRICS, HOST_DEFINITIONS, checked_capacity, disk_values
+from .disk import DISK_METRICS, HOST_DEFINITIONS, UNIFIED_HOST_DEFINITIONS, checked_capacity, disk_values
 
 
 def number(value: str, maximum: float) -> float | None:
@@ -36,7 +36,7 @@ class HostSampler:
         if self.memory_type == 'auto':
             self.memory_type = 'unified' if any(name in self.gpu_name.lower() for name in ('spark', 'gb10')) else 'ram'
         if self.metric_definitions:
-            self.metric_definitions = {**HOST_DEFINITIONS, 'memoryPercent': {**HOST_DEFINITIONS['memoryPercent'], 'label': 'Unified memory' if self.memory_type == 'unified' else 'Memory'}}
+            self.metric_definitions = UNIFIED_HOST_DEFINITIONS if self.memory_type == 'unified' else HOST_DEFINITIONS
 
     def sample(self):
         values = {key: None for key in self.metrics}

@@ -131,7 +131,8 @@ class DiskTests(unittest.TestCase):
                 sample = self.sample()
                 self.assertTrue(all(sample.metrics[key] is None for key in DISK_METRICS))
                 self.assertEqual(sample.metrics['cpuPercent'], 25)
-                self.assertEqual(sample.health, 'error')
+                # Disk is optional; the cluster's own health still comes from nodes and pods.
+                self.assertEqual(sample.health, 'warning')
 
     def test_missing_endpoint_or_failed_request_is_unavailable(self):
         self.reader.endpoints.pop()
@@ -155,7 +156,7 @@ class DiskTests(unittest.TestCase):
         self.assertEqual(summary['kind'], 'cluster')
         self.assertEqual(summary['resourceType'], 'Kubernetes')
         self.assertEqual(summary['metricDefinitions']['diskAvailableGiB']['unit'], 'GiB')
-        self.assertEqual(summary['metricOrder'][2], 'diskAvailableGiB')
+        self.assertEqual(summary['metricOrder'], ['cpuPercent', 'memoryPercent', 'diskUsedPercent', 'diskAvailableGiB', 'diskTotalGiB', 'nodesReady', 'nodesTotal', 'podsUnhealthy'])
         self.assertEqual(summary['metrics']['diskAvailableGiB'], 40)
 
     def test_recovery_reads_a_fresh_batch_instead_of_publishing_late_results(self):

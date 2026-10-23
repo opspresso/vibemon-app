@@ -149,7 +149,9 @@ class KubernetesSampler:
                 if all(measured[key] is not None for key in disk_keys):
                     self.remember('disk', measured)
             except (OSError, ValueError, KeyError, TypeError, AttributeError, IndexError, subprocess.TimeoutExpired):
-                failed = True
+                # Disk is optional: an unreachable kubelet leaves the disk values
+                # unavailable without making the cluster a collection error.
+                pass
         reused_pods = self.reuse('pods') if 'podsUnhealthy' in values else None
         if reused_pods is not None:
             values['podsUnhealthy'] = reused_pods
@@ -160,4 +162,5 @@ class KubernetesSampler:
                 values['podsUnhealthy'] = sum(phase in {'Pending', 'Failed', 'Unknown'} or (phase == 'Running' and ready != 'True') for phase, ready in rows)
                 self.remember('pods', values['podsUnhealthy'])
             except (OSError, ValueError, TypeError, subprocess.TimeoutExpired): failed = True
-        return Sample(values, cluster_health(values, failed), metric_definitions=self.metric_definitions)
+        core = {key: value for key, value in values.items() if key not in DISK_METRICS}
+        return Sample(values, cluster_health(core, failed), metric_definitions=self.metric_definitions)
