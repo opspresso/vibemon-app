@@ -2201,13 +2201,16 @@ def install_kubernetes(source: FileSource, cli_token: str = None) -> bool:
     if not ask_yes_no(f"  Install into {context}?", default=True, unattended=True):
         print("  Skipped.")
         return SKIPPED
-    if namespace_owner() == "other":
+    owner = namespace_owner()
+    if owner == "other":
         raise RuntimeError(f"The namespace {KUBERNETES_NAMESPACE!r} exists and was not created by this installer")
     if subprocess.run(["kubectl", "get", "apiservice", "v1beta1.metrics.k8s.io"], capture_output=True).returncode != 0:
         print(f"  {colored('!', 'yellow')} metrics-server is not installed. Node and pod counts work; CPU and memory stay unavailable until it is installed.")
     origin = web_origin()
     name = SOURCE_NAME or context
     ident = source_id("k8s", name)
+    # A sign-in creates a Web token, so it comes after the permission check.
+    check_kubernetes_access(owner, name, ident, origin)
     token = collector_token(cli_token, *saved_secret(), origin, name)
     run_checked(["kubectl", "apply", "-f", "-"], "Applying the collector", kubernetes_manifest(name, ident, origin, token))
     # A new token or image needs a new pod.
@@ -2220,6 +2223,29 @@ def install_kubernetes(source: FileSource, cli_token: str = None) -> bool:
         raise RuntimeError(f"The collector did not become ready: {reason}. Check with: kubectl -n {KUBERNETES_NAMESPACE} logs deployment/vibemon-collector")
     print(f"  {colored('✓', 'green')} Collector running in {context} as {ident} ({name}). It appears under Resources on VibeMon within a minute.")
     return True
+
+
+def check_kubernetes_access(owner: str, name: str, ident: str, origin: str) -> None:
+    """Fail when the current kubectl user cannot install the collector.
+
+    A server-side dry run of `kubectl apply` checks each object as the API
+    server would, including the RBAC escalation rules for the ClusterRole and
+    its binding. A dry run does not create the namespace, so when the namespace
+    is new, only the cluster-scoped objects are dry-run and `kubectl auth can-i`
+    checks that the namespaced objects can be created. The rollout restart
+    needs permission to patch the Deployment. The Secret holds a placeholder,
+    so this check needs no write token.
+    """
+    manifest = json.loads(kubernetes_manifest(name, ident, origin, "vm_" + "0" * 60))
+    checks = [("patch", "deployments.apps")]
+    if owner == "none":
+        manifest["items"] = [item for item in manifest["items"] if "namespace" not in item["metadata"]]
+        checks = [("create", "serviceaccounts"), ("create", "secrets"), ("create", "deployments.apps")] + checks
+    denied = [f"{verb} {resource}" for verb, resource in checks
+              if subprocess.run(["kubectl", "auth", "can-i", verb, resource, "-n", KUBERNETES_NAMESPACE], capture_output=True, text=True).returncode != 0]
+    if denied:
+        raise RuntimeError(f"The current kubectl user cannot {', '.join(denied)} in namespace {KUBERNETES_NAMESPACE!r}. Nothing was installed and no token was created")
+    run_checked(["kubectl", "apply", "--dry-run=server", "-f", "-"], "Checking permission to apply the collector", json.dumps(manifest))
 
 
 def namespace_owner() -> str:
