@@ -24,7 +24,14 @@ class HostDiskTests(unittest.TestCase):
         summary = summarize([sample] * 3, 'spark', 'host', 'Spark', 1000)
         self.assertEqual(summary['resourceType'], 'DGX Spark')
         self.assertEqual(summary['metricDefinitions']['memoryPercent']['label'], 'Unified memory')
-        self.assertEqual(summary['metricOrder'][2], 'diskAvailableGiB')
+        # DGX Spark shows GPU and unified memory first.
+        self.assertEqual(summary['metricOrder'], ['gpuPercent', 'memoryPercent', 'cpuPercent', 'diskUsedPercent', 'diskAvailableGiB', 'diskTotalGiB', 'gpuTemperatureC'])
+
+    def test_a_host_without_unified_memory_keeps_cpu_and_memory_first(self):
+        with patch('vibemon_collector.host.shutil.which', return_value=None), patch('vibemon_collector.host.psutil.cpu_percent'):
+            sampler = HostSampler(HOST_METRICS + DISK_METRICS, 'ram')
+        self.assertEqual(list(sampler.metric_definitions), ['cpuPercent', 'memoryPercent', 'diskUsedPercent', 'diskAvailableGiB', 'diskTotalGiB', 'gpuPercent', 'gpuTemperatureC'])
+        self.assertEqual(sampler.metric_definitions['memoryPercent']['label'], 'Memory')
 
     def test_full_disk_is_zero_but_failure_and_invalid_capacity_are_unavailable(self):
         sampler = self.sampler()

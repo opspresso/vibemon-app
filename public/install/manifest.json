@@ -1,5 +1,5 @@
 {
-  "installer": "54d0c5ac1cfdecedf2429f0f136801386df1da812591b4fd3038c1aa57bc19b9",
+  "installer": "d9572d93b5896f79852b661859c1c152d05b97889b415f40dd1d9a871b46c287",
   "files": {
     "claude/settings.json": "16364280f11c2e94a7c70d01b0f019aaf736ea82c8b0d8a2a9936072d0cfe009",
     "codex/hooks.json": "a5087e967b9d88aa214e50221a558262b0952bc7607fe8d7c8f452fcc7b6210d",
@@ -33,13 +33,13 @@
     "collector/vibemon_collector/__init__.py": "26effa5a5c29344cc6735202dc619a5b37c3944854ca10da036043b3acf7c22c",
     "collector/vibemon_collector/__main__.py": "423a63f51d881fc1d4f26602dfd348c7e5bce6b5ed04171ecec485829af184be",
     "collector/vibemon_collector/application.py": "de075f4b1e28e5aa44da7f21595f29d5eae38b49cf30343ff9191ca5395e9d41",
-    "collector/vibemon_collector/disk.py": "e6d07ad019ef8343cca175df9c2db37dde01f52b9c5795e41e398945258b24e0",
+    "collector/vibemon_collector/disk.py": "e335840eb942f48e82158fc27b946c0923a35ae84bbe16fd76e7f47c49ca9af1",
     "collector/vibemon_collector/domain.py": "0f39eb24e964ce7bf2c3b1b68317ea9d35573d922fa5cd68c060fb98d4d4a417",
     "collector/vibemon_collector/health.py": "edecdd4623273688ae141a59a23be71b35b46f45d078e3c2b68d28c66a215d88",
-    "collector/vibemon_collector/host.py": "71d07e395704a9a28be9ce4ff28c67972a1d524c45244d9741fe468d0b09bdbd",
+    "collector/vibemon_collector/host.py": "902eb85f06d5636e9db3a0b554ea5690e72cbb19070316e67be954b65fb049b1",
     "collector/vibemon_collector/http_deadline.py": "96b644e70c1f4566933dbe7f62763079d1ca9bd7ee3b0cc58a062a8126564f24",
     "collector/vibemon_collector/kubelet.py": "2926f2526e138438613333d2803a98036cd76f2d3f5fd99faa9a2490011bfd73",
-    "collector/vibemon_collector/kubernetes.py": "4e3f86ad667f552ca1e79d6200930a4e72eb9205ffd4564838460a88cbc57867",
+    "collector/vibemon_collector/kubernetes.py": "ea85dd9f452f62272b04f7cb144f440240e9aa9c245276d667fcfb57dbd3c683",
     "collector/vibemon_collector/prometheus.py": "dc4dda8cb95488a4084d2d2e8e8885c953f0e29ffd52341faa10e0b3c16a23dd",
     "collector/vibemon_collector/transport.py": "e4f78ffdf3a721fa4b878ab5d0f4ec1368e30c42d29d37f5dd2885b8fc763a1d"
   }
