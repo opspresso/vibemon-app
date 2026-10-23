@@ -63,6 +63,16 @@ def cluster_health(values: dict[str, float | None], failed: bool) -> str:
     return "warning" if unhealthy else "ok"
 
 
+def change_threshold(key: str) -> float:
+    """Smallest mean difference that sends a summary before the heartbeat.
+    Counts compare exactly. Disk capacity in GiB moves with every write, so a
+    smaller difference waits for the heartbeat; `diskUsedPercent` still sends
+    a 2-point change."""
+    if key.endswith("Percent") or key == "gpuTemperatureC":
+        return 2
+    return 1 if key.endswith("GiB") else 0
+
+
 @dataclass
 class TransmissionPolicy:
     last_sent: dict | None = None
@@ -89,7 +99,7 @@ class TransmissionPolicy:
                 if value is None or old is None:
                     changed |= value != old
                 else:
-                    threshold = 2 if key.endswith("Percent") or key == "gpuTemperatureC" else 0
+                    threshold = change_threshold(key)
                     changed |= abs(value - old) >= threshold if threshold else value != old
         if changed or now - self.sent_at >= 60:
             return {**self.pending, "heartbeat": not changed}

@@ -49,7 +49,7 @@ Generate the token at [Account](https://vibemon.io/account) and select **Show to
 
 ## Observation and retry rules
 
-The collector observes every 10 seconds and summarizes three observations. It sends a new summary when a window mean differs by at least 2 percentage points or 2 °C from the last successful transmission, a node/pod count or disk capacity changes, measurement availability changes, or health changes. Unchanged state sends a heartbeat every 60 seconds.
+The collector observes every 10 seconds and summarizes three observations. It sends a new summary when a window mean differs by at least 2 percentage points, 2 °C, or 1 GiB from the last successful transmission, a node/pod count changes, measurement availability changes, or health changes. Unchanged state sends a heartbeat every 60 seconds.
 
 Only the current three samples and the newest pending summary remain in memory. Transmission failures discard the old pending window; the next window replaces it. Exponential backoff caps at 60 seconds. Recovery sends current state without replaying old samples. A slow adapter never triggers a burst of catch-up observations. Collection and transmission failures are logged by exception type without credentials or response bodies.
 
