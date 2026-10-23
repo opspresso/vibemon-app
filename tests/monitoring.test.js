@@ -108,21 +108,28 @@ describe('conditional source polling', () => {
     expect(snapshot).toMatchObject({ status: 'connection-error', sources: [] });
   });
 
-  test('a failed request or an unusable ETag leaves the next request unconditional', async () => {
+  test('an outage keeps the ETag; a rejected request or an unusable ETag does not', async () => {
     const { client, fetchImpl } = fixture();
     fetchImpl.mockResolvedValueOnce(tagged({ sources: [source(1000000)] }, '"one"'));
     await client.poll();
     fetchImpl.mockResolvedValueOnce({ ok: false, status: 503 });
     await client.poll();
-    expect(conditionHeader(fetchImpl, 1)).toBe('"one"');
+    fetchImpl.mockRejectedValueOnce(new Error('Offline'));
+    await client.poll();
+    fetchImpl.mockResolvedValueOnce({ ok: false, status: 429 });
+    await client.poll();
+    expect([1, 2, 3].map(call => conditionHeader(fetchImpl, call))).toEqual(['"one"', '"one"', '"one"']);
+    fetchImpl.mockResolvedValueOnce({ ok: false, status: 400 });
+    await client.poll();
+    expect(conditionHeader(fetchImpl, 4)).toBe('"one"');
     fetchImpl.mockResolvedValueOnce(tagged({ sources: [source(1000000)] }, 'unquoted'));
     await client.poll();
-    expect(conditionHeader(fetchImpl, 2)).toBeUndefined();
+    expect(conditionHeader(fetchImpl, 5)).toBeUndefined();
     fetchImpl.mockResolvedValueOnce(tagged({ sources: [source(1000000)] }, `"${'a'.repeat(300)}"`));
     await client.poll();
-    expect(conditionHeader(fetchImpl, 3)).toBeUndefined();
+    expect(conditionHeader(fetchImpl, 6)).toBeUndefined();
     await client.poll();
-    expect(conditionHeader(fetchImpl, 4)).toBeUndefined();
+    expect(conditionHeader(fetchImpl, 7)).toBeUndefined();
   });
 });
 
@@ -323,6 +330,25 @@ describe('cloud monitoring', () => {
     await client.poll();
     expect(client.snapshot().sources[0].receivedAt).toBe(new Date(1000000).toISOString());
     expect(client.snapshot().status).toBe('connection-error');
+  });
+  test('system sleep ages an unrefreshed snapshot and resume polls at once', async () => {
+    const { client, fetchImpl } = fixture();
+    let elapsed = 0;
+    client.monotonicNow = () => elapsed;
+    client.start();
+    await client.inflight;
+    try {
+      const agent = { ...source(1000000), sourceId: 'claude', kind: 'agent', agent: { state: 'working' }, account: { provider: 'claude', id: 'work', displayName: 'Work' } };
+      fetchImpl.mockResolvedValueOnce(okResponse({ sources: [source(1000000), agent] }));
+      await client.poll(true);
+      elapsed = 60000;
+      fetchImpl.mockRejectedValue(new Error('Offline'));
+      const calls = fetchImpl.mock.calls.length;
+      await client.resume(3600000);
+      expect(fetchImpl.mock.calls.length).toBe(calls + 1);
+      expect(client.snapshot().evaluatedAt).toBe(1000000 + 3660000);
+      expect(client.snapshot().sources.every(item => item.displayState === 'standby')).toBe(true);
+    } finally { client.stop(); }
   });
   test('late responses cannot restore data after disconnect', async () => {
     const { client, fetchImpl } = fixture();

@@ -32,7 +32,11 @@ class MonitoringClient extends EventEmitter {
     this.fetch = fetchImpl;
     this.allowLocalHttp = allowLocalHttp;
     this.now = now;
+    // macOS and Linux monotonic clocks stop during system sleep. resume() adds
+    // the slept time so a snapshot that cannot be refreshed still ages.
+    this.suspendedMs = 0;
     this.monotonicNow = monotonicNow;
+    this.elapsedNow = () => this.monotonicNow() + this.suspendedMs;
     this.reportClock = null;
     this.sources = [];
     this.catalog = [];
@@ -95,7 +99,7 @@ class MonitoringClient extends EventEmitter {
     const attempt = ++this.configurationAttempt;
     const data = await this.requestWith(origin, candidate, '/api/v1/sources', signal);
     const sources = validateSources(data.sources);
-    const clock = snapshotClock(data.serverTime, this.monotonicNow);
+    const clock = snapshotClock(data.serverTime, this.elapsedNow);
     signal?.throwIfAborted();
     if (attempt !== this.configurationAttempt) throw new Error(t('error.connectionChanged'));
     const replaced = token ? this.savedCredential() : null;
@@ -177,33 +181,36 @@ class MonitoringClient extends EventEmitter {
       });
     } catch {
       signal?.throwIfAborted();
-      throw Object.assign(new Error('Cannot reach VibeMon'), { code: 'connection-error' });
+      throw Object.assign(new Error('Cannot reach VibeMon'), { code: 'connection-error', transient: true });
     }
   }
   readResponse(response) {
-    if (!response.ok) throw Object.assign(new Error('VibeMon request failed'), { code: response.status === 401 ? 'token-expired' : response.status === 403 ? 'permission-denied' : 'connection-error' });
+    if (!response.ok) throw Object.assign(new Error('VibeMon request failed'), {
+      code: response.status === 401 ? 'token-expired' : response.status === 403 ? 'permission-denied' : 'connection-error',
+      transient: response.status === 429 || response.status >= 500
+    });
     return readJsonResponse(response, CLOUD_MAX_RESPONSE_BYTES);
   }
   /**
    * Requests the source list, conditional on the last 200 response for the
    * same origin, token and query. A 304 reuses those sources with the time in
-   * X-Server-Time. Any failure forgets the cached response, so the next
-   * request is unconditional.
+   * X-Server-Time. An unreachable server, 429 or 5xx keeps the cached
+   * response; any other failure forgets it, so the next request is
+   * unconditional.
    */
   async requestSources(path) {
     const origin = this.savedOrigin();
     const token = this.credentials.get();
     const key = JSON.stringify([origin, token, path]);
     const cached = this.conditional?.key === key ? this.conditional : null;
-    this.conditional = null;
     const response = await this.send(origin, token, path, cached?.etag);
     if (response.status === 304) {
       if (!cached) throw Object.assign(new Error('Unexpected not-modified response'), { code: 'connection-error' });
-      return { key, etag: cached.etag, sources: cached.sources, clock: snapshotClock(response.headers?.get('X-Server-Time'), this.monotonicNow) };
+      return { key, etag: cached.etag, sources: cached.sources, clock: snapshotClock(response.headers?.get('X-Server-Time'), this.elapsedNow) };
     }
     const data = await this.readResponse(response);
     const sources = validateSources(data.sources);
-    return { key, etag: entityTag(response.headers?.get('ETag')), sources, clock: snapshotClock(data.serverTime, this.monotonicNow) };
+    return { key, etag: entityTag(response.headers?.get('ETag')), sources, clock: snapshotClock(data.serverTime, this.elapsedNow) };
   }
   poll(discover = false) {
     if (this.inflight) {
@@ -259,7 +266,7 @@ class MonitoringClient extends EventEmitter {
         }
       }
     } catch (error) {
-      this.conditional = null;
+      if (!error.transient) this.conditional = null;
       if (generation === this.generation) this.status = error.code || 'connection-error';
     }
     // Every completed poll is a clock step: listeners re-evaluate staleness even when the data did not change.
@@ -311,6 +318,15 @@ class MonitoringClient extends EventEmitter {
     this.timer = setInterval(() => {
       if (this.credentials.has() && !REJECTED.has(this.status)) this.poll();
     }, CLOUD_POLL_MS);
+  }
+  /**
+   * Called after system sleep with the wall-clock time spent asleep. Ages the
+   * current snapshot by that time and polls without waiting for the schedule.
+   */
+  resume(sleptMs) {
+    if (Number.isFinite(sleptMs) && sleptMs > 0) this.suspendedMs += sleptMs;
+    if (this.timer && this.credentials.has() && !REJECTED.has(this.status)) return this.poll();
+    return Promise.resolve(this.snapshot());
   }
   stop() {
     if (this.timer) clearInterval(this.timer);
