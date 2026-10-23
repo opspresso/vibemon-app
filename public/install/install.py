@@ -277,8 +277,11 @@ def sign_in_to_web(origin: str, client_id: str, name: str = None, sleep=time.sle
     code, user_code, uri = start.get("device_code"), start.get("user_code"), start.get("verification_uri")
     if status != 200 or not all(isinstance(value, str) for value in (code, user_code, uri)):
         raise SignInError(start.get("error_description") or f"VibeMon sign-in is unavailable (HTTP {status})")
-    interval = max(1, int(start.get("interval", 5)))
-    deadline = now() + int(start.get("expires_in", 600))
+    try:
+        interval = max(1, int(start.get("interval", 5)))
+        deadline = now() + int(start.get("expires_in", 600))
+    except (TypeError, ValueError, OverflowError):
+        raise SignInError("VibeMon sign-in returned an invalid polling interval or expiry") from None
     complete = start.get("verification_uri_complete") if isinstance(start.get("verification_uri_complete"), str) else uri
     print(f"\n  {colored('Sign in to VibeMon', 'cyan')}")
     print(f"  1. Open {colored(uri, 'cyan')}")

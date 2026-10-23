@@ -1266,6 +1266,21 @@ class WebSignInTest(unittest.TestCase):
                 with self.assertRaisesRegex(install.SignInError, message):
                     install.sign_in_to_web('https://web.example', 'vibemon-hooks', 'box', sleep=lambda _: None, now=lambda: 0)
 
+    def test_an_invalid_interval_or_expiry_is_a_sign_in_error(self):
+        start = {'device_code': 'dc', 'user_code': 'BCDF-GHJK', 'verification_uri': 'https://web.example/device'}
+        for field, value in [('interval', 'soon'), ('interval', None), ('interval', []), ('expires_in', 'later'), ('expires_in', {}), ('expires_in', float('inf'))]:
+            _, post = self.replies((200, {**start, field: value}))
+            with self.subTest(field=field, value=value), mock.patch.object(install, 'post_form', post), mock.patch('sys.stdout', io.StringIO()):
+                with self.assertRaisesRegex(install.SignInError, 'invalid polling interval or expiry'):
+                    install.sign_in_to_web('https://web.example', 'vibemon-hooks', 'box', sleep=lambda _: None, now=lambda: 0)
+        # A terminal install then keeps local delivery instead of failing.
+        _, post = self.replies((200, {**start, 'interval': 'soon'}))
+        output = io.StringIO()
+        output.isatty = lambda: True
+        with mock.patch.dict(os.environ, {}, clear=True), mock.patch.object(install, 'post_form', post), mock.patch('sys.stdout', output):
+            self.assertEqual(install.configure_token({'vibemon_token': '', 'vibemon_url': 'https://web.example'})['vibemon_token'], '')
+        self.assertIn('Activity stays local', output.getvalue())
+
     def test_refuses_an_insecure_origin(self):
         with self.assertRaises(ValueError):
             install.sign_in_to_web('http://web.example', 'vibemon-hooks')
