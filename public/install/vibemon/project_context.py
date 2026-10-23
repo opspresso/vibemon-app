@@ -38,7 +38,7 @@ def parse_json(data: str) -> dict[str, Any]:
     """Parse a payload. Valid JSON that is not an object gives an empty event."""
     try:
         value = json.loads(data)
-    except (json.JSONDecodeError, TypeError):
+    except (ValueError, TypeError):
         return {}
     return value if isinstance(value, dict) else {}
 

@@ -8,14 +8,17 @@ Shared transport lives in vibemon_core.py (~/.vibemon/vibemon_core.py).
 
 from __future__ import annotations
 
+import os
 import sys
 from pathlib import Path
 from typing import Any
 
 # Locate vibemon_core.py: repo checkout first (public/install/vibemon/), then the
-# installed copy (~/.vibemon/).
+# installed copy (~/.vibemon/). An installed hook (~/.codex/hooks/) must not
+# load a vibemon_core.py from an unrelated ~/vibemon or ~/.config/vibemon.
+_checkout = Path(__file__).resolve().parent.parent.parent
 for _core_dir in (
-    Path(__file__).resolve().parent.parent.parent / "vibemon",
+    *([_checkout / "vibemon"] if _checkout.parts[-2:] == ("public", "install") else []),
     Path.home() / ".vibemon",
 ):
     if (_core_dir / "vibemon_core.py").is_file():
@@ -34,6 +37,8 @@ except ImportError:
 
 # Character configuration
 CHARACTER = "codex"
+# The Codex home that holds this hook (CODEX_HOME, by default ~/.codex).
+PROFILE_ROOT = str(Path(__file__).resolve().parents[1])
 
 # Event to state mapping (immutable)
 EVENT_STATE_MAP: dict[str, str] = {
@@ -70,12 +75,26 @@ def build_payload(
     }
 
 
+def refine(event: str, data: dict[str, Any], state: str) -> core.Transition | None:
+    """Skip Codex's own memory generation, which runs as a session in CODEX_HOME/memories."""
+    cwd = data.get("cwd")
+    if isinstance(cwd, str) and cwd:
+        memories = os.path.realpath(os.path.join(PROFILE_ROOT, "memories"))
+        real = os.path.realpath(cwd)
+        if real == memories or real.startswith(memories + os.sep):
+            return None
+    return core.Transition(state)
+
+
 if __name__ == "__main__":
     core.run(
         account_provider="codex",
-        profile_root=str(Path(__file__).resolve().parents[1]),
+        profile_root=PROFILE_ROOT,
         event_state_map=EVENT_STATE_MAP,
         build_payload=build_payload,
         start_event="SessionStart",
+        refine=refine,
+        # hooks.json runs these synchronously with Codex's three-second maximum.
+        sync_events=frozenset({"SessionEnd", "Interrupt"}),
     )
     sys.exit(0)

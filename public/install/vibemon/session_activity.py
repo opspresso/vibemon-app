@@ -184,6 +184,14 @@ def record(path: str, data: dict[str, Any], transition: Transition) -> Report | 
             tools[tool] = "notification" if transition.state == "notification" else tools.get(tool, "working")
         elif isinstance(tool, str) and tool:
             tools.pop(tool, None)
+        # Claude Code and Codex send a permission request without tool_use_id.
+        # The prompt waits until a tool with the same name resolves.
+        name = data.get("tool_name") if isinstance(data.get("tool_name"), str) else ""
+        if event == "PermissionRequest" and not (isinstance(tool, str) and tool):
+            tools["permission:" + name] = "notification"
+        elif event in TOOL_FINISHED_EVENTS:
+            tools.pop("permission:" + name, None)
+            tools.pop("permission:", None)
         if transition.state not in ACTIVE_STATES or event == "UserPromptSubmit" or event == "Stop":
             # A new or ended turn has no running tools or open elicitations.
             # A Stop that keeps the turn open waits for background work, not

@@ -130,13 +130,13 @@ def read_claude_token() -> str | None:
             token = json.loads(raw).get("claudeAiOauth", {}).get("accessToken")
             if token:
                 return token
-        except (subprocess.TimeoutExpired, OSError, json.JSONDecodeError, AttributeError):
+        except (subprocess.TimeoutExpired, OSError, ValueError, AttributeError):
             pass
     try:
         with open(CLAUDE_CREDENTIALS_FILE, encoding="utf-8") as f:
             data = json.load(f)
         return data.get("claudeAiOauth", {}).get("accessToken")
-    except (FileNotFoundError, json.JSONDecodeError, IOError, AttributeError):
+    except (OSError, ValueError, AttributeError):
         return None
 
 

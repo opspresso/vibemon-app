@@ -42,7 +42,7 @@ def invoke(tool, payload, argv=()):
         patch.object(core, "get_project_metadata", return_value={"model": "claude-model", "memory": 42}),
         patch.object(core, "get_codex_usage_metadata", return_value={}),
         patch.object(core, "get_codex_context_usage", return_value=0),
-        patch.object(core, "send_to_all", side_effect=lambda p, start, context=None: sent.append((p, start))),
+        patch.object(core, "send_to_all", side_effect=lambda p, start, context=None, deadline=None: sent.append((p, start))),
     ):
         assert run_hook_script(tool, payload, argv) == 0
     return sent
@@ -328,7 +328,7 @@ def run_session(tmp_path, events, now=None):
         with ExitStack() as stack:
             stack.enter_context(patch.object(core, "get_config", return_value=config))
             stack.enter_context(patch.object(core, "get_project_metadata", return_value={}))
-            stack.enter_context(patch.object(core, "send_to_all", side_effect=lambda p, start, context=None: reports.append((p["state"], context["observedAt"]))))
+            stack.enter_context(patch.object(core, "send_to_all", side_effect=lambda p, start, context=None, deadline=None: reports.append((p["state"], context["observedAt"]))))
             if now is not None:
                 stack.enter_context(patch.object(core.time, "time", return_value=now))
             run_hook_script("claude", payload)

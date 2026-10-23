@@ -20,7 +20,7 @@ Follow the [installation guide](../public/install/setup.md) for Desktop, headles
 
 ## Configuration
 
-After installation, edit `~/.vibemon/config.json` to configure your targets:
+After installation, edit `~/.vibemon/config.json` to configure your targets: Save it as UTF-8 JSON (a byte order mark is accepted). When the file is not valid UTF-8 JSON, hooks print a warning and use the default settings.
 
 ```json
 {
@@ -198,7 +198,7 @@ To verify this lifecycle against an installed agent, run `python3 scripts/verify
 When an event carries `session_id`, the hook records the session in `~/.vibemon/cache/activity.json` under one cross-process lock:
 
 - **Running tools.** `PreToolUse` adds its `tool_use_id`. `PostToolUse`, `PostToolUseFailure`, and `PermissionDenied` remove it. A new prompt and every turn end clear the set. When a tool ends while another tool still runs, the session reports `working` instead of `thinking`. Plan mode keeps `planning`.
-- **Pending questions.** A tool that asks the user (`AskUserQuestion`, `request_user_input`), a tool with a `PermissionRequest`, and an MCP `Elicitation` without its `ElicitationResult` wait for the user. While one is unanswered, the session reports `notification`, even after a parallel tool ends.
+- **Pending questions.** A tool that asks the user (`AskUserQuestion`, `request_user_input`), a tool with a `PermissionRequest`, and an MCP `Elicitation` without its `ElicitationResult` wait for the user. While one is unanswered, the session reports `notification`, even after a parallel tool ends. Claude Code and Codex send `PermissionRequest` without `tool_use_id`. That request waits until a `PostToolUse`, `PostToolUseFailure`, or `PermissionDenied` with the same `tool_name` arrives.
 - **Late tool results.** Hooks can run asynchronously. A `PostToolUse`, `PostToolUseFailure`, or `PermissionDenied` that arrives after the turn ended is ignored, so it cannot reopen the turn.
 - **Ordering.** The same lock issues strictly increasing timestamps, so hooks that start out of order cannot place an older state after a newer one.
 - **Heartbeat payload.** The last display payload and the agent process ID let the watcher repeat the state. The cache holds no prompts, tool inputs, or responses.
@@ -252,7 +252,7 @@ A tool approved at a permission prompt runs without a new hook event. The sessio
 | Interrupt | done |
 | SessionEnd | done |
 
-`SessionStart` covers startup, resume, and clear. `PreToolUse` for `request_user_input` reports `notification`. `PreToolUse`, `PostToolUse`, and `PermissionRequest` are registered without a matcher, so every supported local tool call (`Bash`, `apply_patch`/`Edit`/`Write`, MCP tools, and other local function tools) is observed. Informational hooks run in the background, while `SessionEnd` and `Interrupt` run synchronously with Codex's three-second maximum timeout. `done` indicates that activity ended, including cancellation or failure; it does not assert task success.
+`SessionStart` covers startup, resume, clear, and fork. `PreToolUse` for `request_user_input` reports `notification`. `PreToolUse`, `PostToolUse`, and `PermissionRequest` are registered without a matcher, so every supported local tool call (`Bash`, `apply_patch`/`Edit`/`Write`, MCP tools, and other local function tools) is observed. Informational hooks run in the background, while `SessionEnd` and `Interrupt` run synchronously with Codex's three-second maximum timeout. Their requests share a budget that ends `SYNC_EVENT_BUDGET_SECONDS` (2.5 seconds) after the hook starts, so a slow target cannot exceed that timeout. `done` indicates that activity ended, including cancellation or failure; it does not assert task success.
 
 ### Kiro
 

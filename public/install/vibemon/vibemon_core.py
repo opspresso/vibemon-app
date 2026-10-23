@@ -62,9 +62,11 @@ def load_config() -> None:
         return
 
     try:
-        with open(config_file, encoding="utf-8") as f:
+        # utf-8-sig accepts the byte order mark that some editors add.
+        with open(config_file, encoding="utf-8-sig") as f:
             config = json.load(f)
-    except (json.JSONDecodeError, IOError):
+    except (ValueError, OSError):
+        print("[vibemon] ~/.vibemon/config.json is not valid UTF-8 JSON; using default settings", file=sys.stderr)
         return
     if not isinstance(config, dict):
         return
@@ -112,6 +114,10 @@ SERIAL_BAUD_RATE = "115200"
 
 # HTTP configuration
 HTTP_TIMEOUT_SECONDS = 5
+# A synchronous hook with a short agent timeout (Codex SessionEnd and Interrupt
+# allow three seconds) ends its requests this long after the hook started.
+SYNC_EVENT_BUDGET_SECONDS = 2.5
+HOOK_STARTED = time.monotonic()
 
 # Codex session logs, searched for the active thread's context usage.
 CODEX_SESSIONS_DIR = str(
@@ -242,7 +248,7 @@ def get_project_metadata(project: str, cwd: str | None = None) -> dict[str, Any]
     try:
         with open(config.cache_path, encoding="utf-8") as f:
             cache = json.load(f)
-    except (json.JSONDecodeError, IOError):
+    except (ValueError, OSError):
         return {}
 
     if not isinstance(cache, dict):
@@ -599,7 +605,7 @@ def send_serial(port: str, data: str) -> bool:
             os.close(lock_fd)
             lock_fd = None
 
-    except (IOError, OSError, json.JSONDecodeError) as e:
+    except (OSError, ValueError) as e:
         debug_log(f"Serial debounce error: {e}, falling back to direct send")
         return send_serial_raw(port, data)
     finally:
@@ -1041,14 +1047,14 @@ def launch_configured_desktop() -> bool:
     return launch_desktop(get_desktop_url(get_config().http_urls), deadline)
 
 
-def send_to_all(payload: dict[str, Any], is_start: bool = False, context: dict | bool | None = None) -> None:
+def send_to_all(payload: dict[str, Any], is_start: bool = False, context: dict | bool | None = None, deadline: float | None = None) -> None:
     """Send payload to all configured targets concurrently.
 
     A start event shares one budget across the Desktop launch and the sends.
+    Otherwise `deadline` (time.monotonic()), if any, bounds every request.
     """
     config = get_config()
 
-    deadline = None
     if is_start:
         deadline = time.monotonic() + START_BUDGET_SECONDS
         prepare_desktop(deadline)
@@ -1202,7 +1208,7 @@ def activity_path() -> str:
     return os.path.join(os.path.dirname(get_config().cache_path), "activity.json")
 
 
-def deliver_report(payload: dict[str, Any], cwd: str, observed_at: str, *, is_start: bool = False, heartbeat: bool = False, account: dict | None = None) -> None:
+def deliver_report(payload: dict[str, Any], cwd: str, observed_at: str, *, is_start: bool = False, heartbeat: bool = False, account: dict | None = None, deadline: float | None = None) -> None:
     """Send one report to every display with its cloud identity."""
     try:
         context: dict | bool = cloud_context(str(payload.get("character", "vibemon")), str(payload.get("project", "")), cwd, observed_at=observed_at, identity=AccountIdentity.restore(account) if account else None)
@@ -1213,7 +1219,7 @@ def deliver_report(payload: dict[str, Any], cwd: str, observed_at: str, *, is_st
     except ValueError:
         print("[vibemon] Invalid account configuration; cloud reporting disabled for this event", file=sys.stderr)
         context = False
-    send_to_all(payload, is_start, context)
+    send_to_all(payload, is_start, context, deadline)
 
 
 def watch_session(args: list[str]) -> bool:
@@ -1237,6 +1243,7 @@ def run(
     locate_transcript: Callable[[dict[str, Any]], str] | None = None,
     account_provider: str | None = None,
     profile_root: str | None = None,
+    sync_events: frozenset[str] = frozenset(),
 ) -> None:
     """Hook entry point, driven by a per-tool adapter.
 
@@ -1253,6 +1260,8 @@ def run(
       skip the event before metadata or delivery
     - locate_transcript(data): the session transcript path, for a tool whose
       payload carries no transcript_path, or "" when there is none
+    - sync_events: events the tool runs synchronously with a short timeout;
+      their requests end SYNC_EVENT_BUDGET_SECONDS after the hook started
     """
     argv_event = ""
     if len(sys.argv) > 1:
@@ -1291,10 +1300,10 @@ def run(
         if not known_backend and not explicit_account:
             prepare_desktop()
             return
-    return process_event(data, event_name, event_state_map, build_payload, start_event, refine, locate_transcript, account_provider, profile_root)
+    return process_event(data, event_name, event_state_map, build_payload, start_event, refine, locate_transcript, account_provider, profile_root, sync_events)
 
 
-def process_event(data, event_name, event_state_map, build_payload, start_event, refine, locate_transcript, account_provider=None, profile_root=None):
+def process_event(data, event_name, event_state_map, build_payload, start_event, refine, locate_transcript, account_provider=None, profile_root=None, sync_events=frozenset()):
     tool_name = data.get("tool_name", "")
     cwd = data.get("cwd", "")
     transcript_path = data.get("transcript_path", "")
@@ -1343,7 +1352,8 @@ def process_event(data, event_name, event_state_map, build_payload, start_event,
             if remembered and agent is not None:
                 session_activity.start_watcher(os.path.abspath(__file__), session)
         deliver_report(payload, cwd, report.observed_at, is_start=event_name == start_event,
-            account=identity.record() if identity else None)
+            account=identity.record() if identity else None,
+            deadline=HOOK_STARTED + SYNC_EVENT_BUDGET_SECONDS if event_name in sync_events else None)
 
     if account_provider:
         try:

@@ -380,7 +380,7 @@ class LifecycleConfigTest(unittest.TestCase):
         self.assertNotIn("SubagentStop", event_map)
         self.assertEqual(
             CODEX_HOOKS["hooks"]["SessionStart"][0]["matcher"],
-            "startup|resume|clear",
+            "startup|resume|clear|fork",
         )
 
     def test_kiro_config_and_adapter_cover_the_same_lifecycle(self):

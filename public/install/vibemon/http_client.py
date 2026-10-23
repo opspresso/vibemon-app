@@ -8,9 +8,12 @@ from urllib.request import HTTPRedirectHandler
 
 # The collector owns the transport source. The installer publishes the same
 # bytes next to this module; a source checkout uses the canonical package.
-_source = Path(__file__).resolve().parents[3] / 'collector' / 'vibemon_collector'
-if (_source / 'http_deadline.py').is_file():
-    sys.path.insert(0, str(_source))
+# An installed copy can sit near the filesystem root, such as /root/.vibemon.
+_parents = Path(__file__).resolve().parents
+if len(_parents) > 3 and _parents[1].parts[-2:] == ('public', 'install'):
+    _source = _parents[3] / 'collector' / 'vibemon_collector'
+    if (_source / 'http_deadline.py').is_file():
+        sys.path.insert(0, str(_source))
 from http_deadline import DeadlineOpener, read_limited
 
 def open_request(request, timeout):

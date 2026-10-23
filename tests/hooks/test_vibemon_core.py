@@ -25,7 +25,7 @@ def run_hook(
     def build_payload(state, tool, project, data):
         return {"state": state, "tool": tool, "project": project}
 
-    def capture_send(payload, is_start, context=None):
+    def capture_send(payload, is_start, context=None, deadline=None):
         sent.append(payload)
 
     stdin = io.StringIO(json.dumps(event))

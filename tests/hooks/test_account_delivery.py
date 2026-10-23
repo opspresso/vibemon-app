@@ -15,7 +15,7 @@ def test_two_profiles_in_one_project_report_separate_accounts_and_usage_keys(tmp
     monkeypatch.setattr(core, 'get_config', lambda: SimpleNamespace(cache_path=str(tmp_path / 'projects.json')))
     monkeypatch.setattr(account_context._source, 'resolve', lambda target, *_: authenticated('codex', target.root, 'org', 'Detected account', 'fixture'))
     sent = []; keys = []
-    monkeypatch.setattr(core, 'send_to_all', lambda payload, is_start, context: sent.append(context))
+    monkeypatch.setattr(core, 'send_to_all', lambda payload, is_start, context, deadline=None: sent.append(context))
 
     def payload(state, tool, project, data):
         keys.append(account_context.cache_key('codex'))
@@ -36,7 +36,7 @@ def test_late_heartbeat_keeps_original_account_after_login_changes(tmp_path, mon
     first = authenticated('codex', 'first', 'org', 'First', 'fixture')
     monkeypatch.setenv('VIBEMON_CODEX_ACCOUNT_ID', 'another-login')
     sent = []
-    monkeypatch.setattr(core, 'send_to_all', lambda payload, is_start, context: sent.append(context))
+    monkeypatch.setattr(core, 'send_to_all', lambda payload, is_start, context, deadline=None: sent.append(context))
     core.deliver_report({'state': 'working', 'project': 'same', 'character': 'codex'}, str(tmp_path),
         '2026-10-17T00:00:00.000Z', heartbeat=True, account=first.record())
     assert sent[0]['account'] == first.public()
