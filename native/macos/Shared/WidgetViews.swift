@@ -93,7 +93,7 @@ private struct ItemView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Header(item: item)
+            Header(item: item, title: status.project ?? item.title)
             StatusLine(status: status, age: Age.text(since: item.observedAt, now: date))
             // A resource message explains its state, so it takes the place of one metric.
             let message = item.kind == .resource ? item.message : nil
@@ -118,6 +118,7 @@ private struct ItemView: View {
 /// The icon, the title, and the subtitle.
 private struct Header: View {
     let item: FeedItem
+    let title: String
 
     var body: some View {
         HStack(spacing: 8) {
@@ -126,7 +127,7 @@ private struct Header: View {
             case .resource: ResourceIcon(symbol: item.symbol)
             }
             VStack(alignment: .leading, spacing: 0) {
-                Text(item.title)
+                Text(title)
                     .font(.system(size: 14, weight: .semibold))
                     .foregroundStyle(Palette.foreground)
                     .lineLimit(1)
@@ -134,6 +135,7 @@ private struct Header: View {
                     .font(.system(size: 11))
                     .foregroundStyle(Palette.muted)
                     .lineLimit(1)
+                    .minimumScaleFactor(0.8)
             }
         }
     }

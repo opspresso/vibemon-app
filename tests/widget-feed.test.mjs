@@ -57,7 +57,7 @@ test('the feed of a closed App keeps every item on standby without later changes
   const working = agentSource({ agent: { state: 'notification', character: 'clawd', project: 'web' } });
   const items = build({ cloud: cloud([host(), working]), running: false }).items;
   assert.deepEqual(items.map(item => item.timeline), [
-    [{ at: iso(0), state: 'standby', label: 'Standby', tone: 'neutral' }],
+    [{ at: iso(0), state: 'standby', label: 'Standby', tone: 'neutral', project: 'web' }],
     [{ at: iso(0), state: 'standby', label: 'Standby', tone: 'neutral' }]
   ]);
   // The order stays the reported one, so a widget without a choice keeps its item: the input request first.
@@ -102,13 +102,13 @@ test('timeline times follow the wall clock when the server clock differs', () =>
 test('a coding account ages through idle to standby', () => {
   const [item] = build({ cloud: cloud([agentSource()]) }).items;
   assert.equal(item.id, 'agent:claude:work');
-  assert.equal(item.title, 'Claude Code');
-  assert.equal(item.subtitle, 'work');
+  assert.equal(item.title, 'api');
+  assert.equal(item.subtitle, 'Claude Code · work');
   assert.equal(item.artwork, 'clawd.png');
   assert.deepEqual(item.timeline, [
-    { at: iso(0), state: 'working', label: 'Working', tone: 'active' },
-    { at: iso(constants.SLEEP_TIMEOUT_MS - minutes(2)), state: 'idle', label: 'Idle', tone: 'neutral' },
-    { at: iso(2 * constants.SLEEP_TIMEOUT_MS - minutes(2)), state: 'standby', label: 'Standby', tone: 'neutral' }
+    { at: iso(0), state: 'working', label: 'Working', tone: 'active', project: 'api' },
+    { at: iso(constants.SLEEP_TIMEOUT_MS - minutes(2)), state: 'idle', label: 'Idle', tone: 'neutral', project: 'api' },
+    { at: iso(2 * constants.SLEEP_TIMEOUT_MS - minutes(2)), state: 'standby', label: 'Standby', tone: 'neutral', project: 'api' }
   ]);
   assert.deepEqual(item.metrics.map(({ label, value, tone }) => [label, value, tone]), [['Context', '34', 'normal'], ['Session', '72.4', 'warning'], ['Weekly', '91', 'danger']]);
 });
@@ -117,9 +117,11 @@ test('an input request from an older project outranks newer work on the same acc
   const waiting = agentSource({ sourceId: 'agent:a', observedAt: iso(-minutes(3)), agent: { state: 'notification', character: 'clawd', project: 'web' } });
   const working = agentSource({ sourceId: 'agent:b', observedAt: iso(-minutes(1)), agent: { state: 'working', character: 'clawd', project: 'api' } });
   const [item] = build({ cloud: cloud([working, waiting]) }).items;
-  assert.deepEqual(item.timeline[0], { at: iso(0), state: 'notification', label: 'Needs input', tone: 'warning' });
+  assert.equal(item.title, 'web');
+  assert.equal(item.subtitle, 'Claude Code · work');
+  assert.deepEqual(item.timeline[0], { at: iso(0), state: 'notification', label: 'Needs input', tone: 'warning', project: 'web' });
   // The input request ages out first; the newer work is then shown.
-  assert.deepEqual(item.timeline[1], { at: iso(constants.SLEEP_TIMEOUT_MS - minutes(3)), state: 'working', label: 'Working', tone: 'active' });
+  assert.deepEqual(item.timeline[1], { at: iso(constants.SLEEP_TIMEOUT_MS - minutes(3)), state: 'working', label: 'Working', tone: 'active', project: 'api' });
 });
 
 test('automatic coding widgets prioritize attention and put standby accounts last, newest first', () => {
@@ -246,6 +248,9 @@ test('widget choices identify accounts of the same provider and show their proje
   assert.deepEqual(items.map(item => item.selectionTitle).sort(), ['Codex · 27e702a8', 'Codex · 396c8f1c']);
   assert.equal(items.find(item => item.selectionTitle.endsWith('27e702a8')).selectionSubtitle, 'Work · dockpad');
   assert.equal(items.find(item => item.selectionTitle.endsWith('396c8f1c')).selectionSubtitle, 'Personal · opspresso');
+  assert.equal(items.find(item => item.selectionTitle.endsWith('27e702a8')).title, 'dockpad');
+  assert.equal(items.find(item => item.selectionTitle.endsWith('27e702a8')).subtitle, 'Codex · 27e702a8');
+  assert.equal(items.find(item => item.selectionTitle.endsWith('27e702a8')).id, `agent:codex:auto:27e702a8${'a'.repeat(56)}`);
   assert.equal(new Set(items.map(item => item.id)).size, 2);
   assert.ok(items.every(item => item.id.includes('auto:') && item.id.length > 64));
 });

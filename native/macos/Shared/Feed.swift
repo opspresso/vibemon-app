@@ -86,6 +86,16 @@ struct FeedStatus: Decodable, Sendable, Equatable {
     let state: String
     let label: String
     let tone: Tone
+    /// The project responsible for this state. Older feeds use the item title.
+    let project: String?
+
+    init(at: Date, state: String, label: String, tone: Tone, project: String? = nil) {
+        self.at = at
+        self.state = state
+        self.label = label
+        self.tone = tone
+        self.project = project
+    }
 }
 
 struct FeedMetric: Decodable, Sendable, Identifiable {

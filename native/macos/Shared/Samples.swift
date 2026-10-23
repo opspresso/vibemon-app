@@ -18,7 +18,7 @@ enum Samples {
              "timeline":[{"at":"\(at)","state":"ok","label":"\(text("Healthy"))","tone":"good"}],"link":"vibemon://dashboard/resources"}
             """
         case .agent: """
-            {"id":"sample:agent","kind":"agent","title":"Claude Code","subtitle":"default","artwork":"clawd.png","observedAt":"\(at)",
+            {"id":"sample:agent","kind":"agent","title":"vibemon-app","subtitle":"Claude Code · default","selectionTitle":"Claude Code · default","selectionSubtitle":"vibemon-app","artwork":"clawd.png","observedAt":"\(at)",
              "metrics":[{"key":"context","label":"\(text("Context"))","value":"34","unit":"%","fraction":0.34,"tone":"normal"},
                         {"key":"session","label":"\(text("Session"))","value":"48","unit":"%","fraction":0.48,"tone":"normal","resetsAt":"\(session)"},
                         {"key":"week","label":"\(text("Weekly"))","value":"72","unit":"%","fraction":0.72,"tone":"warning","resetsAt":"\(week)"}],
