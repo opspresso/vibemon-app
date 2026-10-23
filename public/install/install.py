@@ -1783,7 +1783,7 @@ COLLECTOR_MODULES = (
 COLLECTOR_FILES = tuple(f"collector/vibemon_collector/{name}" for name in COLLECTOR_MODULES)
 PSUTIL_REQUIREMENT = "psutil>=5.9,<8"
 # The multi-arch image (amd64, arm64) built by collector-image.yml.
-COLLECTOR_IMAGE = "public.ecr.aws/z5d8x0d6/vibemon-collector@sha256:c06284e916e34d643313795ffad31131526757f88e4108710e7d6ab79d0855c3"
+COLLECTOR_IMAGE = "public.ecr.aws/z5d8x0d6/vibemon-collector@sha256:50ea78df05b68b2e8e6bbd05cc5f103955a9b279e8ecc75e88131ea78dd21747"
 KUBERNETES_NAMESPACE = "vibemon"
 # Default context names of k3s and kubeadm clusters; they do not tell clusters apart.
 GENERIC_KUBERNETES_CONTEXTS = frozenset({"default", "kubernetes-admin@kubernetes"})
