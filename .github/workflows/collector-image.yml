@@ -1,10 +1,10 @@
 name: Collector image
 on:
   pull_request:
-    paths: ['collector/**', '.github/workflows/collector-image.yml']
+    paths: ['collector/**', 'public/install/install.py', '.github/workflows/collector-image.yml']
   push:
     branches: [main]
-    paths: ['collector/**', '.github/workflows/collector-image.yml']
+    paths: ['collector/**', 'public/install/install.py', '.github/workflows/collector-image.yml']
 permissions:
   contents: read
 jobs:
@@ -48,3 +48,12 @@ jobs:
           assert health.ready(time.time())
           health.reset()
           assert not health.ready(time.time())'
+      - name: Verify the installer's pinned image contains this collector source
+        run: |
+          image=$(python3 -c 'import re; print(re.search(r"^COLLECTOR_IMAGE = \"([^\"]+)\"", open("public/install/install.py").read(), re.M)[1])')
+          digests='import hashlib, pathlib, sys; root = pathlib.Path(sys.argv[1]); print("\n".join(f"{hashlib.sha256(p.read_bytes()).hexdigest()}  {p.name}" for p in sorted(root.glob("*.py"))))'
+          docker run --rm --entrypoint python "$image" -c "import vibemon_collector, os; print(os.path.dirname(vibemon_collector.__file__))" > /tmp/package-dir
+          docker run --rm --entrypoint python "$image" -c "$digests" "$(cat /tmp/package-dir)" > /tmp/pinned.txt
+          python3 -c "$digests" collector/vibemon_collector > /tmp/source.txt
+          # Publish a new multi-arch image and pin its digest when this fails.
+          diff /tmp/source.txt /tmp/pinned.txt
