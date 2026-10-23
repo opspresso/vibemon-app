@@ -755,6 +755,17 @@ describe('restoreLastWindow', () => {
     expect(result.stateData).toEqual({ state: 'working', project: 'proj-b' });
     expect(window.showInactive).toHaveBeenCalled();
   });
+
+  test('showing the followed window for a hook does not take keyboard focus', () => {
+    const manager = new CharacterWindowManager();
+    const window = { isDestroyed: () => false, showInactive: jest.fn(), show: jest.fn(), focus: jest.fn() };
+    manager.entry = { window, state: { state: 'start', project: 'proj-a' }, projectId: 'proj-a' };
+
+    expect(manager.showActiveWindow()).toBe(true);
+    expect(window.showInactive).toHaveBeenCalled();
+    expect(window.show).not.toHaveBeenCalled();
+    expect(window.focus).not.toHaveBeenCalled();
+  });
 });
 
 describe('updateState change detection', () => {

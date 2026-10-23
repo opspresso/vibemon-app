@@ -66,7 +66,7 @@ class WorkspaceSettings {
   getVibemonConfigView() {
     const config = this.vibemonConfigManager.read();
     const display = Object.fromEntries(HOOK_SETTINGS.map(key => [key, config[key]]));
-    return { ...display, status: this.vibemonConfigManager.getStatus() };
+    return { ...display, desktopUrl: this.vibemonConfigManager.desktopUrl, status: this.vibemonConfigManager.getStatus() };
   }
 
   /**

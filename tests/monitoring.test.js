@@ -108,21 +108,28 @@ describe('conditional source polling', () => {
     expect(snapshot).toMatchObject({ status: 'connection-error', sources: [] });
   });
 
-  test('a failed request or an unusable ETag leaves the next request unconditional', async () => {
+  test('an outage keeps the ETag; a rejected request or an unusable ETag does not', async () => {
     const { client, fetchImpl } = fixture();
     fetchImpl.mockResolvedValueOnce(tagged({ sources: [source(1000000)] }, '"one"'));
     await client.poll();
     fetchImpl.mockResolvedValueOnce({ ok: false, status: 503 });
     await client.poll();
-    expect(conditionHeader(fetchImpl, 1)).toBe('"one"');
+    fetchImpl.mockRejectedValueOnce(new Error('Offline'));
+    await client.poll();
+    fetchImpl.mockResolvedValueOnce({ ok: false, status: 429 });
+    await client.poll();
+    expect([1, 2, 3].map(call => conditionHeader(fetchImpl, call))).toEqual(['"one"', '"one"', '"one"']);
+    fetchImpl.mockResolvedValueOnce({ ok: false, status: 400 });
+    await client.poll();
+    expect(conditionHeader(fetchImpl, 4)).toBe('"one"');
     fetchImpl.mockResolvedValueOnce(tagged({ sources: [source(1000000)] }, 'unquoted'));
     await client.poll();
-    expect(conditionHeader(fetchImpl, 2)).toBeUndefined();
+    expect(conditionHeader(fetchImpl, 5)).toBeUndefined();
     fetchImpl.mockResolvedValueOnce(tagged({ sources: [source(1000000)] }, `"${'a'.repeat(300)}"`));
     await client.poll();
-    expect(conditionHeader(fetchImpl, 3)).toBeUndefined();
+    expect(conditionHeader(fetchImpl, 6)).toBeUndefined();
     await client.poll();
-    expect(conditionHeader(fetchImpl, 4)).toBeUndefined();
+    expect(conditionHeader(fetchImpl, 7)).toBeUndefined();
   });
 });
 
@@ -323,6 +330,51 @@ describe('cloud monitoring', () => {
     await client.poll();
     expect(client.snapshot().sources[0].receivedAt).toBe(new Date(1000000).toISOString());
     expect(client.snapshot().status).toBe('connection-error');
+  });
+  test('system sleep ages an unrefreshed snapshot by the time the monotonic clock missed', async () => {
+    const { client, fetchImpl } = fixture();
+    let elapsed = 0;
+    let wall = 1000000;
+    client.monotonicNow = () => elapsed;
+    client.now = () => wall;
+    client.start();
+    await client.inflight;
+    try {
+      const agent = { ...source(1000000), sourceId: 'claude', kind: 'agent', agent: { state: 'working', character: 'clawd', project: 'vibemon' }, account: { provider: 'claude', id: 'work', displayName: 'Work' } };
+      fetchImpl.mockResolvedValueOnce(okResponse({ sources: [source(1000000), agent] }));
+      expect((await client.poll(true)).status).toBe('connected');
+      expect(client.snapshot().sources.find(item => item.sourceId === 'claude').displayState).toBe('working');
+      elapsed = 60000; wall += 60000;
+      client.suspend();
+      // macOS and Linux: one hour of sleep that the monotonic clock did not count.
+      wall += 3600000;
+      fetchImpl.mockRejectedValue(new Error('Offline'));
+      const calls = fetchImpl.mock.calls.length;
+      await client.resume();
+      expect(fetchImpl.mock.calls.length).toBe(calls + 1);
+      expect(client.snapshot().evaluatedAt).toBe(1000000 + 3660000);
+      expect(client.snapshot().sources.map(item => item.displayState)).toEqual(['standby', 'standby']);
+      // Windows can keep counting during sleep; that time is not added twice.
+      client.suspend();
+      wall += 600000; elapsed += 600000;
+      await client.resume();
+      expect(client.snapshot().evaluatedAt).toBe(1000000 + 4260000);
+    } finally { client.stop(); }
+  });
+  test('resume reports the aged snapshot when a rejected token paused polling', async () => {
+    const { client, fetchImpl } = fixture();
+    client.start();
+    await client.inflight;
+    fetchImpl.mockResolvedValueOnce({ ok: false, status: 401 });
+    await client.poll();
+    const changes = jest.fn();
+    client.on('change', changes);
+    const calls = fetchImpl.mock.calls.length;
+    client.suspend();
+    await client.resume();
+    expect(fetchImpl.mock.calls.length).toBe(calls);
+    expect(changes).toHaveBeenCalledWith(expect.objectContaining({ status: 'token-expired' }));
+    client.stop();
   });
   test('late responses cannot restore data after disconnect', async () => {
     const { client, fetchImpl } = fixture();

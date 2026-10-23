@@ -53,7 +53,7 @@ describe('engine state selection', () => {
   });
   test('reduced motion stops effect animation and blinking in the frame loop', () => {
     const frames = [];
-    const { VibeMonEngine: Engine } = loadEngine({ requestAnimationFrame: (callback) => frames.push(callback) });
+    const { VibeMonEngine: Engine } = loadEngine({ requestAnimationFrame: (callback) => frames.push(callback), setTimeout: (callback) => callback(), clearTimeout: () => {} });
     const engine = new Engine(null, { characters: charactersRegistry.characters, defaultCharacter: charactersRegistry.default, states: STATE_CONFIG });
     engine.canvas = { style: {} };
     engine.characterRenderer = { drawCharacter: jest.fn() };
@@ -67,6 +67,28 @@ describe('engine state selection', () => {
     frames.shift()(41 * CONSTANTS.FRAME_INTERVAL);
     expect(engine.animFrame).toBe(1);
     expect(engine.characterRenderer.drawCharacter).toHaveBeenCalledTimes(1);
+  });
+  test('the frame loop waits with a timer between drawn frames', () => {
+    const frames = [];
+    const delays = [];
+    const { VibeMonEngine: Engine } = loadEngine({
+      requestAnimationFrame: (callback) => frames.push(callback),
+      setTimeout: (callback, delay) => { delays.push(delay); callback(); return delays.length; },
+      clearTimeout: jest.fn(),
+      cancelAnimationFrame: jest.fn()
+    });
+    const engine = new Engine(null, { characters: charactersRegistry.characters, defaultCharacter: charactersRegistry.default, states: STATE_CONFIG });
+    engine.canvas = { style: {} };
+    engine.characterRenderer = { drawCharacter: jest.fn() };
+    engine.startAnimation();
+    frames.shift()(CONSTANTS.FRAME_INTERVAL);
+    expect(delays).toEqual([CONSTANTS.FRAME_INTERVAL - 1]);
+    frames.shift()(CONSTANTS.FRAME_INTERVAL + 16);
+    expect(delays[1]).toBe(CONSTANTS.FRAME_INTERVAL - 17);
+    engine.stopAnimation();
+    expect(frames).toHaveLength(1);
+    frames.shift()(CONSTANTS.FRAME_INTERVAL * 3);
+    expect(frames).toHaveLength(0);
   });
   test('idle injects the blink eyeType on the blink frame only', () => {
     const engine = makeEngine();

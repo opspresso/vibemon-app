@@ -215,6 +215,32 @@ describe('VibemonConfigManager', () => {
 
       expect(manager.removeHttpUrl('http://missing').http_urls).toEqual(['http://a']);
     });
+
+    test.each(['ftp://a', 'file:///tmp/x', 'javascript:alert(1)', 'http://user:secret@a', 'not a url', ''])('addHttpUrl rejects %p', (url) => {
+      fs.existsSync.mockReturnValue(true);
+      fs.readFileSync.mockReturnValue(JSON.stringify({ http_urls: ['http://a'] }));
+
+      expect(() => manager.addHttpUrl(url)).toThrow();
+      expect(fs.writeFileSync).not.toHaveBeenCalled();
+    });
+
+    test('write() applies the same destination rules to a full list', () => {
+      fs.existsSync.mockReturnValue(true);
+      fs.readFileSync.mockReturnValue(JSON.stringify({ http_urls: [manager.desktopUrl, 'legacy-entry'] }));
+
+      expect(() => manager.write({ http_urls: [manager.desktopUrl, 'legacy-entry', 'ftp://a'] })).toThrow();
+      expect(() => manager.write({ http_urls: ['legacy-entry'] })).toThrow();
+      expect(manager.write({ http_urls: [manager.desktopUrl, 'legacy-entry', 'https://b'] }).http_urls).toEqual([manager.desktopUrl, 'legacy-entry', 'https://b']);
+    });
+
+    test("removeHttpUrl keeps this app's own receiver", () => {
+      fs.existsSync.mockReturnValue(true);
+      fs.readFileSync.mockReturnValue(JSON.stringify({ http_urls: [manager.desktopUrl, 'http://a'] }));
+
+      expect(manager.desktopUrl).toBe('http://127.0.0.1:19280');
+      expect(() => manager.removeHttpUrl(manager.desktopUrl)).toThrow();
+      expect(manager.removeHttpUrl('http://a').http_urls).toEqual([manager.desktopUrl]);
+    });
   });
 
   describe('ensureDesktopUrl', () => {

@@ -19,6 +19,16 @@ const VIBEMON_HOME = path.join(os.homedir(), '.vibemon');
 const VIBEMON_CONFIG_PATH = path.join(VIBEMON_HOME, 'config.json');
 const DESKTOP_HTTP_URL = `http://127.0.0.1:${HTTP_PORT}`;
 
+function validHttpUrl(value) {
+  if (typeof value !== 'string') return false;
+  try {
+    const url = new globalThis.URL(value.trim());
+    return (url.protocol === 'http:' || url.protocol === 'https:') && !url.username && !url.password;
+  } catch {
+    return false;
+  }
+}
+
 // Matches Web's config.example.json defaults. Only the fields this
 // app exposes as user-editable — statusline-only fields (show_*) are out of scope here, and cache_path is intentionally
 // excluded: no documented reason for a user to change it, and a typo silently
@@ -56,6 +66,9 @@ function readRawConfig() {
 
 class VibemonConfigManager {
   constructor({ allowLocalHttp = false } = {}) { this.allowLocalHttp = allowLocalHttp; }
+  /** This app's local receiver, which hooks must keep in http_urls. */
+  get desktopUrl() { return DESKTOP_HTTP_URL; }
+
   /**
    * Read-only check of ~/.vibemon/config.json. Cheap synchronous file I/O
    * (no subprocess), so this is never cached — every call re-reads the file.
@@ -125,8 +138,14 @@ class VibemonConfigManager {
           break;
         }
         case 'http_urls': {
-          const urls = Array.isArray(value) ? value : [];
-          next[key] = [...new Set(urls.map(u => String(u).trim()).filter(Boolean))];
+          const urls = [...new Set((Array.isArray(value) ? value : []).map(u => String(u).trim()).filter(Boolean))];
+          const previous = Array.isArray(current.http_urls) ? current.http_urls : [];
+          // New destinations are http(s) URLs without credentials. Entries that
+          // the file already holds stay editable even when they predate this rule.
+          if (urls.some(url => !previous.includes(url) && !validHttpUrl(url))) throw new Error(t('error.httpUrl'));
+          // This app's own receiver is required; ensureDesktopUrl() would add it again.
+          if (previous.includes(DESKTOP_HTTP_URL) && !urls.includes(DESKTOP_HTTP_URL)) throw new Error(t('error.desktopUrlRequired'));
+          next[key] = urls;
           break;
         }
       }
@@ -149,6 +168,8 @@ class VibemonConfigManager {
    * @returns {object} the fresh config after writing (same shape as read())
    */
   addHttpUrl(url) {
+    // write() ignores a blank entry; adding one is a mistake to report.
+    if (!validHttpUrl(url)) throw new Error(t('error.httpUrl'));
     const current = this.read();
     return this.write({ http_urls: [...current.http_urls, url] });
   }

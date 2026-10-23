@@ -57,12 +57,24 @@ test('outside the window, the cursor is polled at the idle rate and nothing is s
   window.emit('closed');
 });
 
-test('hidden windows are not polled for cursor position', () => {
-  const window = new EventEmitter();
-  Object.assign(window, { isDestroyed: () => false, isVisible: () => false });
-  screen.getCursorScreenPoint.mockClear();
+test('hidden windows stop polling, clear hover, and resume when shown', () => {
+  const window = visibleWindow();
+  let visible = true;
+  window.isVisible = () => visible;
+  screen.getCursorScreenPoint.mockClear().mockReturnValue({ x: -950, y: 260 });
   trackWindowPointer(window);
-  jest.advanceTimersByTime(WINDOW_POINTER_IDLE_POLL_MS);
-  expect(screen.getCursorScreenPoint).not.toHaveBeenCalled();
+  visible = false;
+  jest.advanceTimersByTime(WINDOW_POINTER_POLL_MS);
+  expect(window.webContents.send).toHaveBeenLastCalledWith('window-pointer', null);
+  const polls = screen.getCursorScreenPoint.mock.calls.length;
+  expect(jest.getTimerCount()).toBe(0);
+  jest.advanceTimersByTime(WINDOW_POINTER_IDLE_POLL_MS * 10);
+  expect(screen.getCursorScreenPoint).toHaveBeenCalledTimes(polls);
+  visible = true;
+  window.emit('show');
+  expect(screen.getCursorScreenPoint).toHaveBeenCalledTimes(polls + 1);
+  expect(window.webContents.send).toHaveBeenLastCalledWith('window-pointer', { x: 50, y: 60 });
+  window.emit('show');
+  expect(jest.getTimerCount()).toBe(1);
   window.emit('closed');
 });

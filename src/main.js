@@ -564,10 +564,16 @@ app.whenReady().then(() => {
   // sleeps). Those moves must not be persisted as the user's position, and
   // the window is put back at its saved position once displays are back.
   powerMonitor.on('lock-screen', () => windowManager.suspendPositionTracking());
-  powerMonitor.on('suspend', () => windowManager.suspendPositionTracking());
+  powerMonitor.on('suspend', () => {
+    monitoringClient.suspend();
+    windowManager.suspendPositionTracking();
+  });
   const restoreOverlayPosition = () => dockMonitor.refresh().then(() => windowManager.restoreWindowPosition());
   powerMonitor.on('unlock-screen', restoreOverlayPosition);
-  powerMonitor.on('resume', restoreOverlayPosition);
+  powerMonitor.on('resume', () => {
+    monitoringClient.resume();
+    restoreOverlayPosition();
+  });
   screen.on('display-added', () => {
     windowManager.suspendPositionTracking();
     restoreOverlayPosition();

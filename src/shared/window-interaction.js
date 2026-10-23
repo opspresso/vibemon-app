@@ -49,11 +49,18 @@ export function installWindowInteraction({ hitTest, onInteraction = () => {} }) 
   let origin = null;
   let moved = false;
   let ignored = true;
-  let frame;
+  let frame = null;
   const listeners = [];
   const listen = (target, name, handler) => {
     target.addEventListener(name, handler);
     listeners.push(() => target.removeEventListener(name, handler));
+  };
+  // Floating animation can move opaque pixels under a stationary cursor, so
+  // the hit test repeats every frame while a pointer is over the window or
+  // held. Without one, no frame callback runs.
+  const tick = () => {
+    frame = null;
+    refresh();
   };
   const refresh = () => {
     const ignore = held === null && (!pointer || !hitTest(pointer.x, pointer.y));
@@ -61,6 +68,7 @@ export function installWindowInteraction({ hitTest, onInteraction = () => {} }) 
       ignored = ignore;
       api.setIgnoreMouseEvents(ignore);
     }
+    if ((pointer || held !== null) && frame === null) frame = requestAnimationFrame(tick);
   };
   const remember = (event) => {
     pointer = { x: event.clientX, y: event.clientY };
@@ -122,12 +130,11 @@ export function installWindowInteraction({ hitTest, onInteraction = () => {} }) 
     if (event.button !== 0 || moved || !hitTest(event.clientX, event.clientY)) return;
     api.focusTerminal().catch((error) => console.warn('Focus terminal failed:', error));
   });
-  // Floating animation can move opaque pixels under a stationary cursor.
-  const tick = () => { refresh(); frame = requestAnimationFrame(tick); };
-  frame = requestAnimationFrame(tick);
   return () => {
     end();
-    cancelAnimationFrame(frame);
+    if (frame !== null) cancelAnimationFrame(frame);
+    frame = null;
+    pointer = null;
     cleanupPointer?.();
     for (const remove of listeners) remove();
   };
