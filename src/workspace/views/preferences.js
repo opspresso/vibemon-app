@@ -387,6 +387,9 @@ export function setupPreferences({ getFrame, request, run, notify }) {
       (url) => url,
       (url) => {
         const row = el('div', undefined, 'destination-row');
+        row.append(el('span', url));
+        // This app's own receiver is required and cannot be removed.
+        if (url === config.desktopUrl) return row;
         const remove = button(
           '',
           () => run(remove, () => save('remove-http-url', url)),
@@ -394,7 +397,7 @@ export function setupPreferences({ getFrame, request, run, notify }) {
           'close'
         );
         remove.setAttribute('aria-label', t('routing.remove', { url }));
-        row.append(el('span', url), remove);
+        row.append(remove);
         return row;
       },
       () => {}
