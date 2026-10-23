@@ -1,10 +1,10 @@
 name: Collector image
 on:
   pull_request:
-    paths: ['collector/**', '.github/workflows/collector-image.yml']
+    paths: ['collector/**', 'public/install/install.py', '.github/workflows/collector-image.yml']
   push:
     branches: [main]
-    paths: ['collector/**', '.github/workflows/collector-image.yml']
+    paths: ['collector/**', 'public/install/install.py', '.github/workflows/collector-image.yml']
 permissions:
   contents: read
 jobs:
@@ -48,3 +48,29 @@ jobs:
           assert health.ready(time.time())
           health.reset()
           assert not health.ready(time.time())'
+      - name: Verify the installer's pinned image matches this collector build
+        # One runner checks both platforms without running them. Anonymous ECR
+        # Public pulls are limited per runner address, so each run pulls once.
+        if: matrix.os == 'ubuntu-24.04-arm'
+        run: |
+          set -o pipefail
+          image=$(python3 -c 'import re; print(re.search(r"^COLLECTOR_IMAGE = \"([^\"]+)\"", open("public/install/install.py").read(), re.M)[1])')
+          # Package files and installed metadata: version, dependencies, entry points, and psutil.
+          inventory() {
+            local container directory=$(mktemp -d) packages=usr/local/lib/python3.12/site-packages
+            container=$(docker create --platform "$2" "$1")
+            docker export "$container" | tar -x -C "$directory" --wildcards "$packages/vibemon_collector" \
+              "$packages/vibemon_collector-*.dist-info/METADATA" "$packages/vibemon_collector-*.dist-info/entry_points.txt" "$packages/psutil-*.dist-info/METADATA"
+            docker rm -f "$container" > /dev/null
+            # Every package file, including subpackages; bytecode caches are build output.
+            (cd "$directory/$packages" && find . -type f ! -path '*/__pycache__/*' -print0 | sort -z | xargs -0 sha256sum)
+          }
+          inventory vibemon-collector:check linux/arm64 > /tmp/built.txt
+          # The classic image store keeps one platform per index digest, so each
+          # platform is read through its own manifest digest.
+          docker buildx imagetools inspect --raw "$image" > /tmp/index.json
+          for architecture in amd64 arm64; do
+            manifest=$(python3 -c 'import json, sys; print(next(item["digest"] for item in json.load(open("/tmp/index.json"))["manifests"] if item["platform"] == {"architecture": sys.argv[1], "os": "linux"}))' "$architecture")
+            # Publish a new multi-arch image and pin its digest when this fails.
+            inventory "${image%@*}@$manifest" "linux/$architecture" | diff /tmp/built.txt -
+          done

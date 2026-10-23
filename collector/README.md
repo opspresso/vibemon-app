@@ -127,7 +127,7 @@ docker buildx build --platform linux/amd64,linux/arm64 \
   -f collector/Dockerfile -t REGISTRY/vibemon-collector:REVISION --push .
 ```
 
-Pin the resulting multi-platform digest in deployment configuration. Pass `VIBEMON_WRITE_TOKEN` from a secret, not an image layer or argument. For Kubernetes, use the existing Metrics API backend and `--kubectl-command "kubectl --cache-dir=/tmp/kubectl"`; mount a writable `/tmp` when the root filesystem is read-only. The ServiceAccount needs list on nodes/pods and get/list on metrics.k8s.io nodes. Disk collection additionally requires get on core nodes/stats.
+Pin the resulting multi-platform digest in deployment configuration. `COLLECTOR_IMAGE` in `public/install/install.py` is the digest that `--kubernetes` deploys. The Collector image workflow fails when that image does not contain the current `collector/vibemon_collector` source; publish a new image and update the digest in the same change. Pass `VIBEMON_WRITE_TOKEN` from a secret, not an image layer or argument. For Kubernetes, use the existing Metrics API backend and `--kubectl-command "kubectl --cache-dir=/tmp/kubectl"`; mount a writable `/tmp` when the root filesystem is read-only. The ServiceAccount needs list on nodes/pods and get/list on metrics.k8s.io nodes. Disk collection additionally requires get on core nodes/stats.
 
 Use `--health-file /tmp/vibemon-health` and a readiness probe:
 
