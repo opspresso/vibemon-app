@@ -49,20 +49,22 @@ jobs:
           health.reset()
           assert not health.ready(time.time())'
       - name: Verify the installer's pinned image matches this collector build
+        # One runner checks both platforms without running them. Anonymous ECR
+        # Public pulls are limited per runner address, so each run pulls once.
+        if: matrix.os == 'ubuntu-24.04-arm'
         run: |
           image=$(python3 -c 'import re; print(re.search(r"^COLLECTOR_IMAGE = \"([^\"]+)\"", open("public/install/install.py").read(), re.M)[1])')
-          # Anonymous ECR Public pulls from shared runners can hit its data limit.
-          for attempt in 1 2 3; do docker pull -q "$image" && break; [ "$attempt" = 3 ] && exit 1; sleep 30; done
           # Package files and installed metadata: version, dependencies, entry points, and psutil.
-          inventory='import hashlib, importlib.metadata as m, pathlib, vibemon_collector
-          root = pathlib.Path(vibemon_collector.__file__).parent
-          for path in sorted(root.glob("*.py")): print(hashlib.sha256(path.read_bytes()).hexdigest(), path.name)
-          collector = m.distribution("vibemon-collector")
-          print("version", collector.version)
-          for requirement in sorted(collector.requires or []): print("requires", requirement)
-          for entry in sorted(collector.entry_points, key=lambda item: item.name): print("entry", entry.group, entry.name, entry.value)
-          print("psutil", m.version("psutil"))'
-          docker run --rm --entrypoint python vibemon-collector:check -c "$inventory" > /tmp/built.txt
-          docker run --rm --entrypoint python "$image" -c "$inventory" > /tmp/pinned.txt
-          # Publish a new multi-arch image and pin its digest when this fails.
-          diff /tmp/built.txt /tmp/pinned.txt
+          inventory() {
+            local container directory=$(mktemp -d) packages=usr/local/lib/python3.12/site-packages
+            container=$(docker create --platform "$2" "$1")
+            docker export "$container" | tar -x -C "$directory" --wildcards "$packages/vibemon_collector/*.py" \
+              "$packages/vibemon_collector-*.dist-info/METADATA" "$packages/vibemon_collector-*.dist-info/entry_points.txt" "$packages/psutil-*.dist-info/METADATA"
+            docker rm -f "$container" > /dev/null
+            (cd "$directory/$packages" && find . -type f -print0 | sort -z | xargs -0 sha256sum)
+          }
+          inventory vibemon-collector:check linux/arm64 > /tmp/built.txt
+          for platform in linux/amd64 linux/arm64; do
+            # Publish a new multi-arch image and pin its digest when this fails.
+            inventory "$image" "$platform" | diff /tmp/built.txt -
+          done
