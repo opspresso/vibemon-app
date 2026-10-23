@@ -294,6 +294,10 @@ class CollectorUpgradeTest(unittest.TestCase):
             self.assertEqual(fixture.paths.env_file.read_text(), foreign_env)
             self.assertTrue((fixture.paths.state / 'health').exists())
             self.assertFalse(runtime.exists())
+            fixture.paths.env_file.write_bytes(b'VIBEMON_WRITE_TOKEN=\xff\n')
+            self.assertEqual(install.saved_collector_token(fixture.paths.env_file), ('', ''))
+            self.assertTrue(install.uninstall_collector())
+            self.assertEqual(fixture.paths.env_file.read_bytes(), b'VIBEMON_WRITE_TOKEN=\xff\n')
 
     def test_an_upgrade_removes_the_legacy_readiness_file_of_the_previous_unit(self):
         with tempfile.TemporaryDirectory() as directory, CollectorFixture(Path(directory)) as fixture:

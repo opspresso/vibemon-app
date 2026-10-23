@@ -1788,7 +1788,8 @@ def saved_collector_token(env_file: Path) -> tuple[str, str]:
     """The saved token and the Web origin that it belongs to, or empty strings."""
     try:
         match = re.fullmatch(r"VIBEMON_WRITE_TOKEN=(vm_[a-f0-9]{60})\nVIBEMON_URL=(\S+)\n?", env_file.read_text(encoding="utf-8"))
-    except OSError:
+    except (OSError, UnicodeError):
+        # A file that another tool wrote in another encoding is not this installer's.
         return "", ""
     return (match.group(1), match.group(2)) if match else ("", "")
 

@@ -115,3 +115,18 @@ def test_the_installed_http_client_imports_from_a_shallow_home(tmp_path):
     finally:
         sys.path.remove(str(ROOT / "collector" / "vibemon_collector"))
     assert callable(namespace["open_request"])
+
+
+def test_a_deadline_bounds_the_serial_configuration_command(tmp_path):
+    port = tmp_path / "tty"
+    port.write_text("")
+    calls = []
+
+    def stty(*args, **kwargs):
+        calls.append(kwargs["timeout"])
+        raise subprocess.TimeoutExpired("stty", kwargs["timeout"])
+
+    with patch.object(core, "IS_WINDOWS", False), patch.object(core.os, "isatty", return_value=True), patch.object(core.subprocess, "run", side_effect=stty):
+        assert not core.send_serial_raw(str(port), "{}", deadline=time.monotonic() + 0.3)
+        assert not core.send_serial_raw(str(port), "{}", deadline=time.monotonic() - 1)
+    assert len(calls) == 1 and calls[0] <= 0.3

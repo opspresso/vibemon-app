@@ -209,7 +209,7 @@ class SerialDebounceLockTest(unittest.TestCase):
             patch.object(
                 vibemon_core,
                 "send_serial_raw",
-                side_effect=lambda p, d: sent.append((p, d)) or True,
+                side_effect=lambda p, d, deadline=None: sent.append((p, d)) or True,
             ),
         ):
             result = vibemon_core.send_serial(str(port), '{"x":1}')

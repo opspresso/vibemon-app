@@ -133,6 +133,16 @@ def test_a_permission_request_without_a_tool_id_waits_for_a_tool_of_that_name(pa
     assert activity.record(path, event("PermissionDenied", tool_name="Bash"), Transition("thinking")).state == "thinking"
 
 
+def test_a_permission_request_waits_until_every_call_with_that_name_resolves(path, clock):
+    open_turn(path)
+    activity.record(path, event("PreToolUse", tool_use_id="a", tool_name="Bash"), Transition("working"))
+    activity.record(path, event("PreToolUse", tool_use_id="b", tool_name="Bash"), Transition("working"))
+    activity.record(path, event("PermissionRequest", tool_name="Bash"), Transition("notification"))
+    assert activity.record(path, event("PostToolUse", tool_use_id="a", tool_name="Bash"), Transition("thinking")).state == "notification"
+    assert activity.record(path, event("PostToolUse", tool_use_id="b", tool_name="Bash"), Transition("thinking")).state == "thinking"
+    assert cache(path)["sessions"]["s1"]["toolNames"] == {}
+
+
 def test_a_stop_that_waits_for_background_work_keeps_the_turn_open(path, clock):
     open_turn(path)
     activity.record(path, event("PreToolUse", tool_use_id="a"), Transition("working"))

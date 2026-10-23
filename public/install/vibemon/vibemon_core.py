@@ -445,13 +445,14 @@ def _acquire_lock(lock_fd: int, max_retries: int = SERIAL_LOCK_MAX_RETRIES) -> b
     return False
 
 
-def send_serial_raw(port: str, data: str) -> bool:
+def send_serial_raw(port: str, data: str, deadline: float | None = None) -> bool:
     """Send data via serial port with file locking (internal use).
 
     POSIX only: this drives the port through `stty` and a non-blocking write to
     the device file, neither of which exists on Windows (a COM port would need
     `mode COMx` plus a `\\\\.\\COMx` handle). HTTP and cloud targets still work
     there, so a configured serial_port is ignored rather than fatal.
+    `deadline` (time.monotonic()), if any, bounds the stty call and write stalls.
     """
     if IS_WINDOWS:
         debug_log("Serial output is not supported on Windows; skipping")
@@ -493,7 +494,7 @@ def send_serial_raw(port: str, data: str) -> bool:
                     return False
                 subprocess.run(
                     ["stty", SERIAL_BAUD_RATE], stdin=port_fd, check=True,
-                    capture_output=True, timeout=2,
+                    capture_output=True, timeout=min(2, request_timeout(deadline)),
                 )
                 payload_bytes = (data + "\n").encode()
                 written = 0
@@ -503,7 +504,7 @@ def send_serial_raw(port: str, data: str) -> bool:
                         count = os.write(port_fd, payload_bytes[written:])
                     except BlockingIOError:
                         stalls += 1
-                        if stalls > SERIAL_LOCK_MAX_RETRIES:
+                        if stalls > SERIAL_LOCK_MAX_RETRIES or (deadline is not None and time.monotonic() >= deadline):
                             debug_log("Serial write stalled (device buffer full)")
                             return False
                         time.sleep(SERIAL_LOCK_RETRY_INTERVAL)
@@ -531,14 +532,14 @@ def send_serial_raw(port: str, data: str) -> bool:
                 pass
 
 
-def send_serial(port: str, data: str) -> bool:
+def send_serial(port: str, data: str, deadline: float | None = None) -> bool:
     """Send data via serial port with debouncing.
 
     Uses a debounce file to coalesce rapid updates. Only the last update
     within the debounce window is actually sent to the serial port.
     """
     if IS_WINDOWS:
-        return send_serial_raw(port, data)
+        return send_serial_raw(port, data, deadline)
 
     if not os.path.exists(port):
         return False
@@ -546,7 +547,7 @@ def send_serial(port: str, data: str) -> bool:
     if fcntl is None:
         # No locking primitive available (e.g. Windows): skip debounce
         # coordination and send directly.
-        return send_serial_raw(port, data)
+        return send_serial_raw(port, data, deadline)
 
     debounce_path = _get_serial_debounce_path(port)
     lock_path = _get_serial_debounce_lock_path(port)
@@ -566,7 +567,7 @@ def send_serial(port: str, data: str) -> bool:
             debug_log("Serial debounce: lock busy, sending directly")
             os.close(lock_fd)
             lock_fd = None
-            return send_serial_raw(port, data)
+            return send_serial_raw(port, data, deadline)
         try:
             # Atomic replacement does not follow a pre-existing symlink, and
             # NamedTemporaryFile keeps the transient payload owner-readable.
@@ -589,7 +590,7 @@ def send_serial(port: str, data: str) -> bool:
             debug_log("Serial debounce: re-lock busy, sending directly")
             os.close(lock_fd)
             lock_fd = None
-            return send_serial_raw(port, data)
+            return send_serial_raw(port, data, deadline)
         try:
             with open(debounce_path, encoding="utf-8") as f:
                 state = json.load(f)
@@ -599,7 +600,7 @@ def send_serial(port: str, data: str) -> bool:
                 return True  # Another process will send
 
             debug_log("Serial debounce: sending (we have latest)")
-            return send_serial_raw(port, state["data"])
+            return send_serial_raw(port, state["data"], deadline)
         finally:
             fcntl.flock(lock_fd, fcntl.LOCK_UN)
             os.close(lock_fd)
@@ -607,7 +608,7 @@ def send_serial(port: str, data: str) -> bool:
 
     except (OSError, ValueError) as e:
         debug_log(f"Serial debounce error: {e}, falling back to direct send")
-        return send_serial_raw(port, data)
+        return send_serial_raw(port, data, deadline)
     finally:
         if lock_fd is not None:
             try:
@@ -1081,7 +1082,7 @@ def send_to_all(payload: dict[str, Any], is_start: bool = False, context: dict |
     if resolved_port:
         # Capture resolved_port in closure
         port = resolved_port
-        tasks.append(("USB serial", lambda p=port: send_serial(p, payload_str)))
+        tasks.append(("USB serial", lambda p=port: send_serial(p, payload_str, deadline)))
 
     # Add VibeMon API target if configured
     if context is not False and config.vibemon_url and config.vibemon_token and payload.get("project"):
