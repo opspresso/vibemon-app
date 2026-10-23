@@ -1100,13 +1100,14 @@ class CharacterWindowManager {
   }
 
   /**
-   * Show and focus the window regardless of which project it follows
+   * Show the window regardless of which project it follows. Coding-tool
+   * hooks call this at session start, so it must not take keyboard focus
+   * from the terminal.
    * @returns {boolean} Whether the window was shown
    */
   showActiveWindow() {
     if (this.isWindowValid(this.entry)) {
-      this.entry.window.show();
-      this.entry.window.focus();
+      this.entry.window.showInactive();
       return true;
     }
     return false;
