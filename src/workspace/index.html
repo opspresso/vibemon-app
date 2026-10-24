@@ -25,13 +25,13 @@
           <button data-page-link="overview" aria-current="page">
             <span data-icon="overview"></span><span data-i18n="nav.overview">Overview</span>
           </button>
+          <button data-page-link="agents">
+            <span data-icon="agents"></span><span data-i18n="nav.agents">Agents</span
+            ><span class="attention-dot" data-attention="agents" role="img" hidden></span><span id="nav-agents" class="nav-count">0</span>
+          </button>
           <button data-page-link="resources">
             <span data-icon="resources"></span><span data-i18n="nav.resources">Resources</span
             ><span class="attention-dot" data-attention="resources" role="img" hidden></span><span id="nav-resources" class="nav-count">0</span>
-          </button>
-          <button data-page-link="agents">
-            <span data-icon="agents"></span><span data-i18n="nav.agents">Coding agents</span
-            ><span class="attention-dot" data-attention="agents" role="img" hidden></span><span id="nav-agents" class="nav-count">0</span>
           </button>
         </nav>
         <div class="sidebar-bottom">
@@ -93,14 +93,14 @@
         <section data-page="overview">
           <div class="summary-grid">
             <div class="summary">
+              <span class="summary-symbol violet" data-icon="agents"></span
+              ><span class="muted" data-i18n="summary.accounts">Agents</span><strong id="summary-accounts">0</strong
+              ><span id="summary-account-note" class="small muted" data-i18n="summary.accountsCaption">Distinct accounts, one view</span>
+            </div>
+            <div class="summary">
               <span class="summary-symbol teal" data-icon="resources"></span
               ><span class="muted" data-i18n="nav.resources">Resources</span><strong id="summary-resources">0</strong
               ><span id="summary-resource-note" class="small muted" data-i18n="summary.resourcesEmpty">Choose the systems you follow</span>
-            </div>
-            <div class="summary">
-              <span class="summary-symbol violet" data-icon="agents"></span
-              ><span class="muted" data-i18n="summary.accounts">Coding accounts</span><strong id="summary-accounts">0</strong
-              ><span id="summary-account-note" class="small muted" data-i18n="summary.accountsCaption">Distinct accounts, one view</span>
             </div>
             <div class="summary">
               <span class="summary-symbol blue" data-icon="activity"></span
@@ -115,6 +115,16 @@
           </div>
           <div class="section-heading">
             <div>
+              <h2 data-i18n="nav.agents">Agents</h2>
+              <span class="muted small" data-i18n="overview.agentsCaption">Account usage and the work happening now</span>
+            </div>
+            <button class="text-button" data-page-link="agents">
+              <span data-i18n="action.viewAll">View all</span><span data-icon="arrow"></span>
+            </button>
+          </div>
+          <div id="overview-accounts" class="card-grid"></div>
+          <div class="section-heading">
+            <div>
               <h2 data-i18n="nav.resources">Resources</h2>
               <span class="muted small" data-i18n="overview.resourcesCaption">The latest measurements from your infrastructure</span>
             </div>
@@ -123,16 +133,6 @@
             </button>
           </div>
           <div id="overview-resources" class="card-grid"></div>
-          <div class="section-heading">
-            <div>
-              <h2 data-i18n="nav.agents">Coding agents</h2>
-              <span class="muted small" data-i18n="overview.agentsCaption">Account usage and the work happening now</span>
-            </div>
-            <button class="text-button" data-page-link="agents">
-              <span data-i18n="action.viewAll">View all</span><span data-icon="arrow"></span>
-            </button>
-          </div>
-          <div id="overview-accounts" class="card-grid"></div>
           <div class="overview-bottom">
             <section class="panel">
               <div class="section-heading inside">
@@ -190,7 +190,7 @@
           </div>
           <div class="section-heading">
             <div>
-              <h2 data-i18n="summary.accounts">Coding accounts</h2>
+              <h2 data-i18n="summary.accounts">Agents</h2>
               <span class="small muted" data-i18n="agents.accountsCaption">Each provider account keeps its own usage and projects</span>
             </div>
           </div>
@@ -226,7 +226,7 @@
             <span class="large-symbol teal" data-icon="cloud"></span>
             <div>
               <h2 data-i18n="sidebar.host">Your cloud workspace</h2>
-              <p class="muted" data-i18n="connections.intro">Sign in to see your resources and coding accounts.</p>
+              <p class="muted" data-i18n="connections.intro">Sign in to see your resources and agent accounts.</p>
             </div>
           </div>
           <form id="connect-form" class="panel settings-panel">
@@ -521,12 +521,12 @@
       <form id="selection-form">
         <div class="selection-columns">
           <fieldset>
-            <legend data-i18n="nav.resources">Resources</legend>
-            <div id="source-choices"></div>
+            <legend data-i18n="selection.accounts">Agents</legend>
+            <div id="account-choices"></div>
           </fieldset>
           <fieldset>
-            <legend data-i18n="selection.accounts">Coding accounts</legend>
-            <div id="account-choices"></div>
+            <legend data-i18n="nav.resources">Resources</legend>
+            <div id="source-choices"></div>
           </fieldset>
         </div>
         <details class="advanced">

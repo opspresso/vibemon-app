@@ -31,10 +31,10 @@ test('each issue is assigned to the page that resolves it', () => {
   }));
   expect(attentionNotices(areas)).toEqual({
     // Agent sources count once, through their account.
-    dashboard: '1 resource and 2 coding accounts need attention',
+    dashboard: '2 agents and 1 resource need attention',
     resources: '1 resource needs attention',
-    accounts: '2 coding accounts need attention',
-    where: '1 resource · 2 accounts',
+    accounts: '2 agents need attention',
+    where: '2 agents · 1 resource',
     connection: 'Read token rejected',
     // A tool that is not installed cannot be repaired here.
     integrations: 'Claude Code needs repair · Codex CLI has an update · Local delivery settings need repair · Cloud delivery check failed',
@@ -44,7 +44,7 @@ test('each issue is assigned to the page that resolves it', () => {
 
 test('a single item reads in the singular', () => {
   const notices = attentionNotices(attentionAreas(cloud({ accounts: [{ needsAttention: true }] }), settings({ update: { status: 'available', version: '1.0.0' } })));
-  expect(notices.dashboard).toBe('1 coding account needs attention');
+  expect(notices.dashboard).toBe('1 agent needs attention');
   expect(notices.update).toBe('Version 1.0.0 is available');
 });
 

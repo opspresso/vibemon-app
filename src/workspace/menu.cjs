@@ -23,7 +23,7 @@ function installWorkspaceMenu({ open, companionShown, setCompanionVisible }) {
   ];
   const windows = [item('minimize', 'menu.minimize'), item('zoom', 'menu.zoom'), { type: 'separator' }, item('front', 'menu.front')];
   const workspace = [
-    ...['overview', 'resources', 'agents'].map((route, index) => ({ label: t(`nav.${route}`), accelerator: `CmdOrCtrl+${index + 1}`, click: () => open(route) })),
+    ...['overview', 'agents', 'resources'].map((route, index) => ({ label: t(`nav.${route}`), accelerator: `CmdOrCtrl+${index + 1}`, click: () => open(route) })),
     { type: 'separator' },
     { label: t('nav.connections'), click: () => open('connections') },
     { label: t('nav.integrations'), click: () => open('integrations') },

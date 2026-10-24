@@ -40,15 +40,30 @@ export function metricTone(key, value) {
   return value >= rule.dangerFrom ? 'danger' : 'warning';
 }
 
-const decimal = new Intl.NumberFormat(undefined, { maximumFractionDigits: 1 });
-const unitFormats = new Map(Object.entries(unitFractionDigits).map(([unit, maximumFractionDigits]) => [unit, new Intl.NumberFormat(undefined, { maximumFractionDigits })]));
-const small = new Intl.NumberFormat(undefined, { maximumSignificantDigits: 2 });
-const precise = new Intl.NumberFormat(undefined, { maximumSignificantDigits: 6 });
+const numberFormats = new Map();
+function measurementFormat(value, unit, exact, locale) {
+  const digits = Object.hasOwn(unitFractionDigits, unit) ? unitFractionDigits[unit] : undefined;
+  const significant = digits === undefined && (exact || (value !== 0 && Math.abs(value) < 1));
+  const precision = digits ?? (exact ? 6 : significant ? 2 : 1);
+  const key = `${locale ?? ''}:${significant ? 'significant' : 'fraction'}:${precision}`;
+  if (!numberFormats.has(key)) {
+    numberFormats.set(key, new Intl.NumberFormat(locale, significant ? { maximumSignificantDigits: precision } : { maximumFractionDigits: precision }));
+  }
+  return numberFormats.get(key);
+}
 export const measurementUnit = unit => `${!unit || /^[%°]/.test(unit) ? '' : ' '}${unit}`;
-export function formatMeasurement(value, unit = '', exact = false, unavailable = '—', includeUnit = true) {
+export function formatMeasurement(value, unit = '', exact = false, unavailable = '—', includeUnit = true, locale) {
   if (typeof value !== 'number' || !Number.isFinite(value)) return unavailable;
-  const formatter = unitFormats.get(unit) ?? (exact ? precise : value !== 0 && Math.abs(value) < 1 ? small : decimal);
+  const formatter = measurementFormat(value, unit, exact, locale);
   return `${formatter.format(value)}${includeUnit ? measurementUnit(unit) : ''}`;
+}
+/** Typographic segments from the formatter, never a split on a presumed decimal symbol. */
+export function formatMeasurementParts(value, unit = '', exact = false, unavailable = '—', locale) {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return { integer: unavailable, fraction: '' };
+  const parts = measurementFormat(value, unit, exact, locale).formatToParts(value);
+  const start = parts.findIndex(part => part.type === 'decimal' || part.type === 'fraction');
+  const text = list => list.map(part => part.value).join('');
+  return start < 0 ? { integer: text(parts), fraction: '' } : { integer: text(parts.slice(0, start)), fraction: text(parts.slice(start)) };
 }
 export function observationAge(timestamp, now = Date.now(), t = english) {
   if (!timestamp || !Number.isFinite(Date.parse(timestamp))) return t('age.notReported');

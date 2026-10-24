@@ -1,4 +1,4 @@
-import { formatMeasurement, observationAge, providerLabel, stateLabel as sharedStateLabel, stateTone } from '../shared/design/presentation.mjs';
+import { formatMeasurement, formatMeasurementParts, measurementUnit, observationAge, providerLabel, stateLabel as sharedStateLabel, stateTone } from '../shared/design/presentation.mjs';
 import { t } from './i18n.js';
 export { formatMeasurement as reading, providerLabel as providerName, stateTone };
 export const ago = (timestamp, now) => observationAge(timestamp, now, t);
@@ -37,6 +37,22 @@ export function el(tag, text, className) {
 export function text(node, value) {
   const next = String(value ?? '');
   if (node.textContent !== next) node.textContent = next;
+}
+/** Update semantic number segments without replacing the metric's DOM on each poll. */
+export function measurement(node, value, unit = '', exact = false, includeUnit = true) {
+  if (!node._numberParts) {
+    const integer = document.createTextNode('');
+    const fraction = el('span', undefined, 'vm-metric-fraction');
+    const suffix = document.createTextNode('');
+    node.replaceChildren(integer, fraction, suffix);
+    node._numberParts = { integer, fraction, suffix };
+  }
+  const parts = formatMeasurementParts(value, unit, exact);
+  const { integer, fraction, suffix } = node._numberParts;
+  if (integer.data !== parts.integer) integer.data = parts.integer;
+  text(fraction, parts.fraction);
+  const next = includeUnit && typeof value === 'number' && Number.isFinite(value) ? measurementUnit(unit) : '';
+  if (suffix.data !== next) suffix.data = next;
 }
 export function svg(tag, attributes = {}, value) {
   const node = document.createElementNS('http://www.w3.org/2000/svg', tag);

@@ -2,13 +2,15 @@
 
 ## Outcome
 
-Select **Dashboard** from the menu-bar/tray menu to open the VibeMon workspace. Its dashboard brings resources, cloud coding accounts, and local coding activity together. The 3D/2D companion and speech bubble keep their existing rendering, focus, dragging, docking, and timeout behavior.
+Select **Dashboard** from the menu-bar/tray menu to open the VibeMon workspace. Its dashboard brings resources, cloud agent accounts, and local coding activity together. The 3D/2D companion and speech bubble keep their existing rendering, focus, dragging, docking, and timeout behavior.
 
 ## Interaction contract
 
 - Primary and secondary tray clicks open the navigation menu. Selecting **Dashboard** opens the overview. App activation also opens the overview.
-- One window contains Overview, Resources, Coding agents, and Settings. Navigation keeps connection and selection state. Settings contains Connections, Companion, Integrations, and About.
-- Resources support arbitrary metric schemas, units, ranges, order, and unavailable values. Coding accounts stay distinct by provider/account ID; local sessions are labeled separately.
+- One window contains Overview, Agents, Resources, and Settings. Navigation keeps connection and selection state. Settings contains Connections, Companion, Integrations, and About.
+- Menus, overview sections, and display choices put **Agents** before **Resources**. Agents keep their per-provider account identity; account pickers say **Agent account**.
+- Numbers keep their existing precision. Decimal separators and fractional digits use a smaller, slightly lighter style; Increase Contrast retains full color.
+- Resources support arbitrary metric schemas, units, ranges, order, and unavailable values. Agent accounts stay distinct by provider/account ID; local sessions are labeled separately.
 - Connection recovery, empty states, stale data, selection, and recent-hour history each have a clear next action. Provider credentials and stored read tokens never enter view snapshots.
 - Keyboard navigation, visible focus, semantic labels, reduced motion, and light/dark contrast are verified in the rendered app.
 

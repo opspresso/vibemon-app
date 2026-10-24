@@ -5,8 +5,8 @@ import WidgetKit
 @main
 struct VibeMonWidgets: WidgetBundle {
     var body: some Widget {
-        ResourceWidget()
         AgentWidget()
+        ResourceWidget()
     }
 }
 
@@ -32,8 +32,8 @@ struct AgentWidget: Widget {
         AppIntentConfiguration(kind: WidgetKind.agent, intent: AgentSelection.self, provider: Provider<AgentSelection>(kind: .agent)) { entry in
             EntryView(entry: entry)
         }
-        .configurationDisplayName("Coding Account · Mac")
-        .description("State and usage of one coding account.")
+        .configurationDisplayName("Agent · Mac")
+        .description("State and usage of one agent account.")
         .supportedFamilies([.systemSmall])
     }
 }

@@ -72,11 +72,11 @@
     "reset.in": "Resets in {time}",
     "unavailable": "Unavailable",
     "attention.resources": { "one": "{count} resource needs attention", "other": "{count} resources need attention" },
-    "attention.accounts": { "one": "{count} coding account needs attention", "other": "{count} coding accounts need attention" },
-    "attention.mixed": "{resources} and {accounts} need attention",
+    "attention.accounts": { "one": "{count} agent needs attention", "other": "{count} agents need attention" },
+    "attention.mixed": "{accounts} and {resources} need attention",
     "count.resources": { "one": "{count} resource", "other": "{count} resources" },
-    "count.accounts": { "one": "{count} account", "other": "{count} accounts" },
-    "count.codingAccounts": { "one": "{count} coding account", "other": "{count} coding accounts" }
+    "count.accounts": { "one": "{count} agent", "other": "{count} agents" },
+    "count.codingAccounts": { "one": "{count} agent", "other": "{count} agents" }
   },
   "ko": {
     "state.ok": "정상",
@@ -151,11 +151,11 @@
     "reset.in": "{time} 후 초기화",
     "unavailable": "정보 없음",
     "attention.resources": "리소스 {count}개 확인 필요",
-    "attention.accounts": "코딩 계정 {count}개 확인 필요",
-    "attention.mixed": "{resources}, {accounts} 확인 필요",
+    "attention.accounts": "에이전트 {count}개 확인 필요",
+    "attention.mixed": "{accounts}, {resources} 확인 필요",
     "count.resources": "리소스 {count}개",
-    "count.accounts": "계정 {count}개",
-    "count.codingAccounts": "코딩 계정 {count}개"
+    "count.accounts": "에이전트 {count}개",
+    "count.codingAccounts": "에이전트 {count}개"
   },
   "ja": {
     "state.ok": "正常",
@@ -230,10 +230,10 @@
     "reset.in": "{time}後にリセット",
     "unavailable": "情報なし",
     "attention.resources": "リソース{count}件が要確認",
-    "attention.accounts": "コーディングアカウント{count}件が要確認",
-    "attention.mixed": "{resources}、{accounts}が要確認",
+    "attention.accounts": "エージェント{count}件が要確認",
+    "attention.mixed": "{accounts}、{resources}が要確認",
     "count.resources": "リソース{count}件",
-    "count.accounts": "アカウント{count}件",
-    "count.codingAccounts": "コーディングアカウント{count}件"
+    "count.accounts": "エージェント{count}件",
+    "count.codingAccounts": "エージェント{count}件"
   }
 }

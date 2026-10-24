@@ -9,6 +9,7 @@ import {
   keyed,
   empty,
   reading,
+  measurement,
   ago,
   sprite,
   providerName,
@@ -59,7 +60,7 @@ function updateMetric(node, { metric, value, label, precise = false, now = Date.
   text(name, label || metricName(metric));
   // Compact cards truncate a long label to one line; the tooltip keeps it readable.
   name.title = name.textContent;
-  text(amount, reading(value, metric.unit, precise, '—', false));
+  measurement(amount, value, metric.unit, precise, false);
   text(unit, typeof value === 'number' && Number.isFinite(value) ? measurementUnit(metric.unit) : '');
   output.title = reading(value, metric.unit, true);
   const available = typeof value === 'number' && Number.isFinite(value);

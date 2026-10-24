@@ -5,7 +5,7 @@
 // agent account. Each item carries a timeline of its future display states,
 // so a widget keeps aging correctly between App writes. The last feed before
 // the App quits shows every item on standby: nothing updates it any more.
-import { accountName, formatMeasurement, measurementUnit, metricLabel, metricTone, providerLabel, resourceType, sharedTranslator, stateLabel, stateTone } from '../shared/design/presentation.mjs';
+import { accountName, formatMeasurementParts, measurementUnit, metricLabel, metricTone, providerLabel, resourceType, sharedTranslator, stateLabel, stateTone } from '../shared/design/presentation.mjs';
 import { compareCards } from '../shared/design/card-order.mjs';
 import monitoring from '../shared/monitoring/state.cjs';
 import clock from '../shared/monitoring/clock.cjs';
@@ -186,10 +186,12 @@ const isoTime = time => typeof time === 'number' && !Number.isNaN(new Date(time)
 /** `resetsAt` is the wall-clock ISO time at which a plan usage limit resets; the widget counts down to it. */
 function metricEntry(metric, value, resetsAt = null) {
   const available = typeof value === 'number' && Number.isFinite(value);
+  const valueParts = formatMeasurementParts(value, metric.unit);
   return {
     key: metric.key,
     label: metric.label,
-    value: formatMeasurement(value, metric.unit, false, '—', false),
+    value: valueParts.integer + valueParts.fraction,
+    valueParts,
     unit: available ? measurementUnit(metric.unit) : '',
     fraction: available && metric.display === 'gauge' ? Math.max(0, Math.min(1, (value - metric.min) / (metric.max - metric.min))) : null,
     tone: metricTone(metric.key, value),

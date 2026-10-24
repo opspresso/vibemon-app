@@ -9,7 +9,7 @@ const { t, rendererLanguage } = require('../shared/i18n/locale.cjs');
 const { redactApiTokens } = require('../shared/api-token.cjs');
 const { colorPair, readTokens } = require('../shared/design/tokens.cjs');
 
-const ROUTES = ['overview', 'resources', 'agents', 'connections', 'companion', 'integrations', 'about'];
+const ROUTES = ['overview', 'agents', 'resources', 'connections', 'companion', 'integrations', 'about'];
 const CHANNEL = 'workspace:request';
 // The preload reads the App language synchronously, before the page renders text.
 const LANGUAGE_CHANNEL = 'workspace:language';

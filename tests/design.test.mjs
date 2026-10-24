@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { accountName, metricTone, statePresentation, providerLabel, formatMeasurement, observationAge, formatAxisValue, formatResetTime, resetCountdown } from '../src/shared/design/presentation.mjs';
+import { accountName, metricTone, statePresentation, providerLabel, formatMeasurement, formatMeasurementParts, observationAge, formatAxisValue, formatResetTime, resetCountdown } from '../src/shared/design/presentation.mjs';
 import { usageResetAt } from '../src/shared/monitoring/clock.cjs';
 import { dominantState, needsAttention, sourceState, accountState } from '../src/shared/monitoring/state.cjs';
 import { mergeMean } from '../src/shared/resource-schema.cjs';
@@ -140,4 +140,18 @@ test('account labels shorten generated identities without changing manual names'
   assert.equal(accountName('codex:default'), 'default');
   assert.equal(accountName('claude:auto:manual-name'), 'auto:manual-name');
   assert.equal(accountName(`codex:${'long'.repeat(20)}`).length, 22);
+});
+
+test('semantic number segments preserve precision, signs, and locale grouping', () => {
+  for (const locale of ['en-US', 'ko-KR', 'ja-JP', 'de-DE', 'fr-FR', 'ar-EG', 'hi-IN']) {
+    for (const [value, unit, exact] of [[1234.567, '%', false], [-1234.567, 'GiB', false], [0.0001234, 'ms', false], [99.999, '%', false], [0, '', false], [12.3456789, 'ms', true], [12.3456789, 'toString', true]]) {
+      const { integer, fraction } = formatMeasurementParts(value, unit, exact, '—', locale);
+      assert.equal(integer + fraction, formatMeasurement(value, unit, exact, '—', false, locale));
+    }
+  }
+  assert.deepEqual(formatMeasurementParts(-1234.56, '%', false, '—', 'de-DE'), { integer: '-1.234', fraction: ',56' });
+  assert.deepEqual(formatMeasurementParts(99.999, '%'), { integer: '100', fraction: '' });
+  for (const value of [null, undefined, NaN, Infinity, '12']) {
+    assert.deepEqual(formatMeasurementParts(value), { integer: '—', fraction: '' });
+  }
 });

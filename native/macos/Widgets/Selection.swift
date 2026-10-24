@@ -26,7 +26,7 @@ struct ResourceEntity: AppEntity {
 }
 
 struct AgentEntity: AppEntity {
-    static let typeDisplayRepresentation: TypeDisplayRepresentation = "Coding Account"
+    static let typeDisplayRepresentation: TypeDisplayRepresentation = "Agent Account"
     static let defaultQuery = AgentQuery()
 
     let id: String
@@ -93,9 +93,9 @@ struct ResourceSelection: WidgetConfigurationIntent {
 }
 
 struct AgentSelection: WidgetConfigurationIntent {
-    static let title: LocalizedStringResource = "Choose Coding Account"
-    static let description = IntentDescription("Shows the state and usage of one coding account.")
+    static let title: LocalizedStringResource = "Choose Agent Account"
+    static let description = IntentDescription("Shows the state and usage of one agent account.")
 
-    @Parameter(title: "Coding agent")
+    @Parameter(title: "Agent")
     var agent: AgentEntity?
 }

@@ -43,9 +43,9 @@ test('a resource shows its selected metrics, formatted by the shared rules, and 
   assert.equal(item.subtitle, 'Host');
   assert.equal(item.symbol, 'unified');
   assert.deepEqual(item.metrics, [
-    { key: 'memoryPercent', label: 'Unified memory', value: '71.5', unit: '%', fraction: 0.715, tone: 'normal' },
-    { key: 'gpuPercent', label: 'GPU', value: '—', unit: '', fraction: null, tone: 'normal' },
-    { key: 'gpuTemperatureC', label: 'GPU temperature', value: '61', unit: '°C', fraction: null, tone: 'normal' }
+    { key: 'memoryPercent', label: 'Unified memory', value: '71.5', valueParts: { integer: '71', fraction: '.5' }, unit: '%', fraction: 0.715, tone: 'normal' },
+    { key: 'gpuPercent', label: 'GPU', value: '—', valueParts: { integer: '—', fraction: '' }, unit: '', fraction: null, tone: 'normal' },
+    { key: 'gpuTemperatureC', label: 'GPU temperature', value: '61', valueParts: { integer: '61', fraction: '' }, unit: '°C', fraction: null, tone: 'normal' }
   ]);
   assert.deepEqual(item.timeline, [
     { at: iso(0), state: 'ok', label: 'Healthy', tone: 'good' },
@@ -223,8 +223,8 @@ test('local projects appear without a cloud connection and keep their links', ()
     { id: 'local:y', since: NOW, status: { state: 'working', project: 'y', character: 'clawd', account: { id: 'default', provider: 'claude', displayName: 'claude default' } } }
   ];
   const feed = build({ cloud: cloud([host()]), local });
-  assert.deepEqual(feed.items.map(item => item.id), ['resource:mac-studio', 'agent:codex:default', 'agent:claude:default']);
-  assert.deepEqual(feed.items.map(item => item.link), ['vibemon://dashboard/resources', 'vibemon://dashboard/agents', 'vibemon://dashboard/agents']);
+  assert.deepEqual(feed.items.map(item => item.id), ['agent:codex:default', 'agent:claude:default', 'resource:mac-studio']);
+  assert.deepEqual(feed.items.map(item => item.link), ['vibemon://dashboard/agents', 'vibemon://dashboard/agents', 'vibemon://dashboard/resources']);
 });
 
 test('labels follow the App language', () => {

@@ -1,5 +1,5 @@
 import { describeReset, formatAxisValue, resetMinutes } from '../../shared/design/presentation.mjs';
-import { $, el, text, choices, keyed, svg, reading, badge, stateLabel, ago } from '../dom.js';
+import { $, el, text, choices, keyed, svg, reading, measurement, badge, stateLabel, ago } from '../dom.js';
 import { accountCard, metricName, sourceState, sourceType } from './cards.js';
 import { t, locale } from '../i18n.js';
 
@@ -136,7 +136,7 @@ export function setupDetail({ getFrame, cloudTime, request, run }) {
       (node, metric) => {
         const value = source.metrics[metric.key];
         text(node.children[0], metricName(metric));
-        text(node.children[1], reading(value, metric.unit, metric.selectionKey.startsWith('resource:')));
+        measurement(node.children[1], value, metric.unit, metric.selectionKey.startsWith('resource:'));
         const reset = typeof value === 'number' ? describeReset(resetMinutes(metric.resetAt, now), t) : null;
         text(node.children[2], reset);
         node.children[2].hidden = reset === null;
