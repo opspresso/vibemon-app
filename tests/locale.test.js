@@ -49,10 +49,10 @@ test('Korean notices and tray menu use the shared terms', () => {
     vibemonConfig: { status: {} }, cloudDelivery: { status: 'error' }, update: { status: 'downloaded', version: '9.9.9' }
   }));
   expect(notices).toEqual({
-    dashboard: '리소스 1개, 코딩 계정 2개 확인 필요',
+    dashboard: '에이전트 2개, 리소스 1개 확인 필요',
     resources: '리소스 1개 확인 필요',
-    accounts: '코딩 계정 2개 확인 필요',
-    where: '리소스 1개 · 계정 2개',
+    accounts: '에이전트 2개 확인 필요',
+    where: '에이전트 2개 · 리소스 1개',
     connection: '읽기 토큰 거부됨',
     integrations: 'Claude Code 복구 필요 · Codex CLI 업데이트 있음 · 클라우드 전송 확인 실패',
     update: '버전 9.9.9 설치 준비됨'

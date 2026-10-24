@@ -19,7 +19,7 @@ test.each(['darwin', 'win32'])('%s application menus navigate the workspace and 
     const workspace = menu.find(item => item.label === 'Workspace').submenu;
     expect(workspace.slice(0, 3).map(item => item.accelerator)).toEqual(['CmdOrCtrl+1', 'CmdOrCtrl+2', 'CmdOrCtrl+3']);
     for (const item of workspace) item.click?.();
-    expect(open.mock.calls).toEqual([['about'], ['companion'], ['overview'], ['resources'], ['agents'], ['connections'], ['integrations']]);
+    expect(open.mock.calls).toEqual([['about'], ['companion'], ['overview'], ['agents'], ['resources'], ['connections'], ['integrations']]);
     expect(setCompanionVisible.mock.calls).toEqual([[true]]);
   } finally { Object.defineProperty(process, 'platform', original); }
 });

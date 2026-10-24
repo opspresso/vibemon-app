@@ -264,13 +264,13 @@ function render(value) {
       emptyDescription: t('empty.attention.description'),
       emptyAction: t('empty.attention.action')
     });
-    renderCards($('overview-resources'), overviewAttention ? resources.filter(needsAttention) : resources, selectedMetrics, detail.open, overviewAttention ? clearAttention : choose, {
-      ...(overviewAttention ? attentionEmpty('resources') : resourceEmpty),
+    renderCards($('overview-accounts'), overviewAttention ? accounts.filter(needsAttention) : accounts, selectedMetrics, detail.open, overviewAttention ? clearAttention : choose, {
+      ...(overviewAttention ? attentionEmpty('accounts') : accountEmpty),
       limit: overviewAttention ? undefined : 3,
       compact: !overviewAttention
     }, cloudTime());
-    renderCards($('overview-accounts'), overviewAttention ? accounts.filter(needsAttention) : accounts, selectedMetrics, detail.open, overviewAttention ? clearAttention : choose, {
-      ...(overviewAttention ? attentionEmpty('accounts') : accountEmpty),
+    renderCards($('overview-resources'), overviewAttention ? resources.filter(needsAttention) : resources, selectedMetrics, detail.open, overviewAttention ? clearAttention : choose, {
+      ...(overviewAttention ? attentionEmpty('resources') : resourceEmpty),
       limit: overviewAttention ? undefined : 3,
       compact: !overviewAttention
     }, cloudTime());

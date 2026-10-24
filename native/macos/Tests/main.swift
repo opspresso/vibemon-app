@@ -9,6 +9,13 @@ precondition(args.count == 4)
 let feedURL = URL(fileURLWithPath: args[1])
 WidgetIcons.directory = URL(fileURLWithPath: args[2], isDirectory: true)
 let feed = try WidgetFeed.decode(Data(contentsOf: feedURL))
+for metric in feed.items.flatMap(\.metrics) {
+    if let parts = metric.valueParts {
+        precondition(parts.integer + parts.fraction == metric.value, "Semantic segments changed the reading")
+    }
+}
+let oldMetric = try JSONDecoder().decode(FeedMetric.self, from: Data(#"{"key":"latency","label":"Latency","value":"12.4","unit":" ms","tone":"normal"}"#.utf8))
+precondition(oldMetric.value == "12.4" && oldMetric.valueParts == nil, "An older version 2 feed must remain readable")
 let load = FeedLoad.loaded(feed)
 let defaultAgent = await AgentQuery().defaultResult()
 let defaultResource = await ResourceQuery().defaultResult()

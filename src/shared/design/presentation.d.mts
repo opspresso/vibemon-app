@@ -12,7 +12,9 @@ export function resourceType(source: { kind: string; resourceType?: string }, t?
 export function metricLabel(key: string, label: string, t?: Translator): string;
 export function metricTone(key: string, value: unknown): MetricTone;
 export function measurementUnit(unit: string): string;
-export function formatMeasurement(value: unknown, unit?: string, exact?: boolean, unavailable?: string, includeUnit?: boolean): string;
+export function formatMeasurement(value: unknown, unit?: string, exact?: boolean, unavailable?: string, includeUnit?: boolean, locale?: string): string;
+export type MeasurementParts = { integer: string; fraction: string };
+export function formatMeasurementParts(value: unknown, unit?: string, exact?: boolean, unavailable?: string, locale?: string): MeasurementParts;
 export function observationAge(timestamp: string | null | undefined, now?: number, t?: Translator): string;
 export function formatAxisValue(value: number): string;
 export function formatResetTime(minutes: number | null, t?: Translator): string | null;

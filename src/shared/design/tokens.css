@@ -74,3 +74,9 @@
 @media (prefers-reduced-motion: reduce) {
   :root { --vm-motion: 0ms; }
 }
+
+/* Decimal emphasis preserves the formatted text and follows the surrounding value color. */
+.vm-metric-fraction { font-size: 0.85em; opacity: 0.78; }
+@media (prefers-contrast: more), (forced-colors: active) {
+  .vm-metric-fraction { opacity: 1; }
+}

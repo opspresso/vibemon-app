@@ -35,7 +35,7 @@ struct Notice: Sendable, Equatable {
         case .resource:
             Notice(symbol: "server.rack", title: Localization.text("No resources"), detail: Localization.text("Connect your account in VibeMon Settings, then choose resources in Customize view."), link: resources)
         case .agent:
-            Notice(symbol: "sparkles", title: Localization.text("No coding agents"), detail: Localization.text("Agents appear after an integration reports activity."), link: agents)
+            Notice(symbol: "sparkles", title: Localization.text("No agents"), detail: Localization.text("Agents appear after an integration reports activity."), link: agents)
         }
     }
 
@@ -44,7 +44,7 @@ struct Notice: Sendable, Equatable {
         case .resource:
             Notice(symbol: "questionmark.square.dashed", title: Localization.text("Resource unavailable"), detail: Localization.text("It is no longer selected in VibeMon. Edit the widget to choose another."), link: resources)
         case .agent:
-            Notice(symbol: "questionmark.square.dashed", title: Localization.text("Choose coding account"), detail: Localization.text("The saved account is no longer available. Edit this widget and select a current account."), link: agents)
+            Notice(symbol: "questionmark.square.dashed", title: Localization.text("Choose agent account"), detail: Localization.text("The saved account is no longer available. Edit this widget and select a current account."), link: agents)
         }
     }
 }
@@ -212,7 +212,7 @@ private struct MetricRow: View {
             }
             Spacer(minLength: 4)
             HStack(alignment: .firstTextBaseline, spacing: 0) {
-                Text(metric.value)
+                MetricNumber(metric: metric)
                     .font(.system(size: 12.5, weight: .semibold))
                     .monospacedDigit()
                     .foregroundStyle(Palette.foreground)
@@ -366,5 +366,20 @@ enum Countdown {
     /// The countdown as a sentence for assistive technology.
     static func sentence(until date: Date, now: Date) -> String {
         minutes(until: date, now: now) == 0 ? Localization.text("Resets now") : Localization.text("Resets in \(text(until: date, now: now))")
+    }
+}
+
+/// The App supplies localized segments so a feed remains readable after a locale change.
+private struct MetricNumber: View {
+    let metric: FeedMetric
+    @Environment(\.colorSchemeContrast) private var contrast
+
+    var body: some View {
+        if let parts = metric.valueParts {
+            Text("\(Text(parts.integer))\(Text(parts.fraction).textScale(.secondary).foregroundStyle(.primary.opacity(contrast == .increased ? 1 : 0.78)))")
+                .accessibilityLabel(metric.value)
+        } else {
+            Text(metric.value)
+        }
     }
 }

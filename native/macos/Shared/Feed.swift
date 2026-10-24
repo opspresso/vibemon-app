@@ -98,11 +98,18 @@ struct FeedStatus: Decodable, Sendable, Equatable {
     }
 }
 
+struct NumberParts: Decodable, Sendable {
+    let integer: String
+    let fraction: String
+}
+
 struct FeedMetric: Decodable, Sendable, Identifiable {
     let key: String
     let label: String
     /// Formatted number without its unit, or `—` when not reported.
     let value: String
+    /// Semantic segments written by the App; absent in older version 2 feeds.
+    let valueParts: NumberParts?
     let unit: String
     /// Gauge fill from 0 to 1. `nil` for numbers and missing values.
     let fraction: Double?

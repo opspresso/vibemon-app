@@ -77,6 +77,15 @@ startFixture().then(async fixture => {
     fs.writeFileSync(path.join(output, `${name}.png`), (await web.capturePage()).toPNG());
   };
   await until(() => ui('document.querySelectorAll("#overview-resources .card").length === 3'), 'populated overview');
+  assert.deepEqual(await ui('[...document.querySelectorAll(".sidebar > nav [data-page-link]")].map(node => node.dataset.pageLink)'), ['overview', 'agents', 'resources'], 'keyboard and reading order follow the same category order');
+  const typography = await ui(`(() => {
+    const fraction = [...document.querySelectorAll('#overview-resources .vm-metric-fraction')].find(node => node.textContent);
+    const style = getComputedStyle(fraction), parent = getComputedStyle(fraction.parentElement);
+    return { text: fraction.parentElement.textContent, scale: parseFloat(style.fontSize) / parseFloat(parent.fontSize), opacity: Number(style.opacity) };
+  })()`);
+  assert.equal(typography.text, '12.4');
+  assert.ok(typography.scale > 0.8 && typography.scale < 0.9);
+  assert.ok(typography.opacity >= 0.75 && typography.opacity < 1);
   assert.equal(await text('#summary-local-note'), '2 active on this device', 'the fixture uses the production local-activity projection');
   await until(() => view.window.isVisible(), 'workspace shown');
   // Calling the menu handler in code does not activate the App as a native click does.

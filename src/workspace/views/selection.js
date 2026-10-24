@@ -18,7 +18,7 @@ export function setupSelection({ getFrame, request, navigate, run, notify, fail 
   }
   function count() {
     const selected = draft();
-    text($('selection-count'), `${t('count.resources', { count: selected.sources.length })} · ${t('count.accounts', { count: selected.accounts.length })}`);
+    text($('selection-count'), `${t('count.accounts', { count: selected.accounts.length })} · ${t('count.resources', { count: selected.sources.length })}`);
   }
   function checkbox(entry) {
     const label = el('label', undefined, 'choice');

@@ -4,35 +4,35 @@ VibeMon adds two small widgets to macOS 14 or later. Each widget shows one item:
 
 | Widget | Shows | Source |
 | --- | --- | --- |
+| **Agent Account** | State, context, session usage, and weekly usage of one provider account | Selected agent accounts and local hook activity |
 | **Resource** | State, collector message, and up to three metrics of one resource | Resources selected in **Customize view** |
-| **Coding Account** | State, context, session usage, and weekly usage of one provider account | Selected coding accounts and local hook activity |
 
-Add as many widgets as you need, for example one per server and one per coding account.
+Add as many widgets as you need, for example one per server and one per agent account.
 
-![Resource and coding agent widgets in light and dark appearance and with the desktop not focused, with synthetic data](images/macos-widgets.png)
+![Resource and agent widgets in light and dark appearance and with the desktop not focused, with synthetic data](images/macos-widgets.png)
 
 ## Add a widget
 
 1. Start VibeMon. The widgets read data that the App writes.
 2. Control-click the desktop and select **Edit Widgets**, or open Notification Center and select **Edit Widgets**.
-3. Search for **VibeMon Mac**. Drag **Resource · Mac** or **Coding Account · Mac** to the desktop or Notification Center.
-4. Control-click the new widget and select **Edit "Resource · Mac"** or **Edit "Coding Account · Mac"**. Choose the item to show. Coding accounts are listed as provider plus short account ID, for example `Codex · 27e702a8`, with the account name and project names below. The list includes a resource icon or agent character. Search by name, account ID, or project to narrow the choices. Each choice keeps its original full ID.
+3. Search for **VibeMon Mac**. Drag **Resource · Mac** or **Agent · Mac** to the desktop or Notification Center.
+4. Control-click the new widget and select **Edit "Resource · Mac"** or **Edit "Agent · Mac"**. Choose the item to show. Agent accounts are listed as provider plus short account ID, for example `Codex · 27e702a8`, with the account name and project names below. The list includes a resource icon or agent character. Search by name, account ID, or project to narrow the choices. Each choice keeps its original full ID.
 
 If VibeMon is missing from the gallery, keep the App in `/Applications`, start it once, and reopen **Edit Widgets**. The widget extension is included with the macOS App; there is no separate widget installer.
 
 If both apps are available, **VibeMon Mac** contains the widgets supplied by this Mac; **VibeMon** contains widgets supplied by your iPhone. Individual widget names also end in **Mac** or **iPhone**. Update the corresponding app to update its widgets.
 
-A new widget leaves its selection empty and shows the first item of its kind in Dashboard order: items that need attention first, then by name. Items on **Standby** come last, with the most recently active first. A coding account's name in this order is the project responsible for its displayed state. Choosing an item keeps that selection. Click a widget to open its page in the Dashboard.
+A new widget leaves its selection empty and shows the first item of its kind in Dashboard order: items that need attention first, then by name. Items on **Standby** come last, with the most recently active first. A agent account's name in this order is the project responsible for its displayed state. Choosing an item keeps that selection. Click a widget to open its page in the Dashboard.
 
 ## What the widget shows
 
-- **Header**: a coding agent shows the project first, then the provider and short account ID, for example `dockpad` above `Codex · 27e702a8`, as on the Dashboard and iPhone. The title follows the project responsible for the current state, including when an older input request ages out. A resource shows its name and type. Below the header, the widget shows the state in its color with the report age, for example `3m`. A resource goes on **Standby** 120 seconds after its last receipt, and a coding agent ages to **Idle** and then **Standby** when its hooks stop reporting.
+- **Header**: a agent shows the project first, then the provider and short account ID, for example `dockpad` above `Codex · 27e702a8`, as on the Dashboard and iPhone. The title follows the project responsible for the current state, including when an older input request ages out. A resource shows its name and type. Below the header, the widget shows the state in its color with the report age, for example `3m`. A resource goes on **Standby** 120 seconds after its last receipt, and a agent ages to **Idle** and then **Standby** when its hooks stop reporting.
 - **Standby**: the item is not connected or not active. It uses the neutral color and the same layout as other states, and the values are the last ones received. After VibeMon quits, every widget shows **Standby** because nothing updates its data. A widget without a choice keeps the item it showed before. Standby does not need attention.
-- **Detail line**: the collector's message for a resource. A coding agent has no detail line.
-- **Metrics**: the first three metrics selected in **Customize view** for a resource. A coding agent shows **Context**, **Session**, and **Weekly**. A plan usage bar uses the warning color from 70% and the danger color from 90%. Beside **Session** and **Weekly**, `↻ 2h5m` is the time until that limit resets: `now`, minutes (`42m`), hours and minutes (`2h5m`), or days and hours (`3d1h`). It counts down without new data and is absent when the hook reports no reset time. `—` means no measurement was reported.
+- **Detail line**: the collector's message for a resource. A agent has no detail line.
+- **Metrics**: the first three metrics selected in **Customize view** for a resource. A agent shows **Context**, **Session**, and **Weekly**. A plan usage bar uses the warning color from 70% and the danger color from 90%. Beside **Session** and **Weekly**, `↻ 2h5m` is the time until that limit resets: `now`, minutes (`42m`), hours and minutes (`2h5m`), or days and hours (`3d1h`). It counts down without new data and is absent when the hook reports no reset time. `—` means no measurement was reported.
 - **Desktop not focused**: macOS draws the widget in one color. The character is then drawn without its tile, so its outline stays visible, and gauges are white on a faint track.
 
-A coding agent combines all projects of one provider account. The state of the project that needs attention is shown first, for example a project waiting for input. Local hook reports replace the cloud copy of the same project. When a hook report has no usage, the widget uses the plan usage on this Mac.
+A agent combines all projects of one provider account. The state of the project that needs attention is shown first, for example a project waiting for input. Local hook reports replace the cloud copy of the same project. When a hook report has no usage, the widget uses the plan usage on this Mac.
 
 ## Notices
 
@@ -40,12 +40,14 @@ A coding agent combines all projects of one provider account. The state of the p
 | --- | --- |
 | **Open VibeMon** | The App has not written widget data on this Mac. Start VibeMon. |
 | **No resources** | No resource is selected. Connect your account in **Settings → Connections**, then choose resources in **Customize view**. |
-| **No coding agents** | No account has reported. Install an integration in **Settings → Integrations**, or select accounts in **Customize view**. |
-| **Resource unavailable** / **Choose coding account** | The saved item is no longer available. Edit the widget to choose a current resource or account. |
+| **No agents** | No account has reported. Install an integration in **Settings → Integrations**, or select accounts in **Customize view**. |
+| **Resource unavailable** / **Choose agent account** | The saved item is no longer available. Edit the widget to choose a current resource or account. |
 | **Restart VibeMon** | The running App and the widget use different data versions, for example after an update. Quit and reopen VibeMon. |
 | **Data unavailable** | The widget data cannot be read. Quit and reopen VibeMon. |
 
 If an older coding widget stops showing measurements after automatic account detection is enabled, edit its account choice. A saved `codex:default` or `claude:default` is a different ID from the new automatically detected account. Choose the provider with its current short account ID. VibeMon preserves explicit selections and never silently points an old widget at another account. A `—` within an available account means that particular measurement was not reported.
+
+Numbers keep the shared measurement precision. The decimal separator and fractional digits use a smaller, slightly lighter style; Increase Contrast retains their full color. The feed includes semantic number segments, so the widget does not reinterpret a formatted number in another locale. Older version 2 feeds retain their original value text.
 
 ## Refresh and privacy
 
@@ -81,7 +83,7 @@ The package verifier checks the extension metadata, App/widget versions, URL sch
 
 To check the installed App in the macOS gallery manually:
 
-1. Search for **VibeMon Mac** and check its App icon, **Resource · Mac**, and **Coding Account · Mac** previews.
+1. Search for **VibeMon Mac** and check its App icon, **Resource · Mac**, and **Agent · Mac** previews.
 2. Add each widget, edit it, and search for a specific resource or account. Check the icon, account ID, and project names.
 3. Close the editor. Confirm the selected item remains after reopening it, and that clicking the widget opens the Dashboard.
 4. Check focused and unfocused desktop appearance, then change the selected item's name or icon and confirm it refreshes. macOS controls the final refresh timing.

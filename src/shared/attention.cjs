@@ -71,7 +71,7 @@ function attentionNotices(areas) {
       : resourceNotice || accountNotice,
     resources: resourceNotice,
     accounts: accountNotice,
-    where: [resources && t('count.resources', { count: resources }), accounts && t('count.accounts', { count: accounts })].filter(Boolean).join(' · '),
+    where: [accounts && t('count.accounts', { count: accounts }), resources && t('count.resources', { count: resources })].filter(Boolean).join(' · '),
     connection: areas.connection ? t(CONNECTION_NOTICES[areas.connection] || 'notice.connectionInterrupted') : null,
     integrations: integrations.length ? integrations.join(' · ') : null,
     update: areas.update ? t(areas.update.status === 'downloaded' ? 'notice.updateReady' : 'notice.updateAvailable', { version: areas.update.version }) : null
