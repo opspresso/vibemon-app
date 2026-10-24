@@ -4,7 +4,7 @@ VibeMon adds two small widgets to macOS 14 or later. Each widget shows one item:
 
 | Widget | Shows | Source |
 | --- | --- | --- |
-| **Agent Account** | State, context, session usage, and weekly usage of one provider account | Selected agent accounts and local hook activity |
+| **Agent** | State, context, session usage, and weekly usage of one provider account | Selected agent accounts and local hook activity |
 | **Resource** | State, collector message, and up to three metrics of one resource | Resources selected in **Customize view** |
 
 Add as many widgets as you need, for example one per server and one per agent account.
