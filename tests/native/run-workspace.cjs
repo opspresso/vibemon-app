@@ -5,8 +5,9 @@ const os = require('node:os');
 const path = require('node:path');
 const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'vibemon-workspace-'));
 const preview = process.argv.includes('--preview');
+const script = preview ? 'workspace-preview.cjs' : process.argv.includes('--services') ? 'workspace-services-screens.cjs' : 'workspace-smoke.cjs';
 let requestedSignal = null;
-const child = spawn(require('electron'), [path.join(__dirname, preview ? 'workspace-preview.cjs' : 'workspace-smoke.cjs')], {
+const child = spawn(require('electron'), [path.join(__dirname, script)], {
   stdio: 'inherit',
   env: { ...process.env, VIBEMON_TEST_USER_DATA: directory }
 });
