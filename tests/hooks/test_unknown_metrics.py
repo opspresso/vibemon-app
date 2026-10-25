@@ -78,7 +78,8 @@ def test_cached_percentages_use_the_same_strict_numeric_boundary_as_desktop(inva
     cache = {'claude': {'updated_at': 100, 'session': {'pct': invalid}, 'week_all': {'pct': 12.5}}}
     fresh = usage_cache.get_fresh_provider(cache, 'claude', 1800, now=100)
     assert 'session' not in fresh
-    assert vibemon_core._usage_fields(fresh) == {'usageWeek': 12.5}
+    # Epoch 100 is when the provider entry was measured.
+    assert vibemon_core._usage_fields(fresh) == {'usageWeek': 12.5, 'usageObservedAt': '1970-01-01T00:01:40.000Z'}
 
 
 def test_percentage_cache_and_transport_keep_measured_precision():

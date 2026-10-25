@@ -37,7 +37,7 @@ from project_context import get_project_name, parse_json, read_input
 import session_activity
 from session_activity import Transition
 from http_client import open_credential_request, open_request as urlopen, read_limited
-from usage_cache import CACHE_STALE_SECONDS, get_fresh_provider, is_finite_number, is_fresh_observation, load_usage_cache, model_week_bucket, valid_percent, reverse_jsonl
+from usage_cache import CACHE_STALE_SECONDS, get_fresh_provider, is_finite_number, is_fresh_observation, load_usage_cache, model_week_bucket, parse_epoch, valid_percent, reverse_jsonl
 
 try:
     import fcntl
@@ -334,17 +334,27 @@ def _usage_fields(bucket_data: dict[str, Any] | None) -> dict[str, Any]:
     usageWeekModel* fields carry the model-scoped weekly limit (e.g. the
     Fable weekly bucket) when the plan has one. The ResetsIn fields
     (minutes until reset) are included only when the entry has a `resets_at`
-    epoch. Keys are omitted when a value is unavailable, so the API can
-    remove stale values instead of overwriting them with 0.
+    epoch. `usageObservedAt` is when the oldest of these values was measured,
+    because a report's own time is the agent's activity. Keys are omitted when
+    a value is unavailable, so the API can remove stale values instead of
+    overwriting them with 0.
     """
     if not isinstance(bucket_data, dict):
         return {}
 
     result: dict[str, Any] = {}
+    measured: list[float] = []
+
+    def note(bucket: dict[str, Any]) -> None:
+        stamp = parse_epoch(bucket.get("updated_at", bucket_data.get("updated_at")))
+        if stamp is not None:
+            measured.append(stamp)
+
     session = bucket_data.get("session")
     session_pct = session.get("pct") if isinstance(session, dict) else None
     if valid_percent(session_pct):
         result["usage5h"] = session_pct
+        note(session)
         resets_in = _resets_in_minutes(session)
         if resets_in is not None:
             result["usage5hResetsIn"] = resets_in
@@ -352,24 +362,31 @@ def _usage_fields(bucket_data: dict[str, Any] | None) -> dict[str, Any]:
     week_pct = week.get("pct") if isinstance(week, dict) else None
     if valid_percent(week_pct):
         result["usageWeek"] = week_pct
+        note(week)
         resets_in = _resets_in_minutes(week)
         if resets_in is not None:
             result["usageWeekResetsIn"] = resets_in
     model_week = model_week_bucket(bucket_data)
     if model_week is not None:
         result["usageWeekModel"] = model_week["pct"]
+        note(model_week)
         resets_in = _resets_in_minutes(model_week)
         if resets_in is not None:
             result["usageWeekModelResetsIn"] = resets_in
         label = model_week.get("label")
         if isinstance(label, str) and label:
             result["usageWeekModelLabel"] = label
+    if result and measured:
+        # The oldest of the values sent: the server compares it with other
+        # sources and the connected reading, never with the report time.
+        stamp = min(min(measured), time.time())
+        result["usageObservedAt"] = time.strftime("%Y-%m-%dT%H:%M:%S", time.gmtime(stamp)) + f".{int(stamp % 1 * 1000):03d}Z"
     return result
 
 
 USAGE_FIELDS = (
     "usage5h", "usageWeek", "usage5hResetsIn", "usageWeekResetsIn",
-    "usageWeekModel", "usageWeekModelResetsIn", "usageWeekModelLabel",
+    "usageWeekModel", "usageWeekModelResetsIn", "usageWeekModelLabel", "usageObservedAt",
 )
 
 
@@ -691,7 +708,8 @@ def send_vibemon_api(url: str, token: str, payload: dict[str, Any], context: dic
     Headers: Authorization: Bearer <token>, Content-Type: application/json
     Body: { state, project, tool, model, memory, character,
             usage5h?, usageWeek?, usage5hResetsIn?, usageWeekResetsIn?,
-            usageWeekModel?, usageWeekModelResetsIn?, usageWeekModelLabel? }
+            usageWeekModel?, usageWeekModelResetsIn?, usageWeekModelLabel?,
+            usageObservedAt? }
     """
     try:
         api_url = f"{url.rstrip('/')}/api/status"

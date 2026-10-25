@@ -19,7 +19,7 @@
     "vibemon/http_deadline.py": "96b644e70c1f4566933dbe7f62763079d1ca9bd7ee3b0cc58a062a8126564f24",
     "vibemon/project_context.py": "c5af96a1168be5f6c02726467bcd92492d91106dc25b5f6ffb5a363c1f40020e",
     "vibemon/session_activity.py": "b6dd2da7f1d7458b755999d4ea01cff8bb5d45e23cff4eefeac12e45ab380aec",
-    "vibemon/vibemon_core.py": "3cd77b0b229f0c91604ba1aceaee66fc9a87f0c0d57af46613be735f44af4f00",
+    "vibemon/vibemon_core.py": "8e7ebdcec0c0efaf49a12305cdf903812734a6166ff6af50c8d1e3eb0772136d",
     "claude/statusline.py": "9decd2b59cb3e29e9e5894975b04bd3438d5cd97703a15aaf73b69de7e4ba217",
     "claude/hooks/vibemon.py": "1a1717fc2a262dd6e7751a183c134db5d099b74b8edba7e3b8f73ac23a74cf22",
     "codex/hooks/vibemon.py": "d243c7c79ae41f64ec40cab33cdee61fe81af90dce6485618de634eb71e7f7f2",

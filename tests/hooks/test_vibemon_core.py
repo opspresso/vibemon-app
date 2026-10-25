@@ -429,7 +429,7 @@ class WatcherUsageTest(unittest.TestCase):
     ACCOUNT = {"provider": "codex", "id": "auto:" + "a" * 64, "displayName": "Codex · person"}
 
     def repeat(self, cache: dict | None) -> dict:
-        payload = {"state": "working", "project": "vibemon", "memory": 40, "usageWeek": 62.0, "usageWeekResetsIn": 7900, "usage5h": 10.0}
+        payload = {"state": "working", "project": "vibemon", "memory": 40, "usageWeek": 62.0, "usageWeekResetsIn": 7900, "usage5h": 10.0, "usageObservedAt": "2026-10-24T11:53:00.000Z"}
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "usage.json"
             if cache is not None:
@@ -443,6 +443,10 @@ class WatcherUsageTest(unittest.TestCase):
         result = self.repeat({key: {"week_all": {"pct": 100.0, "resets_at": now + 7900 * 60, "updated_at": now}, "updated_at": now}, "ts": now})
         self.assertEqual(result["usageWeek"], 100.0)
         self.assertNotIn("usage5h", result)
+        # The measurement time travels with the value, apart from the report time.
+        measured = vibemon_core.time.strftime("%Y-%m-%dT%H:%M:%S", vibemon_core.time.gmtime(now))
+        self.assertTrue(result["usageObservedAt"].startswith(measured))
+        self.assertRegex(result["usageObservedAt"], r"^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.\d{3}Z$")
         self.assertEqual((result["state"], result["memory"]), ("working", 40))
 
     def test_a_repeated_payload_without_a_fresh_reading_reports_no_usage(self):
