@@ -540,7 +540,9 @@
     "services.detailTitle": "Connected service",
     "services.detailBody": "VibeMon reads this account's plan usage from the connected service. Hook reports add project activity.",
     "services.agentsCaption": "Plan usage read on VibeMon's server, without hooks",
-    "signIn.scopeMissing": "VibeMon did not grant every permission this sign-in asked for. Sign in again and select Allow."
+    "signIn.scopeMissing": "VibeMon did not grant every permission this sign-in asked for. Sign in again and select Allow.",
+    "services.checking": "Checking…",
+    "services.signInVibeMon": "Sign in to VibeMon again"
   },
   "ko": {
     "nav.overview": "개요",
@@ -1068,7 +1070,9 @@
     "services.detailTitle": "연결된 서비스",
     "services.detailBody": "VibeMon이 연결된 서비스에서 이 계정의 요금제 사용량을 읽습니다. 프로젝트 활동은 hook 보고로 추가됩니다.",
     "services.agentsCaption": "hook 없이 VibeMon 서버에서 읽는 요금제 사용량",
-    "signIn.scopeMissing": "VibeMon이 이 로그인에 필요한 권한을 모두 허용하지 않았습니다. 다시 로그인하고 허용을 선택하세요."
+    "signIn.scopeMissing": "VibeMon이 이 로그인에 필요한 권한을 모두 허용하지 않았습니다. 다시 로그인하고 허용을 선택하세요.",
+    "services.checking": "확인하는 중…",
+    "services.signInVibeMon": "VibeMon에 다시 로그인"
   },
   "ja": {
     "nav.overview": "概要",
@@ -1596,6 +1600,8 @@
     "services.detailTitle": "接続済みサービス",
     "services.detailBody": "VibeMon は接続済みサービスからこのアカウントのプラン使用量を読み取ります。プロジェクトの活動は hook の報告で追加されます。",
     "services.agentsCaption": "hook なしで VibeMon のサーバーが読み取るプランの使用量",
-    "signIn.scopeMissing": "VibeMon がこのサインインに必要な権限をすべて許可しませんでした。もう一度サインインして許可を選択してください。"
+    "signIn.scopeMissing": "VibeMon がこのサインインに必要な権限をすべて許可しませんでした。もう一度サインインして許可を選択してください。",
+    "services.checking": "確認しています…",
+    "services.signInVibeMon": "VibeMon にもう一度サインイン"
   }
 }

@@ -6,8 +6,10 @@
 export const USAGE_POLL_MS = 60000;
 // Web ends a Claude sign-in after its fifth rejected code.
 export const MAX_CODES = 5;
-// These failures end the sign-in in progress; it must start again.
-const ENDS_SIGN_IN = new Set(['usage-authorization-expired', 'usage-authorization-denied', 'usage-sign-in-required', 'usage-connection-limit']);
+// These failures end the sign-in in progress; it must start again. VibeMon
+// rejecting the read token (401, 403) cannot change while the flow waits.
+const ENDS_SIGN_IN = new Set(['usage-authorization-expired', 'usage-authorization-denied', 'usage-sign-in-required', 'usage-connection-limit', 'token-expired', 'permission-denied']);
+const EXPIRED = 'usage-authorization-expired';
 export const endsSignIn = code => ENDS_SIGN_IN.has(code);
 const SERVICES = ['claude', 'codex'];
 
@@ -106,7 +108,7 @@ export class UsageStore {
     });
   }
 
-  /** Runs one action per connection; its failure stays with that connection. Resolves true on success. */
+  /** Runs one action per connection; its failure `{ message, code }` stays with that connection. Resolves true on success. */
   async act(id, operation) {
     if (this.busy.has(id)) return false;
     const revision = this.revision;
@@ -117,7 +119,7 @@ export class UsageStore {
       await operation();
       return revision === this.revision;
     } catch (error) {
-      if (revision === this.revision) this.actionErrors.set(id, error.message);
+      if (revision === this.revision) this.actionErrors.set(id, { message: error.message, code: error.code ?? null });
       return false;
     } finally {
       if (revision === this.revision) this.busy.delete(id);
@@ -137,9 +139,12 @@ export class UsageStore {
  * flow abandons an unfinished sign-in on the server.
  */
 export class UsageConnectFlow {
-  /** `describe(code)` is the sentence for a usage failure code that the flow reports itself. */
-  constructor({ request, onChange = () => {}, onConnected = () => {}, describe = code => code, timers = globalThis }) {
-    Object.assign(this, { request, onChange, onConnected, describe, timers });
+  /**
+   * `describe(code)` is the sentence for a usage failure code that the flow
+   * reports itself. `now()` is the device time that the sign-in expiry is compared with.
+   */
+  constructor({ request, onChange = () => {}, onConnected = () => {}, describe = code => code, timers = globalThis, now = () => Date.now() }) {
+    Object.assign(this, { request, onChange, onConnected, describe, timers, now });
     this.generation = 0;
     this.poll = null;
     this.provider = 'claude';
@@ -158,6 +163,20 @@ export class UsageConnectFlow {
     this.rejected = 0;
     this.waiting = false;
     this.submitting = false;
+    this.checking = false;
+  }
+
+  /** The sign-in ended on the server: it expired. */
+  expire() {
+    this.fail(Object.assign(new Error(this.describe(EXPIRED)), { code: EXPIRED }));
+  }
+
+  expired() {
+    return this.authorization && this.now() > Date.parse(this.authorization.expiresAt);
+  }
+
+  wait(seconds) {
+    return new Promise(resolve => this.timers.setTimeout(resolve, seconds * 1000));
   }
 
   fail(error) {
@@ -205,7 +224,12 @@ export class UsageConnectFlow {
     this.onChange();
   }
 
-  /** Checks a pasted Claude code. The sign-in stays open after a rejected code, up to MAX_CODES. */
+  /**
+   * Checks a pasted Claude code. The sign-in stays open after a rejected
+   * code, up to MAX_CODES. While another request completes the same sign-in,
+   * Web answers `pending`: the flow shows `checking` and asks again after
+   * the interval, until the sign-in connects, fails, or expires.
+   */
   async submit(code) {
     const value = String(code ?? '').trim();
     if (this.phase !== 'authorize' || this.authorization.prompt.kind !== 'code' || this.submitting || !value) return null;
@@ -214,16 +238,25 @@ export class UsageConnectFlow {
     this.error = null;
     this.onChange();
     try {
-      const result = await this.request('usage-complete', this.authorization.id, value);
-      if (generation !== this.generation) return null;
-      if (result.status === 'connected') return this.connected(result.connection);
+      while (generation === this.generation) {
+        if (this.expired()) { this.expire(); return null; }
+        const result = await this.request('usage-complete', this.authorization.id, value);
+        if (generation !== this.generation) return null;
+        if (result.status === 'connected') return this.connected(result.connection);
+        this.checking = true;
+        this.onChange();
+        await this.wait(Math.max(1, result.interval));
+      }
     } catch (error) {
       if (generation !== this.generation) return null;
       const exhausted = error.code === 'usage-authorization-code-invalid' && ++this.rejected >= MAX_CODES;
-      const expired = 'usage-authorization-expired';
-      this.fail(exhausted ? Object.assign(new Error(this.describe(expired)), { code: expired }) : error);
+      if (exhausted) this.expire();
+      else this.fail(error);
     } finally {
-      if (generation === this.generation) this.submitting = false;
+      if (generation === this.generation) {
+        this.submitting = false;
+        this.checking = false;
+      }
       this.onChange();
     }
     return null;
@@ -244,6 +277,8 @@ export class UsageConnectFlow {
   async check(generation) {
     this.poll = null;
     if (generation !== this.generation) return;
+    // An expired sign-in can never connect: stop instead of polling on.
+    if (this.expired()) { this.expire(); this.onChange(); return; }
     const interval = this.authorization.prompt.interval;
     let next = interval;
     try {

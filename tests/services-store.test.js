@@ -76,7 +76,7 @@ describe('UsageStore', () => {
     expect(store.connections.map(item => item.id)).toEqual(['a']);
     request.mockRejectedValueOnce(failure('usage-sign-in-required'));
     await expect(store.disconnect('a')).resolves.toBe(false);
-    expect(store.actionErrors.get('a')).toBe('message for usage-sign-in-required');
+    expect(store.actionErrors.get('a')).toEqual({ message: 'message for usage-sign-in-required', code: 'usage-sign-in-required' });
     expect(store.connections.map(item => item.id)).toEqual(['a']);
     expect(store.busy.size).toBe(0);
     expect(onChange).toHaveBeenCalled();
@@ -97,8 +97,13 @@ describe('UsageStore', () => {
 });
 
 describe('UsageConnectFlow', () => {
-  const claude = { id: 'sign-in-1', provider: 'claude', prompt: { kind: 'code', url: 'https://claude.ai/oauth/authorize' } };
-  const codex = { id: 'sign-in-2', provider: 'codex', prompt: { kind: 'device', url: 'https://auth.openai.com/codex/device', userCode: 'BCDF-GHJK', interval: 5 } };
+  const expiresAt = '2026-10-25T00:10:00.000Z';
+  const claude = { id: 'sign-in-1', provider: 'claude', expiresAt, prompt: { kind: 'code', url: 'https://claude.ai/oauth/authorize' } };
+  const codex = { id: 'sign-in-2', provider: 'codex', expiresAt, prompt: { kind: 'device', url: 'https://auth.openai.com/codex/device', userCode: 'BCDF-GHJK', interval: 5 } };
+  // The device clock, before the sign-in expires unless a test moves it.
+  let deviceTime;
+  beforeEach(() => { deviceTime = Date.parse('2026-10-25T00:00:00.000Z'); });
+  const now = () => deviceTime;
 
   test('Claude: a rejected code keeps the sign-in, and a pasted code connects', async () => {
     const onConnected = jest.fn();
@@ -107,7 +112,7 @@ describe('UsageConnectFlow', () => {
       if (code !== 'right') throw failure('usage-authorization-code-invalid');
       return { status: 'connected', connection: connection('new') };
     });
-    const flow = new UsageConnectFlow({ request, timers, onConnected });
+    const flow = new UsageConnectFlow({ request, now, timers, onConnected });
     flow.open('claude');
     await flow.start();
     expect(request).toHaveBeenCalledWith('usage-start', 'claude');
@@ -126,7 +131,7 @@ describe('UsageConnectFlow', () => {
 
   test(`Claude: the ${MAX_CODES}th rejected code ends the sign-in`, async () => {
     const request = jest.fn(async command => { if (command === 'usage-start') return claude; throw failure('usage-authorization-code-invalid'); });
-    const flow = new UsageConnectFlow({ request, timers, describe: code => `described ${code}` });
+    const flow = new UsageConnectFlow({ request, now, timers, describe: code => `described ${code}` });
     flow.open('claude');
     await flow.start();
     for (let attempt = 1; attempt < MAX_CODES; attempt++) await flow.submit(`code-${attempt}`);
@@ -145,7 +150,7 @@ describe('UsageConnectFlow', () => {
       if (answer instanceof Error) throw answer;
       return answer;
     });
-    const flow = new UsageConnectFlow({ request, timers });
+    const flow = new UsageConnectFlow({ request, now, timers });
     flow.open('codex');
     await flow.start();
     await jest.advanceTimersByTimeAsync(60000);
@@ -173,7 +178,7 @@ describe('UsageConnectFlow', () => {
 
   test('Codex: closing stops polling and cancels the unfinished sign-in', async () => {
     const request = jest.fn(async command => command === 'usage-start' ? codex : command === 'usage-cancel' ? true : { status: 'pending', interval: 5 });
-    const flow = new UsageConnectFlow({ request, timers });
+    const flow = new UsageConnectFlow({ request, now, timers });
     flow.open('codex');
     await flow.start();
     flow.approvalOpened();
@@ -189,7 +194,7 @@ describe('UsageConnectFlow', () => {
   test('a sign-in that starts after the flow closed is cancelled at once', async () => {
     let started;
     const request = jest.fn(command => command === 'usage-start' ? new Promise(resolve => { started = resolve; }) : Promise.resolve(true));
-    const flow = new UsageConnectFlow({ request, timers });
+    const flow = new UsageConnectFlow({ request, now, timers });
     flow.open('codex');
     const start = flow.start();
     await flow.close();
@@ -201,7 +206,7 @@ describe('UsageConnectFlow', () => {
 
   test('a token without the usage permission ends the attempt and asks for a new VibeMon sign-in', async () => {
     const request = jest.fn(async () => { throw failure('usage-sign-in-required'); });
-    const flow = new UsageConnectFlow({ request, timers });
+    const flow = new UsageConnectFlow({ request, now, timers });
     flow.open('codex');
     await flow.start();
     expect(flow.phase).toBe('choose');
@@ -211,7 +216,7 @@ describe('UsageConnectFlow', () => {
 
   test('a denied device sign-in stops polling', async () => {
     const request = jest.fn(async command => { if (command === 'usage-start') return codex; throw failure('usage-authorization-denied'); });
-    const flow = new UsageConnectFlow({ request, timers });
+    const flow = new UsageConnectFlow({ request, now, timers });
     flow.open('codex');
     await flow.start();
     flow.approvalOpened();
@@ -219,6 +224,73 @@ describe('UsageConnectFlow', () => {
     expect(flow.phase).toBe('choose');
     expect(flow.error.code).toBe('usage-authorization-denied');
     await jest.advanceTimersByTimeAsync(60000);
+    expect(request).toHaveBeenCalledTimes(2);
+  });
+
+  test('Codex: polling stops when the sign-in expires', async () => {
+    const request = jest.fn(async command => command === 'usage-start' ? codex : { status: 'pending', interval: 5 });
+    const flow = new UsageConnectFlow({ request, now, timers, describe: code => `described ${code}` });
+    flow.open('codex');
+    await flow.start();
+    flow.approvalOpened();
+    await jest.advanceTimersByTimeAsync(5000);
+    expect(request).toHaveBeenCalledTimes(2);
+    deviceTime = Date.parse(expiresAt) + 1;
+    await jest.advanceTimersByTimeAsync(5000);
+    expect(request).toHaveBeenCalledTimes(2);
+    expect(flow.phase).toBe('choose');
+    expect(flow.error).toEqual({ message: 'described usage-authorization-expired', code: 'usage-authorization-expired' });
+    await jest.advanceTimersByTimeAsync(60000);
+    expect(request).toHaveBeenCalledTimes(2);
+  });
+
+  test.each(['token-expired', 'permission-denied'])('Codex: VibeMon rejecting the token (%s) stops polling', async code => {
+    const request = jest.fn(async command => { if (command === 'usage-start') return codex; throw failure(code); });
+    const flow = new UsageConnectFlow({ request, now, timers });
+    flow.open('codex');
+    await flow.start();
+    flow.approvalOpened();
+    await jest.advanceTimersByTimeAsync(5000);
+    expect(flow.phase).toBe('choose');
+    expect(flow.error.code).toBe(code);
+    await jest.advanceTimersByTimeAsync(60000);
+    expect(request).toHaveBeenCalledTimes(2);
+  });
+
+  test('Claude: a pending answer shows checking and asks again after its interval', async () => {
+    const answers = [{ status: 'pending', interval: 3 }, { status: 'connected', connection: connection('new') }];
+    const request = jest.fn(async command => command === 'usage-start' ? claude : answers.shift());
+    const changes = [];
+    const flow = new UsageConnectFlow({ request, now, timers });
+    flow.onChange = () => changes.push(flow.checking);
+    flow.open('claude');
+    await flow.start();
+    const submitted = flow.submit('code');
+    await jest.advanceTimersByTimeAsync(0);
+    expect(flow.checking).toBe(true);
+    expect(request).toHaveBeenCalledTimes(2);
+    await jest.advanceTimersByTimeAsync(2999);
+    expect(request).toHaveBeenCalledTimes(2);
+    await jest.advanceTimersByTimeAsync(1);
+    await expect(submitted).resolves.toEqual(connection('new'));
+    expect(request).toHaveBeenLastCalledWith('usage-complete', 'sign-in-1', 'code');
+    expect(flow.phase).toBe('connected');
+    expect(flow.checking).toBe(false);
+    expect(changes).toContain(true);
+  });
+
+  test('Claude: an expired sign-in stops checking a pending code', async () => {
+    const request = jest.fn(async command => command === 'usage-start' ? claude : { status: 'pending', interval: 3 });
+    const flow = new UsageConnectFlow({ request, now, timers });
+    flow.open('claude');
+    await flow.start();
+    const submitted = flow.submit('code');
+    await jest.advanceTimersByTimeAsync(0);
+    deviceTime = Date.parse(expiresAt) + 1;
+    await jest.advanceTimersByTimeAsync(3000);
+    await expect(submitted).resolves.toBeNull();
+    expect(flow.phase).toBe('choose');
+    expect(flow.error.code).toBe('usage-authorization-expired');
     expect(request).toHaveBeenCalledTimes(2);
   });
 });

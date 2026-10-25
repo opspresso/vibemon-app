@@ -687,7 +687,22 @@ startFixture({ connections: [] }).then(async fixture => {
   assert.equal(await text('#service-dialog-error'), 'Sign in to VibeMon again on this desktop to connect services.');
   assert.equal(client.getStatus(), 'connected', 'a usage permission failure does not change the dashboard connection');
   await click('#service-dialog-close');
+  // A disconnect with that token offers the VibeMon sign-in on the row as well.
+  await ui(`${serviceRow(USAGE_IDS.codex)}._parts.disconnect.click()`);
+  await click('#service-disconnect-confirm');
+  await until(() => ui(`${serviceRow(USAGE_IDS.codex)}._parts.vibemonSignIn.checkVisibility()`), 'row offers sign in again');
+  assert.equal(await ui(`${serviceRow(USAGE_IDS.codex)}._parts.failure.textContent`), 'Sign in to VibeMon again on this desktop to connect services.');
   state.usage.scope = true;
+  // Hiding the window closes the connect dialog and cancels its unfinished sign-in.
+  const cancelled = state.usage.requests.filter(request => request.startsWith('DELETE /api/v1/usage/authorizations/')).length;
+  await click('#service-list .service-connect button:last-child');
+  await click('#service-start');
+  await until(() => visible('[data-service-phase="device"]'), 'Codex sign-in before hiding');
+  view.window.hide();
+  await until(() => state.usage.requests.filter(request => request.startsWith('DELETE /api/v1/usage/authorizations/')).length === cancelled + 1, 'hidden window cancels the sign-in');
+  view.open('services');
+  await until(() => visible('section[data-page="services"]'), 'workspace shown again');
+  assert.equal(await ui('document.getElementById("service-dialog").open'), false, 'the connect dialog stays closed');
   state.usage.connections = [];
   await client.select(beforeServices); await client.poll(true); await published();
 

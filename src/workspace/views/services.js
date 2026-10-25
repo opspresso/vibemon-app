@@ -50,12 +50,19 @@ export function setupServices({ getFrame, request, run, notify, navigate, openDe
     failure.setAttribute('role', 'alert');
     const actions = el('div', undefined, 'service-actions');
     const signInAgain = button(t('services.signInAgain'), () => openConnect(row._connection.provider), 'button small-button');
+    // A token from before the usage permission: sign in to VibeMon again, then read the list again.
+    const vibemonSignIn = button(t('services.signInAgain'), () => run(vibemonSignIn, async () => {
+      await request('sign-in', getFrame().cloud.url);
+      store.actionErrors.delete(row._connection.id);
+      await store.load();
+    }, error => { store.actionErrors.set(row._connection.id, { message: error.message, code: error.code ?? null }); rerender(); }), 'button small-button');
+    vibemonSignIn.setAttribute('aria-label', t('services.signInVibeMon'));
     const refresh = button(t('services.refresh'), () => store.refresh(row._connection.id), 'button secondary small-button', 'refresh');
     const showAgent = button(t('services.showAgent'), () => showAgentCard(row._connection), 'text-button', 'arrow');
     const disconnect = button(t('services.disconnect'), () => confirmDisconnect(row._connection), 'button quiet-danger small-button');
-    actions.append(signInAgain, refresh, showAgent, disconnect);
+    actions.append(vibemonSignIn, signInAgain, refresh, showAgent, disconnect);
     row.append(heading, message, metric, updated, failure, actions);
-    row._parts = { image, name, plan, label, status, message, metric, updated, failure, signInAgain, refresh, showAgent, disconnect };
+    row._parts = { image, name, plan, label, status, message, metric, updated, failure, vibemonSignIn, signInAgain, refresh, showAgent, disconnect };
     return row;
   }
   function accountFor(connection) {
@@ -88,8 +95,9 @@ export function setupServices({ getFrame, request, run, notify, navigate, openDe
     text(parts.updated, connection.observedAt ? t('services.updated', { age: ago(connection.observedAt, time).toLocaleLowerCase(locale) }) : t('services.notRead'));
     parts.updated.title = connection.observedAt ? new Date(connection.observedAt).toLocaleString(locale) : '';
     const failure = store.actionErrors.get(connection.id);
-    text(parts.failure, failure || '');
+    text(parts.failure, failure?.message || '');
     parts.failure.hidden = !failure;
+    parts.vibemonSignIn.hidden = failure?.code !== 'usage-sign-in-required';
     const reconnect = connection.status === 'reconnect-required';
     const working = store.busy.has(connection.id);
     parts.signInAgain.hidden = !reconnect;
@@ -227,7 +235,7 @@ export function setupServices({ getFrame, request, run, notify, navigate, openDe
     text($('service-start'), t(flow.phase === 'starting' ? 'services.starting' : 'services.connectNamed', { service: name }));
     $('service-start').disabled = flow.phase !== 'choose';
     $('service-submit').disabled = flow.submitting;
-    text($('service-submit'), t(flow.submitting ? 'services.connecting' : 'services.connect'));
+    text($('service-submit'), t(flow.checking ? 'services.checking' : flow.submitting ? 'services.connecting' : 'services.connect'));
     if (step === 'device') {
       text($('service-user-code'), flow.authorization.prompt.userCode);
       $('service-user-code').setAttribute('aria-label', `${t('services.codex.codeLabel')} ${flow.authorization.prompt.userCode}`);
@@ -298,7 +306,14 @@ export function setupServices({ getFrame, request, run, notify, navigate, openDe
     render,
     visibility(value) {
       visible = value;
-      if (!value) store.setActive(false);
+      if (!value) {
+        store.setActive(false);
+        // A hidden window keeps no sign-in open: stop polling and cancel it on the
+        // server now, because a hidden page may deliver the dialog's close event late.
+        if (dialog.open) dialog.close();
+        flow.close();
+        if (disconnectDialog.open) disconnectDialog.close();
+      }
       rerender();
     }
   };

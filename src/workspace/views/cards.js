@@ -48,6 +48,11 @@ export function connectionChip(node, source) {
   if (!connection) return;
   const { label, tone } = accountConnectionChip(source.provider, connection);
   node.className = `chip ${tone} connection-chip`;
+  // The chip opens Connected services; its name says so.
+  if (node.tagName === 'BUTTON') {
+    node.title = t('services.manage');
+    node.setAttribute('aria-label', `${label} · ${t('services.manage')}`);
+  }
   if (node._label) text(node._label, label);
   else {
     node._label = el('span', label);
