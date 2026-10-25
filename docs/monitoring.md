@@ -88,9 +88,9 @@ Each connection shows its service, plan, account label, state, the weekly usage 
 
 While no service is connected, **Overview** shows **See your weekly allowance. No computer setup required.** with **Connect Claude** and **Connect Codex**. A connection that is not **Connected**, or whose reading is old, appears at the top of **Overview** instead; select it to open Connected services. Opening Overview, **Agents**, or Connected services reads the connections again.
 
-An agent account whose usage a service reads shows a chip such as **Usage from Claude Max**, followed by the state when it is not ready. Select it to open Connected services. A connected account without hook reports has its own card: it shows only session and weekly plan usage (never context), no projects, and no history. Its details have a **Connected service** section with **Manage connected services**.
+An agent account whose usage a service reads shows a link icon right after the provider name, for example `Claude Code 🔗 · studio`, on its card and in its details header. Point to the icon to see **Usage from Claude Max**, followed by **Sign in again**, **Temporarily limited**, or **Not responding** when the connection needs attention. The icon uses the accent color when the connection is ready, and the warning or danger color otherwise. Select it to open Connected services; it does not open the card details. A connected account without hook reports has its own card: it shows only session and weekly plan usage (never context), no projects, and no history. Its details have a **Connected service** section with **Usage from Claude Max** and **Manage connected services**.
 
-![A connected-only Codex account card with its connected-service chip](images/connected-services-cards.png)
+![A connected-only Codex account card with the link icon after its provider name](images/connected-services-cards.png)
 
 A read token from an earlier Desktop version, or one pasted from Web Account, has no `usage` permission. Viewing connections still works. Connecting or disconnecting shows **Sign in to VibeMon again on this desktop to connect services.** Select **Sign in to VibeMon again** in the dialog or on the connection. The dashboard connection is not affected.
 
