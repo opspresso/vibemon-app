@@ -281,8 +281,9 @@ test('signs in through VibeMon: a read token connects the workspace, a write tok
   open();
   ports.monitoring.configure.mockResolvedValue({ status: 'connected' });
   await expect(invoke(event, 'sign-in', ['https://vibemon.io'])).resolves.toEqual({ ok: true, value: { status: 'connected' } });
-  expect(ports.signIn.signIn).toHaveBeenCalledWith('https://vibemon.io', 'read', expect.any(Function));
-  expect(ports.monitoring.configure).toHaveBeenCalledWith({ url: 'https://vibemon.io', token: 'token-for-read' }, { signal: ports.signIn.signal });
+  // The dashboard token may also connect and disconnect services.
+  expect(ports.signIn.signIn).toHaveBeenCalledWith('https://vibemon.io', 'read usage', expect.any(Function));
+  expect(ports.monitoring.configure).toHaveBeenCalledWith({ url: 'https://vibemon.io', token: 'token-for-read usage' }, { signal: ports.signIn.signal });
   await invoke(event, 'sign-in-cloud-delivery', ['https://vibemon.io']);
   expect(ports.signIn.signIn).toHaveBeenCalledWith('https://vibemon.io', 'write', expect.any(Function));
   expect(ports.settings.invoke).toHaveBeenCalledWith('configure-cloud-delivery', { url: 'https://vibemon.io', token: 'token-for-write' }, { signal: ports.signIn.signal });
@@ -313,4 +314,62 @@ test('removal opens only the owner-bound URL provided by the monitoring client',
   ports.monitoring.removalUrl.mockRejectedValue(new Error('Connection changed'));
   expect((await invoke(event, 'remove-monitor', [{ kind: 'account', id: 'codex:work' }])).ok).toBe(false);
   expect(ports.openExternal).toHaveBeenCalledTimes(1);
+});
+
+describe('connected services', () => {
+  const SIGN_IN = '6f1c2a4e-8b7d-4c3a-9e21-5d6f7a8b9c01';
+  let services, clipboard;
+  beforeEach(() => {
+    view.cleanup();
+    jest.clearAllMocks();
+    clipboard = [];
+    services = {
+      list: jest.fn(async () => ({ providers: ['claude'], connections: [], serverTime: '2026-10-25T00:00:00.000Z' })),
+      start: jest.fn(), complete: jest.fn(), cancel: jest.fn(async () => true), refresh: jest.fn(async id => ({ id })), disconnect: jest.fn(async () => true),
+      authorization: jest.fn(id => {
+        if (id !== SIGN_IN) throw Object.assign(new Error('usage-authorization-expired'), { code: 'usage-authorization-expired' });
+        return { id, prompt: { kind: 'device', url: 'https://auth.openai.com/codex/device', userCode: 'BCDF-GHJK', interval: 5 } };
+      })
+    };
+    view = new WorkspaceWindow({ ...ports, services, writeClipboard: value => clipboard.push(value) });
+    invoke = ipcMain.handle.mock.calls[0][1];
+  });
+
+  test('requests reach the usage client and changes reload the sources', async () => {
+    open();
+    expect((await invoke(event, 'usage', [])).value.providers).toEqual(['claude']);
+    expect(await invoke(event, 'usage-refresh', ['a'])).toEqual({ ok: true, value: { id: 'a' } });
+    expect(await invoke(event, 'usage-disconnect', ['a'])).toEqual({ ok: true, value: true });
+    services.complete.mockResolvedValueOnce({ status: 'pending', interval: 5 }).mockResolvedValueOnce({ status: 'connected', connection: { id: 'b' } });
+    await invoke(event, 'usage-complete', [SIGN_IN]);
+    expect(ports.monitoring.poll).toHaveBeenCalledTimes(2);
+    await invoke(event, 'usage-complete', [SIGN_IN, undefined]);
+    // Refresh, disconnect, and a completed sign-in each reload the full source list at once.
+    expect(ports.monitoring.poll.mock.calls).toEqual([[true], [true], [true]]);
+    await invoke(event, 'usage-cancel', [SIGN_IN]);
+    expect(services.cancel).toHaveBeenCalledWith(SIGN_IN);
+  });
+
+  test('the page opens and copies only what a started sign-in returned', async () => {
+    open();
+    expect(await invoke(event, 'usage-open', [SIGN_IN])).toEqual({ ok: true, value: true });
+    expect(ports.openExternal).toHaveBeenLastCalledWith('https://auth.openai.com/codex/device');
+    expect(await invoke(event, 'usage-copy', [SIGN_IN])).toEqual({ ok: true, value: true });
+    expect(clipboard).toEqual(['BCDF-GHJK']);
+    expect(await invoke(event, 'usage-open', ['https://evil.example'])).toEqual({ ok: false, error: 'usage-authorization-expired' });
+    expect(ports.openExternal).toHaveBeenCalledTimes(1);
+  });
+
+  test('a usage failure reaches the page as its code and leaves the dashboard connection alone', async () => {
+    open();
+    services.start.mockRejectedValue(Object.assign(new Error('usage-sign-in-required'), { code: 'usage-sign-in-required' }));
+    expect(await invoke(event, 'usage-start', ['claude'])).toEqual({ ok: false, error: 'usage-sign-in-required' });
+    expect(ports.monitoring.configure).not.toHaveBeenCalled();
+    expect(ports.monitoring.disconnect).not.toHaveBeenCalled();
+  });
+
+  test('Connected services is a Settings page', async () => {
+    open();
+    expect((await invoke(event, 'navigate', ['services'])).value.route).toBe('services');
+  });
 });

@@ -41,6 +41,18 @@ describe('desktop sign-in through VibeMon', () => {
     expect(createHash('sha256').update(form.code_verifier).digest('base64url')).toBe(url.searchParams.get('code_challenge'));
   });
 
+  test('asks for the dashboard and service permissions in one scope, and accepts a token of either', async () => {
+    for (const scope of ['read usage', 'read']) {
+      const { signIn, opened } = setup({ status: 200, body: { access_token: TOKEN, token_type: 'Bearer', scope } });
+      const result = signIn.signIn('https://vibemon.io', 'read usage', adopt);
+      await new Promise(setImmediate);
+      expect(opened[0].searchParams.get('scope')).toBe('read usage');
+      signIn.complete(callback(opened[0], { code: 'one-time' }));
+      await expect(result).resolves.toBe(TOKEN);
+    }
+    await expect(setup().signIn.signIn('https://vibemon.io', 'read write', adopt)).rejects.toMatchObject({ reason: 'invalid-scope' });
+  });
+
   test('ignores callbacks of another sign-in and reports a denial', async () => {
     const { signIn, opened } = setup();
     const result = signIn.signIn('https://vibemon.io', 'write', adopt);

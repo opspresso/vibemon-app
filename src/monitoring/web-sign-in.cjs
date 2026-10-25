@@ -59,7 +59,7 @@ class WebSignIn {
    */
   async signIn(url, scope, adopt) {
     const origin = webOrigin(url, this.allowLocalHttp);
-    if (!['read', 'write'].includes(scope)) throw new SignInError('invalid-scope', t('signIn.unknownScope'));
+    if (!['read', 'read usage', 'write'].includes(scope)) throw new SignInError('invalid-scope', t('signIn.unknownScope'));
     // Without the callback server, the browser cannot return and the sign-in could only time out.
     if (!this.canReceive()) throw new SignInError('no-callback', t('signIn.noCallback', { port: this.port }));
     this.cancel();

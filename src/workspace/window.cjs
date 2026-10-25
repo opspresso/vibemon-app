@@ -1,15 +1,16 @@
-const { BrowserWindow, ipcMain, shell, autoUpdater, nativeTheme } = require('electron');
+const { BrowserWindow, ipcMain, shell, autoUpdater, nativeTheme, clipboard } = require('electron');
 const path = require('node:path');
 const { URL } = require('node:url');
 const { centerOnCursorDisplay } = require('../modules/window-position.cjs');
 const { webOrigin, validId } = require('../monitoring/domain.cjs');
+const { UsageClient } = require('../monitoring/usage.cjs');
 const { WORKSPACE_UPDATE_MS } = require('../shared/constants.cjs');
 const { attentionAreas, attentionNotices } = require('../shared/attention.cjs');
 const { t, rendererLanguage } = require('../shared/i18n/locale.cjs');
 const { redactApiTokens } = require('../shared/api-token.cjs');
 const { colorPair, readTokens } = require('../shared/design/tokens.cjs');
 
-const ROUTES = ['overview', 'agents', 'resources', 'connections', 'companion', 'integrations', 'about'];
+const ROUTES = ['overview', 'agents', 'resources', 'connections', 'services', 'companion', 'integrations', 'about'];
 const CHANNEL = 'workspace:request';
 // The preload reads the App language synchronously, before the page renders text.
 const LANGUAGE_CHANNEL = 'workspace:language';
@@ -19,8 +20,8 @@ const backgroundColor = () => nativeTheme.shouldUseDarkColors ? BACKGROUND.dark 
 const WEB_PATHS = { account: '/account', resources: '/resources/new', agents: '/coding-accounts/new', docs: '/docs' };
 
 class WorkspaceWindow {
-  constructor({ monitoring, settings, signIn, getActivity, getUsage, showCompanion, reportError, openExternal = url => shell.openExternal(url) }) {
-    Object.assign(this, { monitoring, settings, signIn, getActivity, getUsage, showCompanion, reportError, openExternal });
+  constructor({ monitoring, settings, signIn, getActivity, getUsage, showCompanion, reportError, openExternal = url => shell.openExternal(url), writeClipboard = value => clipboard.writeText(value), services = new UsageClient({ monitoring }) }) {
+    Object.assign(this, { monitoring, settings, signIn, getActivity, getUsage, showCompanion, reportError, openExternal, writeClipboard, services });
     this.window = null;
     this.route = 'overview';
     this.timer = null;
@@ -94,9 +95,10 @@ class WorkspaceWindow {
       case 'navigate': this.navigate(args[0]); return this.snapshot();
       case 'configure': this.signIn?.cancel(); return this.monitoring.configure(args[0]);
       // Sign in through Web; the browser returns to the local HTTP server.
+      // `usage` lets the dashboard token connect and disconnect services.
       case 'sign-in': {
         const url = String(args[0] ?? '');
-        return this.signIn.signIn(url, 'read', (token, signal) => this.monitoring.configure({ url, token }, { signal }));
+        return this.signIn.signIn(url, 'read usage', (token, signal) => this.monitoring.configure({ url, token }, { signal }));
       }
       case 'sign-in-cloud-delivery': {
         const url = String(args[0] ?? '');
@@ -116,6 +118,32 @@ class WorkspaceWindow {
         const result = await this.settings.invoke(action, ...values);
         this.notify('settings');
         return { result, frame: this.snapshot() };
+      }
+      // Connected services. The renderer names a started sign-in only by its ID.
+      case 'usage': return this.services.list();
+      case 'usage-start': return this.services.start(args[0]);
+      case 'usage-complete': {
+        const result = await this.services.complete(args[0], args[1]);
+        if (result.status === 'connected') this.reloadSources();
+        return result;
+      }
+      case 'usage-cancel': return this.services.cancel(args[0]);
+      case 'usage-open': await this.openExternal(this.services.authorization(args[0]).prompt.url); return true;
+      case 'usage-copy': {
+        const { prompt } = this.services.authorization(args[0]);
+        if (prompt.kind !== 'device') throw new Error('Nothing to copy');
+        this.writeClipboard(prompt.userCode);
+        return true;
+      }
+      case 'usage-refresh': {
+        const connection = await this.services.refresh(args[0]);
+        this.reloadSources();
+        return connection;
+      }
+      case 'usage-disconnect': {
+        await this.services.disconnect(args[0]);
+        this.reloadSources();
+        return true;
       }
       case 'show-companion': this.showCompanion(); return true;
       case 'open-write-token-account': {
@@ -139,6 +167,11 @@ class WorkspaceWindow {
       }
       default: throw new Error('Unknown workspace command');
     }
+  }
+
+  /** Account cards follow a service change at once instead of at the next poll. */
+  reloadSources() {
+    this.monitoring.poll(true);
   }
 
   open(route = 'overview') {
