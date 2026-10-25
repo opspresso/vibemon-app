@@ -1,8 +1,9 @@
-import { $, text, hydrateIcons, connection, isConnectionStatus, choices, configureSprites, ago, providerName } from './dom.js';
+import { $, text, hydrateIcons, connection, isConnectionStatus, usageError, choices, configureSprites, ago, providerName } from './dom.js';
 import { renderCards, renderActivity, renderUsage, accountCard, needsAttention, sourceState } from './views/cards.js';
 import { setupPreferences } from './views/preferences.js';
 import { setupSelection } from './views/selection.js';
 import { setupDetail } from './views/detail.js';
+import { setupServices } from './views/services.js';
 import { t, locale, localizeDocument } from './i18n.js';
 
 const api = window.workspace;
@@ -12,11 +13,12 @@ const pages = {
   resources: ['nav.resources', 'page.resources'],
   agents: ['nav.agents', 'page.agents'],
   connections: ['nav.settings', 'page.settings'],
+  services: ['nav.settings', 'page.settings'],
   companion: ['nav.settings', 'page.settings'],
   integrations: ['nav.settings', 'page.settings'],
   about: ['nav.settings', 'page.settings']
 };
-const settingsPages = new Set(['connections', 'companion', 'integrations', 'about']);
+const settingsPages = new Set(['connections', 'services', 'companion', 'integrations', 'about']);
 let frame = null;
 let cloudAnchor = null;
 const cloudTime = () => cloudAnchor.time + Math.max(0, window.performance.now() - cloudAnchor.received);
@@ -24,15 +26,19 @@ let toastTimer = null;
 let visible = true;
 let pageFocusPending = false;
 let overviewAttention = false;
-let preferences, selection, detail;
+let preferences, selection, detail, services;
 document.documentElement.dataset.platform = api.platform;
 localizeDocument();
 hydrateIcons();
 
 async function request(command, ...args) {
   const response = await api.request(command, ...args);
-  // A connection status code becomes its explanation; other errors are already sentences.
-  if (!response.ok) throw new Error(isConnectionStatus(response.error) ? connection(response.error)[1] : response.error);
+  // A connection status or usage code becomes its explanation; other errors are
+  // already sentences. The code stays on the error for callers that branch on it.
+  if (!response.ok) {
+    const message = usageError(response.error) ?? (isConnectionStatus(response.error) ? connection(response.error)[1] : response.error);
+    throw Object.assign(new Error(message), { code: response.error });
+  }
   if (command === 'settings') {
     accept(response.value.frame);
     return response.value.result;
@@ -102,6 +108,7 @@ const shared = { getFrame: () => frame, cloudTime, request, run, notify, navigat
 preferences = setupPreferences(shared);
 selection = setupSelection(shared);
 detail = setupDetail(shared);
+services = setupServices({ ...shared, openDetail: detail.open });
 
 function accept(value) {
   // Local activity can republish the same cached cloud frame. Only a new cloud
@@ -240,6 +247,7 @@ function render(value) {
   const selectedMetrics = new Set(cloud.selectedMetrics);
   const canChoose = cloud.status === 'connected' || cloud.catalog.length > 0;
   const choose = () => (canChoose ? selection.open() : navigate('connections'));
+  const openServices = () => navigate('services');
   const resourceEmpty = {
     emptyTitle: t(cloud.status === 'not-configured' ? 'empty.resources.welcome' : 'empty.resources.title'),
     emptyDescription: t(cloud.tokenConfigured ? 'empty.resources.description' : 'empty.resources.connect'),
@@ -267,7 +275,8 @@ function render(value) {
     renderCards($('overview-accounts'), overviewAttention ? accounts.filter(needsAttention) : accounts, selectedMetrics, detail.open, overviewAttention ? clearAttention : choose, {
       ...(overviewAttention ? attentionEmpty('accounts') : accountEmpty),
       limit: overviewAttention ? undefined : 3,
-      compact: !overviewAttention
+      compact: !overviewAttention,
+      openServices
     }, cloudTime());
     renderCards($('overview-resources'), overviewAttention ? resources.filter(needsAttention) : resources, selectedMetrics, detail.open, overviewAttention ? clearAttention : choose, {
       ...(overviewAttention ? attentionEmpty('resources') : resourceEmpty),
@@ -345,9 +354,10 @@ function render(value) {
         ? {
           emptyTitle: t('empty.noAccountMatch'),
           emptyDescription: t('empty.noAccountMatchHelp'),
-          emptyAction: t('empty.clearFilters')
+          emptyAction: t('empty.clearFilters'),
+          openServices
         }
-        : accountEmpty,
+        : { ...accountEmpty, openServices },
       cloudTime()
     );
     renderActivity(
@@ -357,6 +367,7 @@ function render(value) {
     renderUsage($('agent-usage'), usage);
   }
   if (settingsPages.has(route)) preferences.render(value);
+  services.render(value);
 }
 for (const button of document.querySelectorAll('[data-page-link]'))
   button.addEventListener('click', (event) => {
@@ -393,9 +404,11 @@ $('dismiss-error').addEventListener('click', () => {
   $('error').hidden = true;
 });
 const stopChanges = api.onChange(accept);
+const stopClose = api.onClose(() => services.closed());
 const stopVisibility = api.onVisibility((value) => {
   visible = value;
   detail.visibility(value);
+  services.visibility(value);
   if (value && frame) render(frame);
   else preferences.leave();
   if (value) focusPage();
@@ -404,6 +417,7 @@ request('snapshot').then(accept).catch(fail);
 window.addEventListener('beforeunload', () => {
   stopChanges();
   stopVisibility();
+  stopClose();
   detail.close();
   if (toastTimer) clearTimeout(toastTimer);
 });

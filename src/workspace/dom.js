@@ -25,7 +25,9 @@ const paths = {
   lock: ['M5 10h14v11H5zM8 10V6a4 4 0 0 1 8 0v4M12 14v3'],
   book: ['M12 5C8 2 3 3 3 3v17s5-1 9 2c4-3 9-2 9-2V3s-5-1-9 2zM12 5v17'],
   globe: ['M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0M3 12h18M12 3q7 9 0 18-7-9 0-18'],
-  code: ['m8 6-6 6 6 6m8-12 6 6-6 6m-3-15-2 18']
+  code: ['m8 6-6 6 6 6m8-12 6 6-6 6m-3-15-2 18'],
+  link: ['M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1'],
+  copy: ['M9 9h11v11H9zM5 15H4V4h11v1']
 };
 export const $ = (id) => document.getElementById(id);
 export function el(tag, text, className) {
@@ -154,6 +156,19 @@ const CONNECTION = {
   'connection-error': ['connectionError', 'warning']
 };
 export const isConnectionStatus = status => Object.hasOwn(CONNECTION, status);
+// Usage request failure code → services.error.<key>. These failures belong to
+// the request; they never change the dashboard connection status.
+const USAGE_ERRORS = {
+  'usage-authorization-expired': 'expired',
+  'usage-authorization-denied': 'denied',
+  'usage-authorization-code-invalid': 'codeInvalid',
+  'usage-provider-unavailable': 'provider',
+  'usage-connection-limit': 'limit',
+  'usage-sign-in-required': 'signInRequired',
+  'usage-invalid-response': 'invalid'
+};
+/** The sentence for a usage failure code, or null for another error. */
+export const usageError = code => Object.hasOwn(USAGE_ERRORS, code) ? t(`services.error.${USAGE_ERRORS[code]}`) : null;
 /** @returns {[label: string, description: string, tone: string]} */
 export function connection(status) {
   const [key, tone] = CONNECTION[status] || ['problem', 'warning'];

@@ -10,7 +10,8 @@ function jsonBody(value) {
   return { getReader: () => ({ read: async () => sent ? { done: true } : (sent = true, { done: false, value: Buffer.from(typeof value === 'string' ? value : JSON.stringify(value)) }), cancel: async () => {}, releaseLock() {} }) };
 }
 
-function setup(reply = { status: 200, body: { access_token: TOKEN, token_type: 'Bearer', scope: 'read' } }) {
+// The default answer grants every scope that these tests ask for.
+function setup(reply = { status: 200, body: { access_token: TOKEN, token_type: 'Bearer', scope: 'read usage write' } }) {
   const opened = [];
   const fetchImpl = jest.fn(async () => ({ ok: reply.status === 200, status: reply.status, body: jsonBody(reply.body) }));
   const signIn = new WebSignIn({ port: 19280, openExternal: async url => { opened.push(new URL(url)); }, fetchImpl, deviceName: 'studio', timeoutMs: 1000 });
@@ -39,6 +40,33 @@ describe('desktop sign-in through VibeMon', () => {
     expect(form).toEqual(expect.objectContaining({ grant_type: 'authorization_code', client_id: 'vibemon-desktop', code: 'one-time' }));
     // The challenge in the browser URL is the SHA-256 of the verifier sent only in the exchange.
     expect(createHash('sha256').update(form.code_verifier).digest('base64url')).toBe(url.searchParams.get('code_challenge'));
+  });
+
+  test('asks for the dashboard and service permissions in one scope', async () => {
+    for (const granted of ['read usage', 'usage  read']) {
+      const { signIn, opened } = setup({ status: 200, body: { access_token: TOKEN, token_type: 'Bearer', scope: granted } });
+      const result = signIn.signIn('https://vibemon.io', 'read usage', adopt);
+      await new Promise(setImmediate);
+      expect(opened[0].searchParams.get('scope')).toBe('read usage');
+      signIn.complete(callback(opened[0], { code: 'one-time' }));
+      await expect(result).resolves.toBe(TOKEN);
+    }
+    await expect(setup().signIn.signIn('https://vibemon.io', 'read write', adopt)).rejects.toMatchObject({ reason: 'invalid-scope' });
+  });
+
+  test.each([
+    ['read usage', 'read'], ['read usage', undefined], ['read usage', 'write'], ['write', 'read usage'], ['read', 'readusage']
+  ])('a token without every requested scope (%s, granted %p) is deleted and not adopted', async (requested, granted) => {
+    const { signIn, opened, fetchImpl } = setup({ status: 200, body: { access_token: TOKEN, token_type: 'Bearer', ...(granted === undefined ? {} : { scope: granted }) } });
+    const keep = jest.fn(adopt);
+    const result = signIn.signIn('https://vibemon.io', requested, keep);
+    await new Promise(setImmediate);
+    signIn.complete(callback(opened[0], { code: 'one-time' }));
+    await expect(result).rejects.toMatchObject({ reason: 'scope', message: expect.stringContaining('did not grant') });
+    expect(keep).not.toHaveBeenCalled();
+    const [endpoint, options] = fetchImpl.mock.calls.at(-1);
+    expect(String(endpoint)).toBe('https://vibemon.io/api/v1/connection');
+    expect(options).toMatchObject({ method: 'DELETE', headers: { Authorization: `Bearer ${TOKEN}` } });
   });
 
   test('ignores callbacks of another sign-in and reports a denial', async () => {

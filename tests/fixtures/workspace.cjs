@@ -24,6 +24,59 @@ function sources(now = Date.now()) {
   }
   return resources;
 }
+// Connected services: Claude reads the hook-reported studio account, and
+// Codex reads an account without hook reports (a connected-only card).
+const USAGE_IDS = { claude: '6f1c2a4e-8b7d-4c3a-9e21-5d6f7a8b9c01', codex: '7a2d3b5f-9c8e-4d4b-8f32-6e7a8b9cad02' };
+function usageConnections(now = Date.now()) {
+  const at = offset => new Date(now + offset).toISOString();
+  return [
+    { id: USAGE_IDS.claude, provider: 'claude', accountId: 'studio', label: 'design@example.com', plan: 'Max', connectedAt: at(-86400000), status: 'ready', stale: false, observedAt: at(-120000), checkedAt: at(-120000), retryAt: null, refreshableAt: at(-60000),
+      windows: [
+        { key: 'session', kind: 'session', model: null, durationSeconds: 18000, usedPercent: 48, resetsAt: at(18 * 60000) },
+        { key: 'week', kind: 'week', model: null, durationSeconds: 604800, usedPercent: 84, resetsAt: at(1500 * 60000) }
+      ] },
+    { id: USAGE_IDS.codex, provider: 'codex', accountId: 'auto:solo', label: 'solo@example.com', plan: 'Plus', connectedAt: at(-3600000), status: 'rate-limited', stale: false, observedAt: at(-600000), checkedAt: at(-60000), retryAt: at(900000), refreshableAt: at(30000),
+      windows: [
+        { key: 'session', kind: 'session', model: null, durationSeconds: 18000, usedPercent: 12, resetsAt: at(200 * 60000) },
+        { key: 'week', kind: 'week', model: null, durationSeconds: 604800, usedPercent: 31, resetsAt: at(5000 * 60000) }
+      ] }
+  ];
+}
+/**
+ * `sources()` with the connected services of `connections`: their account
+ * links and the connected-only source. Like Web, an account card shows the
+ * connected reading, so a card and its service row show the same numbers.
+ */
+function connectedSources(now = Date.now(), connections = usageConnections(now)) {
+  const linked = new Map(connections.map(connection => [`${connection.provider}:${connection.accountId}`, connection]));
+  const window = (connection, kind) => connection.windows.find(item => item.key === kind);
+  // Reset countdowns are minutes after the source's observation, as hooks report them.
+  const minutes = (item, observedAt) => item?.resetsAt ? Math.max(0, Math.round((Date.parse(item.resetsAt) - Date.parse(observedAt)) / 60000)) : undefined;
+  const result = sources(now).map(source => {
+    const connection = source.account && linked.get(`${source.account.provider}:${source.account.id}`);
+    if (!connection) return source;
+    linked.delete(`${source.account.provider}:${source.account.id}`);
+    const session = window(connection, 'session'), week = window(connection, 'week');
+    return {
+      ...source,
+      metrics: { ...source.metrics, usageSessionPercent: session?.usedPercent ?? null, usageWeekPercent: week?.usedPercent ?? null },
+      agent: { ...source.agent, usage5hResetsIn: minutes(session, source.observedAt), usageWeekResetsIn: minutes(week, source.observedAt) },
+      account: { ...source.account, connection: { id: connection.id, status: connection.status, plan: connection.plan } }
+    };
+  });
+  for (const connection of linked.values()) {
+    if (!connection.observedAt || !connection.windows.length) continue;
+    const session = window(connection, 'session'), week = window(connection, 'week');
+    result.push({
+      sourceId: `usage:${connection.id}`, kind: 'agent', displayName: connection.label, health: 'ok', stale: false,
+      observedAt: connection.observedAt, receivedAt: connection.observedAt,
+      metrics: { usageSessionPercent: session?.usedPercent ?? null, usageWeekPercent: week?.usedPercent ?? null },
+      agent: { state: 'standby', character: connection.provider === 'claude' ? 'clawd' : 'codex', project: connection.label, usage5hResetsIn: minutes(session, connection.observedAt), usageWeekResetsIn: minutes(week, connection.observedAt) },
+      account: { provider: connection.provider, id: connection.accountId, displayName: connection.label, connection: { id: connection.id, status: connection.status, plan: connection.plan } }
+    });
+  }
+  return result;
+}
 function createPorts() {
   const appearance = { CharacterLock: 'auto', RenderMode: '3d', AlwaysOnTopMode: 'active-only', SpeechBubbleFields: { status: true, project: true, model: true, memory: true, usage5h: false, usageWeek: true, usageWeekModel: false }, CharacterScale: 70, DockAutoScale: true, EdgeMargin: 8, DevMode: false };
   const companion = {};
@@ -87,4 +140,4 @@ function trend(item, now = Date.now()) {
   }
   return { points: entries, ...(item.metricDefinitions ? { metricDefinitions: item.metricDefinitions, metricOrder: item.metricOrder } : {}) };
 }
-module.exports = { TOKEN, memoryStore, sources, createPorts, trend };
+module.exports = { TOKEN, USAGE_IDS, memoryStore, sources, usageConnections, connectedSources, createPorts, trend };

@@ -4,7 +4,8 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const { URL } = require('node:url');
-const { startFixture, TOKEN, WRITE_TOKEN } = require('./workspace-fixture.cjs');
+const { startFixture, TOKEN, WRITE_TOKEN, CLAUDE_CODE } = require('./workspace-fixture.cjs');
+const { usageConnections, USAGE_IDS } = require('../fixtures/workspace.cjs');
 const { AGENT_TEXT_LIMITS } = require('../../src/shared/resource-schema.cjs');
 const output = process.env.VIBEMON_TEST_ARTIFACTS || path.join(__dirname, '../../out/workspace-tests');
 fs.mkdirSync(output, { recursive: true });
@@ -18,7 +19,8 @@ async function until(check, label) {
 
 let cleanup;
 let rendererErrors = [];
-startFixture().then(async fixture => {
+// The earlier checks count the accounts without connected services; a later section adds them.
+startFixture({ connections: [] }).then(async fixture => {
   cleanup = fixture.cleanup;
   rendererErrors = fixture.errors;
   const { view, client, ports, state, errors, selectDashboard, trayManager } = fixture;
@@ -285,9 +287,9 @@ startFixture().then(async fixture => {
   await until(() => ui('[...document.querySelectorAll("#agent-cards .card")].find(card => card._source.sourceId === "codex:team")?.querySelector(".chip").textContent === "Working"'), 'account attention clears when the project no longer reports it');
   assert.equal(await ui('activityCard === document.querySelector(\'#agent-cards [aria-label="web-console · Codex · team"]\')'), true, 'project changes preserve the account card node');
   assert.equal(await ui('activityCard.dataset.agentTone'), 'active');
-  await ui('activityCard.querySelector("button").focus()');
+  await ui('activityCard.querySelector(".card-footer button").focus()');
   await until(() => ui('getComputedStyle(activityCard).boxShadow.includes("0px 0px 0px 3px")'), 'keyboard focus strengthens the active glow');
-  await ui('activityCard.querySelector("button").blur()');
+  await ui('activityCard.querySelector(".card-footer button").blur()');
   web.debugger.attach('1.3');
   await web.debugger.sendCommand('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value: 'no-preference' }] });
   assert.equal(await ui('getComputedStyle(activityCard.querySelector(".vm-agent-edge"), "::before").animationName'), 'vm-agent-orbit');
@@ -301,7 +303,7 @@ startFixture().then(async fixture => {
     ...source, observedAt: new Date(Date.now() - 600000).toISOString(), receivedAt: new Date(Date.now() - 600000).toISOString()
   }));
   await client.poll(true);
-  await until(() => ui('[...document.querySelectorAll("#agent-cards .chip")].every(chip => chip.textContent === "Standby")'), 'stopped coding hooks are on neutral standby in every card');
+  await until(() => ui('[...document.querySelectorAll("#agent-cards .card-heading > .chip")].every(chip => chip.textContent === "Standby")'), 'stopped coding hooks are on neutral standby in every card');
   assert.equal(await ui('[...document.querySelectorAll("#agent-cards .card")].every(card => card.dataset.agentTone === "neutral" && getComputedStyle(card.querySelector(".vm-agent-edge"), "::before").animationName === "none")'), true);
   assert.equal(client.snapshot().attentionCount, 0);
   assert.equal(trayManager.notices.dashboard, null, 'inactive agents do not mark the Dashboard menu item');
@@ -567,6 +569,172 @@ startFixture().then(async fixture => {
   await click('#update-action');
   await until(() => ports.calls.some(call => call[0] === 'install-update'), 'explicit install action');
 
+  // Connected services: the list, the account link, a connected-only card, and both sign-ins.
+  const beforeServices = { sources: client.snapshot().selectedSources, accounts: client.snapshot().selectedAccounts, metrics: client.snapshot().selectedMetrics };
+  // Without a connection, Overview invites one, as Web and iPhone do.
+  await navigate('overview');
+  await until(() => visible('#overview-services-onboarding'), 'Overview invites a first connection');
+  assert.equal(await text('#overview-services-onboarding h2'), 'See your weekly allowance. No computer setup required.');
+  assert.deepEqual(await ui('[...document.querySelectorAll("#overview-services-connect button")].map(node => node.textContent)'), ['Connect Claude', 'Connect Codex']);
+  await click('#overview-services-connect button:last-child');
+  await until(() => visible('#service-dialog'), 'Overview starts a connection');
+  assert.equal(await text('#service-dialog-title'), 'Connect Codex');
+  await click('[data-close-dialog="service-dialog"]');
+  state.usage.connections = usageConnections();
+  await client.select({ sources: null, accounts: null, metrics: Object.keys(client.snapshot().metrics) });
+  await navigate('services');
+  await until(() => ui('document.querySelectorAll("#service-list .service-row").length === 2'), 'connected services listed');
+  const serviceRow = id => `[...document.querySelectorAll("#service-list .service-row")].find(row => row._connection.id === ${JSON.stringify(id)})`;
+  const claudeRow = await ui(`${serviceRow(USAGE_IDS.claude)}.innerText`);
+  for (const part of ['Claude', 'Max', 'design@example.com', 'Connected', 'Weekly usage', '84%', 'Updated 2m ago']) assert.ok(claudeRow.includes(part), `Claude row shows ${part}: ${claudeRow}`);
+  assert.equal(claudeRow.includes('Session usage'), false, 'a connection row shows only its primary window');
+  const codexRow = await ui(`${serviceRow(USAGE_IDS.codex)}.innerText`);
+  for (const part of ['Codex', 'Plus', 'Temporarily limited', 'Codex limited usage reads', 'Weekly usage', '31%']) assert.ok(codexRow.includes(part), `Codex row shows ${part}: ${codexRow}`);
+  assert.equal(await ui(`${serviceRow(USAGE_IDS.codex)}._parts.refresh.disabled`), true, 'Refresh waits for refreshableAt');
+  assert.equal(await ui(`${serviceRow(USAGE_IDS.codex)}._parts.showAgent.hidden`), false, 'a connected-only account has an agent card too');
+  assert.ok(!JSON.stringify(view.snapshot()).includes(TOKEN), 'snapshots omit read credentials with connected services');
+  await screenshot('connected-services');
+  const sourceRequests = state.requests.length;
+  await ui(`${serviceRow(USAGE_IDS.claude)}._parts.refresh.click()`);
+  await until(() => state.usage.requests.includes(`POST /api/v1/usage/connections/${USAGE_IDS.claude}`) && state.requests.slice(sourceRequests).some(url => url.startsWith('/api/v1/sources')), 'refresh reads again and reloads the sources');
+  await ui(`${serviceRow(USAGE_IDS.claude)}._parts.showAgent.click()`);
+  await until(() => visible('#detail-dialog'), 'Show agent card opens the account');
+  assert.equal(await text('#detail-type'), 'Claude Code · studio');
+  assert.equal(await visible('#detail-connection'), true);
+  assert.equal(await text('#detail-connection-chip'), 'Usage from Claude Max');
+  assert.equal(await visible('#detail-history'), true, 'a reporting account keeps its history');
+  await screenshot('service-account-details');
+  await click('#detail-manage-services');
+  await until(async () => await ui('!document.getElementById("detail-dialog").open') && visible('section[data-page="services"]'), 'Manage connected services closes details and opens the list');
+  await navigate('agents');
+  const agentCard = id => `[...document.querySelectorAll("#agent-cards .card")].find(card => card._source.sourceId === ${JSON.stringify(id)})`;
+  await until(() => ui(`Boolean(${agentCard('codex:auto:solo')})`), 'connected-only account card');
+  assert.equal(await ui(`${agentCard('claude:studio')}._parts.connection.textContent`), 'Usage from Claude Max');
+  assert.equal(await ui(`${agentCard('claude:studio')}._parts.connection.className`), 'chip active connection-chip');
+  assert.equal(await ui(`${agentCard('codex:auto:solo')}._parts.connection.textContent`), 'Usage from Codex Plus · Temporarily limited');
+  assert.equal(await ui(`${agentCard('codex:auto:solo')}._parts.connection.className`), 'chip warning connection-chip');
+  assert.equal(await ui(`${agentCard('codex:auto:solo')}._parts.message.textContent`), 'No project activity yet. This card shows the plan usage that VibeMon reads from the connected service.');
+  assert.deepEqual(await ui(`[...${agentCard('codex:auto:solo')}.querySelectorAll(".metric-label")].map(node => node.textContent)`), ['Session usage', 'Weekly usage'], 'a connected-only card shows plan usage only');
+  // The rule follows the metric key, not which values arrived: context never shows, a missing window shows as unavailable.
+  const withServices = state.sources;
+  state.sources = () => withServices().map(source => source.sourceId.startsWith('usage:') ? { ...source, metrics: { ...source.metrics, contextPercent: 50, usageSessionPercent: null } } : source);
+  await client.poll(true); await published();
+  assert.deepEqual(await ui(`[...${agentCard('codex:auto:solo')}.querySelectorAll(".metric-label")].map(node => node.textContent)`), ['Session usage', 'Weekly usage'], 'a connected-only card never shows context');
+  state.sources = withServices;
+  await client.poll(true); await published();
+  assert.equal(await ui(`${agentCard('codex:auto:solo')}._parts.members.hidden`), true, 'a connected-only card has no project tags');
+  assert.equal(await ui(`${agentCard('claude:studio')}._parts.connection.hidden`), false);
+  // A card and the service row of its connection show the same reading.
+  for (const [account, connectionId] of [['claude:studio', USAGE_IDS.claude], ['codex:auto:solo', USAGE_IDS.codex]]) {
+    const cardWeekly = await ui(`[...${agentCard(account)}.querySelectorAll(".metric")].find(node => node.querySelector(".metric-label").textContent === "Weekly usage").querySelector("strong").textContent`);
+    const rowWeekly = await ui(`[...document.querySelectorAll("#agent-services .service-row")].find(row => row._connection.id === ${JSON.stringify(connectionId)}).querySelector(".service-metric strong").textContent`);
+    assert.equal(cardWeekly, rowWeekly, `${account} card and service row agree`);
+  }
+  assert.equal(await ui(`${agentCard('codex:team')}._parts.connection.hidden`), true, 'an account without a connection has no chip');
+  assert.equal(await ui('document.querySelectorAll("#agent-services .service-row").length'), 2, 'the Agents page lists the connections');
+  await screenshot('service-agent-cards');
+  await ui(`${agentCard('codex:auto:solo')}._parts.details.click()`);
+  await until(() => visible('#detail-dialog'), 'connected-only details');
+  assert.equal(await visible('#detail-history'), false, 'a connected-only account has no history');
+  assert.equal(await ui('document.querySelectorAll("#detail-members .detail-member").length'), 0, 'the project list omits usage sources');
+  assert.equal(await ui('document.querySelectorAll("#detail-readings .detail-reading").length'), 2);
+  await screenshot('connected-only-details');
+  await click('[data-close-dialog="detail-dialog"]');
+  await ui(`${agentCard('claude:studio')}._parts.connection.click()`);
+  await until(() => visible('section[data-page="services"]'), 'the account chip opens Connected services');
+  await navigate('overview');
+  await until(() => visible('#overview-services'), 'a limited connection needs the person on Overview');
+  assert.equal(await visible('#overview-services-onboarding'), false, 'Overview stops inviting once a service is connected');
+  assert.ok((await text('#overview-services')).includes('Temporarily limited'));
+  await click('#overview-services');
+  await until(() => visible('section[data-page="services"]'), 'the Overview row opens Connected services');
+  // Claude: open the service page, paste a code; a rejected code keeps the sign-in.
+  await click('#service-list .service-connect button:first-child');
+  await until(() => visible('#service-dialog'), 'connect dialog');
+  assert.equal(await text('#service-dialog-title'), 'Connect Claude');
+  assert.ok((await text('#service-disclosure')).startsWith("Anthropic's page names Claude Code"));
+  await click('#service-start');
+  await until(() => visible('[data-service-phase="code"]'), 'Claude code step');
+  await click('#service-open-claude');
+  await until(() => ports.calls.some(call => call[0] === 'external' && new URL(call[1]).hostname === 'claude.ai'), 'Claude sign-in opened');
+  await input('#service-code', 'wrong-code');
+  await click('#service-submit');
+  await until(() => visible('#service-dialog-error'), 'rejected code explained');
+  assert.equal(await text('#service-dialog-error'), 'This code does not match the sign-in. Copy the whole code from the service page again.');
+  assert.equal(await visible('[data-service-phase="code"]'), true, 'a rejected code keeps the sign-in');
+  await screenshot('connect-claude');
+  await input('#service-code', CLAUDE_CODE);
+  await click('#service-submit');
+  await until(() => visible('[data-service-phase="connected"]'), 'Claude connected');
+  assert.equal(await text('#service-connected'), 'Claude is connected.');
+  await until(() => client.snapshot().accounts.some(account => account.accountId === 'claude:auto:new-claude'), 'a new connection reloads the sources');
+  await click('#service-dialog-close');
+  // Codex: copy the device code, open the device page, and poll until approval.
+  await click('#service-list .service-connect button:last-child');
+  await until(() => visible('#service-dialog'), 'connect Codex dialog');
+  await click('#service-start');
+  await until(() => visible('[data-service-phase="device"]'), 'Codex device step');
+  assert.equal(await text('#service-user-code'), 'BCDF-GHJK');
+  await screenshot('connect-codex');
+  await click('#service-open-codex');
+  await until(() => ports.calls.some(call => call[0] === 'clipboard' && call[1] === 'BCDF-GHJK') && ports.calls.some(call => call[0] === 'external' && new URL(call[1]).hostname === 'auth.openai.com'), 'device code copied and page opened');
+  await until(() => visible('[data-service-phase="connected"]'), 'Codex connected after polling');
+  assert.equal(await text('#service-connected'), 'Codex is connected.');
+  await click('#service-dialog-close');
+  // Closing an unfinished sign-in abandons it on the server.
+  await click('#service-list .service-connect button:last-child');
+  await click('#service-start');
+  await until(() => visible('[data-service-phase="device"]'), 'second Codex sign-in');
+  await click('[data-close-dialog="service-dialog"]');
+  await until(() => state.usage.requests.some(request => request.startsWith('DELETE /api/v1/usage/authorizations/')), 'closed sign-in cancelled');
+  await until(() => ui('document.querySelectorAll("#service-list .service-row").length === 4'), 'new connections listed');
+  const newCodex = state.usage.connections.find(connection => connection.accountId === 'auto:new-codex').id;
+  await ui(`${serviceRow(newCodex)}._parts.disconnect.click()`);
+  await until(() => visible('#service-disconnect-dialog'), 'disconnect confirmation');
+  assert.equal(await text('#service-disconnect-body'), 'VibeMon deletes the saved sign-in and the usage readings of Codex · new-codex@example.com.');
+  await click('#service-disconnect-confirm');
+  await until(() => ui('document.querySelectorAll("#service-list .service-row").length === 3'), 'disconnected connection removed');
+  assert.ok(state.usage.requests.includes(`DELETE /api/v1/usage/connections/${newCodex}`));
+  // A token from before the usage permission: sign in again; the dashboard keeps working.
+  state.usage.scope = false;
+  await click('#service-list .service-connect button:first-child');
+  await click('#service-start');
+  await until(() => visible('#service-vibemon-sign-in'), 'sign in again offered');
+  assert.equal(await text('#service-dialog-error'), 'Sign in to VibeMon again on this desktop to connect services.');
+  assert.equal(client.getStatus(), 'connected', 'a usage permission failure does not change the dashboard connection');
+  await click('#service-dialog-close');
+  // A disconnect with that token offers the VibeMon sign-in on the row as well.
+  await ui(`${serviceRow(USAGE_IDS.codex)}._parts.disconnect.click()`);
+  await click('#service-disconnect-confirm');
+  await until(() => ui(`${serviceRow(USAGE_IDS.codex)}._parts.vibemonSignIn.checkVisibility()`), 'row offers sign in again');
+  assert.equal(await ui(`${serviceRow(USAGE_IDS.codex)}._parts.failure.textContent`), 'Sign in to VibeMon again on this desktop to connect services.');
+  state.usage.scope = true;
+  // Minimizing or hiding the App keeps a sign-in: the person may be approving it in the browser.
+  const cancellations = () => state.usage.requests.filter(request => request.startsWith('DELETE /api/v1/usage/authorizations/')).length;
+  const cancelled = cancellations();
+  await click('#service-list .service-connect button:last-child');
+  await click('#service-start');
+  await until(() => visible('[data-service-phase="device"]'), 'Codex sign-in before leaving the window');
+  view.window.minimize();
+  await until(() => view.window.isMinimized(), 'workspace minimized');
+  await delay(500);
+  view.window.restore();
+  // macOS hides the App like Cmd+H; elsewhere a window hide stands in for it.
+  if (process.platform === 'darwin') { app.hide(); await delay(500); app.show(); }
+  else { view.window.hide(); await delay(500); }
+  view.open('services');
+  await until(() => view.window.isVisible() && !view.window.isMinimized(), 'workspace shown again');
+  assert.equal(cancellations(), cancelled, 'minimizing or hiding does not cancel the sign-in');
+  assert.equal(await visible('[data-service-phase="device"]'), true, 'the connect dialog still shows the sign-in');
+  // Closing the window closes the connect dialog and cancels its unfinished sign-in.
+  view.window.close();
+  await until(() => cancellations() === cancelled + 1, 'closed window cancels the sign-in');
+  view.open('services');
+  await until(() => view.window.isVisible() && visible('section[data-page="services"]'), 'workspace shown again');
+  assert.equal(await ui('document.getElementById("service-dialog").open'), false, 'the connect dialog stays closed');
+  state.usage.connections = [];
+  await client.select(beforeServices); await client.poll(true); await published();
+
   await navigate('connections');
   const originalSignIn = view.signIn;
   let finishSignIn;
@@ -610,7 +778,7 @@ startFixture().then(async fixture => {
   await screenshot('disconnected');
 
   view.window.setSize(820, 600);
-  for (const route of ['overview', 'resources', 'agents', 'connections', 'companion', 'integrations', 'about']) {
+  for (const route of ['overview', 'resources', 'agents', 'connections', 'services', 'companion', 'integrations', 'about']) {
     await navigate(route);
     assert.equal(await ui('document.getElementById("main").scrollWidth <= document.getElementById("main").clientWidth'), true, `${route} fits the minimum window width`);
   }

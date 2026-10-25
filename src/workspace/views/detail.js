@@ -1,9 +1,9 @@
 import { describeReset, formatAxisValue, resetMinutes } from '../../shared/design/presentation.mjs';
 import { $, el, text, choices, keyed, svg, reading, measurement, badge, stateLabel, ago } from '../dom.js';
-import { accountCard, metricName, sourceState, sourceType } from './cards.js';
+import { accountCard, metricName, sourceState, sourceType, isConnectedOnly, isUsageSource, connectionChip, showsMetric } from './cards.js';
 import { t, locale } from '../i18n.js';
 
-export function setupDetail({ getFrame, cloudTime, request, run }) {
+export function setupDetail({ getFrame, cloudTime, request, run, navigate }) {
   const dialog = $('detail-dialog');
   let selected = null;
   let points = [];
@@ -15,6 +15,8 @@ export function setupDetail({ getFrame, cloudTime, request, run }) {
     const selectedKeys = new Set(getFrame().cloud.selectedMetrics);
     return source.displayMetrics.filter((metric) => selectedKeys.has(metric.selectionKey));
   }
+  // A connected-only account has no history: its readings come from the service, not from reports.
+  const trended = source => isConnectedOnly(source) ? [] : metrics(source);
   // Keep the chosen metric when it is still offered; otherwise choose the first.
   function chooseMetric(options, choice) {
     choices(
@@ -75,7 +77,7 @@ export function setupDetail({ getFrame, cloudTime, request, run }) {
     }));
   }
   async function refresh() {
-    if (!selected || !metrics(selected).length || !dialog.open || !visible || document.hidden) return;
+    if (!selected || !trended(selected).length || !dialog.open || !visible || document.hidden) return;
     const requestGeneration = ++generation;
     $('retry-trend').disabled = true;
     try {
@@ -108,7 +110,7 @@ export function setupDetail({ getFrame, cloudTime, request, run }) {
   }
   function start() {
     if (!selected || !dialog.open || !visible || document.hidden) return;
-    if (!metrics(selected).length) { draw(); return; }
+    if (!trended(selected).length) { draw(); return; }
     refresh();
     timer = setInterval(refresh, getFrame().cloud.trendRefreshMs);
   }
@@ -123,7 +125,8 @@ export function setupDetail({ getFrame, cloudTime, request, run }) {
     text($('detail-message'), source.statusMessage || '');
     $('detail-message').hidden = !source.statusMessage;
     text($('detail-received'), t('detail.received', { age: ago(source.receivedAt, now).toLocaleLowerCase(locale) }));
-    const selectedMetrics = metrics(source);
+    const connectedOnly = isConnectedOnly(source);
+    const selectedMetrics = metrics(source).filter((metric) => showsMetric(source, metric));
     keyed(
       $('detail-readings'),
       selectedMetrics,
@@ -144,7 +147,7 @@ export function setupDetail({ getFrame, cloudTime, request, run }) {
     );
     keyed(
       $('detail-members'),
-      source.members || [],
+      (source.members || []).filter((member) => !isUsageSource(member)),
       (member) => member.sourceId,
       () => {
         const row = el('div', undefined, 'detail-member');
@@ -158,8 +161,11 @@ export function setupDetail({ getFrame, cloudTime, request, run }) {
     );
     const choice = $('trend-metric').value;
     chooseMetric(historyMetrics ? metrics({ displayMetrics: historyMetrics }) : selectedMetrics, choice);
-    $('detail-history').hidden = !source.displayMetrics.length;
+    $('detail-history').hidden = !source.displayMetrics.length || connectedOnly;
     $('edit-resource').hidden = source.isAccount;
+    const connection = source.isAccount ? source.account?.connection : null;
+    $('detail-connection').hidden = !connection;
+    connectionChip($('detail-connection-chip'), source);
   }
   function open(source) {
     stop();
@@ -178,6 +184,7 @@ export function setupDetail({ getFrame, cloudTime, request, run }) {
     start();
   }
   $('trend-metric').addEventListener('change', draw);
+  $('detail-manage-services').addEventListener('click', () => navigate('services'));
   $('retry-trend').addEventListener('click', refresh);
   $('edit-resource').addEventListener('click', () =>
     run($('edit-resource'), () => request('open-web', 'edit-resource', selected.sourceId))
@@ -229,7 +236,7 @@ export function setupDetail({ getFrame, cloudTime, request, run }) {
         const previousMetric = $('trend-metric').value;
         renderSource(source);
         if ($('trend-metric').value !== previousMetric) draw();
-        if (!metrics(source).length) stop();
+        if (!trended(source).length) stop();
         else if (!timer) start();
       }
     }

@@ -26,6 +26,7 @@ function installWorkspaceMenu({ open, companionShown, setCompanionVisible }) {
     ...['overview', 'agents', 'resources'].map((route, index) => ({ label: t(`nav.${route}`), accelerator: `CmdOrCtrl+${index + 1}`, click: () => open(route) })),
     { type: 'separator' },
     { label: t('nav.connections'), click: () => open('connections') },
+    { label: t('nav.services'), click: () => open('services') },
     { label: t('nav.integrations'), click: () => open('integrations') },
     companionShown
       ? { label: t('action.hideCompanion'), click: () => setCompanionVisible(false) }

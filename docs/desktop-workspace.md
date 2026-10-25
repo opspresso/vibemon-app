@@ -7,7 +7,7 @@ Select **Dashboard** from the menu-bar/tray menu to open the VibeMon workspace. 
 ## Interaction contract
 
 - Primary and secondary tray clicks open the navigation menu. Selecting **Dashboard** opens the overview. App activation also opens the overview.
-- One window contains Overview, Agents, Resources, and Settings. Navigation keeps connection and selection state. Settings contains Connections, Companion, Integrations, and About.
+- One window contains Overview, Agents, Resources, and Settings. Navigation keeps connection and selection state. Settings contains Connections, Connected services, Companion, Integrations, and About.
 - Menus, overview sections, and display choices put **Agents** before **Resources**. Agents keep their per-provider account identity; account pickers say **Agent account**.
 - Numbers keep their existing precision. Decimal separators and fractional digits use a smaller, slightly lighter style; Increase Contrast retains full color.
 - Resources support arbitrary metric schemas, units, ranges, order, and unavailable values. Agent accounts stay distinct by provider/account ID; local sessions are labeled separately.
@@ -15,6 +15,8 @@ Select **Dashboard** from the menu-bar/tray menu to open the VibeMon workspace. 
 - Keyboard navigation, visible focus, semantic labels, reduced motion, and light/dark contrast are verified in the rendered app.
 
 ## Implementation boundaries
+
+The renderer never fetches (`connect-src 'none'`). Connected services use the main-process usage client (`src/monitoring/usage.cjs`) through the same IPC channel. The renderer receives validated readings and refers to a started service sign-in only by its ID, so it can open or copy only what Web returned. The read token never reaches the renderer, and a failed usage request never changes the dashboard connection status.
 
 Use the existing monitoring client, local state registry, usage cache, hook installer, and companion managers. A single window adapter owns IPC authorization and navigation. Settings operations and dashboard projection do not own windows. Renderer modules share a design system and update existing elements instead of replacing input controls on each poll.
 

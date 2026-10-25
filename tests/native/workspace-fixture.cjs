@@ -9,7 +9,7 @@ const { installWorkspaceMenu } = require('../../src/workspace/menu.cjs');
 const { HookCloudDelivery } = require('../../src/modules/hook-cloud-delivery.cjs');
 const { TrayManager } = require('../../src/modules/tray-manager.cjs');
 const { attentionAreas, attentionNotices } = require('../../src/shared/attention.cjs');
-const { TOKEN, memoryStore, sources, createPorts, trend } = require('../fixtures/workspace.cjs');
+const { TOKEN, memoryStore, connectedSources, usageConnections, createPorts, trend } = require('../fixtures/workspace.cjs');
 const { setLocale, t } = require('../../src/shared/i18n/locale.cjs');
 
 const directory = process.env.VIBEMON_TEST_USER_DATA;
@@ -24,13 +24,68 @@ for (const name of ['disable-renderer-backgrounding', 'disable-backgrounding-occ
 }
 // The only credential the fixture accepts for cloud write checks.
 const WRITE_TOKEN = 'vm_' + 'a'.repeat(60);
+// The code that completes a fixture Claude sign-in; any other code is rejected.
+const CLAUDE_CODE = 'fixture-code#fixture-state';
 
-async function startFixture() {
+/**
+ * The connected-service API of Web (`/api/v1/usage*`). `usage.scope` false
+ * answers like a token without the `usage` permission. A Codex sign-in
+ * connects on its second poll.
+ */
+function serveUsage(state, request, response, body) {
+  const url = new URL(request.url, 'http://localhost');
+  const usage = state.usage;
+  const send = (status, value) => { response.writeHead(status); response.end(value === undefined ? '' : JSON.stringify(value)); };
+  const managing = !(request.method === 'GET' || (request.method === 'POST' && url.pathname.startsWith('/api/v1/usage/connections/')));
+  if (managing && !usage.scope) return send(403, { error: 'Usage permission required' });
+  const [, , , , collection, id] = url.pathname.split('/');
+  usage.requests.push(`${request.method} ${url.pathname}`);
+  if (request.method === 'GET' && url.pathname === '/api/v1/usage') return send(200, { providers: ['claude', 'codex'], connections: usage.connections, serverTime: new Date().toISOString() });
+  if (collection === 'authorizations' && request.method === 'POST' && !id) {
+    const provider = body.provider;
+    const authorization = {
+      id: `0000000${++usage.started}-1111-4222-8333-444455556666`.slice(-36), provider, expiresAt: new Date(Date.now() + 600000).toISOString(),
+      prompt: provider === 'claude' ? { kind: 'code', url: 'https://claude.ai/oauth/authorize?fixture=1' } : { kind: 'device', url: 'https://auth.openai.com/codex/device', userCode: 'BCDF-GHJK', interval: 1 }
+    };
+    usage.authorizations.set(authorization.id, { ...authorization, polls: 0 });
+    return send(201, { authorization });
+  }
+  if (collection === 'authorizations' && id) {
+    const authorization = usage.authorizations.get(id);
+    if (!authorization) return send(404, { error: 'Sign-in expired', code: 'usage-authorization-expired' });
+    if (request.method === 'DELETE') { usage.authorizations.delete(id); return send(204); }
+    if (authorization.provider === 'claude' && body.code !== CLAUDE_CODE) return send(400, { error: 'Invalid code', code: 'usage-authorization-code-invalid' });
+    if (authorization.provider === 'codex' && ++authorization.polls < 2) return send(200, { status: 'pending', interval: 1 });
+    usage.authorizations.delete(id);
+    const connection = { ...usageConnections()[0], id: `9${id.slice(1)}`, provider: authorization.provider, accountId: `auto:new-${authorization.provider}`, label: `new-${authorization.provider}@example.com`, plan: 'Pro' };
+    usage.connections = [...usage.connections, connection];
+    return send(200, { status: 'connected', connection });
+  }
+  if (collection === 'connections' && id) {
+    const connection = usage.connections.find(item => item.id === id);
+    if (!connection) return send(404, { error: 'Not found' });
+    if (request.method === 'DELETE') { usage.connections = usage.connections.filter(item => item.id !== id); return send(204); }
+    const updated = { ...connection, checkedAt: new Date().toISOString(), refreshableAt: new Date(Date.now() + 60000).toISOString() };
+    usage.connections = usage.connections.map(item => item.id === id ? updated : item);
+    return send(200, { connection: updated });
+  }
+  return send(404, { error: 'Not found' });
+}
+
+/** `connections` are the connected services at start; the preview shows the sample ones. */
+async function startFixture({ connections = usageConnections() } = {}) {
   await app.whenReady();
   const ports = createPorts();
-  const state = { sources, status: 200, requests: [], trendStatus: 200, trendDelayMs: 0, sourceDelayMs: 0, trend };
-  const server = http.createServer((request, response) => {
+  const state = { sources: () => connectedSources(Date.now(), state.usage.connections), status: 200, requests: [], trendStatus: 200, trendDelayMs: 0, sourceDelayMs: 0, trend,
+    usage: { scope: true, connections, authorizations: new Map(), started: 0, requests: [] } };
+  const server = http.createServer(async (request, response) => {
     response.setHeader('Content-Type', 'application/json');
+    let body = {};
+    if (request.method === 'POST') {
+      let text = '';
+      for await (const chunk of request) text += chunk;
+      try { body = text ? JSON.parse(text) : {}; } catch { body = {}; }
+    }
     state.requests.push(request.url);
     if (request.url === '/api/v1/connection?scope=write') {
       const accepted = request.headers.authorization === `Bearer ${WRITE_TOKEN}`;
@@ -41,6 +96,7 @@ async function startFixture() {
     if (request.headers.authorization !== `Bearer ${TOKEN}`) { response.writeHead(401); response.end('{}'); return; }
     if (state.status !== 200) { response.writeHead(state.status); response.end('{}'); return; }
     const url = new URL(request.url, 'http://localhost');
+    if (url.pathname.startsWith('/api/v1/usage')) { serveUsage(state, request, response, body); return; }
     if (url.pathname === '/api/v1/connection' && url.searchParams.get('scope') === 'read') { response.end(JSON.stringify({ connected: true, scope: 'read', ownerId: 'fixture-owner' })); return; }
     const data = state.sources();
     if (url.pathname.endsWith('/trend')) {
@@ -80,7 +136,8 @@ async function startFixture() {
   ];
   const settings = new WorkspaceSettings({ ...ports, cloudDelivery });
   const errors = [];
-  const view = new WorkspaceWindow({ monitoring: client, settings, ...ports, reportError: error => { errors.push(error.message); } });
+  // The fixture records copied text instead of replacing the person's clipboard.
+  const view = new WorkspaceWindow({ monitoring: client, settings, ...ports, writeClipboard: value => ports.calls.push(['clipboard', value]), reportError: error => { errors.push(error.message); } });
   const trayManager = new TrayManager({ getProjectIds: () => [], getState: () => null, isCompanionShown: () => false }, app);
   // The same composition as main.js: every issue source refreshes the tray.
   const refreshAttention = () => trayManager.setAttention(attentionNotices(attentionAreas(client.snapshot(), settings.getSnapshot())));
@@ -109,4 +166,4 @@ async function startFixture() {
   view.window.webContents.on('did-fail-load', (_event, code, description) => errors.push(`${code}: ${description}`));
   return { ports, state, client, settings, view, trayManager, selectDashboard, preferences, errors, cleanup, corruptCredential() { corrupt = true; } };
 }
-module.exports = { startFixture, TOKEN, WRITE_TOKEN };
+module.exports = { startFixture, TOKEN, WRITE_TOKEN, CLAUDE_CODE };
