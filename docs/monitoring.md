@@ -16,7 +16,7 @@ VibeMon resolves Google, Apple, and email sign-ins with the same verified email 
 
 ![Desktop connection with shared-account guidance](images/shared-account-connection.png)
 
-Sign-in uses OAuth authorization code with PKCE and a loopback redirect: the code works once, and only this App holds the verifier that exchanges it. The App keeps a token only when VibeMon granted every requested permission (`read` and `usage` for the dashboard, `write` for cloud delivery); otherwise it deletes the token and asks you to sign in again. To use a token that you created on Web Account instead, open **Use a read token instead**, paste it, and select **Save and connect**. Sign-in needs the local HTTP server. If another program uses port 19280, sign-in stops at once with an explanation; use a token instead.
+Sign-in uses OAuth authorization code with PKCE and a loopback redirect: the code works once, and only this App holds the verifier that exchanges it. The App keeps a token only when VibeMon granted every requested permission: both `read` and `usage` for the dashboard, and `write` for cloud delivery. Otherwise it deletes the token and asks you to sign in again. Unlike VibeMon for iPhone, which also accepts a `read`-only token, Desktop rejects a dashboard sign-in without `usage`. The dashboard sign-in therefore needs a VibeMon Web that allows the `usage` scope for the `vibemon-desktop` client, as vibemon.io does. With a Web that does not allow it, the dashboard sign-in fails; use **Use a read token instead** there. To use a token that you created on Web Account instead, open **Use a read token instead**, paste it, and select **Save and connect**. Sign-in needs the local HTTP server. If another program uses port 19280, sign-in stops at once with an explanation; use a token instead.
 
 **Cancel**, a new sign-in, a manual connection change, or disconnect prevents an unfinished sign-in from saving its connection. This includes token exchange and the access check after it. An exchange already in progress finishes within its request timeout so the App can delete any token it received; it never adopts that token after cancellation. Read access and cloud delivery use the same cancellation rule.
 
@@ -92,7 +92,9 @@ An agent account whose usage a service reads shows a chip such as **Usage from C
 
 ![A connected-only Codex account card with its connected-service chip](images/connected-services-cards.png)
 
-A read token from an earlier Desktop version, or one pasted from Web Account, has no `usage` permission. Viewing connections still works. Connecting or disconnecting shows **Sign in to VibeMon again on this desktop to connect services.** Select **Sign in again** in the dialog. The dashboard connection is not affected.
+A read token from an earlier Desktop version, or one pasted from Web Account, has no `usage` permission. Viewing connections still works. Connecting or disconnecting shows **Sign in to VibeMon again on this desktop to connect services.** Select **Sign in again** in the dialog or on the connection. The dashboard connection is not affected.
+
+A Claude sign-in that another request is completing shows **Checking…** and asks again after the interval that VibeMon returns. A Codex sign-in stops waiting when it expires or when VibeMon rejects the read token. Hiding the workspace window closes the connect dialog and cancels an unfinished sign-in. A connection whose state this App version does not know is left out of the list, and an account link it cannot read is left off the card; the account card itself stays.
 
 ## Settings
 
