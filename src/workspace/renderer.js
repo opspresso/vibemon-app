@@ -404,6 +404,7 @@ $('dismiss-error').addEventListener('click', () => {
   $('error').hidden = true;
 });
 const stopChanges = api.onChange(accept);
+const stopClose = api.onClose(() => services.closed());
 const stopVisibility = api.onVisibility((value) => {
   visible = value;
   detail.visibility(value);
@@ -416,6 +417,7 @@ request('snapshot').then(accept).catch(fail);
 window.addEventListener('beforeunload', () => {
   stopChanges();
   stopVisibility();
+  stopClose();
   detail.close();
   if (toastTimer) clearTimeout(toastTimer);
 });

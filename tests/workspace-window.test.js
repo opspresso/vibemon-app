@@ -159,6 +159,21 @@ test('hidden windows suspend rendering and receive the newest state when reopene
   expect(ports.getUsage).toHaveBeenCalledTimes(1);
 });
 
+test('only closing the window tells the page to end its work; hiding or minimizing does not', () => {
+  open();
+  native.webContents.send.mockClear();
+  // Minimizing, and hiding the App (Cmd+H, app.hide()), keep a sign-in in progress.
+  native.emit('minimize');
+  native.hide();
+  expect(native.webContents.send).not.toHaveBeenCalledWith('workspace:closed');
+  expect(native.webContents.send).toHaveBeenCalledWith('workspace:visibility', false);
+  native.show();
+  native.webContents.send.mockClear();
+  native.emit('close', { preventDefault: jest.fn() });
+  expect(native.webContents.send.mock.calls.map(([channel]) => channel)).toEqual(['workspace:closed', 'workspace:visibility']);
+  expect(native.isVisible()).toBe(false);
+});
+
 test('a command that returns a frame does not publish the same frame again', async () => {
   open();
   jest.advanceTimersByTime(WORKSPACE_UPDATE_MS * 2);
@@ -245,14 +260,16 @@ test('preload exposes narrow requests and removable subscriptions without Electr
   expect(name).toBe('workspace');
   await api.request('navigate', 'resources');
   expect(ipcRenderer.invoke).toHaveBeenCalledWith('workspace:request', 'navigate', ['resources']);
-  const changed = jest.fn(), visibility = jest.fn();
-  const stopChanged = api.onChange(changed), stopVisibility = api.onVisibility(visibility);
-  const [[channel, listener], [visibilityChannel, visibilityListener]] = ipcRenderer.on.mock.calls;
-  listener({ sender: 'private' }, { route: 'agents' }); visibilityListener({}, false);
+  const changed = jest.fn(), visibility = jest.fn(), closed = jest.fn();
+  const stopChanged = api.onChange(changed), stopVisibility = api.onVisibility(visibility), stopClose = api.onClose(closed);
+  const [[channel, listener], [visibilityChannel, visibilityListener], [closeChannel, closeListener]] = ipcRenderer.on.mock.calls;
+  listener({ sender: 'private' }, { route: 'agents' }); visibilityListener({}, false); closeListener({ sender: 'private' });
   expect(changed).toHaveBeenCalledWith({ route: 'agents' }); expect(visibility).toHaveBeenCalledWith(false);
-  stopChanged(); stopVisibility();
+  expect(closeChannel).toBe('workspace:closed'); expect(closed).toHaveBeenCalledWith(undefined);
+  stopChanged(); stopVisibility(); stopClose();
   expect(ipcRenderer.removeListener).toHaveBeenCalledWith(channel, listener);
   expect(ipcRenderer.removeListener).toHaveBeenCalledWith(visibilityChannel, visibilityListener);
+  expect(ipcRenderer.removeListener).toHaveBeenCalledWith(closeChannel, closeListener);
   expect(ipcRenderer.sendSync).toHaveBeenCalledWith('workspace:language');
   expect(api.language).toEqual({ locale: 'en', messages: { en: {} } });
 });

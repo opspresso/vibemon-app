@@ -198,7 +198,13 @@ class WorkspaceWindow {
       centerOnCursorDisplay(window); window.show(); this.publish();
     });
     window.on('close', event => {
-      if (!this.disposed) { event.preventDefault(); window.hide(); }
+      if (this.disposed) return;
+      event.preventDefault();
+      // Only closing the window ends what the page has in progress, such as a
+      // service sign-in. Minimizing or hiding the App (Cmd+H) keeps it: the
+      // person may be approving that sign-in in the browser.
+      window.webContents.send('workspace:closed');
+      window.hide();
     });
     window.on('hide', () => {
       if (this.timer) clearTimeout(this.timer);

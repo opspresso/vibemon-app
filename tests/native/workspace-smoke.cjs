@@ -709,15 +709,28 @@ startFixture({ connections: [] }).then(async fixture => {
   await until(() => ui(`${serviceRow(USAGE_IDS.codex)}._parts.vibemonSignIn.checkVisibility()`), 'row offers sign in again');
   assert.equal(await ui(`${serviceRow(USAGE_IDS.codex)}._parts.failure.textContent`), 'Sign in to VibeMon again on this desktop to connect services.');
   state.usage.scope = true;
-  // Hiding the window closes the connect dialog and cancels its unfinished sign-in.
-  const cancelled = state.usage.requests.filter(request => request.startsWith('DELETE /api/v1/usage/authorizations/')).length;
+  // Minimizing or hiding the App keeps a sign-in: the person may be approving it in the browser.
+  const cancellations = () => state.usage.requests.filter(request => request.startsWith('DELETE /api/v1/usage/authorizations/')).length;
+  const cancelled = cancellations();
   await click('#service-list .service-connect button:last-child');
   await click('#service-start');
-  await until(() => visible('[data-service-phase="device"]'), 'Codex sign-in before hiding');
-  view.window.hide();
-  await until(() => state.usage.requests.filter(request => request.startsWith('DELETE /api/v1/usage/authorizations/')).length === cancelled + 1, 'hidden window cancels the sign-in');
+  await until(() => visible('[data-service-phase="device"]'), 'Codex sign-in before leaving the window');
+  view.window.minimize();
+  await until(() => view.window.isMinimized(), 'workspace minimized');
+  await delay(500);
+  view.window.restore();
+  // macOS hides the App like Cmd+H; elsewhere a window hide stands in for it.
+  if (process.platform === 'darwin') { app.hide(); await delay(500); app.show(); }
+  else { view.window.hide(); await delay(500); }
   view.open('services');
-  await until(() => visible('section[data-page="services"]'), 'workspace shown again');
+  await until(() => view.window.isVisible() && !view.window.isMinimized(), 'workspace shown again');
+  assert.equal(cancellations(), cancelled, 'minimizing or hiding does not cancel the sign-in');
+  assert.equal(await visible('[data-service-phase="device"]'), true, 'the connect dialog still shows the sign-in');
+  // Closing the window closes the connect dialog and cancels its unfinished sign-in.
+  view.window.close();
+  await until(() => cancellations() === cancelled + 1, 'closed window cancels the sign-in');
+  view.open('services');
+  await until(() => view.window.isVisible() && visible('section[data-page="services"]'), 'workspace shown again');
   assert.equal(await ui('document.getElementById("service-dialog").open'), false, 'the connect dialog stays closed');
   state.usage.connections = [];
   await client.select(beforeServices); await client.poll(true); await published();

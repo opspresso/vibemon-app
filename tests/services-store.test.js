@@ -293,4 +293,18 @@ describe('UsageConnectFlow', () => {
     expect(flow.error.code).toBe('usage-authorization-expired');
     expect(request).toHaveBeenCalledTimes(2);
   });
+
+  test('expiry follows the injected server clock, not the device clock', async () => {
+    const request = jest.fn(async command => command === 'usage-start' ? codex : { status: 'pending', interval: 5 });
+    // The device clock runs an hour fast; the server clock is still before the expiry.
+    jest.setSystemTime(Date.parse(expiresAt) + 3600000);
+    const flow = new UsageConnectFlow({ request, now, timers });
+    flow.open('codex');
+    await flow.start();
+    flow.approvalOpened();
+    await jest.advanceTimersByTimeAsync(10000);
+    expect(request).toHaveBeenCalledTimes(3);
+    expect(flow.phase).toBe('authorize');
+    expect(flow.error).toBeNull();
+  });
 });

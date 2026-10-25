@@ -21,7 +21,8 @@ export function setupServices({ getFrame, request, run, notify, navigate, openDe
   const store = new UsageStore({ request, onChange: rerender });
   const dialog = $('service-dialog');
   const flow = new UsageConnectFlow({
-    request, describe: usageError,
+    // The sign-in expiry is server time; a fast device clock must not end it early.
+    request, describe: usageError, now: () => store.now(),
     onChange: () => { if (dialog.open) renderFlow(); },
     onConnected: connection => { store.accept(connection); rerender(); }
   });
@@ -52,12 +53,11 @@ export function setupServices({ getFrame, request, run, notify, navigate, openDe
     const actions = el('div', undefined, 'service-actions');
     const signInAgain = button(t('services.signInAgain'), () => openConnect(row._connection.provider), 'button small-button');
     // A token from before the usage permission: sign in to VibeMon again, then read the list again.
-    const vibemonSignIn = button(t('services.signInAgain'), () => run(vibemonSignIn, async () => {
+    const vibemonSignIn = button(t('services.signInVibeMon'), () => run(vibemonSignIn, async () => {
       await request('sign-in', getFrame().cloud.url);
       store.actionErrors.delete(row._connection.id);
       await store.load();
     }, error => { store.actionErrors.set(row._connection.id, { message: error.message, code: error.code ?? null }); rerender(); }), 'button small-button');
-    vibemonSignIn.setAttribute('aria-label', t('services.signInVibeMon'));
     const refresh = button(t('services.refresh'), () => store.refresh(row._connection.id), 'button secondary small-button', 'refresh');
     const showAgent = button(t('services.showAgent'), () => showAgentCard(row._connection), 'text-button', 'arrow');
     const disconnect = button(t('services.disconnect'), () => confirmDisconnect(row._connection), 'button quiet-danger small-button');
@@ -323,17 +323,21 @@ export function setupServices({ getFrame, request, run, notify, navigate, openDe
 
   return {
     render,
+    /** A hidden or minimized window pauses the list; a sign-in in progress keeps waiting until it expires. */
     visibility(value) {
       visible = value;
-      if (!value) {
-        store.setActive(false);
-        // A hidden window keeps no sign-in open: stop polling and cancel it on the
-        // server now, because a hidden page may deliver the dialog's close event late.
-        if (dialog.open) dialog.close();
-        flow.close();
-        if (disconnectDialog.open) disconnectDialog.close();
-      }
+      if (!value) store.setActive(false);
       rerender();
+    },
+    /**
+     * The person closed the window: keep no sign-in open. Stop polling and
+     * cancel it on the server now, because a hidden page may deliver the
+     * dialog's close event late.
+     */
+    closed() {
+      if (dialog.open) dialog.close();
+      flow.close();
+      if (disconnectDialog.open) disconnectDialog.close();
     }
   };
 }
