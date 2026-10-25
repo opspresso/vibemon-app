@@ -33,8 +33,8 @@ const LINKS = { resource: 'vibemon://dashboard/resources', agent: 'vibemon://das
  * @param {object} input.cloud MonitoringClient.snapshot(); `evaluatedAt` is its report clock.
  * @param {Array<{id: string, since: number, status: object}>} [input.local] Local projects with an account.
  *   `since` is the wall-clock time at which `status.state` began.
- * @param {Object<string, {session?: {pct: number, resetsAt: number|null}, week?: {pct: number, resetsAt: number|null}}>} [input.usage]
- *   Plan usage on this device by account key (`provider:id`). `resetsAt` is in epoch seconds.
+ * @param {Object<string, {session?: {pct: number, resetsAt: number|null, updatedAt: number}, week?: {pct: number, resetsAt: number|null, updatedAt: number}}>} [input.usage]
+ *   Plan usage on this device by account key (`provider:id`). Times are in epoch seconds.
  * @param {(character: string) => string|undefined} [input.artwork] Character image file name.
  * @param {number} input.now Wall-clock time in milliseconds.
  * @param {boolean} [input.running] False for the last feed before the App quits.
@@ -53,6 +53,10 @@ export function buildWidgetFeed({ cloud, local = [], usage = {}, artwork = () =>
     .map(source => card(source, time => sourceState(source, time), reportNow, {
       sourceId: source.sourceId, displayName: source.displayName, receivedAt: source.receivedAt
     }));
+  // The server resolves plan usage across every project and connected service
+  // of an account. Keep that result, including missing values, before local
+  // delivery replaces project activity and context.
+  const cloudAccounts = new Map(groupAccounts(cloud.sources).map(account => [account.accountId, account.latest]));
   const agents = agentAccounts(cloud.sources, local, offset, now)
     .map(account => card(account, time => accountActivity(account, time).state, reportNow, {
       sourceId: account.accountId, isAccount: true, displayName: accountActivity(account, reportNow).project, observedAt: account.latest.observedAt
@@ -62,7 +66,7 @@ export function buildWidgetFeed({ cloud, local = [], usage = {}, artwork = () =>
   // the widgets any more, so every item stays on standby.
   const shown = entry => running ? entry.stateAt : () => 'standby';
   const items = [...resources, ...agents].sort(compareCards).map(entry => entry.isAccount
-    ? agentItem(entry.subject, shown(entry), usage[entry.subject.accountId], artwork, reportNow, wall, offset, t, running)
+    ? agentItem(entry.subject, shown(entry), cloudAccounts.get(entry.subject.accountId), usage[entry.subject.accountId], artwork, reportNow, wall, offset, t, running)
     : resourceItem(entry.subject, shown(entry), selected, reportNow, wall, t));
   return {
     version: WIDGET_FEED_VERSION,
@@ -118,22 +122,24 @@ function localSource({ id, since, status }, offset, now) {
     observedAt, receivedAt: observedAt, account: status.account,
     agent: { state: status.state, character: status.character, project: status.project },
     metrics: { contextPercent: status.memory ?? null, usageSessionPercent: status.usage5h ?? null, usageWeekPercent: status.usageWeek ?? null },
+    // A heartbeat's report time is activity, not a new usage measurement.
+    usageMeasuredAt: Date.parse(status.usageObservedAt ?? (status.heartbeat ? undefined : status.observedAt)) + offset,
     resets
   };
 }
 
-function agentItem(account, stateAt, usage, artwork, now, wall, offset, t, running) {
+function agentItem(account, stateAt, cloudUsage, usage, artwork, now, wall, offset, t, running) {
   const latest = account.latest;
   const project = accountActivity(account, now).project;
   const metrics = AGENT_METRICS.map(({ key, label: message, usage: bucket }) => {
     const label = t(message);
-    if (typeof latest.metrics[key] === 'number') {
-      const resetAt = latest.resets ? latest.resets[key] : usageResetAt(key, latest.agent, latest.observedAt, now);
-      return metricEntry({ key, label, ...GAUGE }, latest.metrics[key], resetAt === null ? null : isoTime(resetAt - offset));
+    if (!bucket) return metricEntry({ key, label, ...GAUGE }, latest.metrics[key]);
+    if (cloudUsage) {
+      const resetAt = usageResetAt(key, cloudUsage.agent, cloudUsage.observedAt, now);
+      return metricEntry({ key, label, ...GAUGE }, cloudUsage.metrics[key], resetAt === null ? null : isoTime(resetAt - offset));
     }
-    // Hooks omit usage between statusline refreshes; this device's cache has it.
-    const cached = usage?.[bucket];
-    return metricEntry({ key, label, ...GAUGE }, cached?.pct, isoTime(typeof cached?.resetsAt === 'number' ? cached.resetsAt * 1000 : null));
+    const reading = localUsage(account.sources, key, usage?.[bucket], now, offset);
+    return metricEntry({ key, label, ...GAUGE }, reading?.value, reading?.resetsAt == null ? null : isoTime(reading.resetsAt - offset));
   });
   const changes = account.sources.flatMap(source => agentChanges(source.agent.state, Date.parse(source.observedAt)));
   return {
@@ -152,6 +158,25 @@ function agentItem(account, stateAt, usage, artwork, now, wall, offset, t, runni
     })),
     link: LINKS.agent
   };
+}
+
+/** Local-only accounts use the newest unexpired measurement of each window. */
+function localUsage(sources, key, cached, now, offset) {
+  const candidates = sources.map(source => ({ value: source.metrics[key], measuredAt: source.usageMeasuredAt, resetsAt: source.resets[key] }));
+  if (cached) candidates.push({
+    value: cached.pct,
+    measuredAt: cached.updatedAt * 1000 + offset,
+    resetsAt: typeof cached.resetsAt === 'number' ? cached.resetsAt * 1000 + offset : null
+  });
+  let chosen;
+  for (const reading of candidates) {
+    if (!Number.isFinite(reading.value) || !Number.isFinite(reading.measuredAt)
+      || reading.measuredAt > now + constants.OBSERVATION_CLOCK_SKEW_MS
+      || now - reading.measuredAt > constants.USAGE_CACHE_STALE_SECONDS * 1000
+      || (reading.resetsAt !== null && reading.resetsAt <= now)) continue;
+    if (!chosen || reading.measuredAt > chosen.measuredAt) chosen = reading;
+  }
+  return chosen;
 }
 
 /** Times at which an agent state reported at `observedAt` ages to its next state. */

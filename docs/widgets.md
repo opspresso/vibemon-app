@@ -32,7 +32,9 @@ A new widget leaves its selection empty and shows the first item of its kind in 
 - **Metrics**: the first three metrics selected in **Customize view** for a resource. A agent shows **Context**, **Session**, and **Weekly**. A plan usage bar uses the warning color from 70% and the danger color from 90%. Beside **Session** and **Weekly**, `↻ 2h5m` is the time until that limit resets: `now`, minutes (`42m`), hours and minutes (`2h5m`), or days and hours (`3d1h`). It counts down without new data and is absent when the hook reports no reset time. `—` means no measurement was reported.
 - **Desktop not focused**: macOS draws the widget in one color. The character is then drawn without its tile, so its outline stays visible, and gauges are white on a faint track.
 
-A agent combines all projects of one provider account. The state of the project that needs attention is shown first, for example a project waiting for input. Local hook reports replace the cloud copy of the same project. When a hook report has no usage, the widget uses the plan usage on this Mac.
+A agent combines all projects of one provider account. The state of the project that needs attention is shown first, for example a project waiting for input. Local hook reports replace the activity and context of the same cloud project. Session and weekly usage come from the account's cloud data, as on the Dashboard and iPhone, including `—` when the server has no current measurement. Local reports and this Mac's cache never replace that account's cloud usage.
+
+For an account available only on this Mac, each usage window shows the most recently measured value across its hook reports and local cache. Measurements expire after 30 minutes or when their reset time passes. An older report without a measurement time uses its event time, or its first receipt time when both are absent. A heartbeat without a measurement time contributes no usage; repeating activity does not make an older measurement current.
 
 ## Notices
 

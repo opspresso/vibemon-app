@@ -31,9 +31,24 @@ test.each([{}, { sourceId: 'agent:work', preserveFocus: true }])('uses the same 
 test('a heartbeat refreshes the state timer without competing for focus', () => {
   const { ingress, windows, timers } = fixture();
   expect(ingress.accept({ state: 'working', project: 'Long build', heartbeat: true }).valid).toBe(true);
-  expect(windows.routeStatusUpdate.mock.calls[0]).toEqual(['Long build', { state: 'working', project: 'Long build' }, { preserveFocus: true }]);
+  expect(windows.routeStatusUpdate.mock.calls[0]).toEqual(['Long build', { state: 'working', project: 'Long build', heartbeat: true }, { preserveFocus: true }]);
   expect(timers.setupStateTimeout).toHaveBeenCalledWith('Long build', 'working');
   expect(ingress.accept({ state: 'working', project: 'Long build', heartbeat: 'yes' }).valid).toBe(false);
+});
+test('legacy usage reports fix their receipt time without dropping events received in the same millisecond', () => {
+  const { ingress, windows } = fixture();
+  const clock = jest.spyOn(Date, 'now').mockReturnValue(Date.parse('2026-10-25T07:00:00Z'));
+  const event = { sourceId: 'legacy', account: { provider: 'codex', id: 'work', displayName: 'Work' }, state: 'working', project: 'Legacy', usageWeek: 40 };
+  try {
+    expect(ingress.accept(event).valid).toBe(true);
+    const state = windows.routeStatusUpdate.mock.calls[0][1];
+    expect(state.observedAt).toBe('2026-10-25T07:00:00.000Z');
+    windows.getRegisteredState.mockReturnValue(state);
+    expect(ingress.accept({ ...event, usageWeek: 42 }).response.skipped).not.toBe(true);
+    expect(windows.routeStatusUpdate).toHaveBeenCalledTimes(2);
+  } finally {
+    clock.mockRestore();
+  }
 });
 test('records background activity without updating another project window', () => {
   const { ingress, windows, timers, effects } = fixture();

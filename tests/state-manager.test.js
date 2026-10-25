@@ -116,6 +116,20 @@ describe('StateManager', () => {
 
       expect(result.data).toEqual({ state: 'working', project: 'a' });
     });
+
+    test('preserves measurement time separately from heartbeat activity time', () => {
+      const data = { state: 'working', observedAt: '2026-10-25T07:00:00Z', usageWeek: 40, usageObservedAt: '2026-10-25T06:50:00Z', heartbeat: true };
+      expect(stateManager.validateStateData(data).data).toEqual(data);
+    });
+
+    test('fixes a legacy measurement to its first receipt through normalization and state changes', () => {
+      jest.setSystemTime(new Date('2026-10-25T07:00:00Z'));
+      const first = stateManager.validateStateData({ state: 'working', usageWeek: 0 }).data;
+      expect(first.observedAt).toBe('2026-10-25T07:00:00.000Z');
+      jest.advanceTimersByTime(600000);
+      expect(stateManager.validateStateData({ ...first, state: 'idle' }).data.observedAt).toBe(first.observedAt);
+      expect(stateManager.validateStateData({ state: 'working', usageWeek: 40, heartbeat: true }).data).not.toHaveProperty('usageObservedAt');
+    });
   });
 
   describe('clearStateTimeout', () => {
