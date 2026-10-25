@@ -602,10 +602,8 @@ startFixture({ connections: [] }).then(async fixture => {
   assert.equal(await text('#detail-type'), 'Claude Code · studio');
   assert.equal(await visible('#detail-connection'), true);
   assert.equal(await text('#detail-connection-chip'), 'Usage from Claude Max');
-  // The details header marks the connection with the same link icon as the card.
-  assert.deepEqual(await ui('(() => { const link = document.querySelector("#detail-type .connection-link"); return [link.checkVisibility(), link.title, link.getAttribute("aria-label"), link.previousElementSibling.textContent]; })()'),
-    [true, 'Usage from Claude Max', 'Usage from Claude Max · Manage connected services', 'Claude Code']);
-  assert.equal(await ui('document.activeElement.getAttribute("aria-label")'), 'Close source details', 'opening details focuses Close, not the link icon');
+  // The details header stays text; the Connected service section below it shows the connection.
+  assert.equal(await ui('document.querySelector("#detail-type .connection-link")'), null, 'the details header has no link icon');
   assert.equal(await visible('#detail-history'), true, 'a reporting account keeps its history');
   await screenshot('service-account-details');
   await click('#detail-manage-services');

@@ -56,7 +56,7 @@ export function connectionChip(node, source) {
 }
 
 /**
- * Fills a card or details subtitle: "Claude Code · studio" for an account,
+ * Fills a card subtitle: "Claude Code · studio" for an account,
  * the resource type otherwise. An account whose usage a connected service
  * reads gets a link icon after the provider name. The icon is a button that
  * calls `openServices`. Its tooltip names the service and plan, such as
