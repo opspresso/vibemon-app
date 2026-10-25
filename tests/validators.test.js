@@ -24,6 +24,15 @@ test('display fields preserve valid Unicode and optional empty values', () => {
   expect(validateStatusPayload({ state: 'working', project: '한글 🐱', character: 'codex', tool: '', model: '模型 🚀' }).valid).toBe(true);
 });
 
+test('usage measurements may precede activity but must be UTC timestamps no later than the report', () => {
+  const observedAt = new Date(Date.now() - 1000).toISOString();
+  const payload = { state: 'working', observedAt, usageWeek: 40 };
+  expect(validateStatusPayload({ ...payload, usageObservedAt: new Date(Date.now() - 600000).toISOString() }).valid).toBe(true);
+  for (const usageObservedAt of [null, 100, 'not-a-date', '2026-10-25', new Date(Date.now() + 10000).toISOString()]) {
+    expect(validateStatusPayload({ ...payload, usageObservedAt }).valid).toBe(false);
+  }
+});
+
 describe('validateState', () => {
   test('rejects undefined state (required, matching the cloud API)', () => {
     const result = validateState(undefined);

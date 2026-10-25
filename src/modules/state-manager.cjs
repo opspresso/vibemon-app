@@ -17,7 +17,7 @@ const STATUS_FIELDS = [
   'state', 'project', 'tool', 'model', 'memory', 'usage5h', 'usageWeek',
   'usage5hResetsIn', 'usageWeekResetsIn',
   'usageWeekModel', 'usageWeekModelResetsIn', 'usageWeekModelLabel',
-  'character', 'terminalId', 'sourceId', 'account', 'observedAt'
+  'character', 'terminalId', 'sourceId', 'account', 'observedAt', 'usageObservedAt', 'heartbeat'
 ];
 
 class StateManager {
@@ -121,6 +121,11 @@ class StateManager {
     const normalized = Object.fromEntries(
       STATUS_FIELDS.filter(field => data[field] !== undefined).map(field => [field, data[field]])
     );
+    // Reports without an event time count usage resets from their receipt.
+    // Fix that time once; state transitions and publications cannot renew it.
+    if (normalized.observedAt === undefined && ['usage5h', 'usageWeek', 'usageWeekModel'].some(key => typeof normalized[key] === 'number')) {
+      normalized.observedAt = new Date(Date.now()).toISOString();
+    }
 
     // Empty and '-' (some collectors' placeholder) mean "no project name" —
     // drop the field so ingestion discards the update instead of showing it.

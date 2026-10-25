@@ -78,7 +78,7 @@ describe('getUsageSnapshot', () => {
     });
   });
 
-  test('returns fresh buckets with pct and resetsAt', () => {
+  test('returns fresh buckets with their measurement and reset times', () => {
     mockCache({
       claude: {
         updated_at: 1000,
@@ -93,12 +93,12 @@ describe('getUsageSnapshot', () => {
 
     expect(getUsageSnapshot(1_500_000)).toEqual({
       claude: {
-        session: { pct: 32, resetsAt: 5000 },
-        week: { pct: 67, resetsAt: 900000 },
+        session: { pct: 32, resetsAt: 5000, updatedAt: 1000 },
+        week: { pct: 67, resetsAt: 900000, updatedAt: 1000 },
         modelWeek: null
       },
       codex: {
-        session: { pct: 10, resetsAt: 2000 },
+        session: { pct: 10, resetsAt: 2000, updatedAt: 1000 },
         week: null,
         modelWeek: null
       }
@@ -117,6 +117,7 @@ describe('getUsageSnapshot', () => {
     expect(getUsageSnapshot(1_500_000).claude.modelWeek).toEqual({
       pct: 12,
       resetsAt: 900000,
+      updatedAt: 1000,
       label: 'Fable'
     });
   });
@@ -144,6 +145,7 @@ describe('getUsageSnapshot', () => {
     expect(getUsageSnapshot(1_500_000).claude.modelWeek).toEqual({
       pct: 40,
       resetsAt: 900000,
+      updatedAt: 1000,
       label: 'Sonnet'
     });
   });

@@ -157,6 +157,13 @@ function validateStatusPayload(data) {
       return { valid: false, error: 'observedAt must be a recent UTC timestamp' };
     }
   }
+  if (data.usageObservedAt !== undefined) {
+    const measured = typeof data.usageObservedAt === 'string' ? Date.parse(data.usageObservedAt) : NaN;
+    const reported = data.observedAt === undefined ? Date.now() : Date.parse(data.observedAt);
+    if (!Number.isFinite(measured) || !/^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(?:\.\d{1,3})?Z$/.test(data.usageObservedAt) || measured > reported) {
+      return { valid: false, error: 'usageObservedAt must be a UTC timestamp no later than the report' };
+    }
+  }
 
   // The first failing field decides the error.
   for (const result of [

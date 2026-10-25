@@ -3,6 +3,7 @@ import { test } from 'node:test';
 import { buildWidgetFeed, WIDGET_FEED_VERSION } from '../src/widgets/feed.mjs';
 import domain from '../src/monitoring/domain.cjs';
 import constants from '../src/shared/constants.cjs';
+import stateManager from '../src/modules/state-manager.cjs';
 
 const { displayMetrics } = domain;
 const NOW = Date.parse('2026-10-16T09:00:00.000Z');
@@ -31,6 +32,13 @@ const cloud = (sources, overrides = {}) => ({
   ...overrides
 });
 const build = (input) => buildWidgetFeed({ now: NOW, artwork: name => `${name}.png`, ...input });
+const localReport = (overrides = {}, since = NOW - 1000) => ({
+  id: 'local:agent:remote', since,
+  status: { state: 'working', project: 'api', character: 'clawd', sourceId: 'agent:remote', memory: 12,
+    observedAt: iso(-1000), usageObservedAt: iso(-minutes(10)), usageWeek: 40, usageWeekResetsIn: 60,
+    account: { id: 'work', provider: 'claude', displayName: 'Work' }, ...overrides }
+});
+const bucket = (pct, age = 0, resetsAt = NOW / 1000 + 7200) => ({ pct, resetsAt, updatedAt: (NOW - age) / 1000 });
 
 test('an empty workspace produces a versioned feed without items', () => {
   const feed = build({ cloud: cloud([], { selectedMetrics: [] }), running: false });
@@ -170,7 +178,7 @@ test('automatic choices keep a stable identity when names match and report order
   }
 });
 
-test('local delivery replaces the cloud copy of a source and fills usage from this device', () => {
+test('local delivery replaces cloud activity and context while account usage stays with the cloud', () => {
   const local = [{
     id: 'local:agent:remote', since: NOW - 30000,
     status: { state: 'done', project: 'api', character: 'clawd', sourceId: 'agent:remote', memory: 12, account: { id: 'work', provider: 'claude', displayName: 'Work' } }
@@ -179,7 +187,7 @@ test('local delivery replaces the cloud copy of a source and fills usage from th
   const [item] = build({ cloud: cloud([agentSource()]), local, usage }).items;
   assert.deepEqual(item.timeline.map(entry => entry.state), ['done', 'idle', 'standby']);
   assert.equal(item.timeline[1].at, iso(constants.IDLE_TIMEOUT_MS - 30000));
-  assert.deepEqual(item.metrics.map(metric => metric.value), ['12', '55', '—']);
+  assert.deepEqual(item.metrics.map(metric => metric.value), ['12', '72.4', '91']);
   assert.equal(item.observedAt, iso(-30000));
 });
 
@@ -198,7 +206,7 @@ test('local reports count reset times from their own observation, and cached usa
     id: 'local:agent:remote', since: NOW - minutes(10),
     status: { state: 'working', project: 'api', character: 'clawd', sourceId: 'agent:remote', usage5h: 40, usage5hResetsIn: 30, observedAt: iso(-minutes(1)), account: { id: 'work', provider: 'claude', displayName: 'Work' } }
   }];
-  const usage = { 'claude:work': { session: null, week: { pct: 20, resetsAt: NOW / 1000 + 7200 } } };
+  const usage = { 'claude:work': { session: null, week: bucket(20) } };
   const [item] = build({ cloud: cloud([], { evaluatedAt: NOW + minutes(3) }), local, usage }).items;
   assert.deepEqual(item.metrics.map(metric => metric.resetsAt), [undefined, iso(minutes(29)), iso(minutes(120))]);
 });
@@ -207,14 +215,101 @@ test('reset times outside the Date range do not stop the feed', () => {
   const remote = agentSource({ agent: { state: 'working', character: 'clawd', project: 'api', usage5hResetsIn: Number.MAX_SAFE_INTEGER } });
   const usage = { 'claude:work': { session: null, week: { pct: 20, resetsAt: Number.MAX_SAFE_INTEGER } } };
   const [item] = build({ cloud: cloud([{ ...remote, metrics: { ...remote.metrics, usageWeekPercent: null } }]), usage }).items;
-  assert.deepEqual(item.metrics.map(metric => [metric.value, metric.resetsAt]), [['34', undefined], ['72.4', undefined], ['20', undefined]]);
+  assert.deepEqual(item.metrics.map(metric => [metric.value, metric.resetsAt]), [['34', undefined], ['72.4', undefined], ['—', undefined]]);
 });
 
 test('cached usage without a reset time has no countdown', () => {
-  const remote = agentSource();
-  const usage = { 'claude:work': { session: null, week: { pct: 20, resetsAt: null } } };
-  const [item] = build({ cloud: cloud([{ ...remote, metrics: { ...remote.metrics, usageWeekPercent: null } }]), usage }).items;
-  assert.deepEqual(item.metrics.map(metric => [metric.value, metric.resetsAt]), [['34', undefined], ['72.4', undefined], ['20', undefined]]);
+  const usage = { 'claude:work': { session: null, week: bucket(20, 0, null) } };
+  const [item] = build({ cloud: cloud([]), local: [localReport()], usage }).items;
+  assert.deepEqual(item.metrics.map(metric => [metric.value, metric.resetsAt]), [['12', undefined], ['—', undefined], ['20', undefined]]);
+});
+
+test('cloud account usage wins over an older local report and a newer device cache', () => {
+  const remote = agentSource({ metrics: { contextPercent: 34, usageSessionPercent: null, usageWeekPercent: 70 },
+    agent: { state: 'working', character: 'clawd', project: 'api', usageWeekResetsIn: 120 } });
+  const input = { local: [localReport()], usage: { 'claude:work': { week: bucket(80) } } };
+  const [connected] = build({ ...input, cloud: cloud([remote]) }).items;
+  assert.deepEqual(connected.metrics.map(metric => metric.value), ['12', '—', '70']);
+  assert.equal(connected.metrics[2].resetsAt, iso(minutes(118)));
+  assert.equal(build({ ...input, cloud: cloud([]) }).items[0].metrics[2].value, '80');
+  // The cloud account owns usage even when its project is not the local one.
+  const different = build({ ...input, cloud: cloud([{ ...remote, sourceId: 'agent:other' }]) }).items[0];
+  assert.equal(different.metrics[2].value, '70');
+});
+
+test('a cloud account with no current usage never revives local or cached values', () => {
+  const remote = agentSource({ metrics: { contextPercent: 34, usageSessionPercent: 0, usageWeekPercent: null } });
+  const [item] = build({ cloud: cloud([remote]), local: [localReport({ usage5h: 50 })],
+    usage: { 'claude:work': { session: bucket(90), week: bucket(80) } } }).items;
+  assert.deepEqual(item.metrics.map(metric => metric.value), ['12', '0', '—']);
+});
+
+test('local-only usage chooses each window by measurement time, not project activity or state age', () => {
+  const olderMeasurement = localReport({ usageWeek: 40, usage5h: 60 });
+  const newerMeasurement = localReport({ sourceId: 'agent:other', observedAt: iso(-minutes(2)), usageObservedAt: iso(-minutes(3)), usageWeek: 0, usage5h: undefined }, NOW - minutes(2));
+  newerMeasurement.id = 'local:agent:other';
+  const [item] = build({ cloud: cloud([]), local: [olderMeasurement, newerMeasurement],
+    usage: { 'claude:work': { session: bucket(80, minutes(5)), week: bucket(90, minutes(5)) } } }).items;
+  assert.deepEqual(item.metrics.map(metric => metric.value), ['12', '80', '0']);
+});
+
+test('local usage rejects stale measurements and expired reset windows without inventing zero', () => {
+  for (const status of [
+    { usageObservedAt: iso(-minutes(31)) },
+    { usageObservedAt: iso(-minutes(1)), usageWeekResetsIn: 0 },
+    { usageObservedAt: undefined, heartbeat: true },
+    { usageObservedAt: undefined, observedAt: undefined }
+  ]) {
+    const [item] = build({ cloud: cloud([]), local: [localReport(status)],
+      usage: { 'claude:work': { session: bucket(50, minutes(31)), week: bucket(80, 0, NOW / 1000) } } }).items;
+    assert.deepEqual(item.metrics.map(metric => metric.value), ['12', '—', '—']);
+  }
+});
+
+test('local-only reports without a measurement field use their non-heartbeat report time', () => {
+  const [item] = build({ cloud: cloud([]), local: [localReport({ usageObservedAt: undefined })],
+    usage: { 'claude:work': { week: bucket(80, minutes(5)) } } }).items;
+  assert.equal(item.metrics[2].value, '40');
+});
+
+test('a timestamp-free legacy report retains its receipt time through later state publications', context => {
+  context.mock.method(Date, 'now', () => NOW);
+  const status = new stateManager.StateManager().validateStateData(localReport({ observedAt: undefined, usageObservedAt: undefined }).status).data;
+  const local = [{ ...localReport(), status }];
+  assert.equal(build({ cloud: cloud([]), local }).items[0].metrics[2].value, '40');
+  const later = NOW + minutes(31);
+  assert.equal(build({ now: later, cloud: cloud([], { evaluatedAt: later }),
+    local: [{ ...local[0], since: later, status: { ...status, state: 'idle' } }] }).items[0].metrics[2].value, '—');
+});
+
+test('legacy reset countdowns stay anchored to receipt, independently of measurement time', context => {
+  context.mock.method(Date, 'now', () => NOW);
+  for (const usageObservedAt of [undefined, iso(-minutes(5))]) {
+    const status = new stateManager.StateManager().validateStateData(localReport({ observedAt: undefined, usageObservedAt, usageWeekResetsIn: 1 }).status).data;
+    const local = [{ ...localReport(), status }];
+    const first = build({ cloud: cloud([]), local }).items[0].metrics[2];
+    assert.equal(first.value, '40');
+    assert.equal(first.resetsAt, iso(minutes(1)));
+    const later = NOW + 30000;
+    assert.equal(build({ now: later, cloud: cloud([], { evaluatedAt: later }), local }).items[0].metrics[2].resetsAt, first.resetsAt);
+    const expired = NOW + minutes(2);
+    assert.equal(build({ now: expired, cloud: cloud([], { evaluatedAt: expired }), local }).items[0].metrics[2].value, '—');
+  }
+});
+
+test('local measurements and resets follow the same clock when the server clock differs', () => {
+  const [item] = build({ cloud: cloud([], { evaluatedAt: NOW + minutes(3) }), local: [localReport()],
+    usage: { 'claude:work': { week: bucket(80, minutes(5)) } } }).items;
+  assert.equal(item.metrics[2].value, '80');
+  assert.equal(item.metrics[2].resetsAt, iso(minutes(120)));
+});
+
+test('cloud and local caches never supply another account usage', () => {
+  const remote = agentSource({ sourceId: 'agent:other', account: { provider: 'claude', id: 'other', displayName: 'Other' } });
+  const local = localReport({ usageWeek: undefined });
+  const items = build({ cloud: cloud([remote]), local: [local], usage: { 'claude:other': { week: bucket(80) } } }).items;
+  assert.equal(items.find(item => item.id === 'agent:claude:work').metrics[2].value, '—');
+  assert.equal(items.find(item => item.id === 'agent:claude:other').metrics[2].value, '91');
 });
 
 test('local projects appear without a cloud connection and keep their links', () => {

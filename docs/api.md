@@ -31,7 +31,7 @@ This reference describes the Desktop App's local HTTP server on `127.0.0.1:19280
 | `usageWeekModel` | - | Finite number 0-100 (model-scoped weekly plan-usage window, e.g. the Fable bucket) |
 | `usageWeekModelResetsIn` | - | Non-negative integer (minutes until the model-scoped weekly window resets) |
 | `usageWeekModelLabel` | 64 chars | Display label for the model-scoped weekly window (e.g. `Fable`) |
-| `usageObservedAt` | - | Optional UTC timestamp: when the plan usage in this report was measured. The report's own time is the agent's activity; VibeMon Web shows each account's most recently measured usage. The App ignores it. |
+| `usageObservedAt` | - | Optional UTC timestamp, no later than the report: when its plan usage was measured. Web resolves each account's usage by this time. Mac widgets use that cloud result when available; local-only accounts compare this time with the local cache. Without it, a non-heartbeat report uses `observedAt`, or its first receipt time when both are absent. A heartbeat does not make an older measurement current. |
 | `character` | - | `vibemon`, `clawd`, `codex`, `kiro`, `claw`, or `daangni` (unknown names fall back to `vibemon`) |
 | `terminalId` | 100 chars | Terminal session ID with prefix: `iterm2:w0t0p0:UUID` (from `ITERM_SESSION_ID`) or `ghostty:12345` (from `GHOSTTY_PID`) |
 
@@ -84,6 +84,7 @@ curl -X POST http://127.0.0.1:19280/status \
 | `memory` | number | Context-window usage (0-100) |
 | `usage5h` | number | 5-hour plan-usage window (0-100) |
 | `usageWeek` | number | Weekly plan-usage window (0-100) |
+| `usageObservedAt` | string | Optional UTC measurement time, no later than the report. It is separate from the activity time in `observedAt`. |
 | `usage5hResetsIn` | number | Minutes until the 5-hour window resets |
 | `usageWeekResetsIn` | number | Minutes until the weekly window resets |
 | `usageWeekModel` | number | Model-scoped weekly plan-usage window (0-100), e.g. the Fable bucket |

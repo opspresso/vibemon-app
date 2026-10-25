@@ -20,7 +20,7 @@ class StatusIngress {
       const previous = this.windowManager.getRegisteredState(projectId);
       const identity = value => value?.account ? `${value.account.provider}:${value.account.id}` : null;
       if (previous && identity(previous) !== identity(state)) return { valid: false, error: 'sourceId already belongs to another account' };
-      if (state.observedAt && previous?.observedAt && Date.parse(state.observedAt) <= Date.parse(previous.observedAt)) {
+      if (data.observedAt && previous?.observedAt && Date.parse(state.observedAt) <= Date.parse(previous.observedAt)) {
         return { valid: true, response: { ...response, skipped: true, reason: 'duplicate_or_older' } };
       }
       // The same source may have reached the companion through a cloud poll

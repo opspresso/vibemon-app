@@ -63,14 +63,14 @@ function readUsageCache(nowMs) {
 }
 
 /**
- * Freshness-filtered {pct, resetsAt} for one provider's bucket, or null if
+ * Freshness-filtered {pct, resetsAt, updatedAt} for one provider's bucket, or null if
  * the provider/bucket is missing, its updated_at is older than
  * USAGE_CACHE_STALE_SECONDS, or its reset window has already passed.
  * @param {object|null} cache
  * @param {string} provider - 'claude' | 'codex'
  * @param {string} bucketKey - 'session' | 'week_all'
  * @param {number} nowMs
- * @returns {{pct: number, resetsAt: number|null}|null}
+ * @returns {{pct: number, resetsAt: number|null, updatedAt: number}|null} Times are epoch seconds.
  */
 function getFreshBucket(cache, provider, bucketKey, nowMs) {
   if (!cache || typeof cache !== 'object') return null;
@@ -95,7 +95,7 @@ function getFreshBucket(cache, provider, bucketKey, nowMs) {
     return null;
   }
 
-  return { pct: bucket.pct, resetsAt };
+  return { pct: bucket.pct, resetsAt, updatedAt: bucketUpdatedAt };
 }
 
 /**
@@ -106,7 +106,7 @@ function getFreshBucket(cache, provider, bucketKey, nowMs) {
  * @param {object|null} cache
  * @param {string} provider - 'claude' | 'codex'
  * @param {number} nowMs
- * @returns {{pct: number, resetsAt: number|null, label: string}|null}
+ * @returns {{pct: number, resetsAt: number|null, updatedAt: number, label: string}|null}
  */
 function getFreshModelWeekBucket(cache, provider, nowMs) {
   const providerData = cache && typeof cache === 'object' ? cache[provider] : null;
@@ -131,10 +131,10 @@ function getFreshModelWeekBucket(cache, provider, nowMs) {
 /**
  * @param {number} [nowMs]
  * @returns {{
- *   claude: {session: {pct, resetsAt}|null, week: {pct, resetsAt}|null,
- *            modelWeek: {pct, resetsAt, label}|null},
- *   codex:  {session: {pct, resetsAt}|null, week: {pct, resetsAt}|null,
- *            modelWeek: {pct, resetsAt, label}|null}
+ *   claude: {session: {pct, resetsAt, updatedAt}|null, week: {pct, resetsAt, updatedAt}|null,
+ *            modelWeek: {pct, resetsAt, updatedAt, label}|null},
+ *   codex:  {session: {pct, resetsAt, updatedAt}|null, week: {pct, resetsAt, updatedAt}|null,
+ *            modelWeek: {pct, resetsAt, updatedAt, label}|null}
  * }}
  */
 function getUsageSnapshot(nowMs = Date.now()) {
