@@ -16,6 +16,7 @@ const PAGES = new Set(['overview', 'agents', 'services']);
 export function setupServices({ getFrame, request, run, notify, navigate, openDetail }) {
   let visible = true;
   let refreshTimer = null;
+  let shownRoute = null;
   const rerender = () => { if (getFrame()) render(getFrame()); };
   const store = new UsageStore({ request, onChange: rerender });
   const dialog = $('service-dialog');
@@ -137,8 +138,11 @@ export function setupServices({ getFrame, request, run, notify, navigate, openDe
       settings.hidden = frame.cloud.tokenConfigured;
     }
     keyed(rows, items, connection => connection.id, createRow, updateRow);
-    const choices = frame.cloud.tokenConfigured && store.snapshot ? store.providers : [];
-    keyed(connect, choices, provider => provider, provider => {
+    renderConnect(connect, frame.cloud.tokenConfigured && store.snapshot ? store.providers : []);
+  }
+  /** One Connect button per service that this VibeMon address can connect. */
+  function renderConnect(container, providers) {
+    keyed(container, providers, provider => provider, provider => {
       const control = button('', () => openConnect(provider), 'button secondary');
       const image = el('img');
       image.src = sprite(serviceCharacter(provider));
@@ -146,7 +150,13 @@ export function setupServices({ getFrame, request, run, notify, navigate, openDe
       control.replaceChildren(image, document.createTextNode(t('services.connectNamed', { service: serviceName(provider) })));
       return control;
     }, () => {});
-    connect.hidden = !choices.length;
+    container.hidden = !providers.length;
+  }
+  // Overview invites a first connection, as Web and iPhone do, once the list is known to be empty.
+  function renderOnboarding(container, frame) {
+    const show = frame.cloud.tokenConfigured && Boolean(store.snapshot) && !store.connections.length;
+    container.hidden = !show;
+    if (show) renderConnect($('overview-services-connect'), store.providers);
   }
   function renderAttention(container) {
     const connection = store.connections.find(needsPerson);
@@ -184,11 +194,20 @@ export function setupServices({ getFrame, request, run, notify, navigate, openDe
   }
   function render(frame) {
     store.follow(frame.cloud.connectionRevision);
+    const wasActive = store.active;
     store.setActive(visible && PAGES.has(frame.route) && frame.cloud.tokenConfigured);
+    // Opening another page that shows connections reads them again, like a screen appearing on iPhone.
+    if (wasActive && store.active && frame.route !== shownRoute) store.load();
+    shownRoute = frame.route;
     if (frame.route === 'services') renderList($('service-list'));
     if (frame.route === 'agents') renderList($('agent-services'));
-    if (frame.route === 'overview') renderAttention($('overview-services'));
-    else $('overview-services').hidden = true;
+    if (frame.route === 'overview') {
+      renderAttention($('overview-services'));
+      renderOnboarding($('overview-services-onboarding'), frame);
+    } else {
+      $('overview-services').hidden = true;
+      $('overview-services-onboarding').hidden = true;
+    }
     scheduleRefreshable();
   }
   $('overview-services').addEventListener('click', () => navigate('services'));

@@ -63,6 +63,15 @@ startFixture().then(async fixture => {
     await ui('document.getElementById("detail-connection").scrollIntoView({ block: "center" })');
     await capture('account-details');
     await ui('document.getElementById("detail-dialog").close()');
+    // Overview invites a first connection when none exists.
+    const connections = fixture.state.usage.connections;
+    fixture.state.usage.connections = [];
+    await fixture.client.poll(true);
+    await navigate('overview');
+    await until(() => visible('#overview-services-onboarding'), 'Overview onboarding');
+    await capture('overview-onboarding');
+    fixture.state.usage.connections = connections;
+    await fixture.client.poll(true);
   }
   if (!fixture.state.usage.requests.some(request => request.startsWith('DELETE /api/v1/usage/authorizations/'))) throw new Error('closed sign-ins were not cancelled');
   if (errors.length) throw new Error(errors.join('\n'));

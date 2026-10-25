@@ -1975,3 +1975,17 @@ button.connection-chip:hover {
   font-size: 13px;
   margin-top: 6px;
 }
+.service-onboarding {
+  margin-bottom: 22px;
+}
+.service-onboarding h2 {
+  font-size: 15px;
+}
+.service-onboarding p {
+  font-size: 12px;
+  margin-top: 4px;
+}
+.service-onboarding .service-connect {
+  border-top: 0;
+  padding-top: 14px;
+}

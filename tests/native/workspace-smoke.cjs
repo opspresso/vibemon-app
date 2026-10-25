@@ -571,6 +571,15 @@ startFixture({ connections: [] }).then(async fixture => {
 
   // Connected services: the list, the account link, a connected-only card, and both sign-ins.
   const beforeServices = { sources: client.snapshot().selectedSources, accounts: client.snapshot().selectedAccounts, metrics: client.snapshot().selectedMetrics };
+  // Without a connection, Overview invites one, as Web and iPhone do.
+  await navigate('overview');
+  await until(() => visible('#overview-services-onboarding'), 'Overview invites a first connection');
+  assert.equal(await text('#overview-services-onboarding h2'), 'See your weekly allowance. No computer setup required.');
+  assert.deepEqual(await ui('[...document.querySelectorAll("#overview-services-connect button")].map(node => node.textContent)'), ['Connect Claude', 'Connect Codex']);
+  await click('#overview-services-connect button:last-child');
+  await until(() => visible('#service-dialog'), 'Overview starts a connection');
+  assert.equal(await text('#service-dialog-title'), 'Connect Codex');
+  await click('[data-close-dialog="service-dialog"]');
   state.usage.connections = usageConnections();
   await client.select({ sources: null, accounts: null, metrics: Object.keys(client.snapshot().metrics) });
   await navigate('services');
@@ -615,6 +624,12 @@ startFixture({ connections: [] }).then(async fixture => {
   await client.poll(true); await published();
   assert.equal(await ui(`${agentCard('codex:auto:solo')}._parts.members.hidden`), true, 'a connected-only card has no project tags');
   assert.equal(await ui(`${agentCard('claude:studio')}._parts.connection.hidden`), false);
+  // A card and the service row of its connection show the same reading.
+  for (const [account, connectionId] of [['claude:studio', USAGE_IDS.claude], ['codex:auto:solo', USAGE_IDS.codex]]) {
+    const cardWeekly = await ui(`[...${agentCard(account)}.querySelectorAll(".metric")].find(node => node.querySelector(".metric-label").textContent === "Weekly usage").querySelector("strong").textContent`);
+    const rowWeekly = await ui(`[...document.querySelectorAll("#agent-services .service-row")].find(row => row._connection.id === ${JSON.stringify(connectionId)}).querySelector(".service-metric strong").textContent`);
+    assert.equal(cardWeekly, rowWeekly, `${account} card and service row agree`);
+  }
   assert.equal(await ui(`${agentCard('codex:team')}._parts.connection.hidden`), true, 'an account without a connection has no chip');
   assert.equal(await ui('document.querySelectorAll("#agent-services .service-row").length'), 2, 'the Agents page lists the connections');
   await screenshot('service-agent-cards');
@@ -629,6 +644,7 @@ startFixture({ connections: [] }).then(async fixture => {
   await until(() => visible('section[data-page="services"]'), 'the account chip opens Connected services');
   await navigate('overview');
   await until(() => visible('#overview-services'), 'a limited connection needs the person on Overview');
+  assert.equal(await visible('#overview-services-onboarding'), false, 'Overview stops inviting once a service is connected');
   assert.ok((await text('#overview-services')).includes('Temporarily limited'));
   await click('#overview-services');
   await until(() => visible('section[data-page="services"]'), 'the Overview row opens Connected services');
