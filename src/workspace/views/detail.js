@@ -1,6 +1,6 @@
 import { describeReset, formatAxisValue, resetMinutes } from '../../shared/design/presentation.mjs';
 import { $, el, text, choices, keyed, svg, reading, measurement, badge, stateLabel, ago } from '../dom.js';
-import { accountCard, metricName, sourceState, sourceType, isConnectedOnly, isUsageSource, connectionChip } from './cards.js';
+import { accountCard, metricName, sourceState, sourceType, isConnectedOnly, isUsageSource, connectionChip, showsMetric } from './cards.js';
 import { t, locale } from '../i18n.js';
 
 export function setupDetail({ getFrame, cloudTime, request, run, navigate }) {
@@ -126,7 +126,7 @@ export function setupDetail({ getFrame, cloudTime, request, run, navigate }) {
     $('detail-message').hidden = !source.statusMessage;
     text($('detail-received'), t('detail.received', { age: ago(source.receivedAt, now).toLocaleLowerCase(locale) }));
     const connectedOnly = isConnectedOnly(source);
-    const selectedMetrics = metrics(source).filter((metric) => !connectedOnly || source.metrics[metric.key] !== null);
+    const selectedMetrics = metrics(source).filter((metric) => showsMetric(source, metric));
     keyed(
       $('detail-readings'),
       selectedMetrics,

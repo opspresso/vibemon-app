@@ -36,6 +36,11 @@ export const needsAttention = source => source.needsAttention;
 export const isUsageSource = source => source.sourceId.startsWith('usage:');
 /** An account that only a connected service reports: no project activity yet. */
 export const isConnectedOnly = source => Boolean(source.isAccount && source.members?.length && source.members.every(isUsageSource));
+// A connected service reads plan usage only. A connected-only account never
+// shows context, whatever the validated metrics contain.
+const PLAN_USAGE_METRICS = new Set(['usageSessionPercent', 'usageWeekPercent']);
+/** Whether `metric` belongs on `source`: a connected-only account shows plan usage only. */
+export const showsMetric = (source, metric) => !isConnectedOnly(source) || PLAN_USAGE_METRICS.has(metric.key);
 /** Apply an account's connected-service chip; hidden without a connection. */
 export function connectionChip(node, source) {
   const connection = source.isAccount ? source.account?.connection : null;
@@ -223,8 +228,7 @@ export function renderCards(
       text(parts.message, message);
       parts.message.hidden = !message;
       parts.message.title = message;
-      // A connected-only account shows the usage windows that its service reports, nothing more.
-      const visible = source.displayMetrics.filter((metric) => selectedMetrics.has(metric.selectionKey) && (!connectedOnly || source.metrics[metric.key] !== null));
+      const visible = source.displayMetrics.filter((metric) => selectedMetrics.has(metric.selectionKey) && showsMetric(source, metric));
       const metrics = (compact ? visible.slice(0, 3) : visible).map((metric) => ({
         metric,
         value: source.metrics[metric.key],

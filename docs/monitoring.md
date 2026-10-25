@@ -88,7 +88,7 @@ Each connection shows its service, plan, account label, state, the weekly usage 
 
 A connection that is not **Connected** also appears at the top of **Overview**; select it to open Connected services.
 
-An agent account whose usage a service reads shows a chip such as **Usage from Claude Max**, followed by the state when it is not ready. Select it to open Connected services. A connected account without hook reports has its own card: it shows only the usage windows that the service reports, no projects, and no history. Its details have a **Connected service** section with **Manage connected services**.
+An agent account whose usage a service reads shows a chip such as **Usage from Claude Max**, followed by the state when it is not ready. Select it to open Connected services. A connected account without hook reports has its own card: it shows only session and weekly plan usage (never context), no projects, and no history. Its details have a **Connected service** section with **Manage connected services**.
 
 ![A connected-only Codex account card with its connected-service chip](images/connected-services-cards.png)
 

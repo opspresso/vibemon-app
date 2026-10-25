@@ -605,7 +605,14 @@ startFixture({ connections: [] }).then(async fixture => {
   assert.equal(await ui(`${agentCard('codex:auto:solo')}._parts.connection.textContent`), 'Usage from Codex Plus · Temporarily limited');
   assert.equal(await ui(`${agentCard('codex:auto:solo')}._parts.connection.className`), 'chip warning connection-chip');
   assert.equal(await ui(`${agentCard('codex:auto:solo')}._parts.message.textContent`), 'No project activity yet. This card shows the plan usage that VibeMon reads from the connected service.');
-  assert.deepEqual(await ui(`[...${agentCard('codex:auto:solo')}.querySelectorAll(".metric-label")].map(node => node.textContent)`), ['Session usage', 'Weekly usage'], 'a connected-only card shows only reported windows');
+  assert.deepEqual(await ui(`[...${agentCard('codex:auto:solo')}.querySelectorAll(".metric-label")].map(node => node.textContent)`), ['Session usage', 'Weekly usage'], 'a connected-only card shows plan usage only');
+  // The rule follows the metric key, not which values arrived: context never shows, a missing window shows as unavailable.
+  const withServices = state.sources;
+  state.sources = () => withServices().map(source => source.sourceId.startsWith('usage:') ? { ...source, metrics: { ...source.metrics, contextPercent: 50, usageSessionPercent: null } } : source);
+  await client.poll(true); await published();
+  assert.deepEqual(await ui(`[...${agentCard('codex:auto:solo')}.querySelectorAll(".metric-label")].map(node => node.textContent)`), ['Session usage', 'Weekly usage'], 'a connected-only card never shows context');
+  state.sources = withServices;
+  await client.poll(true); await published();
   assert.equal(await ui(`${agentCard('codex:auto:solo')}._parts.members.hidden`), true, 'a connected-only card has no project tags');
   assert.equal(await ui(`${agentCard('claude:studio')}._parts.connection.hidden`), false);
   assert.equal(await ui(`${agentCard('codex:team')}._parts.connection.hidden`), true, 'an account without a connection has no chip');
