@@ -41,23 +41,52 @@ export const isConnectedOnly = source => Boolean(source.isAccount && source.memb
 const PLAN_USAGE_METRICS = new Set(['usageSessionPercent', 'usageWeekPercent']);
 /** Whether `metric` belongs on `source`: a connected-only account shows plan usage only. */
 export const showsMetric = (source, metric) => !isConnectedOnly(source) || PLAN_USAGE_METRICS.has(metric.key);
-/** Apply an account's connected-service chip; hidden without a connection. */
+/** Apply an account's connected-service chip (account details); hidden without a connection. */
 export function connectionChip(node, source) {
   const connection = source.isAccount ? source.account?.connection : null;
   node.hidden = !connection;
   if (!connection) return;
   const { label, tone } = accountConnectionChip(source.provider, connection);
   node.className = `chip ${tone} connection-chip`;
-  // The chip opens Connected services; its name says so.
-  if (node.tagName === 'BUTTON') {
-    node.title = t('services.manage');
-    node.setAttribute('aria-label', `${label} · ${t('services.manage')}`);
-  }
   if (node._label) text(node._label, label);
   else {
     node._label = el('span', label);
     node.replaceChildren(icon('link'), node._label);
   }
+}
+
+/**
+ * Fills a card subtitle: "Claude Code · studio" for an account,
+ * the resource type otherwise. An account whose usage a connected service
+ * reads gets a link icon after the provider name. The icon is a button that
+ * calls `openServices`. Its tooltip names the service and plan, such as
+ * "Usage from Claude Max", with the state appended when the connection needs
+ * attention; its tone follows that state.
+ */
+export function subtitle(node, source, openServices) {
+  if (!node._subtitle) {
+    const provider = el('span');
+    const link = button('', event => {
+      // The icon opens Connected services, never the card or its details.
+      event.stopPropagation();
+      node._openServices?.();
+    }, 'connection-link');
+    link.append(icon('link'));
+    const account = el('span');
+    node.replaceChildren(provider, link, account);
+    node._subtitle = { provider, link, account };
+  }
+  node._openServices = openServices;
+  const { provider, link, account } = node._subtitle;
+  text(provider, source.isAccount ? providerName(source.provider) : sourceType(source));
+  text(account, source.isAccount ? ` · ${accountName(source.sourceId)}` : '');
+  const connection = source.isAccount ? source.account?.connection : null;
+  link.hidden = !connection || !openServices;
+  if (link.hidden) return;
+  const { label, tone } = accountConnectionChip(source.provider, connection);
+  link.dataset.tone = tone;
+  link.title = label;
+  link.setAttribute('aria-label', `${label} · ${t('services.manage')}`);
 }
 
 export function createMetric() {
@@ -176,7 +205,6 @@ export function renderCards(
       titles.append(name, type);
       const status = el('span', undefined, 'chip');
       heading.append(image, titles, status);
-      const connection = button('', () => card._openServices?.(), 'chip connection-chip');
       const message = el('p', undefined, 'card-message');
       const metrics = el('div', undefined, 'metrics');
       const members = el('div', undefined, 'card-members');
@@ -185,13 +213,12 @@ export function renderCards(
       const details = button(t('cards.details'), () => openDetail(card._source), '');
       details.append(icon('arrow'));
       footer.append(received, details);
-      card.append(edge, heading, connection, message, metrics, members, footer);
-      card._parts = { edge, name, type, image, status, connection, message, metrics, members, received, details };
+      card.append(edge, heading, message, metrics, members, footer);
+      card._parts = { edge, name, type, image, status, message, metrics, members, received, details };
       return card;
     },
     (card, source) => {
       card._source = source;
-      card._openServices = openServices;
       card.classList.toggle('compact-card', compact);
       card.classList.toggle('vm-agent-card', Boolean(source.isAccount));
       if (source.isAccount) {
@@ -205,7 +232,7 @@ export function renderCards(
       const parts = card._parts;
       parts.edge.hidden = !source.isAccount;
       text(parts.name, source.displayName);
-      text(parts.type, sourceType(source));
+      subtitle(parts.type, source, openServices);
       parts.type.title = source.isAccount ? source.sourceId : '';
       const identity = source.isAccount ? source.agent?.character : source.kind;
       if (parts.image.dataset.identity !== identity) {
@@ -223,7 +250,6 @@ export function renderCards(
         parts.image.dataset.identity = identity;
       }
       badge(parts.status, sourceState(source));
-      connectionChip(parts.connection, source);
       const connectedOnly = isConnectedOnly(source);
       const message =
         source.statusMessage ||

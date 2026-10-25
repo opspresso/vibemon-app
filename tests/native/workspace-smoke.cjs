@@ -602,6 +602,8 @@ startFixture({ connections: [] }).then(async fixture => {
   assert.equal(await text('#detail-type'), 'Claude Code · studio');
   assert.equal(await visible('#detail-connection'), true);
   assert.equal(await text('#detail-connection-chip'), 'Usage from Claude Max');
+  // The details header stays text; the Connected service section below it shows the connection.
+  assert.equal(await ui('document.querySelector("#detail-type .connection-link")'), null, 'the details header has no link icon');
   assert.equal(await visible('#detail-history'), true, 'a reporting account keeps its history');
   await screenshot('service-account-details');
   await click('#detail-manage-services');
@@ -609,10 +611,13 @@ startFixture({ connections: [] }).then(async fixture => {
   await navigate('agents');
   const agentCard = id => `[...document.querySelectorAll("#agent-cards .card")].find(card => card._source.sourceId === ${JSON.stringify(id)})`;
   await until(() => ui(`Boolean(${agentCard('codex:auto:solo')})`), 'connected-only account card');
-  assert.equal(await ui(`${agentCard('claude:studio')}._parts.connection.textContent`), 'Usage from Claude Max');
-  assert.equal(await ui(`${agentCard('claude:studio')}._parts.connection.className`), 'chip active connection-chip');
-  assert.equal(await ui(`${agentCard('codex:auto:solo')}._parts.connection.textContent`), 'Usage from Codex Plus · Temporarily limited');
-  assert.equal(await ui(`${agentCard('codex:auto:solo')}._parts.connection.className`), 'chip warning connection-chip');
+  // A connected account shows a link icon right after the provider name; its tooltip names the service.
+  const link = id => `${agentCard(id)}._parts.type._subtitle.link`;
+  const linkState = id => ui(`(() => { const link = ${link(id)}; const box = link.getBoundingClientRect(); return { visible: link.checkVisibility(), title: link.title, label: link.getAttribute('aria-label'), tone: link.dataset.tone, before: link.previousElementSibling.textContent, after: link.nextElementSibling.textContent, target: box.width >= 24 && box.height >= 24, text: link.textContent }; })()`);
+  assert.deepEqual(await linkState('claude:studio'), { visible: true, title: 'Usage from Claude Max', label: 'Usage from Claude Max · Manage connected services', tone: 'active', before: 'Claude Code', after: ' · studio', target: true, text: '' });
+  assert.deepEqual(await linkState('codex:auto:solo'), { visible: true, title: 'Usage from Codex Plus · Temporarily limited', label: 'Usage from Codex Plus · Temporarily limited · Manage connected services', tone: 'warning', before: 'Codex', after: ' · auto:solo', target: true, text: '' });
+  assert.equal(await ui(`${agentCard('claude:studio')}._parts.type.textContent`), 'Claude Code · studio', 'the subtitle text is unchanged');
+  assert.equal(await ui(`${agentCard('claude:studio')}.querySelector('.connection-chip')`), null, 'the card has no usage chip');
   assert.equal(await ui(`${agentCard('codex:auto:solo')}._parts.message.textContent`), 'No project activity yet. This card shows the plan usage that VibeMon reads from the connected service.');
   assert.deepEqual(await ui(`[...${agentCard('codex:auto:solo')}.querySelectorAll(".metric-label")].map(node => node.textContent)`), ['Session usage', 'Weekly usage'], 'a connected-only card shows plan usage only');
   // The rule follows the metric key, not which values arrived: context never shows, a missing window shows as unavailable.
@@ -623,14 +628,14 @@ startFixture({ connections: [] }).then(async fixture => {
   state.sources = withServices;
   await client.poll(true); await published();
   assert.equal(await ui(`${agentCard('codex:auto:solo')}._parts.members.hidden`), true, 'a connected-only card has no project tags');
-  assert.equal(await ui(`${agentCard('claude:studio')}._parts.connection.hidden`), false);
+  assert.equal(await ui(`${link('claude:studio')}.hidden`), false);
   // A card and the service row of its connection show the same reading.
   for (const [account, connectionId] of [['claude:studio', USAGE_IDS.claude], ['codex:auto:solo', USAGE_IDS.codex]]) {
     const cardWeekly = await ui(`[...${agentCard(account)}.querySelectorAll(".metric")].find(node => node.querySelector(".metric-label").textContent === "Weekly usage").querySelector("strong").textContent`);
     const rowWeekly = await ui(`[...document.querySelectorAll("#agent-services .service-row")].find(row => row._connection.id === ${JSON.stringify(connectionId)}).querySelector(".service-metric strong").textContent`);
     assert.equal(cardWeekly, rowWeekly, `${account} card and service row agree`);
   }
-  assert.equal(await ui(`${agentCard('codex:team')}._parts.connection.hidden`), true, 'an account without a connection has no chip');
+  assert.equal(await ui(`${link('codex:team')}.hidden`), true, 'an account without a connection has no link icon');
   assert.equal(await ui('document.querySelectorAll("#agent-services .service-row").length'), 2, 'the Agents page lists the connections');
   await screenshot('service-agent-cards');
   await ui(`${agentCard('codex:auto:solo')}._parts.details.click()`);
@@ -640,8 +645,9 @@ startFixture({ connections: [] }).then(async fixture => {
   assert.equal(await ui('document.querySelectorAll("#detail-readings .detail-reading").length'), 2);
   await screenshot('connected-only-details');
   await click('[data-close-dialog="detail-dialog"]');
-  await ui(`${agentCard('claude:studio')}._parts.connection.click()`);
-  await until(() => visible('section[data-page="services"]'), 'the account chip opens Connected services');
+  await ui(`${link('claude:studio')}.click()`);
+  await until(() => visible('section[data-page="services"]'), 'the link icon opens Connected services');
+  assert.equal(await ui('document.getElementById("detail-dialog").open'), false, 'the link icon does not open the card details');
   await navigate('overview');
   await until(() => visible('#overview-services'), 'a limited connection needs the person on Overview');
   assert.equal(await visible('#overview-services-onboarding'), false, 'Overview stops inviting once a service is connected');
