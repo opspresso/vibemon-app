@@ -204,6 +204,27 @@ describe('UsageConnectFlow', () => {
     expect(flow.phase).toBe('choose');
   });
 
+  test('a code that connects after the flow closed adds the connection without reopening the flow', async () => {
+    let complete;
+    const onConnected = jest.fn();
+    const request = jest.fn(command => {
+      if (command === 'usage-start') return Promise.resolve(claude);
+      if (command === 'usage-complete') return new Promise(resolve => { complete = resolve; });
+      return Promise.resolve(true);
+    });
+    const flow = new UsageConnectFlow({ request, now, timers, onConnected });
+    flow.open('claude');
+    await flow.start();
+    const submit = flow.submit('right');
+    await flow.close();
+    complete({ status: 'connected', connection: connection('late') });
+    await expect(submit).resolves.toBeNull();
+    // The person approved it: the list shows it, and VibeMon keeps it.
+    expect(onConnected).toHaveBeenCalledWith(connection('late'));
+    expect(flow.phase).toBe('choose');
+    expect(request).not.toHaveBeenCalledWith('usage-disconnect', expect.anything());
+  });
+
   test('a token without the usage permission ends the attempt and asks for a new VibeMon sign-in', async () => {
     const request = jest.fn(async () => { throw failure('usage-sign-in-required'); });
     const flow = new UsageConnectFlow({ request, now, timers });

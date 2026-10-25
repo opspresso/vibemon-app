@@ -241,7 +241,7 @@ export class UsageConnectFlow {
       while (generation === this.generation) {
         if (this.expired()) { this.expire(); return null; }
         const result = await this.request('usage-complete', this.authorization.id, value);
-        if (generation !== this.generation) return null;
+        if (generation !== this.generation) return this.late(result);
         if (result.status === 'connected') return this.connected(result.connection);
         this.checking = true;
         this.onChange();
@@ -283,7 +283,7 @@ export class UsageConnectFlow {
     let next = interval;
     try {
       const result = await this.request('usage-complete', this.authorization.id);
-      if (generation !== this.generation) return;
+      if (generation !== this.generation) { this.late(result); return; }
       if (result.status === 'connected') { this.connected(result.connection); this.onChange(); return; }
       next = Math.max(1, result.interval);
       this.error = null;
@@ -296,6 +296,15 @@ export class UsageConnectFlow {
     }
     this.onChange();
     this.schedule(generation, next);
+  }
+
+  /**
+   * A sign-in that completed after the flow closed. The person approved it, so
+   * the connection exists on the server: show it in the list without reopening the flow.
+   */
+  late(result) {
+    if (result?.status === 'connected') this.onConnected(result.connection);
+    return null;
   }
 
   connected(connection) {

@@ -605,7 +605,7 @@ startFixture({ connections: [] }).then(async fixture => {
   assert.equal(await visible('#detail-history'), true, 'a reporting account keeps its history');
   await screenshot('service-account-details');
   await click('#detail-manage-services');
-  await until(() => ui('!document.getElementById("detail-dialog").open') && visible('section[data-page="services"]'), 'Manage connected services closes details and opens the list');
+  await until(async () => await ui('!document.getElementById("detail-dialog").open') && visible('section[data-page="services"]'), 'Manage connected services closes details and opens the list');
   await navigate('agents');
   const agentCard = id => `[...document.querySelectorAll("#agent-cards .card")].find(card => card._source.sourceId === ${JSON.stringify(id)})`;
   await until(() => ui(`Boolean(${agentCard('codex:auto:solo')})`), 'connected-only account card');
