@@ -31,12 +31,12 @@ function optionalTime(value) {
   return value;
 }
 
-/** A validated connection, or null for a service that this version does not know. */
+/** A validated connection, or null for a service or status that this version does not know. */
 function validateConnection(value) {
   if (!value || typeof value !== 'object') throw invalid();
-  if (!SERVICES.includes(value.provider)) return null;
+  if (!SERVICES.includes(value.provider) || !USAGE_STATUSES.includes(value.status)) return null;
   if (!validUuid(value.id) || !validText(value.accountId, 160) || !(value.label === null || value.label === undefined || validText(value.label, 160))
-    || !validPlan(value.plan ?? null) || !USAGE_STATUSES.includes(value.status) || typeof value.stale !== 'boolean'
+    || !validPlan(value.plan ?? null) || typeof value.stale !== 'boolean'
     || !validTime(value.refreshableAt) || !Array.isArray(value.windows) || value.windows.length > MAX_WINDOWS) throw invalid();
   const observedAt = optionalTime(value.observedAt);
   const keys = new Set();

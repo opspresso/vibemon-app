@@ -50,9 +50,10 @@ function validateSources(value) {
       }
       account = { id: source.account.id, provider: source.account.provider, displayName: source.account.displayName };
       // The connected service that reads this account's plan usage (Web's `account.connection`).
+      // It only decorates the account: a value this version cannot read, such
+      // as a newer status, is left out and never rejects the sources.
       const connection = source.account.connection;
-      if (connection != null) {
-        if (!validUuid(connection.id) || !USAGE_STATUSES.includes(connection.status) || !validPlan(connection.plan ?? null)) throw new Error(t('error.invalidAccountResponse'));
+      if (connection && validUuid(connection.id) && USAGE_STATUSES.includes(connection.status) && validPlan(connection.plan ?? null)) {
         account.connection = { id: connection.id, status: connection.status, plan: connection.plan ?? null };
       }
     }

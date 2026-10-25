@@ -24,7 +24,6 @@ describe('usage responses', () => {
 
   test.each([
     ['a non-UUID ID', { id: 'abc' }],
-    ['an unknown status', { status: 'broken' }],
     ['a long plan', { plan: 'p'.repeat(41) }],
     ['a reading without its time', { observedAt: null }],
     ['a percentage above 100', { windows: [{ key: 'week', kind: 'week', usedPercent: 101, resetsAt: null }] }],
@@ -32,6 +31,13 @@ describe('usage responses', () => {
     ['an unknown window kind', { windows: [{ key: 'month', kind: 'month', usedPercent: 1 }] }]
   ])('a connection with %s is rejected', (_name, changes) => {
     expect(() => validateConnection(connection(changes))).toThrow(expect.objectContaining({ code: 'usage-invalid-response' }));
+  });
+
+  test('a connection with a status that this version does not know is left out, like an unknown service', () => {
+    expect(validateConnection(connection({ status: 'paused' }))).toBeNull();
+    const list = validateUsage({ providers: ['claude'], connections: [connection({ status: 'paused' }), connection({ id: SIGN_IN })], serverTime: '2026-10-24T12:00:00.000Z' });
+    expect(list.connections.map(item => item.id)).toEqual([SIGN_IN]);
+    expect(() => validateCompletion({ status: 'connected', connection: connection({ status: 'paused' }) })).toThrow();
   });
 
   test('a connection without windows or reading is still valid', () => {
@@ -69,8 +75,10 @@ describe('agent account connection', () => {
     expect(validateSources([agent()])[0].account).not.toHaveProperty('connection');
     expect(validateSources([agent({ connection: null })])[0].account).not.toHaveProperty('connection');
   });
-  test.each([{ id: 'abc', status: 'ready' }, { id: ID, status: 'broken' }, { id: ID, status: 'ready', plan: 7 }])('an invalid connection rejects the sources: %p', value => {
-    expect(() => validateSources([agent({ connection: value })])).toThrow();
+  test.each([{ id: 'abc', status: 'ready' }, { id: ID, status: 'paused' }, { id: ID, status: 'ready', plan: 'p'.repeat(41) }, { id: ID, status: 'ready', plan: 7 }, 'linked'])('an unreadable connection is dropped and the source kept: %p', value => {
+    const [kept] = validateSources([agent({ connection: value })]);
+    expect(kept.account).toEqual({ provider: 'codex', id: 'auto:solo', displayName: 'Solo' });
+    expect(kept.metrics.usageWeekPercent).toBe(31);
   });
 });
 
