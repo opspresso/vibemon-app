@@ -42,24 +42,36 @@ function usageConnections(now = Date.now()) {
       ] }
   ];
 }
-/** `sources()` with the connected services of `connections`: their account links and the connected-only source. */
+/**
+ * `sources()` with the connected services of `connections`: their account
+ * links and the connected-only source. Like Web, an account card shows the
+ * connected reading, so a card and its service row show the same numbers.
+ */
 function connectedSources(now = Date.now(), connections = usageConnections(now)) {
   const linked = new Map(connections.map(connection => [`${connection.provider}:${connection.accountId}`, connection]));
+  const window = (connection, kind) => connection.windows.find(item => item.key === kind);
+  // Reset countdowns are minutes after the source's observation, as hooks report them.
+  const minutes = (item, observedAt) => item?.resetsAt ? Math.max(0, Math.round((Date.parse(item.resetsAt) - Date.parse(observedAt)) / 60000)) : undefined;
   const result = sources(now).map(source => {
     const connection = source.account && linked.get(`${source.account.provider}:${source.account.id}`);
     if (!connection) return source;
     linked.delete(`${source.account.provider}:${source.account.id}`);
-    return { ...source, account: { ...source.account, connection: { id: connection.id, status: connection.status, plan: connection.plan } } };
+    const session = window(connection, 'session'), week = window(connection, 'week');
+    return {
+      ...source,
+      metrics: { ...source.metrics, usageSessionPercent: session?.usedPercent ?? null, usageWeekPercent: week?.usedPercent ?? null },
+      agent: { ...source.agent, usage5hResetsIn: minutes(session, source.observedAt), usageWeekResetsIn: minutes(week, source.observedAt) },
+      account: { ...source.account, connection: { id: connection.id, status: connection.status, plan: connection.plan } }
+    };
   });
   for (const connection of linked.values()) {
     if (!connection.observedAt || !connection.windows.length) continue;
-    const window = kind => connection.windows.find(item => item.key === kind);
-    const minutes = item => item?.resetsAt ? Math.round((Date.parse(item.resetsAt) - Date.parse(connection.observedAt)) / 60000) : undefined;
+    const session = window(connection, 'session'), week = window(connection, 'week');
     result.push({
       sourceId: `usage:${connection.id}`, kind: 'agent', displayName: connection.label, health: 'ok', stale: false,
       observedAt: connection.observedAt, receivedAt: connection.observedAt,
-      metrics: { usageSessionPercent: window('session')?.usedPercent ?? null, usageWeekPercent: window('week')?.usedPercent ?? null },
-      agent: { state: 'standby', character: connection.provider === 'claude' ? 'clawd' : 'codex', project: connection.label, usage5hResetsIn: minutes(window('session')), usageWeekResetsIn: minutes(window('week')) },
+      metrics: { usageSessionPercent: session?.usedPercent ?? null, usageWeekPercent: week?.usedPercent ?? null },
+      agent: { state: 'standby', character: connection.provider === 'claude' ? 'clawd' : 'codex', project: connection.label, usage5hResetsIn: minutes(session, connection.observedAt), usageWeekResetsIn: minutes(week, connection.observedAt) },
       account: { provider: connection.provider, id: connection.accountId, displayName: connection.label, connection: { id: connection.id, status: connection.status, plan: connection.plan } }
     });
   }
