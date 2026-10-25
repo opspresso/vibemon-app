@@ -92,9 +92,9 @@ An agent account whose usage a service reads shows a chip such as **Usage from C
 
 ![A connected-only Codex account card with its connected-service chip](images/connected-services-cards.png)
 
-A read token from an earlier Desktop version, or one pasted from Web Account, has no `usage` permission. Viewing connections still works. Connecting or disconnecting shows **Sign in to VibeMon again on this desktop to connect services.** Select **Sign in again** in the dialog or on the connection. The dashboard connection is not affected.
+A read token from an earlier Desktop version, or one pasted from Web Account, has no `usage` permission. Viewing connections still works. Connecting or disconnecting shows **Sign in to VibeMon again on this desktop to connect services.** Select **Sign in to VibeMon again** in the dialog or on the connection. The dashboard connection is not affected.
 
-A Claude sign-in that another request is completing shows **Checking…** and asks again after the interval that VibeMon returns. A Codex sign-in stops waiting when it expires or when VibeMon rejects the read token. Hiding the workspace window closes the connect dialog and cancels an unfinished sign-in. A connection whose state this App version does not know is left out of the list, and an account link it cannot read is left off the card; the account card itself stays.
+A Claude sign-in that another request is completing shows **Checking…** and asks again after the interval that VibeMon returns. A Codex sign-in stops waiting when it expires or when VibeMon rejects the read token. Closing the workspace window closes the connect dialog and cancels an unfinished sign-in. Minimizing the window or hiding the App (`Cmd+H`) keeps the sign-in, so you can approve it in the browser; it waits until it expires on VibeMon's clock. A connection whose state this App version does not know is left out of the list, and an account link it cannot read is left off the card; the account card itself stays.
 
 ## Settings
 
@@ -119,7 +119,7 @@ Preference changes save automatically. Connection and selection forms save only 
 | **Token not accepted** | Select **Sign in with VibeMon** again, or paste an active read token from Web Account. |
 | **Read access required** | Replace the token with one that has read permission. |
 | **Replace saved token** | The local credential cannot be decrypted. Enter it again from Web Account. |
-| **Sign in to VibeMon again on this desktop to connect services.** | The read token has no `usage` permission. Select **Sign in again** in the Connected services dialog. |
+| **Sign in to VibeMon again on this desktop to connect services.** | The read token has no `usage` permission. Select **Sign in to VibeMon again** in the Connected services dialog. |
 | **Connection interrupted** | Check the VibeMon address and connectivity. Retained readings remain visible and go on Standby after 120 seconds. |
 | No selected resources or accounts | Use **Customize view**, or start collection in the same VibeMon account. |
 
