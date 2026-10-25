@@ -11,9 +11,12 @@ const output = process.env.VIBEMON_TEST_ARTIFACTS || path.join(__dirname, '../..
 fs.mkdirSync(output, { recursive: true });
 nativeTheme.themeSource = 'dark';
 const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
+// Set once the workspace exists: records the state of a failed condition.
+let diagnose = async () => {};
 async function until(check, label) {
   const deadline = Date.now() + 10000;
   while (Date.now() < deadline) { if (await check()) return; await delay(50); }
+  await diagnose(label);
   throw new Error(`Workspace condition failed: ${label}`);
 }
 
@@ -26,6 +29,36 @@ startFixture({ connections: [] }).then(async fixture => {
   const { view, client, ports, state, errors, selectDashboard, trayManager } = fixture;
   const web = view.window.webContents;
   const ui = code => web.executeJavaScript(code);
+  // The frames and visibility changes that the main process sent, newest last.
+  const sent = [];
+  const send = web.send.bind(web);
+  web.send = (channel, value) => {
+    sent.push({ at: Date.now(), channel, ...(channel === 'workspace:changed' ? { route: value.route } : { value }) });
+    if (sent.length > 40) sent.shift();
+    return send(channel, value);
+  };
+  // A failed condition saves a capture and the window, page, and main-process
+  // state to out/workspace-tests, so a CI failure shows what the page showed.
+  diagnose = async label => {
+    const name = `failure-${label.replace(/[^a-z0-9]+/gi, '-').toLowerCase().slice(0, 60)}`;
+    const bounded = (promise, fallback) => Promise.race([promise, delay(2000).then(() => fallback)]).catch(error => `failed: ${error.message}`);
+    const page = await bounded(ui(`({
+      location: location.href, page: document.documentElement.dataset.page,
+      visibleSections: [...document.querySelectorAll('[data-page]')].filter(node => !node.hidden).map(node => node.dataset.page),
+      openDialogs: [...document.querySelectorAll('dialog[open]')].map(node => node.id),
+      visibilityState: document.visibilityState, hasFocus: document.hasFocus(),
+      activeElement: document.activeElement && (document.activeElement.id || document.activeElement.tagName),
+      error: document.getElementById('error').hidden ? null : document.getElementById('error-message').textContent
+    })`), 'renderer did not answer within 2 s');
+    const native = view.window && !view.window.isDestroyed()
+      ? { visible: view.window.isVisible(), focused: view.window.isFocused(), minimized: view.window.isMinimized(), bounds: view.window.getBounds() }
+      : 'destroyed';
+    const report = { label, at: new Date().toISOString(), route: view.route, pendingPublish: Boolean(view.timer), native, page, sent: sent.slice(-20).map(entry => ({ ...entry, ago: Date.now() - entry.at })), rendererErrors: errors.slice(-20) };
+    fs.writeFileSync(path.join(output, `${name}.json`), JSON.stringify(report, null, 2));
+    console.error(`Diagnostics: ${JSON.stringify(report)}`);
+    const image = await bounded(web.capturePage(), null);
+    if (image?.toPNG) fs.writeFileSync(path.join(output, `${name}.png`), image.toPNG());
+  };
   const click = async selector => {
     await until(() => ui(`Boolean(document.querySelector(${JSON.stringify(selector)})) && !document.querySelector(${JSON.stringify(selector)}).matches(':disabled')`), `${selector} accepts a click`);
     return ui(`document.querySelector(${JSON.stringify(selector)}).click()`);
@@ -568,6 +601,24 @@ startFixture({ connections: [] }).then(async fixture => {
   assert.equal(ports.calls.some(call => call[0] === 'install-update'), false);
   await click('#update-action');
   await until(() => ports.calls.some(call => call[0] === 'install-update'), 'explicit install action');
+  // A request's reply can reach the page after a newer published frame, because
+  // replies and published changes travel on separate IPC paths. Hold one reply
+  // until another page is published: the late reply must not bring its page back.
+  const request = view.request.bind(view);
+  let release = null;
+  view.request = async (command, args) => {
+    const value = await request(command, args);
+    if (command === 'settings' && args[0] === 'open-external') await new Promise(resolve => { release = resolve; });
+    return value;
+  };
+  await click('#open-releases');
+  await until(() => Boolean(release), 'a settings reply is held');
+  view.request = request;
+  await navigate('overview');
+  release();
+  await until(() => ui('!document.getElementById("open-releases").disabled'), 'the held reply arrived');
+  await nextFrames();
+  assert.equal(await visible('section[data-page="overview"]'), true, 'a late reply does not bring back the page it was sent from');
 
   // Connected services: the list, the account link, a connected-only card, and both sign-ins.
   const beforeServices = { sources: client.snapshot().selectedSources, accounts: client.snapshot().selectedAccounts, metrics: client.snapshot().selectedMetrics };

@@ -18,7 +18,7 @@ Select **Dashboard** from the menu-bar/tray menu to open the VibeMon workspace. 
 
 The renderer never fetches (`connect-src 'none'`). Connected services use the main-process usage client (`src/monitoring/usage.cjs`) through the same IPC channel. The renderer receives validated readings and refers to a started service sign-in only by its ID, so it can open or copy only what Web returned. The read token never reaches the renderer, and a failed usage request never changes the dashboard connection status.
 
-Use the existing monitoring client, local state registry, usage cache, hook installer, and companion managers. A single window adapter owns IPC authorization and navigation. Settings operations and dashboard projection do not own windows. Renderer modules share a design system and update existing elements instead of replacing input controls on each poll.
+Use the existing monitoring client, local state registry, usage cache, hook installer, and companion managers. A single window adapter owns IPC authorization and navigation. Every frame that it sends carries an increasing `sequence`. Replies to requests and published changes travel on separate IPC paths, so the page ignores a frame older than the one it shows. Settings operations and dashboard projection do not own windows. Renderer modules share a design system and update existing elements instead of replacing input controls on each poll.
 
 Remove superseded menu controls and duplicate dashboard/settings surfaces after migration. Keep HTTP integration contracts that still have callers. Do not add a frontend framework or dependency without a measured need.
 

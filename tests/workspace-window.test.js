@@ -174,6 +174,17 @@ test('only closing the window tells the page to end its work; hiding or minimizi
   expect(native.isVisible()).toBe(false);
 });
 
+test('every frame carries a newer sequence, so the page can drop a late reply', async () => {
+  open();
+  const reply = (await invoke(event, 'navigate', ['agents'])).value;
+  view.notify('activity');
+  jest.advanceTimersByTime(WORKSPACE_UPDATE_MS);
+  const published = native.webContents.send.mock.calls.filter(([channel]) => channel === 'workspace:changed').at(-1)[1];
+  expect(Number.isSafeInteger(reply.sequence)).toBe(true);
+  expect(published.sequence).toBeGreaterThan(reply.sequence);
+  expect(view.snapshot().sequence).toBeGreaterThan(published.sequence);
+});
+
 test('a command that returns a frame does not publish the same frame again', async () => {
   open();
   jest.advanceTimersByTime(WORKSPACE_UPDATE_MS * 2);

@@ -111,6 +111,9 @@ detail = setupDetail(shared);
 services = setupServices({ ...shared, openDetail: detail.open });
 
 function accept(value) {
+  // A request's reply can arrive after a newer published frame; it must not
+  // bring back an older page or older data.
+  if (frame && value.sequence <= frame.sequence) return;
   // Local activity can republish the same cached cloud frame. Only a new cloud
   // evaluation may reset this renderer's monotonic anchor.
   if (cloudAnchor?.time !== value.cloud.evaluatedAt) cloudAnchor = { time: value.cloud.evaluatedAt, received: window.performance.now() };
