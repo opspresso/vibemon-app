@@ -9,7 +9,7 @@ The tray menu provides Dashboard, Settings, Show companion or Hide companion, In
 ## Connect your cloud workspace
 
 1. Open **Settings → Connections** in Desktop and select **Sign in with VibeMon**. Your browser opens the VibeMon address.
-2. Sign in with Google, Apple, or an email account and select **Allow**. For email sign-in, create an account on Web and confirm the address first. The browser returns to the App on `http://127.0.0.1:19280/auth/callback`, and the App receives a read token named **VibeMon Desktop (host name) · read**.
+2. Sign in with Google, Apple, or an email account and select **Allow**. For email sign-in, create an account on Web and confirm the address first. The browser returns to the App on `http://127.0.0.1:19280/auth/callback`, and the App receives a read token named **VibeMon Desktop (host name) · read**. The App asks for the `read usage` scope, so the same token can also connect and disconnect [connected services](#connected-services).
 3. Open **Customize view**. Select resources, provider accounts, and visible metrics, then select **Save view**. **Discover sources** refreshes the available list without discarding unsaved choices. When every listed item in a group is selected, the view follows that whole group, including accounts, resources, and metrics that appear later. A partial selection shows only the chosen items; open **Customize view** to add new ones. Selections saved by Desktop 3.7.2 or earlier reset to all accounts, resources, and metrics once, because those versions saved a full selection as a fixed list.
 
 VibeMon resolves Google, Apple, and email sign-ins with the same verified email to one account. Desktop uses the owner returned by VibeMon; it never derives an owner from a provider name or email. Its read token and the hooks' write tokens remain separate credentials for that same account. Different addresses, including Apple private relay addresses, need explicit linking from Web Account. See [one account on every platform](https://vibemon.io/docs#one-account-on-every-platform). A Google or Apple login does not set an email password; adding password sign-in requires email account creation and confirmation. The available methods are managed on Web Account.
@@ -56,15 +56,44 @@ Open **Settings → Integrations → Send activity to VibeMon** and select **Sig
 
 Each provider/account ID has its own card and selection. Generated IDs use eight-character labels, such as `Codex · 27e702a8`; selection and API requests keep the full ID. Codex, Claude, Kiro, and other providers can each have several accounts. Cards show the account label, latest observation's usage, and reporting projects. The status badge surfaces errors, input requests, and warnings from projects still reporting. Coding hooks report events, and they repeat a running turn's state every 60 seconds as a heartbeat, so a long tool call or response stays active. Each project's state follows its last report through the [state timeouts](features.md#state-timeout); a project is on **Standby** once that clock reaches `sleep`, and an account is on **Standby** when all its projects are. An event's health ages with its state. Projects on Standby do not affect attention counts or the tray badge. Cards that need attention come first, then the others by name; resources and accounts on Standby come last, the most recently active first. App and Web share the same state and account rules. **Details** preserves each project's status, including stopped projects. Search by account or project, or filter by provider. The account history averages its summaries; percentages are not summed.
 
-Equal project names across accounts remain separate. Use separate signed-in tool profiles for simultaneous accounts. **Settings → Integrations → Accounts on this machine** lists observed profiles and distinguishes verified accounts, credentials, unidentified profiles, and manual labels. **Connect account** opens Web's automatic setup guide and optional manual overrides. Identity metadata does not switch provider logins. See the [provider/account contract](https://vibemon.io/docs/api#send-coding-agent-activity).
+Equal project names across accounts remain separate. Use separate signed-in tool profiles for simultaneous accounts. **Settings → Integrations → Accounts on this machine** lists observed profiles and distinguishes verified accounts, credentials, unidentified profiles, and manual labels. **Connect account** opens Web's automatic setup guide for hooks and optional manual overrides. To see a Claude or Codex plan allowance without hooks, use [connected services](#connected-services). Identity metadata does not switch provider logins. See the [provider/account contract](https://vibemon.io/docs/api#send-coding-agent-activity).
 
 **Details → Remove on Web** opens a removal confirmation in your browser. Sign in with the same VibeMon account as Desktop. The App checks which workspace its read token belongs to before opening the link. Removing an account removes its registered projects; an active hook or collector can register them again.
 
 **On this device** lists local hook activity independently of coding accounts from VibeMon. Fresh selected cloud observations also enter the existing companion routing path under cloud-specific IDs, and a new cloud event competes for the companion like a local one. A source that this device's hooks deliver locally is shown only through local delivery, which is immediate and supports terminal focus; it replaces an earlier cloud copy. Local and cloud projects cannot overwrite each other by sharing a name.
 
+## Connected services
+
+VibeMon's server can read the plan usage of a Claude or Codex account without hooks or a collector. Open **Settings → Connected services**, or the **Connected services** section of **Agents**.
+
+1. Select **Connect Claude** or **Connect Codex**. The dialog explains what the service's page shows and what VibeMon keeps. Select **Connect Claude** or **Connect Codex** in the dialog to start the sign-in.
+2. Claude: select **Open Claude sign-in**, select **Authorize** in the browser, copy the code that the page shows, paste it in **Paste the code here**, and select **Connect**. A rejected code keeps the sign-in so you can paste again; the fifth rejected code ends it.
+3. Codex: select **Open the device page**. The App copies the device code, opens OpenAI's page, and waits for your approval while the dialog is open. If OpenAI refuses the code, turn on device code sign-in in your ChatGPT security settings.
+4. The dialog shows, for example, **Claude is connected.** and the weekly usage. Agent cards change at once.
+
+The App opens only `https://claude.ai` (Claude) and `https://auth.openai.com` (Codex) pages that Web returned for the sign-in. Closing the dialog before the sign-in finishes cancels it on the server.
+
+Each connection shows its service, plan, account label, state, the weekly usage gauge with its reset time, and when VibeMon last read it. The list reads Web again every 60 seconds while it is visible. **Refresh** asks for a new reading; it is available once a minute. **Disconnect** deletes the saved sign-in and the usage readings of that account on VibeMon; project activity from hooks is not affected. **Sign in again** appears when the service no longer accepts the saved sign-in. **Show agent card** opens the account's details when the account is in your view.
+
+| State | Meaning |
+| --- | --- |
+| **Connected** | The last reading succeeded. |
+| **Waiting for a reading** | VibeMon has not read the account yet. |
+| **Not updated** | The last reading is more than 30 minutes old. |
+| **Temporarily limited** | The service limited reads; VibeMon tries again at the shown time and keeps the connection. |
+| **Not responding** | The service did not answer; the account card keeps the earlier reading. |
+| **Sign in again** | The service rejected the saved sign-in. Connect the account again. |
+
+A connection that is not **Connected** also appears at the top of **Overview**; select it to open Connected services.
+
+An agent account whose usage a service reads shows a chip such as **Usage from Claude Max**, followed by the state when it is not ready. Select it to open Connected services. A connected account without hook reports has its own card: it shows only the usage windows that the service reports, no projects, and no history. Its details have a **Connected service** section with **Manage connected services**.
+
+A read token from an earlier Desktop version, or one pasted from Web Account, has no `usage` permission. Viewing connections still works. Connecting or disconnecting shows **Sign in to VibeMon again on this desktop to connect services.** Select **Sign in again** in the dialog. The dashboard connection is not affected.
+
 ## Settings
 
 - **Connections**: VibeMon address, read token, connection recovery, and dashboard selection.
+- **Connected services**: Claude and Codex accounts whose plan usage VibeMon reads, without hooks.
 - **Companion**: 3D or pixel art, character, size, always-on-top behavior, edge distance, macOS Dock scaling, speech-bubble fields, workspace appearance, and login preference.
 - **Integrations**: hook installation and repair, installation prompts, and advanced HTTP/serial delivery settings.
 - **About**: App version, update actions, documentation, and release notes.
@@ -84,13 +113,14 @@ Preference changes save automatically. Connection and selection forms save only 
 | **Token not accepted** | Select **Sign in with VibeMon** again, or paste an active read token from Web Account. |
 | **Read access required** | Replace the token with one that has read permission. |
 | **Replace saved token** | The local credential cannot be decrypted. Enter it again from Web Account. |
+| **Sign in to VibeMon again on this desktop to connect services.** | The read token has no `usage` permission. Select **Sign in again** in the Connected services dialog. |
 | **Connection interrupted** | Check the VibeMon address and connectivity. Retained readings remain visible and go on Standby after 120 seconds. |
 | No selected resources or accounts | Use **Customize view**, or start collection in the same VibeMon account. |
 
 ## Verify changes
 
-Run `pnpm test:workspace` for the isolated Electron UI test. It uses a loopback API, synthetic resources/accounts, and fake integration/credential ports. It does not access your provider credentials, keychain, login items, or hook configuration. Screenshots are written to `out/workspace-tests/`. For an interactive preview, run `pnpm preview:workspace`.
+Run `pnpm test:workspace` for the isolated Electron UI test. It uses a loopback API, synthetic resources/accounts, and fake integration/credential ports. It does not access your provider credentials, keychain, login items, or hook configuration. Screenshots are written to `out/workspace-tests/`. For an interactive preview with sample connected services, run `pnpm preview:workspace`. `pnpm screens:services` captures the Connected services screens in light and dark; set `VIBEMON_LOCALE=ko` or `ja` for a translation.
 
-`pnpm exec jest tests/monitoring.test.js tests/workspace-window.test.js tests/workspace-settings.test.js --runInBand` checks polling, selection, credential boundaries, trusted IPC, and settings operations. `pnpm test:overlays` checks the existing 3D/2D character and speech-bubble behavior, including changes made from the new settings screen.
+`pnpm exec jest tests/monitoring.test.js tests/workspace-window.test.js tests/workspace-settings.test.js --runInBand` checks polling, selection, credential boundaries, trusted IPC, and settings operations. `tests/usage-client.test.js` and `tests/services-store.test.js` check the connected-service responses, failure codes, polling, and sign-in flows. `pnpm test:overlays` checks the existing 3D/2D character and speech-bubble behavior, including changes made from the new settings screen.
 
 The optional `tests/native/monitoring-smoke.cjs` tests a separate Web fixture with real OS encryption. Set `VIBEMON_TEST_FIXTURE` to the private JSON emitted by Web's `scripts/local-monitoring-fixture.ts` and `VIBEMON_TEST_ORIGIN` to its loopback URL. It can require OS keychain authorization. Keep its screenshots in `out/monitoring-tests/`; they can contain fixture account data and are not publication assets.
