@@ -421,3 +421,38 @@ class SerialPortTest(unittest.TestCase):
         self.assertEqual(sent, [("/dev/cu.usbmodem1", {"state": "working"})])
         with patch.object(sys, "stdin", io.StringIO('{"state": "working"}')), patch.object(vibemon_core, "resolve_serial_port", return_value=None):
             self.assertFalse(vibemon_core.send_serial_input(["/dev/none*"]))
+
+
+class WatcherUsageTest(unittest.TestCase):
+    """A watcher repeats a turn's payload; its plan usage must be the current one."""
+
+    ACCOUNT = {"provider": "codex", "id": "auto:" + "a" * 64, "displayName": "Codex · person"}
+
+    def repeat(self, cache: dict | None) -> dict:
+        payload = {"state": "working", "project": "vibemon", "memory": 40, "usageWeek": 62.0, "usageWeekResetsIn": 7900, "usage5h": 10.0}
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "usage.json"
+            if cache is not None:
+                path.write_text(json.dumps(cache))
+            with patch.object(vibemon_core, "usage_cache_path", lambda: str(path)):
+                return vibemon_core.with_current_usage(payload, self.ACCOUNT)
+
+    def test_a_repeated_payload_takes_the_accounts_current_usage(self):
+        now = vibemon_core.time.time()
+        key = f"codex:{self.ACCOUNT['id']}"
+        result = self.repeat({key: {"week_all": {"pct": 100.0, "resets_at": now + 7900 * 60, "updated_at": now}, "updated_at": now}, "ts": now})
+        self.assertEqual(result["usageWeek"], 100.0)
+        self.assertNotIn("usage5h", result)
+        self.assertEqual((result["state"], result["memory"]), ("working", 40))
+
+    def test_a_repeated_payload_without_a_fresh_reading_reports_no_usage(self):
+        old = vibemon_core.time.time() - 24 * 3600
+        key = f"codex:{self.ACCOUNT['id']}"
+        for cache in (None, {key: {"week_all": {"pct": 62.0, "updated_at": old}, "updated_at": old}, "ts": old}):
+            result = self.repeat(cache)
+            self.assertFalse(any(name in result for name in vibemon_core.USAGE_FIELDS))
+            self.assertEqual(result["project"], "vibemon")
+
+    def test_a_payload_without_an_account_reports_no_usage(self):
+        payload = {"state": "working", "usageWeek": 62.0}
+        self.assertEqual(vibemon_core.with_current_usage(payload, None), {"state": "working"})

@@ -367,6 +367,30 @@ def _usage_fields(bucket_data: dict[str, Any] | None) -> dict[str, Any]:
     return result
 
 
+USAGE_FIELDS = (
+    "usage5h", "usageWeek", "usage5hResetsIn", "usageWeekResetsIn",
+    "usageWeekModel", "usageWeekModelResetsIn", "usageWeekModelLabel",
+)
+
+
+def with_current_usage(payload: dict[str, Any], account: dict | None) -> dict[str, Any]:
+    """The payload with the account's plan usage as the shared cache holds it now.
+
+    A watcher repeats the payload that the turn's last event built, and a long
+    turn can stay open for hours. Its usage was measured when that event ran,
+    so each repeat reads the account's usage again. Without a fresh cache
+    entry, the usage fields are left out: an old value must not arrive with a
+    new report time.
+    """
+    rest = {key: value for key, value in payload.items() if key not in USAGE_FIELDS}
+    provider = account.get("provider") if isinstance(account, dict) else None
+    ident = account.get("id") if isinstance(account, dict) else None
+    if not isinstance(provider, str) or not isinstance(ident, str) or not provider or not ident:
+        return rest
+    cache = load_usage_cache(usage_cache_path())
+    return {**rest, **_usage_fields(get_fresh_provider(cache, f"{provider}:{ident}", CACHE_STALE_SECONDS))}
+
+
 def get_usage_metadata() -> dict[str, Any]:
     """Get Claude plan-usage percentages from the shared usage cache.
 
@@ -681,16 +705,7 @@ def send_vibemon_api(url: str, token: str, payload: dict[str, Any], context: dic
         }
         # Plan-usage fields are optional; include only when available so the API
         # REMOVEs stale values instead of overwriting them with 0.
-        for key in (
-            "memory",
-            "usage5h",
-            "usageWeek",
-            "usage5hResetsIn",
-            "usageWeekResetsIn",
-            "usageWeekModel",
-            "usageWeekModelResetsIn",
-            "usageWeekModelLabel",
-        ):
+        for key in ("memory", *USAGE_FIELDS):
             if payload.get(key) is not None:
                 api_body[key] = payload[key]
         api_body.update(context or cloud_context(str(payload.get("character", "vibemon")), str(payload.get("project", ""))))
@@ -1229,7 +1244,7 @@ def watch_session(args: list[str]) -> bool:
         return False
     session_activity.watch(
         activity_path(), args[0],
-        lambda beat: deliver_report(beat.payload, beat.cwd, beat.observed_at, heartbeat=beat.heartbeat, account=beat.account),
+        lambda beat: deliver_report(with_current_usage(beat.payload, beat.account), beat.cwd, beat.observed_at, heartbeat=beat.heartbeat, account=beat.account),
     )
     return True
 
