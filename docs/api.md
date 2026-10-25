@@ -31,6 +31,7 @@ This reference describes the Desktop App's local HTTP server on `127.0.0.1:19280
 | `usageWeekModel` | - | Finite number 0-100 (model-scoped weekly plan-usage window, e.g. the Fable bucket) |
 | `usageWeekModelResetsIn` | - | Non-negative integer (minutes until the model-scoped weekly window resets) |
 | `usageWeekModelLabel` | 64 chars | Display label for the model-scoped weekly window (e.g. `Fable`) |
+| `usageObservedAt` | - | Optional UTC timestamp: when the plan usage in this report was measured. The report's own time is the agent's activity; VibeMon Web shows each account's most recently measured usage. The App ignores it. |
 | `character` | - | `vibemon`, `clawd`, `codex`, `kiro`, `claw`, or `daangni` (unknown names fall back to `vibemon`) |
 | `terminalId` | 100 chars | Terminal session ID with prefix: `iterm2:w0t0p0:UUID` (from `ITERM_SESSION_ID`) or `ghostty:12345` (from `GHOSTTY_PID`) |
 

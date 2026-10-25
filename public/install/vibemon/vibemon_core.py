@@ -37,7 +37,7 @@ from project_context import get_project_name, parse_json, read_input
 import session_activity
 from session_activity import Transition
 from http_client import open_credential_request, open_request as urlopen, read_limited
-from usage_cache import CACHE_STALE_SECONDS, get_fresh_provider, is_finite_number, is_fresh_observation, load_usage_cache, model_week_bucket, valid_percent, reverse_jsonl
+from usage_cache import CACHE_STALE_SECONDS, get_fresh_provider, is_finite_number, is_fresh_observation, load_usage_cache, model_week_bucket, parse_epoch, valid_percent, reverse_jsonl
 
 try:
     import fcntl
@@ -334,17 +334,27 @@ def _usage_fields(bucket_data: dict[str, Any] | None) -> dict[str, Any]:
     usageWeekModel* fields carry the model-scoped weekly limit (e.g. the
     Fable weekly bucket) when the plan has one. The ResetsIn fields
     (minutes until reset) are included only when the entry has a `resets_at`
-    epoch. Keys are omitted when a value is unavailable, so the API can
-    remove stale values instead of overwriting them with 0.
+    epoch. `usageObservedAt` is when the oldest of these values was measured,
+    because a report's own time is the agent's activity. Keys are omitted when
+    a value is unavailable, so the API can remove stale values instead of
+    overwriting them with 0.
     """
     if not isinstance(bucket_data, dict):
         return {}
 
     result: dict[str, Any] = {}
+    measured: list[float] = []
+
+    def note(bucket: dict[str, Any]) -> None:
+        stamp = parse_epoch(bucket.get("updated_at", bucket_data.get("updated_at")))
+        if stamp is not None:
+            measured.append(stamp)
+
     session = bucket_data.get("session")
     session_pct = session.get("pct") if isinstance(session, dict) else None
     if valid_percent(session_pct):
         result["usage5h"] = session_pct
+        note(session)
         resets_in = _resets_in_minutes(session)
         if resets_in is not None:
             result["usage5hResetsIn"] = resets_in
@@ -352,19 +362,50 @@ def _usage_fields(bucket_data: dict[str, Any] | None) -> dict[str, Any]:
     week_pct = week.get("pct") if isinstance(week, dict) else None
     if valid_percent(week_pct):
         result["usageWeek"] = week_pct
+        note(week)
         resets_in = _resets_in_minutes(week)
         if resets_in is not None:
             result["usageWeekResetsIn"] = resets_in
     model_week = model_week_bucket(bucket_data)
     if model_week is not None:
         result["usageWeekModel"] = model_week["pct"]
+        note(model_week)
         resets_in = _resets_in_minutes(model_week)
         if resets_in is not None:
             result["usageWeekModelResetsIn"] = resets_in
         label = model_week.get("label")
         if isinstance(label, str) and label:
             result["usageWeekModelLabel"] = label
+    if result and measured:
+        # The oldest of the values sent: the server compares it with other
+        # sources and the connected reading, never with the report time.
+        stamp = min(min(measured), time.time())
+        result["usageObservedAt"] = time.strftime("%Y-%m-%dT%H:%M:%S", time.gmtime(stamp)) + f".{int(stamp % 1 * 1000):03d}Z"
     return result
+
+
+USAGE_FIELDS = (
+    "usage5h", "usageWeek", "usage5hResetsIn", "usageWeekResetsIn",
+    "usageWeekModel", "usageWeekModelResetsIn", "usageWeekModelLabel", "usageObservedAt",
+)
+
+
+def with_current_usage(payload: dict[str, Any], account: dict | None) -> dict[str, Any]:
+    """The payload with the account's plan usage as the shared cache holds it now.
+
+    A watcher repeats the payload that the turn's last event built, and a long
+    turn can stay open for hours. Its usage was measured when that event ran,
+    so each repeat reads the account's usage again. Without a fresh cache
+    entry, the usage fields are left out: an old value must not arrive with a
+    new report time.
+    """
+    rest = {key: value for key, value in payload.items() if key not in USAGE_FIELDS}
+    provider = account.get("provider") if isinstance(account, dict) else None
+    ident = account.get("id") if isinstance(account, dict) else None
+    if not isinstance(provider, str) or not isinstance(ident, str) or not provider or not ident:
+        return rest
+    cache = load_usage_cache(usage_cache_path())
+    return {**rest, **_usage_fields(get_fresh_provider(cache, f"{provider}:{ident}", CACHE_STALE_SECONDS))}
 
 
 def get_usage_metadata() -> dict[str, Any]:
@@ -667,7 +708,8 @@ def send_vibemon_api(url: str, token: str, payload: dict[str, Any], context: dic
     Headers: Authorization: Bearer <token>, Content-Type: application/json
     Body: { state, project, tool, model, memory, character,
             usage5h?, usageWeek?, usage5hResetsIn?, usageWeekResetsIn?,
-            usageWeekModel?, usageWeekModelResetsIn?, usageWeekModelLabel? }
+            usageWeekModel?, usageWeekModelResetsIn?, usageWeekModelLabel?,
+            usageObservedAt? }
     """
     try:
         api_url = f"{url.rstrip('/')}/api/status"
@@ -681,16 +723,7 @@ def send_vibemon_api(url: str, token: str, payload: dict[str, Any], context: dic
         }
         # Plan-usage fields are optional; include only when available so the API
         # REMOVEs stale values instead of overwriting them with 0.
-        for key in (
-            "memory",
-            "usage5h",
-            "usageWeek",
-            "usage5hResetsIn",
-            "usageWeekResetsIn",
-            "usageWeekModel",
-            "usageWeekModelResetsIn",
-            "usageWeekModelLabel",
-        ):
+        for key in ("memory", *USAGE_FIELDS):
             if payload.get(key) is not None:
                 api_body[key] = payload[key]
         api_body.update(context or cloud_context(str(payload.get("character", "vibemon")), str(payload.get("project", ""))))
@@ -1229,7 +1262,7 @@ def watch_session(args: list[str]) -> bool:
         return False
     session_activity.watch(
         activity_path(), args[0],
-        lambda beat: deliver_report(beat.payload, beat.cwd, beat.observed_at, heartbeat=beat.heartbeat, account=beat.account),
+        lambda beat: deliver_report(with_current_usage(beat.payload, beat.account), beat.cwd, beat.observed_at, heartbeat=beat.heartbeat, account=beat.account),
     )
     return True
 
