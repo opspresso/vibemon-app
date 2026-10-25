@@ -1,6 +1,7 @@
 import { compareCards } from '../../shared/design/card-order.mjs';
 import { accountName, describeReset, formatResetTime, measurementUnit, metricLabel, metricTone, resetMinutes, resourceType, stateTone } from '../../shared/design/presentation.mjs';
 import { t, locale } from '../i18n.js';
+import { accountConnectionChip } from './service-labels.js';
 import {
   el,
   text,
@@ -31,8 +32,25 @@ export const sourceType = source => source.isAccount ? `${providerName(source.pr
 /** A metric label in the App language; reported custom labels stay as they are. */
 export const metricName = metric => metricLabel(metric.key, metric.label, t);
 export const needsAttention = source => source.needsAttention;
+/** A source that only carries a connected service's reading, without hook reports. */
+export const isUsageSource = source => source.sourceId.startsWith('usage:');
+/** An account that only a connected service reports: no project activity yet. */
+export const isConnectedOnly = source => Boolean(source.isAccount && source.members?.length && source.members.every(isUsageSource));
+/** Apply an account's connected-service chip; hidden without a connection. */
+export function connectionChip(node, source) {
+  const connection = source.isAccount ? source.account?.connection : null;
+  node.hidden = !connection;
+  if (!connection) return;
+  const { label, tone } = accountConnectionChip(source.provider, connection);
+  node.className = `chip ${tone} connection-chip`;
+  if (node._label) text(node._label, label);
+  else {
+    node._label = el('span', label);
+    node.replaceChildren(icon('link'), node._label);
+  }
+}
 
-function createMetric() {
+export function createMetric() {
   const node = el('div', undefined, 'metric');
   const label = el('div', undefined, 'metric-line');
   const name = el('span', undefined, 'metric-label');
@@ -55,7 +73,7 @@ function createMetric() {
   return node;
 }
 /** `metric.resetAt` is the time at which a plan usage limit resets, on the same clock as `now`. */
-function updateMetric(node, { metric, value, label, precise = false, now = Date.now() }) {
+export function updateMetric(node, { metric, value, label, precise = false, now = Date.now() }) {
   const { name, value: output, amount, unit, bar, fill, reset, resetPrefix, resetTime, resetSuffix } = node._parts;
   text(name, label || metricName(metric));
   // Compact cards truncate a long label to one line; the tooltip keeps it readable.
@@ -104,7 +122,8 @@ export function renderCards(
     compact = false,
     emptyTitle = t('empty.default.title'),
     emptyDescription = t('empty.default.description'),
-    emptyAction = t('action.customize')
+    emptyAction = t('action.customize'),
+    openServices
   } = {},
   now = Date.now()
 ) {
@@ -147,6 +166,7 @@ export function renderCards(
       titles.append(name, type);
       const status = el('span', undefined, 'chip');
       heading.append(image, titles, status);
+      const connection = button('', () => card._openServices?.(), 'chip connection-chip');
       const message = el('p', undefined, 'card-message');
       const metrics = el('div', undefined, 'metrics');
       const members = el('div', undefined, 'card-members');
@@ -155,12 +175,13 @@ export function renderCards(
       const details = button(t('cards.details'), () => openDetail(card._source), '');
       details.append(icon('arrow'));
       footer.append(received, details);
-      card.append(edge, heading, message, metrics, members, footer);
-      card._parts = { edge, name, type, image, status, message, metrics, members, received, details };
+      card.append(edge, heading, connection, message, metrics, members, footer);
+      card._parts = { edge, name, type, image, status, connection, message, metrics, members, received, details };
       return card;
     },
     (card, source) => {
       card._source = source;
+      card._openServices = openServices;
       card.classList.toggle('compact-card', compact);
       card.classList.toggle('vm-agent-card', Boolean(source.isAccount));
       if (source.isAccount) {
@@ -192,15 +213,18 @@ export function renderCards(
         parts.image.dataset.identity = identity;
       }
       badge(parts.status, sourceState(source));
+      connectionChip(parts.connection, source);
+      const connectedOnly = isConnectedOnly(source);
       const message =
         source.statusMessage ||
         (source.isAccount
-          ? t('cards.reporting', { count: source.members.length })
+          ? connectedOnly ? t('services.connectedOnly') : t('cards.reporting', { count: source.members.length })
           : '');
       text(parts.message, message);
       parts.message.hidden = !message;
       parts.message.title = message;
-      const visible = source.displayMetrics.filter((metric) => selectedMetrics.has(metric.selectionKey));
+      // A connected-only account shows the usage windows that its service reports, nothing more.
+      const visible = source.displayMetrics.filter((metric) => selectedMetrics.has(metric.selectionKey) && (!connectedOnly || source.metrics[metric.key] !== null));
       const metrics = (compact ? visible.slice(0, 3) : visible).map((metric) => ({
         metric,
         value: source.metrics[metric.key],
@@ -208,7 +232,7 @@ export function renderCards(
         now
       }));
       keyed(parts.metrics, metrics, (entry) => entry.metric.key, createMetric, updateMetric);
-      const projects = source.isAccount && !compact ? source.members.slice(0, 3) : [];
+      const projects = source.isAccount && !compact ? source.members.filter(member => !isUsageSource(member)).slice(0, 3) : [];
       keyed(
         parts.members,
         projects,

@@ -113,6 +113,7 @@
               ><span id="summary-attention-note" class="small muted" data-i18n="summary.noIssues">No reported issues</span>
             </button>
           </div>
+          <button id="overview-services" class="notice service-attention" hidden></button>
           <div class="section-heading">
             <div>
               <h2 data-i18n="nav.agents">Agents</h2>
@@ -197,6 +198,16 @@
           <div id="agent-cards" class="card-grid"></div>
           <div class="section-heading">
             <div>
+              <h2 data-i18n="nav.services">Connected services</h2>
+              <span class="small muted" data-i18n="services.agentsCaption">Plan usage read on VibeMon's server, without hooks</span>
+            </div>
+            <button class="text-button" data-page-link="services">
+              <span data-i18n="services.manage">Manage connected services</span><span data-icon="arrow"></span>
+            </button>
+          </div>
+          <div id="agent-services" class="panel service-list"></div>
+          <div class="section-heading">
+            <div>
               <h2 data-i18n="local.title">On this device</h2>
               <span class="small muted" data-i18n="agents.localCaption">Local activity works independently of your cloud connection</span>
             </div>
@@ -217,6 +228,7 @@
         </section>
         <nav id="settings-tabs" class="settings-tabs" aria-label="Settings categories" data-i18n-attr="aria-label:settings.categories" hidden>
           <button data-page-link="connections" data-i18n="nav.connections">Connections<span class="attention-dot" data-attention="connections" role="img" hidden></span></button
+          ><button data-page-link="services" data-i18n="nav.services">Connected services</button
           ><button data-page-link="companion" data-i18n="nav.companion">Companion</button
           ><button data-page-link="integrations" data-i18n="nav.integrations">Integrations<span class="attention-dot" data-attention="integrations" role="img" hidden></span></button
           ><button data-page-link="about" data-i18n="nav.about">About<span class="attention-dot" data-attention="about" role="img" hidden></span></button>
@@ -282,6 +294,17 @@
             </div>
             <button class="button secondary" data-selection data-i18n="action.customize">Customize view</button>
           </div>
+        </section>
+        <section data-page="services" hidden>
+          <div class="settings-intro">
+            <span class="large-symbol violet" data-icon="link"></span>
+            <div>
+              <h2 data-i18n="nav.services">Connected services</h2>
+              <p class="muted" data-i18n="services.help">Claude and Codex accounts whose plan usage VibeMon reads. Each account card shows every usage window.</p>
+            </div>
+          </div>
+          <div id="service-list" class="panel settings-panel service-list"></div>
+          <p class="field-help settings-note" data-i18n="services.footer">No computer setup required. VibeMon reads the plan usage on its server and never sends prompts.</p>
         </section>
         <section data-page="companion" hidden>
           <div class="settings-intro">
@@ -562,6 +585,14 @@
       <p id="detail-message" class="detail-message muted" hidden></p>
       <div id="detail-readings" class="detail-readings"></div>
       <div id="detail-members"></div>
+      <section id="detail-connection" class="detail-connection" aria-labelledby="detail-connection-title" hidden>
+        <h3 id="detail-connection-title" data-i18n="services.detailTitle">Connected service</h3>
+        <p class="small muted" data-i18n="services.detailBody">VibeMon reads this account's plan usage from the connected service. Hook reports add project activity.</p>
+        <div class="detail-connection-row">
+          <span id="detail-connection-chip" class="chip active"></span
+          ><button id="detail-manage-services" class="text-button" data-i18n="services.manage">Manage connected services<span data-icon="arrow"></span></button>
+        </div>
+      </section>
       <div id="detail-history">
         <div class="section-heading">
           <h3 data-i18n="detail.recentHour">Recent hour</h3>
@@ -580,6 +611,76 @@
       <button id="edit-resource" class="button secondary" data-i18n="detail.edit">
         Edit resource on Web<span data-icon="external"></span>
       </button>
+    </dialog>
+    <dialog id="service-dialog" class="service-dialog" aria-labelledby="service-dialog-title">
+      <div class="dialog-heading">
+        <h2 id="service-dialog-title"></h2>
+        <button class="icon-button" data-close-dialog="service-dialog" aria-label="Close the connection" data-i18n-attr="aria-label:services.close">
+          <span data-icon="close"></span>
+        </button>
+      </div>
+      <div data-service-phase="choose" class="service-step">
+        <fieldset class="service-choice">
+          <legend data-i18n="services.chooseService">Service</legend>
+          <label><input type="radio" name="service-provider" value="claude" /><span>Claude</span></label
+          ><label><input type="radio" name="service-provider" value="codex" /><span>Codex</span></label>
+        </fieldset>
+        <p id="service-plan-help" class="small muted"></p>
+        <p class="field-help service-disclosure"><span data-icon="lock"></span><span id="service-disclosure"></span></p>
+        <div class="form-actions"><button id="service-start" type="button" class="button"></button></div>
+      </div>
+      <div data-service-phase="code" class="service-step" hidden>
+        <ol class="service-steps">
+          <li>
+            <p data-i18n="services.claude.open">Open the Claude sign-in and select Authorize.</p>
+            <button id="service-open-claude" type="button" class="button secondary" data-i18n="services.claude.openButton">Open Claude sign-in<span data-icon="external"></span></button>
+            <p class="small muted" data-i18n="services.claude.consent">The page then shows a code. Keep this window open.</p>
+          </li>
+          <li>
+            <form id="service-code-form">
+              <label class="form-label" for="service-code" data-i18n="services.claude.paste">Paste the code here</label>
+              <input id="service-code" type="text" autocomplete="off" spellcheck="false" placeholder="Code from the Claude page" data-i18n-attr="placeholder:services.claude.placeholder" />
+              <div class="form-actions"><button id="service-submit" class="button" data-i18n="services.connect">Connect</button></div>
+            </form>
+          </li>
+        </ol>
+      </div>
+      <div data-service-phase="device" class="service-step" hidden>
+        <ol class="service-steps">
+          <li>
+            <p data-i18n="services.codex.copy">Copy this code.</p>
+            <div class="service-user-code-row">
+              <strong id="service-user-code" class="service-user-code"></strong
+              ><button id="service-copy" type="button" class="button secondary small-button"><span data-icon="copy"></span><span data-i18n="services.codex.copyButton">Copy code</span></button>
+            </div>
+          </li>
+          <li>
+            <p data-i18n="services.codex.open">Open the OpenAI device page, sign in, and enter the code.</p>
+            <button id="service-open-codex" type="button" class="button" data-i18n="services.codex.openButton">Open the device page<span data-icon="external"></span></button>
+            <p id="service-waiting" class="small muted service-waiting" role="status" hidden><span class="service-spinner" aria-hidden="true"></span><span data-i18n="services.codex.waiting">Waiting for your approval…</span></p>
+            <p class="small muted" data-i18n="services.codex.settings">If OpenAI refuses the code, turn on device code sign-in in your ChatGPT security settings.</p>
+          </li>
+        </ol>
+      </div>
+      <div data-service-phase="connected" class="service-step" hidden>
+        <p id="service-connected" class="service-success" role="status"></p>
+        <p id="service-connected-label" class="small muted"></p>
+        <div id="service-connected-metric"></div>
+      </div>
+      <p id="service-dialog-error" class="notice danger" role="alert" hidden></p>
+      <div class="dialog-footer">
+        <button id="service-vibemon-sign-in" type="button" class="button" data-i18n="services.signInAgain" hidden>Sign in again</button
+        ><button id="service-dialog-close" type="button" class="button secondary"></button>
+      </div>
+    </dialog>
+    <dialog id="service-disconnect-dialog" class="confirm-dialog" aria-labelledby="service-disconnect-title" aria-describedby="service-disconnect-body">
+      <h2 id="service-disconnect-title" data-i18n="services.disconnectTitle">Disconnect this service?</h2>
+      <p id="service-disconnect-body"></p>
+      <p class="small muted" data-i18n="services.disconnectHooks">Project activity from hooks is not affected. To connect again later, sign in again.</p>
+      <div class="dialog-footer">
+        <button type="button" class="button secondary" data-close-dialog="service-disconnect-dialog" data-i18n="common.cancel">Cancel</button
+        ><button id="service-disconnect-confirm" type="button" class="button danger" data-i18n="services.disconnect">Disconnect</button>
+      </div>
     </dialog>
     <div id="toast" role="status" class="toast" hidden></div>
     <script type="module" src="renderer.js"></script>
