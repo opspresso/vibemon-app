@@ -601,6 +601,24 @@ startFixture({ connections: [] }).then(async fixture => {
   assert.equal(ports.calls.some(call => call[0] === 'install-update'), false);
   await click('#update-action');
   await until(() => ports.calls.some(call => call[0] === 'install-update'), 'explicit install action');
+  // A request's reply can reach the page after a newer published frame, because
+  // replies and published changes travel on separate IPC paths. Hold one reply
+  // until another page is published: the late reply must not bring its page back.
+  const request = view.request.bind(view);
+  let release = null;
+  view.request = async (command, args) => {
+    const value = await request(command, args);
+    if (command === 'settings' && args[0] === 'open-external') await new Promise(resolve => { release = resolve; });
+    return value;
+  };
+  await click('#open-releases');
+  await until(() => Boolean(release), 'a settings reply is held');
+  view.request = request;
+  await navigate('overview');
+  release();
+  await until(() => ui('!document.getElementById("open-releases").disabled'), 'the held reply arrived');
+  await nextFrames();
+  assert.equal(await visible('section[data-page="overview"]'), true, 'a late reply does not bring back the page it was sent from');
 
   // Connected services: the list, the account link, a connected-only card, and both sign-ins.
   const beforeServices = { sources: client.snapshot().selectedSources, accounts: client.snapshot().selectedAccounts, metrics: client.snapshot().selectedMetrics };

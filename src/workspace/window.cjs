@@ -25,6 +25,9 @@ class WorkspaceWindow {
     this.window = null;
     this.route = 'overview';
     this.timer = null;
+    // Orders frames: replies to requests and published changes travel on
+    // separate IPC paths, so the page can receive an older frame last.
+    this.sequence = 0;
     this.disposed = false;
     this.cache = { cloud: monitoring.snapshot() };
     this.dirty = new Set(['settings', 'activity', 'usage']);
@@ -65,7 +68,7 @@ class WorkspaceWindow {
     }
     this.dirty.clear();
     const areas = attentionAreas(this.cache.cloud, this.cache.settings);
-    return { ...this.cache, attention: { ...areas, notices: attentionNotices(areas) }, route: this.route };
+    return { ...this.cache, attention: { ...areas, notices: attentionNotices(areas) }, route: this.route, sequence: ++this.sequence };
   }
 
   notify(section) {
