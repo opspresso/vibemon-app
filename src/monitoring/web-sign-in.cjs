@@ -53,8 +53,9 @@ class WebSignIn {
   /**
    * Opens the browser, gets a token of `scope` for `url`, and resolves with
    * the result of `adopt(token, signal)`. The adopter must check `signal`
-   * before saving the connection. When `adopt` fails, nothing keeps the new
-   * token, so it is deleted from VibeMon before the error returns.
+   * before saving the connection. A token whose granted scope lacks a
+   * requested one is not adopted. When the token is not adopted, nothing
+   * keeps it, so it is deleted from VibeMon before the error returns.
    * A new sign-in cancels the previous attempt, including exchange and verification.
    */
   async signIn(url, scope, adopt) {
@@ -80,9 +81,11 @@ class WebSignIn {
       });
       controller.signal.throwIfAborted();
       // Let the bounded exchange finish so a cancelled attempt can delete any issued token.
-      const token = await this.exchange(origin, code, verifier);
+      const { token, granted } = await this.exchange(origin, code, verifier);
       try {
         controller.signal.throwIfAborted();
+        // A token without every requested permission cannot do what the person asked for.
+        if (!scope.split(' ').every(item => granted.has(item))) throw new SignInError('scope', t('signIn.scopeMissing'));
         return await adopt(token, controller.signal);
       } catch (error) {
         await revokeApiToken(this.fetchImpl, origin, token);
@@ -148,7 +151,8 @@ class WebSignIn {
     }
     // An unreadable or oversized body is a rejected sign-in, reported by status below.
     const body = await readJsonResponse(response, CLOUD_CONNECTION_MAX_RESPONSE_BYTES).catch(() => ({}));
-    if (response.ok && isApiToken(body.access_token)) return body.access_token;
+    // `scope` is space-separated (RFC 6749 5.1), such as `read usage`.
+    if (response.ok && isApiToken(body.access_token)) return { token: body.access_token, granted: new Set(typeof body.scope === 'string' ? body.scope.split(' ').filter(Boolean) : []) };
     if (body.error === 'invalid_grant') throw new SignInError('expired', t('signIn.expired'));
     throw new SignInError('rejected', t('signIn.rejected', { status: response.status }));
   }

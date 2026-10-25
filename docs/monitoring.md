@@ -16,7 +16,7 @@ VibeMon resolves Google, Apple, and email sign-ins with the same verified email 
 
 ![Desktop connection with shared-account guidance](images/shared-account-connection.png)
 
-Sign-in uses OAuth authorization code with PKCE and a loopback redirect: the code works once, and only this App holds the verifier that exchanges it. To use a token that you created on Web Account instead, open **Use a read token instead**, paste it, and select **Save and connect**. Sign-in needs the local HTTP server. If another program uses port 19280, sign-in stops at once with an explanation; use a token instead.
+Sign-in uses OAuth authorization code with PKCE and a loopback redirect: the code works once, and only this App holds the verifier that exchanges it. The App keeps a token only when VibeMon granted every requested permission (`read` and `usage` for the dashboard, `write` for cloud delivery); otherwise it deletes the token and asks you to sign in again. To use a token that you created on Web Account instead, open **Use a read token instead**, paste it, and select **Save and connect**. Sign-in needs the local HTTP server. If another program uses port 19280, sign-in stops at once with an explanation; use a token instead.
 
 **Cancel**, a new sign-in, a manual connection change, or disconnect prevents an unfinished sign-in from saving its connection. This includes token exchange and the access check after it. An exchange already in progress finishes within its request timeout so the App can delete any token it received; it never adopts that token after cancellation. Read access and cloud delivery use the same cancellation rule.
 
