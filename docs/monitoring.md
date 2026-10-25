@@ -71,6 +71,8 @@ VibeMon's server can read the plan usage of a Claude or Codex account without ho
 3. Codex: select **Open the device page**. The App copies the device code, opens OpenAI's page, and waits for your approval while the dialog is open. If OpenAI refuses the code, turn on device code sign-in in your ChatGPT security settings.
 4. The dialog shows, for example, **Claude is connected.** and the weekly usage. Agent cards change at once.
 
+![Connected services with a Claude and a Codex connection](images/connected-services.png)
+
 The App opens only `https://claude.ai` (Claude) and `https://auth.openai.com` (Codex) pages that Web returned for the sign-in. Closing the dialog before the sign-in finishes cancels it on the server.
 
 Each connection shows its service, plan, account label, state, the weekly usage gauge with its reset time, and when VibeMon last read it. The list reads Web again every 60 seconds while it is visible. **Refresh** asks for a new reading; it is available once a minute. **Disconnect** deletes the saved sign-in and the usage readings of that account on VibeMon; project activity from hooks is not affected. **Sign in again** appears when the service no longer accepts the saved sign-in. **Show agent card** opens the account's details when the account is in your view.
@@ -87,6 +89,8 @@ Each connection shows its service, plan, account label, state, the weekly usage 
 A connection that is not **Connected** also appears at the top of **Overview**; select it to open Connected services.
 
 An agent account whose usage a service reads shows a chip such as **Usage from Claude Max**, followed by the state when it is not ready. Select it to open Connected services. A connected account without hook reports has its own card: it shows only the usage windows that the service reports, no projects, and no history. Its details have a **Connected service** section with **Manage connected services**.
+
+![A connected-only Codex account card with its connected-service chip](images/connected-services-cards.png)
 
 A read token from an earlier Desktop version, or one pasted from Web Account, has no `usage` permission. Viewing connections still works. Connecting or disconnecting shows **Sign in to VibeMon again on this desktop to connect services.** Select **Sign in again** in the dialog. The dashboard connection is not affected.
 
