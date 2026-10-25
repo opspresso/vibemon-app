@@ -11,9 +11,12 @@ const output = process.env.VIBEMON_TEST_ARTIFACTS || path.join(__dirname, '../..
 fs.mkdirSync(output, { recursive: true });
 nativeTheme.themeSource = 'dark';
 const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
+// Set once the workspace exists: records the state of a failed condition.
+let diagnose = async () => {};
 async function until(check, label) {
   const deadline = Date.now() + 10000;
   while (Date.now() < deadline) { if (await check()) return; await delay(50); }
+  await diagnose(label);
   throw new Error(`Workspace condition failed: ${label}`);
 }
 
@@ -26,6 +29,36 @@ startFixture({ connections: [] }).then(async fixture => {
   const { view, client, ports, state, errors, selectDashboard, trayManager } = fixture;
   const web = view.window.webContents;
   const ui = code => web.executeJavaScript(code);
+  // The frames and visibility changes that the main process sent, newest last.
+  const sent = [];
+  const send = web.send.bind(web);
+  web.send = (channel, value) => {
+    sent.push({ at: Date.now(), channel, ...(channel === 'workspace:changed' ? { route: value.route } : { value }) });
+    if (sent.length > 40) sent.shift();
+    return send(channel, value);
+  };
+  // A failed condition saves a capture and the window, page, and main-process
+  // state to out/workspace-tests, so a CI failure shows what the page showed.
+  diagnose = async label => {
+    const name = `failure-${label.replace(/[^a-z0-9]+/gi, '-').toLowerCase().slice(0, 60)}`;
+    const bounded = (promise, fallback) => Promise.race([promise, delay(2000).then(() => fallback)]).catch(error => `failed: ${error.message}`);
+    const page = await bounded(ui(`({
+      location: location.href, page: document.documentElement.dataset.page,
+      visibleSections: [...document.querySelectorAll('[data-page]')].filter(node => !node.hidden).map(node => node.dataset.page),
+      openDialogs: [...document.querySelectorAll('dialog[open]')].map(node => node.id),
+      visibilityState: document.visibilityState, hasFocus: document.hasFocus(),
+      activeElement: document.activeElement && (document.activeElement.id || document.activeElement.tagName),
+      error: document.getElementById('error').hidden ? null : document.getElementById('error-message').textContent
+    })`), 'renderer did not answer within 2 s');
+    const native = view.window && !view.window.isDestroyed()
+      ? { visible: view.window.isVisible(), focused: view.window.isFocused(), minimized: view.window.isMinimized(), bounds: view.window.getBounds() }
+      : 'destroyed';
+    const report = { label, at: new Date().toISOString(), route: view.route, pendingPublish: Boolean(view.timer), native, page, sent: sent.slice(-20).map(entry => ({ ...entry, ago: Date.now() - entry.at })), rendererErrors: errors.slice(-20) };
+    fs.writeFileSync(path.join(output, `${name}.json`), JSON.stringify(report, null, 2));
+    console.error(`Diagnostics: ${JSON.stringify(report)}`);
+    const image = await bounded(web.capturePage(), null);
+    if (image?.toPNG) fs.writeFileSync(path.join(output, `${name}.png`), image.toPNG());
+  };
   const click = async selector => {
     await until(() => ui(`Boolean(document.querySelector(${JSON.stringify(selector)})) && !document.querySelector(${JSON.stringify(selector)}).matches(':disabled')`), `${selector} accepts a click`);
     return ui(`document.querySelector(${JSON.stringify(selector)}).click()`);
