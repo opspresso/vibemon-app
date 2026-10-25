@@ -1,6 +1,6 @@
 import { describeReset, formatAxisValue, resetMinutes } from '../../shared/design/presentation.mjs';
 import { $, el, text, choices, keyed, svg, reading, measurement, badge, stateLabel, ago } from '../dom.js';
-import { accountCard, metricName, sourceState, sourceType, isConnectedOnly, isUsageSource, connectionChip, showsMetric } from './cards.js';
+import { accountCard, metricName, sourceState, subtitle, isConnectedOnly, isUsageSource, connectionChip, showsMetric } from './cards.js';
 import { t, locale } from '../i18n.js';
 
 export function setupDetail({ getFrame, cloudTime, request, run, navigate }) {
@@ -117,7 +117,7 @@ export function setupDetail({ getFrame, cloudTime, request, run, navigate }) {
   function renderSource(source) {
     const now = cloudTime();
     text($('detail-title'), source.displayName);
-    text($('detail-type'), sourceType(source));
+    subtitle($('detail-type'), source, () => navigate('services'));
     $('detail-type').title = source.isAccount ? source.sourceId : '';
     const status = el('span');
     badge(status, sourceState(source));

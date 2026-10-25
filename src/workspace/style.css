@@ -1685,17 +1685,37 @@ dialog::backdrop {
   color: var(--vm-accent-foreground);
 }
 .connection-chip {
-  align-self: flex-start;
-  width: fit-content;
-  border: 0;
-  margin: 0 0 10px;
   max-width: 100%;
   white-space: normal;
   overflow-wrap: anywhere;
-  text-align: left;
 }
-button.connection-chip:hover {
-  filter: brightness(0.97);
+/* The link icon after the provider name: a 24 px target that does not grow the line. */
+.connection-link {
+  display: inline-grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  margin: -6px 0 -6px 1px;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  color: var(--vm-accent);
+  vertical-align: middle;
+  letter-spacing: 0;
+}
+.connection-link[data-tone='warning'] {
+  color: var(--vm-warning);
+}
+.connection-link[data-tone='danger'] {
+  color: var(--vm-danger);
+}
+.connection-link:hover {
+  background: var(--vm-subtle);
+}
+.connection-link > .icon {
+  width: 14px;
+  height: 14px;
 }
 .connection-chip:before {
   display: none;
@@ -1836,9 +1856,6 @@ button.connection-chip:hover {
   flex-wrap: wrap;
   align-items: center;
   gap: 12px;
-}
-.detail-connection-row > .connection-chip {
-  margin: 0;
 }
 .service-dialog {
   width: 560px;
