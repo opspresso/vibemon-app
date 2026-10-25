@@ -86,7 +86,7 @@ Each connection shows its service, plan, account label, state, the weekly usage 
 | **Not responding** | The service did not answer; the account card keeps the earlier reading. |
 | **Sign in again** | The service rejected the saved sign-in. Connect the account again. |
 
-A connection that is not **Connected** also appears at the top of **Overview**; select it to open Connected services.
+While no service is connected, **Overview** shows **See your weekly allowance. No computer setup required.** with **Connect Claude** and **Connect Codex**. A connection that is not **Connected**, or whose reading is old, appears at the top of **Overview** instead; select it to open Connected services. Opening Overview, **Agents**, or Connected services reads the connections again.
 
 An agent account whose usage a service reads shows a chip such as **Usage from Claude Max**, followed by the state when it is not ready. Select it to open Connected services. A connected account without hook reports has its own card: it shows only session and weekly plan usage (never context), no projects, and no history. Its details have a **Connected service** section with **Manage connected services**.
 
