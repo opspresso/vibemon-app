@@ -55,6 +55,15 @@
   --vm-sidebar-width: 220px;
   --vm-control-height: 38px;
   --vm-motion: 150ms;
+  /* Agent-card motion; native clients compile these same durations. */
+  --vm-agent-orbit: 3600ms;
+  --vm-agent-start: 2000ms;
+  --vm-agent-planning: 7000ms;
+  --vm-agent-packing: 2400ms;
+  --vm-agent-breathe: 3200ms;
+  --vm-agent-danger: 2400ms;
+  --vm-agent-wait: 4800ms;
+  --vm-agent-complete: 800ms;
 }
 :root.light,
 :root[data-theme='light'] {
