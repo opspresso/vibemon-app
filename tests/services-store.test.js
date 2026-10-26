@@ -51,6 +51,27 @@ describe('UsageStore', () => {
     expect(store.connections.map(item => item.id)).toEqual(['new']);
   });
 
+  test('logout and re-login clear loaded services and an authorization failure', async () => {
+    const request = jest.fn().mockResolvedValueOnce(snapshot([connection('old')]))
+      .mockRejectedValueOnce(failure('permission-denied'))
+      .mockResolvedValueOnce(snapshot([connection('new')]));
+    const store = new UsageStore({ request, timers, clock: () => 0 });
+    store.follow(1);
+    await store.load();
+    await store.load();
+    expect(store.connections.map(item => item.id)).toEqual(['old']);
+    expect(store.error).toBe('message for permission-denied');
+    store.follow(2);
+    store.setActive(false);
+    expect(store.snapshot).toBeNull();
+    expect(store.error).toBeNull();
+    store.follow(3);
+    store.setActive(true);
+    await jest.advanceTimersByTimeAsync(0);
+    expect(store.connections.map(item => item.id)).toEqual(['new']);
+    store.setActive(false);
+  });
+
   test('a failed list keeps its message until a later list succeeds', async () => {
     const request = jest.fn().mockRejectedValueOnce(failure('connection-error')).mockResolvedValue(snapshot([]));
     const store = new UsageStore({ request, timers, clock: () => 0 });
