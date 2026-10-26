@@ -15,7 +15,7 @@ curl -fsSL https://vibemon.io/install/install.py | python3 - --kubernetes
 
 See [setup](https://vibemon.io/install/setup.md#resource-collectors) for paths, names, and removal. Use the manual steps below for other backends or supervisors.
 
-Download preparation measurements and reproduction commands are in [installation performance](../docs/verification/collector-install.md).
+Download preparation measurements and reproduction commands are in [installation performance](https://github.com/opspresso/vibemon-app/blob/main/docs/verification/collector-install.md).
 
 ## Install and run manually
 
