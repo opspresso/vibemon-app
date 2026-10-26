@@ -27,9 +27,9 @@
   box-shadow: inset 0 0 24px color-mix(in srgb, var(--vm-agent-edge) 18%, transparent);
   opacity: 0;
 }
-.vm-agent-card[data-agent-tone='active']::before { animation: vm-agent-breathe 3.2s ease-in-out infinite; }
+.vm-agent-card[data-agent-tone='active']::before { animation: vm-agent-breathe var(--vm-agent-breathe) ease-in-out infinite; }
 .vm-agent-card[data-agent-tone='warning']::before { opacity: .45; }
-.vm-agent-card[data-agent-tone='danger']::before { animation: vm-agent-breathe 2.4s ease-in-out infinite; }
+.vm-agent-card[data-agent-tone='danger']::before { animation: vm-agent-breathe var(--vm-agent-danger) ease-in-out infinite; }
 .vm-agent-card[data-agent-tone='good']::before { opacity: .35; }
 .vm-agent-card[data-agent-tone]:hover,
 .vm-agent-card[data-agent-tone]:focus-within {
@@ -58,31 +58,31 @@
 .vm-agent-card[data-agent-tone='active'] .vm-agent-edge::before {
   opacity: .9;
   background: conic-gradient(transparent 0 40%, var(--vm-agent-edge) 70%, color-mix(in srgb, var(--vm-agent-edge) 45%, white) 82%, var(--vm-agent-edge) 86%, transparent 100%);
-  animation: vm-agent-orbit 3.6s linear infinite;
+  animation: vm-agent-orbit var(--vm-agent-orbit) linear infinite;
 }
 .vm-agent-card[data-agent-state='thinking'] .vm-agent-edge::before {
   background: var(--vm-agent-edge);
-  animation: vm-agent-breathe 3.2s ease-in-out infinite;
+  animation: vm-agent-breathe var(--vm-agent-breathe) ease-in-out infinite;
 }
 .vm-agent-card[data-agent-state='planning'] .vm-agent-edge::before {
-  animation-duration: 7s;
+  animation-duration: var(--vm-agent-planning);
   animation-timing-function: cubic-bezier(.45, 0, .55, 1);
 }
 .vm-agent-card[data-agent-state='packing'] .vm-agent-edge::before {
   background: conic-gradient(transparent, var(--vm-agent-edge) 30%, color-mix(in srgb, var(--vm-agent-edge) 45%, white) 38%, transparent 50%, var(--vm-agent-edge) 80%, color-mix(in srgb, var(--vm-agent-edge) 45%, white) 88%, transparent);
   animation-direction: reverse;
-  animation-duration: 2.4s;
+  animation-duration: var(--vm-agent-packing);
 }
 .vm-agent-card[data-agent-state='start'] .vm-agent-edge::before {
-  animation-duration: 2s;
+  animation-duration: var(--vm-agent-start);
 }
 .vm-agent-card[data-agent-tone='warning'] .vm-agent-edge::before {
-  animation: vm-agent-wait 4.8s ease-in-out infinite;
+  animation: vm-agent-wait var(--vm-agent-wait) ease-in-out infinite;
 }
 .vm-agent-card[data-agent-tone='danger'] .vm-agent-edge::before { opacity: .9; }
 .vm-agent-card[data-agent-tone='good'] .vm-agent-edge::before {
   opacity: .6;
-  animation: vm-agent-complete 800ms ease-out;
+  animation: vm-agent-complete var(--vm-agent-complete) ease-out;
 }
 .vm-agent-card:focus-within .vm-agent-edge::before { animation-play-state: paused; }
 @keyframes vm-agent-orbit { to { transform: rotate(360deg); } }
