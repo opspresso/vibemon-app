@@ -809,6 +809,28 @@ startFixture({ connections: [] }).then(async fixture => {
   await until(async () => (await text('#sidebar-account')) === 'other@example.com', 'new connection replaces account identity');
   assert.equal((await text('#account-identities')).includes('viewer@example.com'), false, 'previous account identity is cleared');
   const originalSignIn = view.signIn;
+  const requestedScopes = [];
+  await view.settings.cloudDelivery.disconnect();
+  view.signIn = {
+    async signIn(_url, scope, adopt) {
+      requestedScopes.push(scope);
+      return adopt(scope === 'write' ? WRITE_TOKEN : TOKEN, new globalThis.AbortController().signal);
+    },
+    cancel() {}
+  };
+  try {
+    await input('#web-url', 'https://vibemon.io');
+    await click('#sign-in');
+    await until(async () => view.settings.cloudDelivery.snapshot().status === 'verified' && ui('!document.getElementById("sign-in").disabled'), 'automatic activity setup completed');
+    assert.deepEqual(requestedScopes, ['read usage', 'write']);
+    assert.equal(ports.config.vibemon_token, WRITE_TOKEN, 'activity uses its separate write credential');
+    assert.ok(!JSON.stringify(view.snapshot()).includes(WRITE_TOKEN), 'automatic setup never exposes its credential');
+    await screenshot('automatic-activity-setup');
+    requestedScopes.length = 0;
+    await click('#sign-in');
+    await until(() => ui('!document.getElementById("sign-in").disabled'), 'existing activity setup preserved');
+    assert.deepEqual(requestedScopes, ['read usage']);
+  } finally { view.signIn = originalSignIn; }
   let finishSignIn;
   view.signIn = {
     signIn: () => new Promise(resolve => { finishSignIn = resolve; }),

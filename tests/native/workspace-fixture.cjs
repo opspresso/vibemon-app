@@ -91,7 +91,7 @@ async function startFixture({ connections = usageConnections() } = {}) {
     if (request.url === '/api/v1/connection?scope=write') {
       const accepted = request.headers.authorization === `Bearer ${WRITE_TOKEN}`;
       response.writeHead(accepted ? 200 : 403);
-      response.end(JSON.stringify(accepted ? { connected: true, scope: 'write' } : { error: 'Write permission required' }));
+      response.end(JSON.stringify(accepted ? { connected: true, scope: 'write', ownerId: 'fixture-owner' } : { error: 'Write permission required' }));
       return;
     }
     if (request.headers.authorization !== `Bearer ${TOKEN}`) { response.writeHead(401); response.end('{}'); return; }

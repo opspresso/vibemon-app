@@ -126,3 +126,17 @@ test('cancelled verification preserves the saved write token and local delivery'
   expect(delivery.snapshot().busy).toBe(false);
   expect(fetchImpl).toHaveBeenCalledTimes(1);
 });
+
+test.each(['other-workspace', undefined])('automatic setup refuses an unverified owner (%s) without saving the write token', async ownerId => {
+  const { delivery, fetchImpl, configManager } = fixture();
+  fetchImpl.mockResolvedValue(response({ connected: true, scope: 'write', ownerId }));
+  await expect(delivery.configure({ url: 'https://vibemon.io', token }, { expectedOwner: 'workspace-a' })).rejects.toThrow('workspace account');
+  expect(configManager.write).not.toHaveBeenCalled();
+});
+
+test('automatic setup saves only a write token verified for the read workspace', async () => {
+  const { delivery, fetchImpl, configManager } = fixture();
+  fetchImpl.mockResolvedValue(response({ connected: true, scope: 'write', ownerId: 'workspace-a' }));
+  await delivery.configure({ url: 'https://vibemon.io', token }, { expectedOwner: 'workspace-a' });
+  expect(configManager.write).toHaveBeenCalledWith({ vibemon_url: 'https://vibemon.io', vibemon_token: token });
+});

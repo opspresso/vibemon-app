@@ -151,7 +151,7 @@ export function setupPreferences({ getFrame, request, run, notify }) {
   for (const id of ['cancel-sign-in', 'cancel-cloud-sign-in']) $(id).addEventListener('click', () => request('cancel-sign-in'));
   $('sign-in').addEventListener('click', () =>
     run($('sign-in'), () => waiting('cancel-sign-in', async () => {
-      text($('connection-saved'), t('connections.finishInBrowser'));
+      text($('connection-saved'), t('connections.finishSetupInBrowser'));
       try {
         const url = $('web-url').value.trim();
         const cloud = await request('sign-in', url);
