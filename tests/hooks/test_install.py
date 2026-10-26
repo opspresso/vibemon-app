@@ -1333,6 +1333,7 @@ class CollectorInstallTest(unittest.TestCase):
     def test_uninstall_removes_the_service_files_state_and_token(self):
         with tempfile.TemporaryDirectory() as directory, mock.patch.dict(os.environ, {
                 'XDG_DATA_HOME': f'{directory}/data', 'XDG_CONFIG_HOME': f'{directory}/config', 'XDG_STATE_HOME': f'{directory}/state'}), \
+                mock.patch.object(install.platform, 'system', return_value='Linux'), \
                 mock.patch.object(install.os, 'geteuid', return_value=1000), mock.patch.object(install.shutil, 'which', return_value='/bin/systemctl'), \
                 mock.patch.object(install.subprocess, 'run', side_effect=lambda command, **kwargs: subprocess.CompletedProcess(command, 0, f'FragmentPath={paths.unit}\nActiveState=active\nUnitFileState=enabled\n', '')) as run, mock.patch('sys.stdout', io.StringIO()):
             paths = install.CollectorPaths(system=False)

@@ -7,7 +7,7 @@ A headless collector sends display summaries from Linux servers, DGX Spark, macO
 The VibeMon installer installs the collector and signs in to VibeMon; no token is copied:
 
 ```sh
-# Linux host or DGX Spark (systemd service)
+# macOS (login LaunchAgent), Linux or DGX Spark (systemd service)
 curl -fsSL https://vibemon.io/install/install.py | python3 - --collector
 # Kubernetes: the current kubectl context, Kubernetes Metrics API backend
 curl -fsSL https://vibemon.io/install/install.py | python3 - --kubernetes
