@@ -102,7 +102,7 @@ startFixture({ connections: [] }).then(async fixture => {
     const appearance = ['light', 'dark'].includes(selected) ? selected : nativeTheme.shouldUseDarkColors ? 'dark' : 'light';
     const hex = colorPair(readTokens(), 'info')[appearance];
     const expected = `rgb(${[1, 3, 5].map(index => parseInt(hex.slice(index, index + 2), 16)).join(', ')})`;
-    const colors = await ui(`[...document.querySelectorAll('.vm-agent-card[data-agent-tone="active"] .chip')].map(node => getComputedStyle(node).color)`);
+    const colors = await ui('[...document.querySelectorAll(\'.vm-agent-card[data-agent-tone="active"] .chip\')].map(node => getComputedStyle(node).color)');
     assert.ok(colors.length > 0, 'the sample workspace has active status badges');
     assert.ok(colors.every(color => color === expected), 'active badges use the same blue tone as native clients, independently of the decorative state edge');
   };
