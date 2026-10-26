@@ -2221,7 +2221,7 @@ def kubernetes_manifest(name: str, ident: str, origin: str, token: str) -> str:
                           "securityContext": {"allowPrivilegeEscalation": False, "readOnlyRootFilesystem": True, "capabilities": {"drop": ["ALL"]}},
                           "resources": {"requests": {"cpu": "25m", "memory": "64Mi"}, "limits": {"memory": "192Mi"}},
                           "readinessProbe": {"exec": {"command": ["python", "-m", "vibemon_collector.health", "/tmp/vibemon-health"]},
-                                             "initialDelaySeconds": 30, "periodSeconds": 10, "timeoutSeconds": 2, "failureThreshold": 1},
+                                             "initialDelaySeconds": 10, "periodSeconds": 5, "timeoutSeconds": 2, "failureThreshold": 1},
                           "volumeMounts": [{"name": "temporary", "mountPath": "/tmp"}]}],
                       "volumes": [{"name": "temporary", "emptyDir": {"sizeLimit": "32Mi"}}]}}}},
     ]

@@ -9,6 +9,21 @@ from vibemon_collector.transport import checked_url
 
 
 class PolicyTests(unittest.TestCase):
+    def test_startup_sends_one_measured_interval_then_three_fresh_observations(self):
+        policy = TransmissionPolicy()
+        policy.observe(Sample({"cpuPercent": 10}), "host", "host", "Host", 10)
+        first = policy.next_payload(10)
+        self.assertEqual(first["metrics"]["cpuPercent"], 10)
+        self.assertEqual(first["maximums"]["cpuPercent"], 10)
+        policy.succeeded(first, 10)
+        for at in (20, 30):
+            policy.observe(Sample({"cpuPercent": at}), "host", "host", "Host", at)
+            self.assertIsNone(policy.next_payload(at))
+        policy.observe(Sample({"cpuPercent": 40}), "host", "host", "Host", 40)
+        next_window = policy.next_payload(40)
+        self.assertEqual(next_window["metrics"]["cpuPercent"], 30)
+        self.assertEqual(next_window["maximums"]["cpuPercent"], 40)
+
     def test_float_summary_mean_stays_inside_measured_range(self):
         for values in ([0.1] * 3, [52.32263514632913] * 3, [0.1, 0.2, 0.3], [-0.1] * 3):
             with self.subTest(values=values):
@@ -26,7 +41,7 @@ class PolicyTests(unittest.TestCase):
 
     def test_threshold_is_relative_to_last_transmitted_mean(self):
         policy = TransmissionPolicy()
-        self.window(policy, 20)
+        policy.observe(Sample({"cpuPercent": 20}), "host-1", "host", "Host", 30)
         first = policy.next_payload(30)
         self.assertFalse(first["heartbeat"])
         policy.succeeded(first, 30)
@@ -43,7 +58,7 @@ class PolicyTests(unittest.TestCase):
                 metrics = {"cpuPercent": 20, "diskAvailableGiB": available, "diskTotalGiB": 100, "diskUsedPercent": 100 - available}
                 policy.observe(Sample(metrics), "host-1", "host", "Host", wall)
 
-        disk(40, 30)
+        policy.observe(Sample({"cpuPercent": 20, "diskAvailableGiB": 40, "diskTotalGiB": 100, "diskUsedPercent": 60}), "host-1", "host", "Host", 30)
         policy.succeeded(policy.next_payload(30), 30)
         disk(39.99, 60)
         self.assertIsNone(policy.next_payload(60))
@@ -52,7 +67,7 @@ class PolicyTests(unittest.TestCase):
 
     def test_heartbeat_and_failure_transition(self):
         policy = TransmissionPolicy()
-        self.window(policy, 20)
+        policy.observe(Sample({"cpuPercent": 20}), "host-1", "host", "Host", 30)
         policy.succeeded(policy.next_payload(30), 30)
         self.window(policy, 20, 60)
         self.assertIsNone(policy.next_payload(60))
@@ -66,6 +81,8 @@ class PolicyTests(unittest.TestCase):
 
     def test_outage_is_bounded_and_recovery_sends_only_newest_window(self):
         policy = TransmissionPolicy()
+        policy.observe(Sample({"cpuPercent": 0}), "host-1", "host", "Host", 0)
+        policy.failed(0)
         for window in range(1000):
             self.window(policy, window % 100, 30 * (window + 1))
             self.assertLessEqual(len(policy.samples), 3)
@@ -95,7 +112,11 @@ class PolicyTests(unittest.TestCase):
                 observations.append(clock.now)
                 clock.now += 2
                 return Sample({"cpuPercent": 20})
-        run_host(Sampler(), lambda payload: {"accepted": True}, clock, once=True)
+        def wait(seconds):
+            clock.sleep(seconds)
+            if clock.now >= 35: raise StopIteration()
+        with self.assertRaises(StopIteration):
+            run_host(Sampler(), lambda payload: {"accepted": True}, clock, wait)
         self.assertEqual(observations, [10, 20, 30])
 
     def test_sender_latency_does_not_delay_the_sixty_second_heartbeat(self):
@@ -111,14 +132,14 @@ class PolicyTests(unittest.TestCase):
             return {"accepted": True}
         with self.assertRaises(StopIteration):
             run_host(Sampler(), sender, clock, wait)
-        self.assertEqual(sent, [30, 90])
+        self.assertEqual(sent, [10, 70])
 
     def test_sampler_jitter_cannot_skip_a_due_heartbeat(self):
         clock, sent, count = FakeClock(), [], [0]
         class Sampler:
             def sample(self):
                 count[0] += 1
-                clock.now += .5 if count[0] == 3 else .05
+                clock.now += .5 if count[0] == 1 else .05
                 return Sample({"cpuPercent": 20})
         def wait(seconds):
             clock.sleep(seconds)
@@ -127,7 +148,7 @@ class PolicyTests(unittest.TestCase):
             sent.append(clock.now); return {"accepted": True}
         with self.assertRaises(StopIteration):
             run_host(Sampler(), sender, clock, wait)
-        self.assertEqual(sent, [30.5, 90.05])
+        self.assertEqual(sent, [10.5, 70.05])
 
     def test_collection_and_transmission_failures_do_not_stop_loop(self):
         clock = FakeClock()
@@ -145,8 +166,8 @@ class PolicyTests(unittest.TestCase):
         run_host(Sampler(), sender, clock, once=True)
         self.assertEqual(len(sent), 2)
         self.assertEqual(sent[0]["health"], "error")
-        self.assertEqual(sent[1]["metrics"]["cpuPercent"], 50)
-        self.assertEqual(clock.now, 60)
+        self.assertEqual(sent[1]["metrics"]["cpuPercent"], 40)
+        self.assertEqual(clock.now, 40)
 
 
 class AdapterTests(unittest.TestCase):

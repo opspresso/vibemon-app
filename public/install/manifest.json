@@ -1,5 +1,5 @@
 {
-  "installer": "ab49d342394fc0b4e0f5fc2e25bc396348296df8057430db6e8a96c5824f4e84",
+  "installer": "38838282980c3e0dd981a21867ec19729cf0919d70d85413f243646266250ac4",
   "files": {
     "claude/settings.json": "16364280f11c2e94a7c70d01b0f019aaf736ea82c8b0d8a2a9936072d0cfe009",
     "codex/hooks.json": "a5087e967b9d88aa214e50221a558262b0952bc7607fe8d7c8f452fcc7b6210d",
@@ -31,10 +31,10 @@
     "opencode/plugin/vibemon.js": "46601ebd2cc64bf2678ecea2972a97179e68a24a1f3a6978a85f8f3ad9e1a166",
     "opencode/hooks/vibemon.py": "96f357ebd20b6db7865383f6883d622bc4ad6c3c2bc00dfecbce617a23e20e26",
     "collector/vibemon_collector/__init__.py": "26effa5a5c29344cc6735202dc619a5b37c3944854ca10da036043b3acf7c22c",
-    "collector/vibemon_collector/__main__.py": "423a63f51d881fc1d4f26602dfd348c7e5bce6b5ed04171ecec485829af184be",
+    "collector/vibemon_collector/__main__.py": "f8cb4084e8871bd01d0eaa4a107688faf79b09fbef5ed0468f1107bbda36117a",
     "collector/vibemon_collector/application.py": "de075f4b1e28e5aa44da7f21595f29d5eae38b49cf30343ff9191ca5395e9d41",
     "collector/vibemon_collector/disk.py": "e335840eb942f48e82158fc27b946c0923a35ae84bbe16fd76e7f47c49ca9af1",
-    "collector/vibemon_collector/domain.py": "0f39eb24e964ce7bf2c3b1b68317ea9d35573d922fa5cd68c060fb98d4d4a417",
+    "collector/vibemon_collector/domain.py": "77c6d7f2c9d0fdc54b9b43a8934b2f04538ebecfc5ca5264fd339428b4360ef8",
     "collector/vibemon_collector/health.py": "edecdd4623273688ae141a59a23be71b35b46f45d078e3c2b68d28c66a215d88",
     "collector/vibemon_collector/host.py": "902eb85f06d5636e9db3a0b554ea5690e72cbb19070316e67be954b65fb049b1",
     "collector/vibemon_collector/http_deadline.py": "96b644e70c1f4566933dbe7f62763079d1ca9bd7ee3b0cc58a062a8126564f24",

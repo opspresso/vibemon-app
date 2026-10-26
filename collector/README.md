@@ -43,7 +43,7 @@ Generate the token at [Account](https://vibemon.io/account) and select **Show to
 | `--disk` | Add root-disk available GiB, total GiB, and used percentage (host or cluster Metrics API) |
 | `--metrics cpuPercent,memoryPercent` | Collect only the selected metrics |
 | `--memory-type auto` | Detect Spark/GB10 unified memory; `ram` and `unified` explicitly override |
-| `--once` | Exit after one successfully acknowledged 30-second summary |
+| `--once` | Exit after the first successfully acknowledged summary |
 | `--health-file PATH` | Atomically record the last newly accepted observation time for readiness checks |
 | `--allow-local-http` | Permit HTTP on loopback addresses only for isolated development |
 
@@ -51,9 +51,9 @@ Generate the token at [Account](https://vibemon.io/account) and select **Show to
 
 ## Observation and retry rules
 
-The collector observes every 10 seconds and summarizes three observations. It sends a new summary when a window mean differs by at least 2 percentage points, 2 °C, or 1 GiB from the last successful transmission, a node/pod count changes, measurement availability changes, or health changes. Unchanged state sends a heartbeat every 60 seconds.
+The collector observes every 10 seconds. It sends the first measured interval immediately after that first observation so installation does not wait for a full aggregation window. Subsequent summaries each contain three fresh observations; the startup observation is not counted again. It sends a new summary when a window mean differs by at least 2 percentage points, 2 °C, or 1 GiB from the last successful transmission, a node/pod count changes, measurement availability changes, or health changes. Unchanged state sends a heartbeat every 60 seconds.
 
-Only the current three samples and the newest pending summary remain in memory. Transmission failures discard the old pending window; the next window replaces it. Exponential backoff caps at 60 seconds. Recovery sends current state without replaying old samples. A slow adapter never triggers a burst of catch-up observations. Collection and transmission failures are logged by exception type without credentials or response bodies.
+At most three samples and the newest pending summary remain in memory. Transmission failures discard the old pending window; the next window replaces it. Exponential backoff caps at 60 seconds. Recovery sends current state without replaying old samples. A slow adapter never triggers a burst of catch-up observations. Collection and transmission failures are logged by exception type without credentials or response bodies.
 
 VibeMon, Prometheus, and kubelet HTTP requests have a five-second monotonic I/O budget that includes response headers and bodies. Partial reads and chunked responses do not restart the budget. VibeMon/Prometheus bodies are limited to 64 KiB; kubelet summaries are limited to 4 MiB. The operating system DNS resolver cannot be cancelled by socket timeouts; its elapsed time consumes the budget before network I/O continues. TLS verification, the kubelet service-account CA, and redirect rejection remain enabled.
 
