@@ -325,23 +325,20 @@ h3 {
 .chip {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 5px;
   white-space: nowrap;
-  border-radius: 6px;
+  border-radius: 999px;
   font-size: 12px;
   line-height: 1.4;
-  font-weight: 560;
-  padding: 4px 8px;
+  font-weight: 600;
+  padding: 4px 9px;
 }
 .chip:before {
   content: '';
-  height: 5px;
-  width: 5px;
+  height: 7px;
+  width: 7px;
   border-radius: 50%;
   background: currentColor;
-}
-.chip.neutral:before {
-  display: none;
 }
 .chip.neutral {
   background: var(--vm-subtle);
@@ -360,8 +357,8 @@ h3 {
   color: var(--vm-danger);
 }
 .chip.active {
-  background: var(--vm-accent-soft);
-  color: var(--vm-accent);
+  background: var(--vm-info-soft);
+  color: var(--vm-info);
 }
 .icon-button {
   width: 32px;
@@ -471,7 +468,7 @@ h3 {
   position: relative;
   border: 1px solid var(--vm-border);
   border-radius: var(--vm-radius-panel);
-  padding: 18px;
+  padding: var(--vm-panel-padding);
   background: var(--vm-surface);
   box-shadow: var(--vm-shadow);
 }
@@ -544,7 +541,7 @@ h3 {
 .card {
   border: 1px solid var(--vm-border);
   border-radius: var(--vm-radius-panel);
-  padding: 19px;
+  padding: var(--vm-panel-padding);
   background: var(--vm-surface);
   box-shadow: var(--vm-shadow);
   min-width: 0;
@@ -563,9 +560,9 @@ h3 {
 .source-icon {
   width: 33px;
   height: 33px;
-  background: var(--vm-subtle);
+  background: var(--vm-accent-soft);
   border: 1px solid var(--vm-border);
-  color: var(--vm-muted);
+  color: var(--vm-accent);
   border-radius: 9px;
   display: grid;
   place-items: center;
@@ -587,7 +584,8 @@ h3 {
 }
 .card-heading > .chip {
   margin-left: auto;
-  padding: 4px 6px;
+  gap: 4px;
+  padding: 3px 7px;
   font-size: 11px;
   max-width: 100%;
   white-space: normal;
@@ -595,6 +593,8 @@ h3 {
 }
 .card-heading > .chip:before {
   flex: none;
+  width: 6px;
+  height: 6px;
 }
 .card-title-group {
   flex: 1;

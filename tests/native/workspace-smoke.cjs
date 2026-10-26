@@ -7,6 +7,7 @@ const { URL } = require('node:url');
 const { startFixture, TOKEN, WRITE_TOKEN, CLAUDE_CODE } = require('./workspace-fixture.cjs');
 const { usageConnections, USAGE_IDS } = require('../fixtures/workspace.cjs');
 const { AGENT_TEXT_LIMITS } = require('../../src/shared/resource-schema.cjs');
+const { colorPair, readTokens } = require('../../src/shared/design/tokens.cjs');
 const output = process.env.VIBEMON_TEST_ARTIFACTS || path.join(__dirname, '../../out/workspace-tests');
 fs.mkdirSync(output, { recursive: true });
 nativeTheme.themeSource = 'dark';
@@ -96,6 +97,15 @@ startFixture({ connections: [] }).then(async fixture => {
     view.open(route);
     await until(() => visible(`section[data-page="${route}"]`), `${route} page visible`);
   };
+  const assertActiveBadgeTone = async () => {
+    const selected = await ui('document.documentElement.dataset.theme');
+    const appearance = ['light', 'dark'].includes(selected) ? selected : nativeTheme.shouldUseDarkColors ? 'dark' : 'light';
+    const hex = colorPair(readTokens(), 'info')[appearance];
+    const expected = `rgb(${[1, 3, 5].map(index => parseInt(hex.slice(index, index + 2), 16)).join(', ')})`;
+    const colors = await ui(`[...document.querySelectorAll('.vm-agent-card[data-agent-tone="active"] .chip')].map(node => getComputedStyle(node).color)`);
+    assert.ok(colors.length > 0, 'the sample workspace has active status badges');
+    assert.ok(colors.every(color => color === expected), 'active badges use the same blue tone as native clients, independently of the decorative state edge');
+  };
   const screenshot = async name => {
     console.log(`Capture: ${name}`);
     await until(() => ui('document.getElementById("toast").hidden'), 'transient feedback completed');
@@ -158,6 +168,7 @@ startFixture({ connections: [] }).then(async fixture => {
   const overviewBounds = await ui('({ bottom: document.querySelector("#overview-accounts .card").getBoundingClientRect().bottom, viewport: innerHeight })');
   assert.ok(overviewBounds.bottom < overviewBounds.viewport, `account metrics fit in the initial viewport: ${JSON.stringify(overviewBounds)}`);
   assert.equal(state.requests.some(url => url.includes('/trend?')), false, 'history is not prefetched');
+  await assertActiveBadgeTone();
   await screenshot('overview-dark');
   await click('#overview-attention');
   assert.equal(await ui('document.getElementById("overview-attention").getAttribute("aria-pressed")'), 'true');
@@ -494,6 +505,7 @@ startFixture({ connections: [] }).then(async fixture => {
   await navigate('agents');
   await verifyContrast();
   await navigate('overview');
+  await assertActiveBadgeTone();
   await screenshot('overview-light');
   await navigate('companion');
   assert.equal(await value('#render-mode'), '2d');

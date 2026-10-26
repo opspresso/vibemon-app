@@ -49,7 +49,8 @@
   --vm-shadow: 0 2px 8px light-dark(#17233b05, #00000012), 0 14px 32px light-dark(#17233b03, #00000012);
   --vm-font: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   --vm-radius-control: 8px;
-  --vm-radius-panel: 12px;
+  --vm-radius-panel: 18px;
+  --vm-panel-padding: 16px;
   --vm-radius-dialog: 16px;
   --vm-sidebar-width: 220px;
   --vm-control-height: 38px;

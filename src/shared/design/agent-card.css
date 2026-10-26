@@ -11,10 +11,6 @@
 .vm-agent-card[data-agent-state='thinking'] { --vm-agent-edge: var(--vm-state-thinking); }
 .vm-agent-card[data-agent-state='planning'] { --vm-agent-edge: var(--vm-state-planning); }
 .vm-agent-card[data-agent-state='packing'] { --vm-agent-edge: var(--vm-state-packing); }
-.vm-agent-card[data-agent-tone='active'] :is(.chip, .workspace-status) {
-  color: var(--vm-agent-edge);
-  background: color-mix(in srgb, var(--vm-agent-edge) 14%, var(--vm-surface));
-}
 .vm-agent-card[data-agent-tone] {
   border-color: color-mix(in srgb, var(--vm-agent-edge) 55%, var(--vm-border));
 }
@@ -41,7 +37,6 @@
   box-shadow: var(--vm-shadow), 0 0 0 3px color-mix(in srgb, var(--vm-agent-edge) 18%, transparent), 0 0 30px color-mix(in srgb, var(--vm-agent-edge) 28%, transparent);
 }
 .vm-agent-card:focus-within::before { animation: none; opacity: .9; }
-.vm-agent-card[data-agent-tone]:not([data-agent-tone='neutral']) :is(.chip, .workspace-status)::before { box-shadow: 0 0 8px currentColor; }
 .vm-agent-edge {
   position: absolute;
   inset: -1px;
