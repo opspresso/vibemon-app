@@ -1,3 +1,4 @@
+from contextlib import nullcontext
 import io
 from pathlib import Path
 import plistlib
@@ -138,6 +139,7 @@ class MacCollectorTests(unittest.TestCase):
         previous = self.unit(old).encode()
         self.paths.unit.write_bytes(previous)
         with mock.patch.object(install, 'MacCollectorPaths', return_value=self.paths), \
+                mock.patch.object(install, 'collector_lock', side_effect=lambda _: nullcontext()), \
                 mock.patch.object(install.os, 'geteuid', return_value=501, create=True), \
                 mock.patch.object(install, 'mac_stop_collector', side_effect=RuntimeError('stop failed')), \
                 mock.patch('sys.stdout', io.StringIO()), self.assertRaisesRegex(RuntimeError, 'stop failed'):
