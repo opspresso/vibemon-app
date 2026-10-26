@@ -32,3 +32,9 @@ The first summary contains the first real 10-second observation. Later windows c
 `python3 scripts/benchmark-collector-startup.py` runs the host sampler with real CPU and memory readings, a real clock, a loopback ingest API, and a temporary readiness file. The API validates measured values and acknowledges the observation before the file becomes ready. `--collector-dir` selects an extracted baseline package for comparison.
 
 On the same Linux ARM64 container with external networking disabled, one baseline run at `76797cb` became ready in **30.0156 seconds**; one changed run became ready in **10.0113 seconds**. This removes 20 seconds of initial aggregation delay. It measures collector startup through accepted ingest, not package installation or browser approval, and is not a DGX Spark hardware or live Kubernetes timing result.
+
+## macOS installation lifecycle
+
+Run `/path/to/python3 tests/native/mac-collector-smoke.py` from a logged-in macOS account. The interpreter must provide SSL and `venv`; installation downloads `psutil` unless an offline wheel directory is configured through pip. The test uses a random LaunchAgent label, a temporary runtime root with spaces in its path, synthetic credentials, and a loopback ingest server. It does not change the normal collector or contact VibeMon.
+
+The test verifies real CPU/memory delivery, private credential permissions, recovery after an HTTP 401 during an update, a new observation from the restored process, successful replacement, removal, and preservation of an unrelated file. Cleanup stops only the test's randomly named service. Unit tests separately cover foreign service ownership, stopped-process failures, invalid readiness, and the interval before launchd assigns a PID.

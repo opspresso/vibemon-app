@@ -1,6 +1,6 @@
 # VibeMon setup
 
-Install hooks to send coding-agent summaries to the local Desktop App, VibeMon, or both, and install collectors for Linux hosts, DGX Spark, and Kubernetes. Python 3 is required. VibeMon uses Google or email account sign-in; agent-provider credentials remain on the machine running the hooks.
+Install hooks to send coding-agent summaries to the local Desktop App, VibeMon, or both, and install collectors for macOS, Linux hosts, DGX Spark, and Kubernetes. Python 3 is required. VibeMon uses Google or email account sign-in; agent-provider credentials remain on the machine running the hooks.
 
 Desktop auto-launch opens the installed macOS App or a Windows installer location (or `VibeMon.exe` on PATH). Start custom Windows installations and other platforms manually. Hooks never install or run an npm package.
 
@@ -120,10 +120,18 @@ A collector sends CPU, memory, GPU, and disk summaries of a server or cluster. I
 
 | Target | Command |
 | --- | --- |
-| Linux host or DGX Spark | `curl -fsSL https://vibemon.io/install/install.py \| python3 - --collector` |
+| macOS, Linux host, or DGX Spark | `curl -fsSL https://vibemon.io/install/install.py \| python3 - --collector` |
 | Kubernetes (current kubectl context) | `curl -fsSL https://vibemon.io/install/install.py \| python3 - --kubernetes` |
 
 A run with a saved token reuses it only for the same VibeMon address; another origin, or `--login`, signs in again. Add `--name "Display name"` to choose the name on VibeMon. The default is the host name or the kubectl context name. The source ID derives from it, such as `host-dgx-spark`.
+
+**macOS** needs Python 3.10 or later with SSL and `venv` support. Run the command from your logged-in account, without `sudo`. The collector reports CPU, memory, and root-disk capacity; unsupported GPU values stay unavailable. It runs independently of the Desktop App.
+
+- The login LaunchAgent is `~/Library/LaunchAgents/io.vibemon.collector.plist`. It starts when you log in and stops when you log out. Sleeping or powered-off Macs cannot report.
+- Each runtime is private under `~/Library/Application Support/VibeMon/collector/releases/release-*`. The write token stays in that runtime's `collector.env` (mode 600), not the LaunchAgent plist or command arguments.
+- Installation waits for an accepted observation. An unsuccessful update restores the previous LaunchAgent and restarts it if it was loaded. Failed runtime logs remain for diagnosis and are removed after a successful update. If restoration cannot finish, keep the paths named in the error; the failed runtime contains `previous-launchagent.plist` for recovery. Permission and configuration failures remain stopped; crashes are restarted.
+- Check `launchctl print gui/$(id -u)/io.vibemon.collector`. Its program arguments identify the active runtime; `collector.log` in that directory explains delivery failures. Re-run the installer after correcting the connection.
+- Re-run the same command with `--uninstall` to stop the LaunchAgent and remove only its marked runtimes. Unrelated files remain. The Web token remains valid until you delete it on Account.
 
 **Linux host or DGX Spark** needs Python 3.10 or later and systemd. The installer downloads up to four collector files concurrently, checks each file against the manifest, and prepares a separate Python environment before requesting sign-in or stopping an existing collector. It then starts the new version, waits up to three minutes for VibeMon to accept an observation, and verifies the running process's command and environment. Each version writes its readiness file inside its own runtime directory, so another collector that uses the older `~/.local/state/vibemon-collector/health` path cannot satisfy this check. Uninstallation removes the older token and readiness files only when they are in this installer's format or named by its unit. A failed switch restores the previous unit and its running state. A conflicting systemd override also causes restoration; inspect it before retrying. If restoration itself fails, the error identifies the retained runtime and unit backup for recovery. DGX Spark unified memory and NVIDIA GPU measurements are detected automatically.
 

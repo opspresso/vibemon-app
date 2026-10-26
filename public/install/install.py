@@ -45,6 +45,7 @@ import json
 import os
 import re
 import platform
+import plistlib
 import shlex
 import shutil
 import subprocess
@@ -1787,8 +1788,8 @@ def install_vibemon(source: FileSource, cli_token: str = None) -> bool:
 
 # MARK: Resource collector
 #
-# --collector installs the summary collector as a systemd service on a Linux
-# host. DGX Spark is a Linux host: the collector detects its unified memory.
+# --collector uses a macOS login LaunchAgent or a Linux systemd service.
+# DGX Spark is a Linux host: the collector detects its unified memory.
 # --kubernetes runs the published collector image in the current kubectl
 # context and reads the Kubernetes Metrics API. Both sign in to VibeMon
 # (client "vibemon-collector") unless a write token is supplied.
@@ -2107,34 +2108,12 @@ def activate_collector(paths: CollectorPaths, runtime: Path, unit: str, previous
     shutil.rmtree(backup_dir)
 
 
-def install_collector(source: FileSource, cli_token: str = None) -> bool:
-    """Install the host collector as a systemd service (Linux, DGX Spark)."""
-    print(f"\n{colored('Installing the resource collector for this host...', 'cyan')}")
-    if platform.system() != "Linux" or not shutil.which("systemctl"):
-        print(f"  {colored('!', 'yellow')} The host collector needs Linux with systemd. Use --kubernetes for a cluster.")
-        return False
-    if sys.version_info < (3, 10):
-        print(f"  {colored('!', 'yellow')} The collector needs Python 3.10 or later.")
-        return False
-    paths = CollectorPaths(system=os.geteuid() == 0)
-    with collector_lock(paths):
-        return install_collector_locked(paths, source, cli_token)
-
-
-def install_collector_locked(paths: CollectorPaths, source: FileSource, cli_token: str = None) -> bool:
-    origin = web_origin()
-    name = SOURCE_NAME or device_name()
-    ident = source_id("host", name)
-    previous = collector_unit_bytes(paths.unit)
-    if previous is not None and b"# Managed by the VibeMon installer" not in previous:
-        raise RuntimeError(f"{display_path(paths.unit)} exists and was not created by this installer")
-
-    # Validate service arguments and ownership before requesting a new credential.
-    collector_unit(paths, origin, name, ident)
-    current = owned_collector_runtime(paths, previous.decode("utf-8")) if previous is not None else None
-    service = collector_service_state(paths)
-    if previous is None and service["ActiveState"] not in {"inactive", "failed"}:
-        raise RuntimeError("A collector is running without this installer's unit")
+def prepare_collector_runtime(paths, source, cli_token, origin, name, current, previous):
+    """Prepare verified code and credentials without stopping a working service."""
+    try:
+        __import__('ssl')
+    except ImportError:
+        raise RuntimeError('This Python has no SSL support. Use Python 3.10 or later with SSL and venv support') from None
     supplied = cli_token or os.environ.get("VIBEMON_WRITE_TOKEN")
     if supplied:
         validate_token(supplied)
@@ -2166,10 +2145,263 @@ def install_collector_locked(paths: CollectorPaths, source: FileSource, cli_toke
         token = collector_token(cli_token, *saved_collector_token(token_file), origin, name)
         write_text_atomic(runtime / "collector.env", f"VIBEMON_WRITE_TOKEN={token}\nVIBEMON_URL={origin}\n", mode=0o600)
         (runtime / ".vibemon-release").write_text(COLLECTOR_RELEASE_MARKER)
+    except BaseException:
+        shutil.rmtree(runtime)
+        raise
+    return runtime, token
+
+
+class MacCollectorPaths:
+    """A login-session collector; no root service or Desktop App is required."""
+    def __init__(self):
+        self.base = Path.home() / 'Library' / 'Application Support' / 'VibeMon' / 'collector'
+        self.env_file = self.base / 'collector.env'
+        self.unit = Path.home() / 'Library' / 'LaunchAgents' / 'io.vibemon.collector.plist'
+        self.state = self.base
+        self.label = 'io.vibemon.collector'
+        self.domain = f'gui/{os.getuid()}'
+        self.target = f'{self.domain}/{self.label}'
+
+
+MAC_COLLECTOR_LAUNCHER = '''import os
+from pathlib import Path
+import runpy
+import sys
+
+runtime = Path(__file__).resolve().parent
+values = dict(line.split('=', 1) for line in (runtime / 'collector.env').read_text().splitlines())
+if set(values) != {'VIBEMON_WRITE_TOKEN', 'VIBEMON_URL'}:
+    raise RuntimeError('Invalid collector environment file')
+os.environ.update(values)
+sys.path.insert(0, str(runtime / 'app'))
+runpy.run_module('vibemon_collector', run_name='__main__')
+'''
+
+
+def mac_collector_plist(paths, runtime, origin, name, ident):
+    arguments = collector_arguments(paths, origin, name, ident, runtime)
+    arguments[1:3] = ['-I', str(runtime / 'launch.py')]
+    if any('\n' in value or '\r' in value for value in arguments):
+        raise ValueError('Collector arguments cannot contain line breaks')
+    return plistlib.dumps({
+        'Label': paths.label, 'ProgramArguments': arguments,
+        'WorkingDirectory': str(runtime), 'RunAtLoad': True,
+        # Retry crashes; ordinary configuration errors remain stopped and visible.
+        'KeepAlive': {'Crashed': True}, 'ThrottleInterval': 30, 'Umask': 0o077,
+        'StandardOutPath': str(runtime / 'collector.log'),
+        'StandardErrorPath': str(runtime / 'collector.log'),
+        'VibeMonManaged': True, 'VibeMonRuntime': str(runtime),
+    }).decode('utf-8')
+
+
+def mac_owned_runtime(paths, content):
+    if content is None:
+        return None
+    try:
+        value = plistlib.loads(content)
+        runtime = Path(value['VibeMonRuntime'])
+        if value.get('Label') != paths.label or value.get('VibeMonManaged') is not True or not is_collector_runtime(paths, runtime):
+            raise ValueError()
+    except (ValueError, TypeError, KeyError, plistlib.InvalidFileException):
+        raise RuntimeError('The LaunchAgent was not created by this installer; nothing was changed') from None
+    return runtime
+
+
+def mac_collector_state(paths, timeout=15):
+    result = subprocess.run(['launchctl', 'print', paths.target], capture_output=True, text=True, timeout=timeout)
+    if result.returncode == 113 and f'Could not find service "{paths.label}"' in result.stderr:
+        return None
+    if result.returncode:
+        raise RuntimeError('Cannot inspect the collector LaunchAgent; run from your logged-in macOS account')
+    path = re.search(r'^\tpath = (.+)$', result.stdout, re.M)
+    if not path or Path(path[1]).resolve() != paths.unit.resolve():
+        raise RuntimeError('The loaded LaunchAgent belongs to another file; nothing was changed')
+    pid = re.search(r'^\tpid = (\d+)$', result.stdout, re.M)
+    program = re.search(r'^\tprogram = (.+)$', result.stdout, re.M)
+    exited = re.search(r'^\tlast exit code = (\d+)$', result.stdout, re.M)
+    arguments = re.search(r'^\targuments = \{\n(.*?)^\t\}', result.stdout, re.M | re.S)
+    return {'pid': int(pid[1]) if pid else None, 'exit_code': int(exited[1]) if exited else None,
+            'program': program[1] if program else None,
+            'arguments': [line.removeprefix('\t\t') for line in arguments[1].splitlines()] if arguments else []}
+
+
+def mac_stop_collector(paths):
+    state = mac_collector_state(paths)
+    if state is None:
+        return
+    run_checked(['launchctl', 'bootout', paths.target], 'Stopping the collector LaunchAgent', timeout=15)
+    if state['pid']:
+        deadline = time.monotonic() + 15
+        while time.monotonic() < deadline:
+            try:
+                os.kill(state['pid'], 0)
+            except ProcessLookupError:
+                return
+            time.sleep(.1)
+        raise RuntimeError('The collector process did not stop; its files were preserved')
+
+
+def wait_for_mac_collector(paths, runtime, expected, clock=time.monotonic, sleep=time.sleep):
+    deadline = clock() + COLLECTOR_START_TIMEOUT_SECONDS
+    while clock() < deadline:
+        state = mac_collector_state(paths, timeout=min(15, deadline - clock()))
+        if not state or (not state['pid'] and state.get('exit_code') is not None):
+            raise RuntimeError(f'The collector stopped before VibeMon accepted data; see {runtime / "collector.log"}')
+        if state['program'] != expected[0] or state['arguments'] != expected:
+            raise RuntimeError('The LaunchAgent is not running the prepared collector')
+        if not state['pid']:
+            sleep(min(1, max(0, deadline - clock())))
+            continue
+        try:
+            acknowledged = float(collector_health(paths, runtime).read_text())
+        except FileNotFoundError:
+            pass
+        except ValueError:
+            raise RuntimeError('The collector readiness file is invalid') from None
+        else:
+            if not 0 <= time.time() - acknowledged < 120:
+                raise RuntimeError('The collector readiness timestamp is invalid')
+            return
+        sleep(min(1, max(0, deadline - clock())))
+    raise RuntimeError('VibeMon did not accept a collector observation within 180 seconds')
+
+
+def activate_mac_collector(paths, runtime, unit, previous):
+    """Keep the previous runtime intact until the replacement has delivered data."""
+    was_loaded = mac_collector_state(paths) is not None
+    if collector_unit_bytes(paths.unit) != previous:
+        shutil.rmtree(runtime)
+        raise RuntimeError('The LaunchAgent changed during preparation; nothing was replaced')
+    if was_loaded and previous is None:
+        raise RuntimeError('A collector appeared without an owned LaunchAgent; nothing was changed')
+    backup = runtime / 'previous-launchagent.plist'
+    if previous is not None:
+        write_text_atomic(backup, previous.decode(), mode=0o600)
+    written = stopped = False
+    try:
+        mac_stop_collector(paths)
+        stopped = True
+        if collector_unit_bytes(paths.unit) != previous:
+            raise RuntimeError('The LaunchAgent changed while stopping; nothing was replaced')
+        write_text_atomic(paths.unit, unit, mode=0o600)
+        written = True
+        run_checked(['launchctl', 'bootstrap', paths.domain, str(paths.unit)], 'Starting the collector LaunchAgent', timeout=15)
+        wait_for_mac_collector(paths, runtime, plistlib.loads(unit.encode())['ProgramArguments'])
+        if collector_unit_bytes(paths.unit) != unit.encode():
+            raise RuntimeError('The LaunchAgent changed during activation')
+    except BaseException as error:
+        try:
+            if written:
+                mac_stop_collector(paths)
+                if paths.unit.is_symlink() or collector_unit_bytes(paths.unit) != unit.encode():
+                    raise RuntimeError('The LaunchAgent was edited during installation')
+                if previous is None:
+                    paths.unit.unlink()
+                else:
+                    write_text_atomic(paths.unit, previous.decode(), mode=0o600)
+            if stopped and was_loaded and mac_collector_state(paths) is None:
+                run_checked(['launchctl', 'bootstrap', paths.domain, str(paths.unit)], 'Restoring the previous collector', timeout=15)
+        except Exception as recovery:
+            raise RuntimeError(f'Collector restoration is incomplete. Keep {runtime} and {paths.unit} for recovery: {recovery}') from error
+        # Retain the failed runtime, log, and previous plist for diagnosis or
+        # manual recovery. A later successful install cleans marked runtimes.
+        raise
+    backup.unlink(missing_ok=True)
+
+
+def install_mac_collector(source, cli_token=None):
+    if os.geteuid() == 0:
+        raise RuntimeError('Run --collector from your logged-in macOS account without sudo')
+    paths = MacCollectorPaths()
+    run_checked(['launchctl', 'print-disabled', paths.domain], 'Checking the login session', timeout=15)
+    with collector_lock(paths):
+        previous = collector_unit_bytes(paths.unit)
+        current = mac_owned_runtime(paths, previous)
+        if previous is None and mac_collector_state(paths) is not None:
+            raise RuntimeError('A collector is loaded without this installer\'s LaunchAgent')
+        origin, name = web_origin(), SOURCE_NAME or device_name()
+        ident = source_id('host', name)
+        runtime, _token = prepare_collector_runtime(paths, source, cli_token, origin, name, current, previous)
+        try:
+            write_text_atomic(runtime / 'launch.py', MAC_COLLECTOR_LAUNCHER, mode=0o600)
+            unit = mac_collector_plist(paths, runtime, origin, name, ident)
+        except BaseException:
+            shutil.rmtree(runtime)
+            raise
+        activate_mac_collector(paths, runtime, unit, previous)
+        for old in (paths.base / 'releases').iterdir():
+            if old != runtime and is_collector_runtime(paths, old):
+                shutil.rmtree(old)
+    print(f'  Collector running as {ident}; VibeMon accepted its first observation.')
+    print('  It starts when you log in and stops when you log out. The Mac must be awake to report.')
+    print(f'  Status: launchctl print {paths.target}')
+    return True
+
+
+def uninstall_mac_collector():
+    if os.geteuid() == 0:
+        raise RuntimeError('Run --collector --uninstall without sudo')
+    paths = MacCollectorPaths()
+    with collector_lock(paths):
+        previous = collector_unit_bytes(paths.unit)
+        mac_owned_runtime(paths, previous)
+        if previous is None and mac_collector_state(paths) is not None:
+            raise RuntimeError('A collector is loaded without this installer\'s LaunchAgent')
+        mac_stop_collector(paths)
+        if collector_unit_bytes(paths.unit) != previous:
+            raise RuntimeError('The LaunchAgent changed during removal; files were preserved')
+        if previous is not None:
+            paths.unit.unlink()
+        releases = paths.base / 'releases'
+        if releases.exists():
+            for runtime in releases.iterdir():
+                if is_collector_runtime(paths, runtime):
+                    shutil.rmtree(runtime)
+            if not any(releases.iterdir()):
+                releases.rmdir()
+    print('  Removed the collector LaunchAgent. The token stays valid until you delete it on Web Account.')
+    return True
+
+
+def install_collector(source: FileSource, cli_token: str = None) -> bool:
+    """Install the host collector with the operating system's service manager."""
+    print(f"\n{colored('Installing the resource collector for this host...', 'cyan')}")
+    if platform.system() == 'Darwin':
+        if sys.version_info < (3, 10):
+            raise RuntimeError('The collector needs Python 3.10 or later')
+        return install_mac_collector(source, cli_token)
+    if platform.system() != "Linux" or not shutil.which("systemctl"):
+        print(f"  {colored('!', 'yellow')} The host collector needs Linux with systemd. Use --kubernetes for a cluster.")
+        return False
+    if sys.version_info < (3, 10):
+        print(f"  {colored('!', 'yellow')} The collector needs Python 3.10 or later.")
+        return False
+    paths = CollectorPaths(system=os.geteuid() == 0)
+    with collector_lock(paths):
+        return install_collector_locked(paths, source, cli_token)
+
+
+def install_collector_locked(paths: CollectorPaths, source: FileSource, cli_token: str = None) -> bool:
+    origin = web_origin()
+    name = SOURCE_NAME or device_name()
+    ident = source_id("host", name)
+    previous = collector_unit_bytes(paths.unit)
+    if previous is not None and b"# Managed by the VibeMon installer" not in previous:
+        raise RuntimeError(f"{display_path(paths.unit)} exists and was not created by this installer")
+
+    # Validate service arguments and ownership before requesting a new credential.
+    collector_unit(paths, origin, name, ident)
+    current = owned_collector_runtime(paths, previous.decode("utf-8")) if previous is not None else None
+    service = collector_service_state(paths)
+    if previous is None and service["ActiveState"] not in {"inactive", "failed"}:
+        raise RuntimeError("A collector is running without this installer's unit")
+    runtime, token = prepare_collector_runtime(paths, source, cli_token, origin, name, current, previous)
+    try:
         unit = collector_unit(paths, origin, name, ident, runtime)
     except BaseException:
         shutil.rmtree(runtime)
         raise
+    releases = paths.base / "releases"
     activate_collector(paths, runtime, unit, previous, collector_arguments(paths, origin, name, ident, runtime), token)
     # The previous unit's legacy readiness file is no longer written by this installation.
     if previous is not None and os.fsencode(collector_health(paths)) in previous:
@@ -2327,6 +2559,8 @@ def saved_secret() -> tuple[str, str]:
 
 
 def uninstall_collector(source: FileSource = None, cli_token: str = None) -> bool:
+    if platform.system() == 'Darwin':
+        return uninstall_mac_collector()
     paths = CollectorPaths(system=os.geteuid() == 0) if hasattr(os, "geteuid") else None
     if paths is None or not shutil.which("systemctl"):
         return SKIPPED
@@ -2684,7 +2918,7 @@ another selected platform succeeded; a run in which nothing succeeded exits 1.
     parser.add_argument("--vibemon", action="store_true",
                         help="Install only the shared ~/.vibemon scripts and config")
     parser.add_argument("--collector", action="store_true",
-                        help="Install the resource collector for this Linux host or DGX Spark (systemd)")
+                        help="Install the resource collector for macOS, Linux, or DGX Spark")
     parser.add_argument("--kubernetes", action="store_true",
                         help="Install the resource collector in the current kubectl context")
     parser.add_argument("--name", metavar="NAME", type=valid_name_arg,
@@ -2747,7 +2981,7 @@ MENU_CHOICES = [
     ("5", "opencode", "opencode"),
     ("6", "all", "All"),
     ("7", "vibemon", "VibeMon scripts only"),
-    ("8", "collector", "Resource collector for this Linux host or DGX Spark"),
+    ("8", "collector", "Resource collector for macOS, Linux, or DGX Spark"),
     ("9", "kubernetes", "Resource collector for the current Kubernetes context"),
 ]
 
