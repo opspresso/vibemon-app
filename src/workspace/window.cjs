@@ -30,6 +30,7 @@ class WorkspaceWindow {
     // separate IPC paths, so the page can receive an older frame last.
     this.sequence = 0;
     this.disposed = false;
+    this.signInSetup = null;
     this.cache = { cloud: monitoring.snapshot() };
     this.dirty = new Set(['settings', 'activity', 'usage']);
     this.onCloudChange = snapshot => {
@@ -93,33 +94,81 @@ class WorkspaceWindow {
     this.notify();
   }
 
+  cancelSignIn() {
+    this.signInSetup?.abort(new Error(t('signIn.cancelled')));
+    this.signIn?.cancel();
+  }
+
+  /** First-time setup obtains separate read and write credentials, each through browser consent. */
+  async signInWorkspace(url) {
+    this.cancelSignIn();
+    const setup = new globalThis.AbortController();
+    this.signInSetup = setup;
+    let revision = null;
+    try {
+      const cloud = await this.signIn.signIn(url, 'read usage', (token, signal) => this.monitoring.configure({ url, token }, { signal }));
+      revision = this.monitoring.generation;
+      setup.signal.throwIfAborted();
+      const delivery = this.settings.getSnapshot().cloudDelivery;
+      if (delivery.tokenConfigured) return cloud;
+      if (delivery.busy) throw new Error(t('delivery.wait'));
+      const account = await this.monitoring.request('/api/v1/connection?scope=read');
+      setup.signal.throwIfAborted();
+      if (revision !== this.monitoring.generation) throw new Error(t('error.connectionChanged'));
+      if (account?.connected !== true || account.scope !== 'read' || !validId(account.ownerId)) throw new Error(t('delivery.unexpected'));
+      await this.signIn.signIn(url, 'write', (token, signal) => {
+        setup.signal.throwIfAborted();
+        if (revision !== this.monitoring.generation) throw new Error(t('error.connectionChanged'));
+        if (this.settings.getSnapshot().cloudDelivery.tokenConfigured) throw new Error(t('delivery.changed'));
+        return this.settings.invoke('configure-cloud-delivery', { url, token }, {
+          signal: AbortSignal.any([signal, setup.signal]), expectedOwner: account.ownerId
+        });
+      });
+      return this.monitoring.snapshot();
+    } catch (error) {
+      if (revision !== null && revision === this.monitoring.generation) {
+        const reason = {
+          'token-expired': 'tokenExpired', 'permission-denied': 'permissionDenied',
+          'credential-unavailable': 'credentialUnavailable', 'secure-storage-unavailable': 'secureStorageUnavailable',
+          'connection-error': 'connectionError', 'not-configured': 'notConfigured'
+        }[error.code];
+        throw new Error(t('connections.activitySetupIncomplete', { error: reason ? t(`connection.${reason}.description`) : error.message }), { cause: error });
+      }
+      throw error;
+    } finally {
+      if (this.signInSetup === setup) this.signInSetup = null;
+      this.notify('settings');
+    }
+  }
+
   async request(command, args) {
     switch (command) {
       case 'snapshot': return this.snapshot();
       case 'account-profile': return accountProfile(this.monitoring);
       case 'navigate': this.navigate(args[0]); return this.snapshot();
-      case 'configure': this.signIn?.cancel(); return this.monitoring.configure(args[0]);
+      case 'configure': this.cancelSignIn(); return this.monitoring.configure(args[0]);
       // Sign in through Web; the browser returns to the local HTTP server.
       // `usage` lets the dashboard token connect and disconnect services.
       case 'sign-in': {
         const url = String(args[0] ?? '');
-        return this.signIn.signIn(url, 'read usage', (token, signal) => this.monitoring.configure({ url, token }, { signal }));
+        return this.signInWorkspace(url);
       }
       case 'sign-in-cloud-delivery': {
+        this.cancelSignIn();
         const url = String(args[0] ?? '');
         const result = await this.signIn.signIn(url, 'write', (token, signal) => this.settings.invoke('configure-cloud-delivery', { url, token }, { signal }));
         this.notify('settings');
         return result;
       }
-      case 'cancel-sign-in': this.signIn.cancel(); return true;
-      case 'disconnect': this.signIn?.cancel(); return this.monitoring.disconnect();
+      case 'cancel-sign-in': this.cancelSignIn(); return true;
+      case 'disconnect': this.cancelSignIn(); return this.monitoring.disconnect();
       case 'refresh': return this.monitoring.poll(true);
       case 'select': return this.monitoring.select(args[0]);
       case 'trend': return this.monitoring.trend(args[0]);
       case 'settings': {
         const [action, values = []] = args;
         if (!Array.isArray(values) || values.length > 2) throw new Error('Invalid settings arguments');
-        if (['configure-cloud-delivery', 'disconnect-cloud-delivery'].includes(action)) this.signIn?.cancel();
+        if (['configure-cloud-delivery', 'disconnect-cloud-delivery'].includes(action)) this.cancelSignIn();
         const result = await this.settings.invoke(action, ...values);
         this.notify('settings');
         return { result, frame: this.snapshot() };
@@ -231,7 +280,7 @@ class WorkspaceWindow {
 
   cleanup() {
     this.disposed = true;
-    this.signIn?.cancel();
+    this.cancelSignIn();
     if (this.timer) clearTimeout(this.timer);
     this.timer = null;
     this.monitoring.off('change', this.onCloudChange);

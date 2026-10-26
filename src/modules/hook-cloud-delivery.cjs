@@ -27,7 +27,7 @@ class HookCloudDelivery {
     };
   }
 
-  async verify(url, token, signal) {
+  async verify(url, token, signal, expectedOwner) {
     const origin = webOrigin(url, this.allowLocalHttp);
     if (!isApiToken(token)) throw new Error(t('delivery.tokenFormat'));
     let response;
@@ -47,6 +47,7 @@ class HookCloudDelivery {
     }
     const value = await readJsonResponse(response, CLOUD_CONNECTION_MAX_RESPONSE_BYTES);
     if (value?.connected !== true || value.scope !== 'write') throw new Error(t('delivery.unexpected'));
+    if (expectedOwner !== undefined && value.ownerId !== expectedOwner) throw new Error(t('delivery.accountMismatch'));
     return origin;
   }
 
@@ -58,7 +59,7 @@ class HookCloudDelivery {
     finally { this.busy = false; this.onChange?.(); }
   }
 
-  async configure(value, { signal } = {}) {
+  async configure(value, { signal, expectedOwner } = {}) {
     signal?.throwIfAborted();
     if (!value || typeof value !== 'object' || Array.isArray(value) || typeof value.url !== 'string' || typeof value.token !== 'string' || Object.keys(value).some(key => !['url', 'token'].includes(key))) throw new Error(t('delivery.missingFields'));
     const origin = webOrigin(value.url.trim(), this.allowLocalHttp);
@@ -67,7 +68,7 @@ class HookCloudDelivery {
     if (!replacement && !sameWebOrigin(origin, current.vibemon_url, this.allowLocalHttp)) throw new Error(t('delivery.tokenForNewAddress'));
     const token = replacement || current.vibemon_token;
     return this.run(async () => {
-      await this.verify(origin, token, signal);
+      await this.verify(origin, token, signal, expectedOwner);
       signal?.throwIfAborted();
       if (!sameConnection(current, this.configManager.read())) throw new Error(t('delivery.changed'));
       this.configManager.write({ vibemon_url: origin, vibemon_token: token });

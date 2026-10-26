@@ -1,5 +1,8 @@
 {
   "en": {
+    "connections.finishSetupInBrowser": "Finish sign-in in your browser. If activity sending is not configured, its permission request follows automatically.",
+    "connections.activitySetupIncomplete": "Workspace sign-in finished, but automatic activity setup did not finish: {error}",
+    "delivery.accountMismatch": "Activity permission must belong to the workspace account. Sign in to the same account and try again.",
     "account.title": "Signed-in account",
     "account.reload": "Refresh account",
     "account.loading": "Loading account…",
@@ -553,6 +556,9 @@
     "services.signInVibeMon": "Sign in to VibeMon again"
   },
   "ko": {
+    "connections.finishSetupInBrowser": "브라우저에서 로그인을 완료하세요. 활동 전송이 설정되지 않았다면 쓰기 권한 승인이 자동으로 이어집니다.",
+    "connections.activitySetupIncomplete": "워크스페이스 로그인은 완료됐지만 자동 활동 전송 설정을 마치지 못했습니다: {error}",
+    "delivery.accountMismatch": "활동 전송 권한은 워크스페이스와 같은 계정이어야 합니다. 같은 계정으로 로그인한 뒤 다시 시도하세요.",
     "account.title": "로그인 계정",
     "account.reload": "계정 새로고침",
     "account.loading": "계정 불러오는 중…",
@@ -1091,6 +1097,9 @@
     "services.signInVibeMon": "VibeMon에 다시 로그인"
   },
   "ja": {
+    "connections.finishSetupInBrowser": "ブラウザーでログインを完了してください。アクティビティ送信が未設定の場合、書き込み権限の承認が自動で続きます。",
+    "connections.activitySetupIncomplete": "ワークスペースへのログインは完了しましたが、アクティビティ送信の自動設定は完了しませんでした: {error}",
+    "delivery.accountMismatch": "アクティビティ送信はワークスペースと同じアカウントで許可してください。同じアカウントでログインして再試行してください。",
     "account.title": "ログイン中のアカウント",
     "account.reload": "アカウントを更新",
     "account.loading": "アカウントを読み込み中…",

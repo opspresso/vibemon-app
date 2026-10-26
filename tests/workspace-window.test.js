@@ -43,7 +43,7 @@ beforeEach(() => {
   });
   ports = {
     monitoring,
-    settings: { getSnapshot: jest.fn(() => ({ version: 'test', hooks: [], vibemonConfig: { status: {} }, cloudDelivery: { status: 'verified' }, update: { status: 'current', version: null } })), invoke: jest.fn() },
+    settings: { getSnapshot: jest.fn(() => ({ version: 'test', hooks: [], vibemonConfig: { status: {} }, cloudDelivery: { status: 'verified', tokenConfigured: true }, update: { status: 'current', version: null } })), invoke: jest.fn() },
     getActivity: jest.fn(() => [{ id: 'local' }]), getUsage: jest.fn(() => ({ codex: {} })),
     showCompanion: jest.fn(), reportError: jest.fn(), openExternal: jest.fn(),
     signIn: { signal: new globalThis.AbortController().signal, signIn: jest.fn(async (_url, scope, adopt) => adopt(`token-for-${scope}`, ports.signIn.signal)), cancel: jest.fn() }
@@ -399,5 +399,90 @@ describe('connected services', () => {
   test('Connected services is a Settings page', async () => {
     open();
     expect((await invoke(event, 'navigate', ['services'])).value.route).toBe('services');
+  });
+});
+
+describe('automatic activity permission after workspace sign-in', () => {
+  beforeEach(() => {
+    ports.monitoring.generation = 7;
+    ports.monitoring.request = jest.fn().mockResolvedValue({ connected: true, scope: 'read', ownerId: 'workspace-a' });
+    ports.monitoring.configure.mockResolvedValue({ status: 'connected', connectionRevision: 7 });
+    ports.settings.getSnapshot.mockReturnValue({ ...ports.settings.getSnapshot(), cloudDelivery: { tokenConfigured: false, busy: false } });
+    open();
+  });
+
+  test('requests write permission automatically and binds it to the read account', async () => {
+    const result = await invoke(event, 'sign-in', ['https://vibemon.io']);
+    expect(result.ok).toBe(true);
+    expect(ports.signIn.signIn.mock.calls.map(call => call[1])).toEqual(['read usage', 'write']);
+    expect(ports.settings.invoke).toHaveBeenCalledWith('configure-cloud-delivery', {
+      url: 'https://vibemon.io', token: 'token-for-write'
+    }, { signal: expect.any(AbortSignal), expectedOwner: 'workspace-a' });
+    expect(ports.settings.invoke.mock.calls[0][1].token).not.toBe('token-for-read usage');
+  });
+
+  test('preserves an existing activity destination without another permission request', async () => {
+    ports.settings.getSnapshot.mockReturnValue({ ...ports.settings.getSnapshot(), cloudDelivery: { tokenConfigured: true, busy: false, url: 'https://other.example' } });
+    await invoke(event, 'sign-in', ['https://vibemon.io']);
+    expect(ports.signIn.signIn.mock.calls.map(call => call[1])).toEqual(['read usage']);
+    expect(ports.monitoring.request).not.toHaveBeenCalled();
+    expect(ports.settings.invoke).not.toHaveBeenCalled();
+  });
+
+  test('reports partial setup when write approval is declined without disconnecting the read account', async () => {
+    ports.signIn.signIn.mockImplementation(async (_url, scope, adopt) => {
+      if (scope === 'write') throw new Error('You selected Deny on VibeMon.');
+      return adopt('read-only-token', ports.signIn.signal);
+    });
+    const result = await invoke(event, 'sign-in', ['https://vibemon.io']);
+    expect(result).toMatchObject({ ok: false, error: expect.stringContaining('Workspace sign-in finished') });
+    expect(result.error).toContain('You selected Deny');
+    expect(ports.monitoring.disconnect).not.toHaveBeenCalled();
+    expect(ports.settings.invoke).not.toHaveBeenCalled();
+  });
+
+  test('cancel between the read and write phases prevents a new browser request', async () => {
+    let owner;
+    ports.monitoring.request.mockImplementation(() => new Promise(resolve => { owner = resolve; }));
+    const setup = invoke(event, 'sign-in', ['https://vibemon.io']);
+    await jest.advanceTimersByTimeAsync(0);
+    expect(owner).toBeDefined();
+    await invoke(event, 'cancel-sign-in', []);
+    owner({ connected: true, scope: 'read', ownerId: 'workspace-a' });
+    expect(await setup).toMatchObject({ ok: false, error: expect.stringContaining('automatic activity setup did not finish') });
+    expect(ports.signIn.signIn.mock.calls.map(call => call[1])).toEqual(['read usage']);
+  });
+
+  test('cancel during write verification aborts persistence', async () => {
+    let verification;
+    ports.settings.invoke.mockImplementation((_action, _value, options) => new Promise((_resolve, reject) => {
+      verification = options.signal;
+      verification.addEventListener('abort', () => reject(verification.reason), { once: true });
+    }));
+    const setup = invoke(event, 'sign-in', ['https://vibemon.io']);
+    await jest.advanceTimersByTimeAsync(0);
+    expect(verification.aborted).toBe(false);
+    await invoke(event, 'cancel-sign-in', []);
+    expect(verification.aborted).toBe(true);
+    expect(await setup).toMatchObject({ ok: false });
+    expect(ports.monitoring.disconnect).not.toHaveBeenCalled();
+  });
+
+  test('does not adopt a write token after the read account changed', async () => {
+    ports.signIn.signIn.mockImplementation(async (_url, scope, adopt) => {
+      if (scope === 'write') ports.monitoring.generation++;
+      return adopt(`token-for-${scope}`, ports.signIn.signal);
+    });
+    expect(await invoke(event, 'sign-in', ['https://vibemon.io'])).toMatchObject({ ok: false });
+    expect(ports.settings.invoke).not.toHaveBeenCalled();
+  });
+
+  test('does not overwrite an activity destination configured while the browser was open', async () => {
+    ports.signIn.signIn.mockImplementation(async (_url, scope, adopt) => {
+      if (scope === 'write') ports.settings.getSnapshot.mockReturnValue({ ...ports.settings.getSnapshot(), cloudDelivery: { tokenConfigured: true } });
+      return adopt(`token-for-${scope}`, ports.signIn.signal);
+    });
+    expect(await invoke(event, 'sign-in', ['https://vibemon.io'])).toMatchObject({ ok: false });
+    expect(ports.settings.invoke).not.toHaveBeenCalled();
   });
 });
