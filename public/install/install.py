@@ -52,6 +52,7 @@ import sys
 import tempfile
 import time
 import webbrowser
+from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
 from pathlib import Path
 from urllib.parse import urlencode, urlsplit
@@ -1096,6 +1097,22 @@ class FileSource:
             self._files[path] = self._read(path)
         return self._files[path]
 
+    def prefetch(self, paths) -> None:
+        """Download a verified batch with at most four concurrent requests."""
+        missing = tuple(dict.fromkeys(path for path in paths if path not in self._files))
+        if not missing:
+            return
+        if not self.is_online:
+            for path in missing:
+                self.get_file(path)
+            return
+        # Load the integrity reference once before workers read it. Publish the
+        # cache only after every file succeeds; callers never see a partial batch.
+        load_manifest(self)
+        with ThreadPoolExecutor(max_workers=min(4, len(missing))) as executor:
+            contents = list(executor.map(self._read, missing))
+        self._files.update(zip(missing, contents))
+
     def _read(self, path: str) -> str:
         if self.is_online:
             load_manifest(self)
@@ -1783,7 +1800,7 @@ COLLECTOR_MODULES = (
 COLLECTOR_FILES = tuple(f"collector/vibemon_collector/{name}" for name in COLLECTOR_MODULES)
 PSUTIL_REQUIREMENT = "psutil>=5.9,<8"
 # The multi-arch image (amd64, arm64) built by collector-image.yml.
-COLLECTOR_IMAGE = "public.ecr.aws/z5d8x0d6/vibemon-collector@sha256:50ea78df05b68b2e8e6bbd05cc5f103955a9b279e8ecc75e88131ea78dd21747"
+COLLECTOR_IMAGE = "public.ecr.aws/z5d8x0d6/vibemon-collector@sha256:aa5492bab0efb68fec3c266d12f0eaccdce9e3d7ca60944d8e62e726dd7e8d7d"
 KUBERNETES_NAMESPACE = "vibemon"
 # Default context names of k3s and kubeadm clusters; they do not tell clusters apart.
 GENERIC_KUBERNETES_CONTEXTS = frozenset({"default", "kubernetes-admin@kubernetes"})
@@ -2130,6 +2147,7 @@ def install_collector_locked(paths: CollectorPaths, source: FileSource, cli_toke
     try:
         app_dir = runtime / "app" / "vibemon_collector"
         app_dir.mkdir(parents=True)
+        source.prefetch(COLLECTOR_FILES)
         for path in COLLECTOR_FILES:
             (app_dir / Path(path).name).write_text(source.get_file(path), encoding="utf-8")
         venv = runtime / "venv"
@@ -2192,7 +2210,7 @@ def kubernetes_manifest(name: str, ident: str, origin: str, token: str) -> str:
          "type": "Opaque", "stringData": {"VIBEMON_WRITE_TOKEN": token, "VIBEMON_URL": origin}},
         {"apiVersion": "apps/v1", "kind": "Deployment", "metadata": {"name": "vibemon-collector", "namespace": namespace, "labels": labels},
          "spec": {"replicas": 1, "strategy": {"type": "Recreate"}, "selector": {"matchLabels": {"app.kubernetes.io/name": "vibemon-collector"}},
-                  "template": {"metadata": {"labels": labels}, "spec": {
+                  "template": {"metadata": {"labels": labels, "annotations": {"vibemon.io/install-id": os.urandom(16).hex()}}, "spec": {
                       "serviceAccountName": "vibemon-collector", "nodeSelector": {"kubernetes.io/os": "linux"},
                       "securityContext": {"runAsNonRoot": True, "runAsUser": 65532, "runAsGroup": 65532, "seccompProfile": {"type": "RuntimeDefault"}},
                       "containers": [{
@@ -2203,7 +2221,7 @@ def kubernetes_manifest(name: str, ident: str, origin: str, token: str) -> str:
                           "securityContext": {"allowPrivilegeEscalation": False, "readOnlyRootFilesystem": True, "capabilities": {"drop": ["ALL"]}},
                           "resources": {"requests": {"cpu": "25m", "memory": "64Mi"}, "limits": {"memory": "192Mi"}},
                           "readinessProbe": {"exec": {"command": ["python", "-m", "vibemon_collector.health", "/tmp/vibemon-health"]},
-                                             "initialDelaySeconds": 30, "periodSeconds": 10, "timeoutSeconds": 2, "failureThreshold": 1},
+                                             "initialDelaySeconds": 10, "periodSeconds": 5, "timeoutSeconds": 2, "failureThreshold": 1},
                           "volumeMounts": [{"name": "temporary", "mountPath": "/tmp"}]}],
                       "volumes": [{"name": "temporary", "emptyDir": {"sizeLimit": "32Mi"}}]}}}},
     ]
@@ -2249,8 +2267,8 @@ def install_kubernetes(source: FileSource, cli_token: str = None) -> bool:
     check_kubernetes_access(owner, name, ident, origin)
     token = collector_token(cli_token, *saved_secret(), origin, name)
     run_checked(["kubectl", "apply", "-f", "-"], "Applying the collector", kubernetes_manifest(name, ident, origin, token))
-    # A new token or image needs a new pod.
-    run_checked(["kubectl", "-n", KUBERNETES_NAMESPACE, "rollout", "restart", "deployment/vibemon-collector"], "Restarting the collector")
+    # The template's install ID starts one rollout, including for a token-only
+    # change. A separate restart after apply can launch a second rollout.
     # Ready means VibeMon accepted the first summary, so a rejected token never becomes ready.
     if subprocess.run(["kubectl", "-n", KUBERNETES_NAMESPACE, "rollout", "status", "deployment/vibemon-collector", "--timeout=180s"],
                       capture_output=True).returncode != 0:

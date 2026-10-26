@@ -27,7 +27,7 @@ def main():
     parser.add_argument("--kubectl-command", default="kubectl", help="Read-only kubectl command prefix for metrics-api collection")
     parser.add_argument("--disk", action="store_true", help="Include root-disk capacity; clusters require in-cluster kubelet nodes/stats read access")
     parser.add_argument("--allow-local-http", action="store_true", help="Allow loopback HTTP for isolated development only")
-    parser.add_argument("--once", action="store_true", help="Exit after one successful 30-second summary")
+    parser.add_argument("--once", action="store_true", help="Exit after the first successfully acknowledged summary")
     parser.add_argument("--health-file", help="Write the last acknowledged delivery time for readiness checks")
     args = parser.parse_args()
     if not re.fullmatch(r"[a-zA-Z0-9][a-zA-Z0-9_.:-]{0,127}", args.source_id) or not valid_display_name(args.name):

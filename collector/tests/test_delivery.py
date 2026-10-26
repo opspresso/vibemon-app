@@ -48,8 +48,8 @@ class DeliveryTests(unittest.TestCase):
                 return client.request('https://web.example/api/v1/ingest', payload)
             return {'accepted': True}
         run_host(sampler, sender, clock, once=True)
-        self.assertEqual(clock.now, 90)
-        self.assertEqual(sent[-1]['metrics']['cpuPercent'], 80)
+        self.assertEqual(clock.now, 70)
+        self.assertEqual(sent[-1]['metrics']['cpuPercent'], 60)
 
     def test_long_retry_after_is_not_shortened_to_the_backoff_limit(self):
         client, _ = self.client(429, {'Retry-After': '120'})
@@ -64,9 +64,9 @@ class DeliveryTests(unittest.TestCase):
             return {'accepted': True}
         with self.assertLogs(level='WARNING'):
             run_host(Mock(sample=sample), sender, clock, once=True)
-        self.assertEqual([at for at, _ in sent], [30, 150])
-        self.assertEqual(observed, list(range(10, 151, 10)))
-        self.assertEqual(sent[-1][1]['metrics']['cpuPercent'], 14)
+        self.assertEqual([at for at, _ in sent], [10, 130])
+        self.assertEqual(observed, list(range(10, 131, 10)))
+        self.assertEqual(sent[-1][1]['metrics']['cpuPercent'], 12)
 
     def test_http_date_becomes_a_monotonic_wait_even_if_the_wall_clock_changes(self):
         epoch = 1_792_320_000
@@ -84,8 +84,8 @@ class DeliveryTests(unittest.TestCase):
         with self.assertLogs(level='WARNING'):
             run(Mock(sample=lambda: Sample({'cpuPercent': clock.now / 10})), sender, 'host', 'host', 'Host',
                 ['cpuPercent'], wall, clock, clock.sleep, once=True)
-        self.assertEqual([at for at, _ in sent], [30, 150])
-        self.assertEqual(sent[-1][1]['metrics']['cpuPercent'], 14)
+        self.assertEqual([at for at, _ in sent], [10, 150])
+        self.assertEqual(sent[-1][1]['metrics']['cpuPercent'], 12)
 
     def test_invalid_and_past_retry_hints_keep_the_retryable_http_failure(self):
         for hint in ['', 'invalid', '-1', '0.5', '１２', 'NaN', 'Infinity', formatdate(10, usegmt=True)]:
@@ -117,7 +117,7 @@ class DeliveryTests(unittest.TestCase):
         clock = FakeClock()
         with self.assertRaisesRegex(DeliveryFailure, 'acknowledgement'):
             run_host(Mock(sample=lambda: Sample({'cpuPercent': 20})), lambda _: {}, clock, once=True)
-        self.assertEqual(clock.now, 30)
+        self.assertEqual(clock.now, 10)
 
     def test_web_origin_rejects_paths_but_prometheus_may_have_a_prefix(self):
         with self.assertRaises(ValueError): checked_url('https://web.example/dashboard', origin_only=True)

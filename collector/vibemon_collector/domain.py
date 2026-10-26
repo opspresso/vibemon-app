@@ -81,12 +81,16 @@ class TransmissionPolicy:
     failures: int = 0
     pending: dict | None = None
     samples: list[Sample] = field(default_factory=list)
+    starting: bool = True
 
     def observe(self, sample: Sample, source_id: str, kind: str, name: str, wall_time: float):
         self.samples.append(sample)
-        if len(self.samples) == 3:
+        # The first measured interval establishes the source promptly. Later
+        # summaries use three fresh observations; startup is never counted twice.
+        if self.starting or len(self.samples) == 3:
             self.pending = summarize(self.samples, source_id, kind, name, wall_time)
             self.samples.clear()
+            self.starting = False
 
     def next_payload(self, now: float) -> dict | None:
         if self.pending is None or now < self.retry_at:

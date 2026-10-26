@@ -1438,6 +1438,20 @@ class KubernetesSafetyTest(unittest.TestCase):
                 mock.patch.object(install, 'sign_in_to_web', side_effect=sign_in):
             return install.install_kubernetes(None)
 
+    def test_install_applies_one_rollout_and_token_only_changes_replace_the_pod(self):
+        calls = []
+        self.assertTrue(self.install_with(self.fake_kubectl(calls), sign_in=lambda *_: 'vm_' + 'a' * 60))
+        applies = [payload for command, payload in calls if command[:3] == ['kubectl', 'apply', '-f']]
+        self.assertEqual(len(applies), 1)
+        self.assertFalse(any('restart' in command for command, _ in calls))
+        self.assertTrue(any('rollout' in command and 'status' in command for command, _ in calls))
+        def template(manifest):
+            return next(item for item in json.loads(manifest)['items'] if item['kind'] == 'Deployment')['spec']['template']
+        first = template(applies[0])
+        second = template(install.kubernetes_manifest('kind-test', 'k8s-kind-test', 'https://vibemon.io', 'vm_' + 'b' * 60))
+        self.assertNotEqual(first['metadata']['annotations'], second['metadata']['annotations'])
+        self.assertNotIn('vm_', json.dumps(second))
+
     def test_the_cluster_manifest_collects_root_disks(self):
         items = install.json.loads(install.kubernetes_manifest('Production', 'k8s-production', 'https://vibemon.io', 'vm_' + 'a' * 60))['items']
         role = next(item for item in items if item['kind'] == 'ClusterRole')
