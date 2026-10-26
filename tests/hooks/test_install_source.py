@@ -87,3 +87,35 @@ class InstallerSourceTests(unittest.TestCase):
             scripts.mkdir()
             (scripts / 'generate_manifest.py').write_text('', encoding='utf-8')
             self.assertFalse(install.FileSource(folder).is_online)
+
+    def test_prefetch_downloads_concurrently_after_one_manifest_and_reuses_verified_bytes(self):
+        files = {f'{i}.py': f'content {i}' for i in range(8)}
+        manifest = json.dumps({'files': {path: hashlib.sha256(value.encode()).hexdigest() for path, value in files.items()}})
+        barrier = threading.Barrier(4, timeout=5)
+        requests = []
+        def download(url):
+            path = url.rsplit('/', 1)[-1]
+            requests.append(path)
+            if path == 'manifest.json':
+                return manifest
+            barrier.wait()
+            return files[path]
+        with mock.patch.object(install, '_MANIFEST_LOADED', False), mock.patch.object(install, 'download_file', side_effect=download):
+            source = install.FileSource()
+            source.prefetch([*files, '0.py'])
+            self.assertEqual({path: source.get_file(path) for path in files}, files)
+            source.prefetch(files)
+        self.assertEqual(requests[0], 'manifest.json')
+        self.assertCountEqual(requests, ['manifest.json', *files])
+
+    def test_prefetch_does_not_publish_a_partial_batch_after_integrity_failure(self):
+        files = {'valid.py': 'valid', 'changed.py': 'original'}
+        manifest = json.dumps({'files': {path: hashlib.sha256(value.encode()).hexdigest() for path, value in files.items()}})
+        def download(url):
+            path = url.rsplit('/', 1)[-1]
+            return manifest if path == 'manifest.json' else 'tampered' if path == 'changed.py' else files[path]
+        with mock.patch.object(install, '_MANIFEST_LOADED', False), mock.patch.object(install, 'download_file', side_effect=download):
+            source = install.FileSource()
+            with self.assertRaises(install.IntegrityError):
+                source.prefetch(files)
+            self.assertEqual(source._files, {})
