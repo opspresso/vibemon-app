@@ -254,7 +254,7 @@ export function renderCards(
       const message =
         source.statusMessage ||
         (source.isAccount
-          ? connectedOnly ? t('services.connectedOnly') : t('cards.reporting', { count: source.members.length })
+          ? connectedOnly ? '' : t('cards.reporting', { count: source.members.length })
           : '');
       text(parts.message, message);
       parts.message.hidden = !message;
