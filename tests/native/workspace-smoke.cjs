@@ -793,6 +793,21 @@ startFixture({ connections: [] }).then(async fixture => {
   await client.select(beforeServices); await client.poll(true); await published();
 
   await navigate('connections');
+  await until(async () => (await text('#account-identities')).includes('viewer@example.com'), 'signed-in account loaded');
+  assert.equal(await ui('document.querySelectorAll("#account-identities .account-profile-row").length'), 1, 'shared email is shown once');
+  assert.equal(await text('#sidebar-account'), 'viewer@example.com');
+  assert.ok((await text('#account-identities')).includes('Google · Email'));
+  state.accountStatus = 503;
+  await click('#account-profile-retry');
+  await until(async () => (await text('#account-profile-status')).includes('could not be loaded'), 'account failure is visible');
+  state.accountStatus = 401;
+  await click('#account-profile-retry');
+  await until(async () => (await text('#sidebar-account')) === '', 'rejected credentials clear the account identity');
+  state.accountStatus = 200;
+  state.accountProfile = { identities: [{ provider: 'apple', label: 'other@example.com', primary: true }] };
+  await client.configure({ url: client.savedUrl(), token: TOKEN });
+  await until(async () => (await text('#sidebar-account')) === 'other@example.com', 'new connection replaces account identity');
+  assert.equal((await text('#account-identities')).includes('viewer@example.com'), false, 'previous account identity is cleared');
   const originalSignIn = view.signIn;
   let finishSignIn;
   view.signIn = {
@@ -826,12 +841,18 @@ startFixture({ connections: [] }).then(async fixture => {
   await input('#read-token', TOKEN); await click('#save-connection');
   await until(() => client.getStatus() === 'connected', 'credential replaced');
   await screenshot('connection-settings');
+  const accountResponses = state.accountResponses;
+  state.accountDelayMs = 500;
+  await click('#account-profile-retry');
   await click('#disconnect');
   await until(() => client.getStatus() === 'not-configured', 'disconnect');
   await navigate('overview');
   await until(async () => (await text('#summary-resources')) === '0', 'previous connection data cleared');
   assert.equal(await ui('document.querySelectorAll("#resource-cards .card, #agent-cards .card").length'), 0);
   assert.ok((await text('#overview-activity')).includes('web-console'), 'local activity survives cloud disconnect');
+  await until(() => state.accountResponses > accountResponses, 'old account response completed after disconnect');
+  assert.equal(await text('#sidebar-account'), '', 'disconnect clears the account name and rejects late responses');
+  assert.equal(await ui('document.getElementById("workspace-account").hidden'), true);
   await screenshot('disconnected');
 
   view.window.setSize(820, 600);

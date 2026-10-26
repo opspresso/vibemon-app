@@ -1,5 +1,14 @@
 {
   "en": {
+    "account.title": "Signed-in account",
+    "account.reload": "Refresh account",
+    "account.loading": "Loading account…",
+    "account.failed": "Account details could not be loaded. Try refreshing the account.",
+    "account.empty": "No sign-in details are available for this account.",
+    "account.invalidResponse": "VibeMon returned invalid account details.",
+    "account.provider.google": "Google",
+    "account.provider.apple": "Apple",
+    "account.provider.email": "Email",
     "nav.overview": "Overview",
     "nav.resources": "Resources",
     "nav.agents": "Agents",
@@ -544,6 +553,15 @@
     "services.signInVibeMon": "Sign in to VibeMon again"
   },
   "ko": {
+    "account.title": "로그인 계정",
+    "account.reload": "계정 새로고침",
+    "account.loading": "계정 불러오는 중…",
+    "account.failed": "계정 정보를 불러오지 못했습니다. 계정을 새로고침하세요.",
+    "account.empty": "이 계정의 로그인 정보가 없습니다.",
+    "account.invalidResponse": "VibeMon의 계정 정보가 올바르지 않습니다.",
+    "account.provider.google": "Google",
+    "account.provider.apple": "Apple",
+    "account.provider.email": "이메일",
     "nav.overview": "개요",
     "nav.resources": "리소스",
     "nav.agents": "에이전트",
@@ -1073,6 +1091,15 @@
     "services.signInVibeMon": "VibeMon에 다시 로그인"
   },
   "ja": {
+    "account.title": "ログイン中のアカウント",
+    "account.reload": "アカウントを更新",
+    "account.loading": "アカウントを読み込み中…",
+    "account.failed": "アカウント情報を読み込めませんでした。再読み込みしてください。",
+    "account.empty": "このアカウントのログイン情報はありません。",
+    "account.invalidResponse": "VibeMonのアカウント情報が正しくありません。",
+    "account.provider.google": "Google",
+    "account.provider.apple": "Apple",
+    "account.provider.email": "メール",
     "nav.overview": "概要",
     "nav.resources": "リソース",
     "nav.agents": "エージェント",
