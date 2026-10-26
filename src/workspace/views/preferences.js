@@ -8,6 +8,68 @@ const hookFlags = new Set(['--claude', '--codex', '--kiro', '--openclaw', '--ope
 export function setupPreferences({ getFrame, request, run, notify }) {
   $('accounts-guide').addEventListener('click', () => run($('accounts-guide'), () => save('open-external', 'accounts')));
   let latest = null;
+  let profileKey = null;
+  let profileAttempt = 0;
+  let profile = null;
+  let profileLoading = false;
+  let profileFailed = false;
+  function renderProfile() {
+    $('workspace-account').hidden = profileKey === null;
+    $('account-profile-retry').disabled = profileLoading;
+    text($('account-profile-status'), profileLoading ? t('account.loading') : profileFailed ? t('account.failed') : profile?.identities.length === 0 ? t('account.empty') : '');
+    const groups = new Map();
+    for (const identity of [...(profile?.identities || [])].sort((a, b) => Number(b.primary) - Number(a.primary))) {
+      const providers = groups.get(identity.label) || new Set();
+      providers.add(t(`account.provider.${identity.provider}`));
+      groups.set(identity.label, providers);
+    }
+    const labels = [...groups.keys()].join(' · ');
+    text($('sidebar-account'), labels);
+    $('sidebar-account').title = labels;
+    $('sidebar-account').hidden = !labels;
+    keyed($('account-identities'), [...groups], ([label]) => label, () => {
+      const row = el('div', undefined, 'account-profile-row');
+      row.append(el('strong'), el('p', undefined, 'small muted'));
+      return row;
+    }, (row, [label, providers]) => {
+      text(row.children[0], label);
+      text(row.children[1], [...providers].join(' · '));
+    });
+  }
+  async function loadProfile() {
+    if (profileKey === null) return;
+    const key = profileKey, attempt = ++profileAttempt;
+    profileLoading = true;
+    profileFailed = false;
+    renderProfile();
+    try {
+      const loaded = await request('account-profile');
+      if (key !== profileKey || attempt !== profileAttempt) return;
+      profile = loaded;
+    } catch (error) {
+      if (key !== profileKey || attempt !== profileAttempt) return;
+      if (['token-expired', 'permission-denied'].includes(error.code)) profile = null;
+      profileFailed = true;
+    } finally {
+      if (key === profileKey && attempt === profileAttempt) {
+        profileLoading = false;
+        renderProfile();
+      }
+    }
+  }
+  $('account-profile-retry').addEventListener('click', loadProfile);
+  function updateProfile(cloud) {
+    const usable = cloud.tokenConfigured && !['token-expired', 'permission-denied', 'credential-unavailable'].includes(cloud.status);
+    const key = usable ? JSON.stringify([cloud.url, cloud.connectionRevision]) : null;
+    if (key === profileKey) return;
+    profileKey = key;
+    profileAttempt++;
+    profile = null;
+    profileFailed = false;
+    profileLoading = false;
+    renderProfile();
+    if (key !== null) void loadProfile();
+  }
   let deliveryError = '';
   const runDelivery = (control, action) => {
     deliveryError = '';
@@ -438,6 +500,7 @@ export function setupPreferences({ getFrame, request, run, notify }) {
   }
   return {
     render,
+    updateProfile,
     leave() {
       $('read-token').value = '';
       $('cloud-write-token').value = '';

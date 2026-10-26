@@ -77,6 +77,7 @@ async function startFixture({ connections = usageConnections() } = {}) {
   await app.whenReady();
   const ports = createPorts();
   const state = { sources: () => connectedSources(Date.now(), state.usage.connections), status: 200, requests: [], trendStatus: 200, trendDelayMs: 0, sourceDelayMs: 0, trend,
+    accountStatus: 200, accountDelayMs: 0, accountResponses: 0, accountProfile: { identities: [{ provider: 'google', label: 'viewer@example.com', primary: true }, { provider: 'email', label: 'viewer@example.com', primary: false }] },
     usage: { scope: true, connections, authorizations: new Map(), started: 0, requests: [] } };
   const server = http.createServer(async (request, response) => {
     response.setHeader('Content-Type', 'application/json');
@@ -96,6 +97,14 @@ async function startFixture({ connections = usageConnections() } = {}) {
     if (request.headers.authorization !== `Bearer ${TOKEN}`) { response.writeHead(401); response.end('{}'); return; }
     if (state.status !== 200) { response.writeHead(state.status); response.end('{}'); return; }
     const url = new URL(request.url, 'http://localhost');
+    if (url.pathname === '/api/v1/account') {
+      response.writeHead(state.accountStatus);
+      const payload = JSON.stringify(state.accountProfile);
+      const respond = () => { response.end(payload); state.accountResponses++; };
+      if (state.accountDelayMs) setTimeout(respond, state.accountDelayMs);
+      else respond();
+      return;
+    }
     if (url.pathname.startsWith('/api/v1/usage')) { serveUsage(state, request, response, body); return; }
     if (url.pathname === '/api/v1/connection' && url.searchParams.get('scope') === 'read') { response.end(JSON.stringify({ connected: true, scope: 'read', ownerId: 'fixture-owner' })); return; }
     const data = state.sources();

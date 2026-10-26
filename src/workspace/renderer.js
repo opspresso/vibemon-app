@@ -172,6 +172,7 @@ function markAttention({ notices }) {
 }
 function render(value) {
   const { cloud, settings, activity, usage } = value;
+  preferences.updateProfile(cloud);
   const route = pages[value.route] ? value.route : 'overview';
   document.documentElement.dataset.page = route;
   configureSprites(settings.options.characters);

@@ -50,6 +50,7 @@
             <span id="sidebar-dot" class="status-dot"></span
             ><span
               ><strong id="sidebar-host" data-i18n="sidebar.host">Your cloud workspace</strong
+              ><span id="sidebar-account" class="small" hidden></span
               ><span id="sidebar-status" class="small muted" data-i18n="connection.notConfigured.label">Not connected</span></span
             ><span data-icon="chevron"></span>
           </button>
@@ -246,6 +247,14 @@
               <p class="muted" data-i18n="connections.intro">Sign in to see your resources and agent accounts.</p>
             </div>
           </div>
+          <section id="workspace-account" class="panel settings-panel" aria-labelledby="workspace-account-title" hidden>
+            <div class="panel-heading">
+              <h3 id="workspace-account-title" data-i18n="account.title">Signed-in account</h3>
+              <button type="button" id="account-profile-retry" class="text-button" data-i18n="account.reload">Refresh account</button>
+            </div>
+            <p id="account-profile-status" class="small muted" role="status"></p>
+            <div id="account-identities"></div>
+          </section>
           <form id="connect-form" class="panel settings-panel">
             <div class="panel-heading">
               <div>

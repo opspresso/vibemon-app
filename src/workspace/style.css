@@ -2006,3 +2006,8 @@ dialog::backdrop {
   border-top: 0;
   padding-top: 14px;
 }
+
+.account-profile-row + .account-profile-row { margin-top: 12px; }
+.account-profile-row strong { overflow-wrap: anywhere; }
+#sidebar-account { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#sidebar-account[hidden] { display: none; }

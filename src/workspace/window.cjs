@@ -4,6 +4,7 @@ const { URL } = require('node:url');
 const { centerOnCursorDisplay } = require('../modules/window-position.cjs');
 const { webOrigin, validId } = require('../monitoring/domain.cjs');
 const { UsageClient } = require('../monitoring/usage.cjs');
+const { accountProfile } = require('../monitoring/account-profile.cjs');
 const { WORKSPACE_UPDATE_MS } = require('../shared/constants.cjs');
 const { attentionAreas, attentionNotices } = require('../shared/attention.cjs');
 const { t, rendererLanguage } = require('../shared/i18n/locale.cjs');
@@ -95,6 +96,7 @@ class WorkspaceWindow {
   async request(command, args) {
     switch (command) {
       case 'snapshot': return this.snapshot();
+      case 'account-profile': return accountProfile(this.monitoring);
       case 'navigate': this.navigate(args[0]); return this.snapshot();
       case 'configure': this.signIn?.cancel(); return this.monitoring.configure(args[0]);
       // Sign in through Web; the browser returns to the local HTTP server.
