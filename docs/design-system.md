@@ -40,6 +40,8 @@ Use the system font, readable secondary text, consistent gaps, and a visible key
 
 The shared animation policy pauses character loops when their page is hidden or the OS requests reduced motion. Reduced motion uses a still pose that updates with the current status; it does not freeze status reporting. Speech-bubble loading dots and metric transitions also stop moving. Visibility and preference listeners are removed with the renderer.
 
+Reference captures: [Desktop light](images/workspace-shared-light.png) and [Desktop dark](images/workspace-shared-dark.png).
+
 ## Verification
 
 Run `pnpm test:design` for shared presentation regressions. Compare all four clients with the same synthetic resources and accounts in light and dark themes. Check narrow screens, long names, unavailable values, standby data, loading, failures, empty workspaces, keyboard navigation, and reduced motion. Validate collection and editing separately from visual previews; previews must not use production credentials or publish synthetic observations.
