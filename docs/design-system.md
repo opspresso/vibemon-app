@@ -1,6 +1,6 @@
 # Product design
 
-VibeMon Desktop and Web share one visual language. Desktop adds local activity and companion settings. Web adds account, token, and collection management.
+VibeMon Web, Desktop, iOS, and Android share one visual language. Desktop adds local activity and companion settings. Web adds account, token, and collection management.
 
 ![VibeMon identity in light, dark, App, and small-icon treatments](images/brand-identity.png)
 
@@ -26,9 +26,13 @@ The new sprite is `vibemon-v2.png`. The public `characters/vibemon.png` URL reta
 
 ## Workspace
 
+Product cards use `--vm-radius-panel` (18 logical units) and `--vm-panel-padding` (16 logical units). Web and Desktop read the CSS tokens directly; the iOS and Android contract generators compile them into `ProductLayout`. State badges are soft capsules with a dot and a label, including neutral states. Active status is blue (`info`); violet (`accent`) identifies actions and resource icons. These meanings stay the same in light and dark appearance.
+
+Keep each platform's system typography, accessible touch targets, navigation controls, and sheet behavior. The shared card geometry and information hierarchy do not require replacing native controls with browser controls.
+
 Coding account cards use the project responsible for the displayed state as their title. Older reporting input requests take priority over newer ordinary work; accounts on Standby keep their last project. Provider and account ID remain visible, and selection keys and latest account usage do not change. Desktop and Web share `agent-card.css`: working edges carry a moving light, thinking breathes, planning moves slowly, and compacting reverses a two-part trail. Input requests use a slow pulse; errors stay emphasized. Completed work settles into green, while idle and standby edges remain neutral. Hover and keyboard focus emphasize the edge without moving the card. Only transform and opacity animate. Reduced-motion users receive a static edge. State-colored glow and a brighter moving light distinguish activity from the neutral canvas. Thinking uses violet, planning blends blue and teal, and compacting blends violet and rose. These edges are the `--vm-state-thinking`, `--vm-state-planning`, and `--vm-state-packing` tokens in `tokens.css`, as `light-dark()` hex pairs that clients can compile; the design test keeps them equal to their documented mixes of the base tokens. Other states use their tone color: active `--vm-info`, warning `--vm-warning`, danger `--vm-danger`, good `--vm-good`, and neutral `--vm-border`. Touch moves small light trails around the card edges and brightens them on press. Its bounded redraw regions preserve responsiveness; standby cards stop animating.
 
-Keep primary navigation in this order: **Overview**, **Resources**, **Coding agents**. Put account or device settings below it. The page header names the current task and provides its primary action. **Customize view** controls source and metric selection without occupying the monitoring canvas.
+Keep primary navigation in this order: **Overview**, **Agents**, **Resources**. Put account or device settings below it. The page header names the current task and provides its primary action. **Customize view** controls source and metric selection without occupying the monitoring canvas.
 
 Cards use the same hierarchy: identity, state, measurements, observation time, and **Details**. Keep each provider/account separate. A card's attention state includes all its fresh reporting projects; the account is on neutral **Standby** when none remain fresh. Details retain each project's individual status and recent history.
 
@@ -36,6 +40,8 @@ Use the system font, readable secondary text, consistent gaps, and a visible key
 
 The shared animation policy pauses character loops when their page is hidden or the OS requests reduced motion. Reduced motion uses a still pose that updates with the current status; it does not freeze status reporting. Speech-bubble loading dots and metric transitions also stop moving. Visibility and preference listeners are removed with the renderer.
 
+Reference captures: [Desktop light](images/workspace-shared-light.png) and [Desktop dark](images/workspace-shared-dark.png).
+
 ## Verification
 
-Run `pnpm test:design` for shared presentation regressions. Compare both clients with the same synthetic resources and accounts in light and dark themes. Check narrow screens, long names, unavailable values, standby data, loading, failures, empty workspaces, keyboard navigation, and reduced motion. Validate collection and editing separately from visual previews; previews must not use production credentials or publish synthetic observations.
+Run `pnpm test:design` for shared presentation regressions. Compare all four clients with the same synthetic resources and accounts in light and dark themes. Check narrow screens, long names, unavailable values, standby data, loading, failures, empty workspaces, keyboard navigation, and reduced motion. Validate collection and editing separately from visual previews; previews must not use production credentials or publish synthetic observations.

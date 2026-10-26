@@ -7,6 +7,7 @@ const { URL } = require('node:url');
 const { startFixture, TOKEN, WRITE_TOKEN, CLAUDE_CODE } = require('./workspace-fixture.cjs');
 const { usageConnections, USAGE_IDS } = require('../fixtures/workspace.cjs');
 const { AGENT_TEXT_LIMITS } = require('../../src/shared/resource-schema.cjs');
+const { colorPair, readTokens } = require('../../src/shared/design/tokens.cjs');
 const output = process.env.VIBEMON_TEST_ARTIFACTS || path.join(__dirname, '../../out/workspace-tests');
 fs.mkdirSync(output, { recursive: true });
 nativeTheme.themeSource = 'dark';
@@ -96,6 +97,26 @@ startFixture({ connections: [] }).then(async fixture => {
     view.open(route);
     await until(() => visible(`section[data-page="${route}"]`), `${route} page visible`);
   };
+  const assertCardGeometry = async () => {
+    const geometry = await ui(`(() => {
+      const tokens = getComputedStyle(document.documentElement);
+      const padding = tokens.getPropertyValue('--vm-panel-padding').trim();
+      const radius = tokens.getPropertyValue('--vm-radius-panel').trim();
+      const cards = [...document.querySelectorAll('#agent-cards .card, #resource-cards .card, #overview-accounts .card, #overview-resources .card')];
+      return { count: cards.length, mismatches: cards.map(node => getComputedStyle(node)).filter(style => style.padding !== padding || style.borderRadius !== radius).map(style => ({padding: style.padding, radius: style.borderRadius})) };
+    })()`);
+    assert.ok(geometry.count > 0, 'the workspace has product cards');
+    assert.deepEqual(geometry.mismatches, [], 'responsive cards retain the shared padding and radius');
+  };
+  const assertActiveBadgeTone = async () => {
+    const selected = await ui('document.documentElement.dataset.theme');
+    const appearance = ['light', 'dark'].includes(selected) ? selected : nativeTheme.shouldUseDarkColors ? 'dark' : 'light';
+    const hex = colorPair(readTokens(), 'info')[appearance];
+    const expected = `rgb(${[1, 3, 5].map(index => parseInt(hex.slice(index, index + 2), 16)).join(', ')})`;
+    const colors = await ui('[...document.querySelectorAll(\'.vm-agent-card[data-agent-tone="active"] .chip\')].map(node => getComputedStyle(node).color)');
+    assert.ok(colors.length > 0, 'the sample workspace has active status badges');
+    assert.ok(colors.every(color => color === expected), 'active badges use the same blue tone as native clients, independently of the decorative state edge');
+  };
   const screenshot = async name => {
     console.log(`Capture: ${name}`);
     await until(() => ui('document.getElementById("toast").hidden'), 'transient feedback completed');
@@ -158,6 +179,8 @@ startFixture({ connections: [] }).then(async fixture => {
   const overviewBounds = await ui('({ bottom: document.querySelector("#overview-accounts .card").getBoundingClientRect().bottom, viewport: innerHeight })');
   assert.ok(overviewBounds.bottom < overviewBounds.viewport, `account metrics fit in the initial viewport: ${JSON.stringify(overviewBounds)}`);
   assert.equal(state.requests.some(url => url.includes('/trend?')), false, 'history is not prefetched');
+  await assertActiveBadgeTone();
+  await assertCardGeometry();
   await screenshot('overview-dark');
   await click('#overview-attention');
   assert.equal(await ui('document.getElementById("overview-attention").getAttribute("aria-pressed")'), 'true');
@@ -494,6 +517,7 @@ startFixture({ connections: [] }).then(async fixture => {
   await navigate('agents');
   await verifyContrast();
   await navigate('overview');
+  await assertActiveBadgeTone();
   await screenshot('overview-light');
   await navigate('companion');
   assert.equal(await value('#render-mode'), '2d');
@@ -891,6 +915,7 @@ startFixture({ connections: [] }).then(async fixture => {
   await until(async () => (await text('#summary-resources')) === '3', 'hidden window receives latest state with the saved selection');
   await nextFrames();
   const compactBounds = await ui('({ bottom: document.querySelector("#overview-accounts .card").getBoundingClientRect().bottom, viewport: innerHeight })');
+  await assertCardGeometry();
   await screenshot('compact-overview');
   assert.ok(compactBounds.bottom < compactBounds.viewport, `both categories fit the minimum window: ${JSON.stringify(compactBounds)}`);
   // A wrapped label would make one card taller than the others and push the second category down.
