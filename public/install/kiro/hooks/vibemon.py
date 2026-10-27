@@ -30,11 +30,12 @@ else:
 try:
     import vibemon_core as core
 except ImportError as error:
-    # A present file that fails to import is a broken interpreter, such as a
-    # Python whose ssl module no longer loads after an OpenSSL upgrade.
+    # A present file can still fail to import: a helper module is missing, or
+    # this Python is broken, such as an ssl module lost in an OpenSSL upgrade.
     print(
         f"[vibemon] Cannot load {_core_dir / 'vibemon_core.py'} with {sys.executable}: {error}. "
-        "Repair this Python, then run any coding session again."
+        "Reinstall VibeMon (curl -fsSL https://vibemon.io/install/install.py | python3), "
+        "or repair this Python when the error names one of its modules."
         if _core_dir else
         "[vibemon] vibemon_core.py not found — re-run the installer: "
         "curl -fsSL https://vibemon.io/install/install.py | python3",

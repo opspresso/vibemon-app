@@ -62,6 +62,7 @@ def test_hook_names_a_core_that_fails_to_load(tool, tmp_path):
     assert result.returncode == 0
     assert f"Cannot load {core} with {sys.executable}" in result.stderr
     assert "HTTPSConnection" in result.stderr
+    assert "Reinstall VibeMon" in result.stderr
     assert "not found" not in result.stderr
 
 

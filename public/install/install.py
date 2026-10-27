@@ -517,7 +517,8 @@ def ssl_problem(python: str = None) -> str | None:
 
 def check_https_python(source) -> None:
     """Stop before a download that this Python cannot make, and name the hook Python that cannot report."""
-    problem = ssl_problem() if source.is_online else None
+    # A loopback HTTP source (VIBEMON_ALLOW_HTTP_LOCAL) downloads without TLS.
+    problem = ssl_problem() if source.is_online and source.base_url.startswith("https:") else None
     if problem:
         raise IntegrityError(
             f"This Python cannot open HTTPS connections: {problem}\n"
@@ -529,7 +530,8 @@ def check_https_python(source) -> None:
     problem = ssl_problem(hooks_python) if hooks_python else None
     if problem:
         print(f"\n{colored('!', 'yellow')} Hooks run {hooks_python}, which cannot load its ssl module: {problem}")
-        print("  VibeMon hooks do not report from this computer until you repair that Python.")
+        print("  Hooks cannot send reports to VibeMon over HTTPS until you repair that Python.")
+        print("  Delivery to the local Desktop App over HTTP still works.")
 
 
 def load_manifest(source) -> dict:

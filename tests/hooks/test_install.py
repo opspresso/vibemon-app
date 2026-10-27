@@ -1650,18 +1650,21 @@ class PythonSslPreflightTest(unittest.TestCase):
         with mock.patch.object(install, "ssl_problem", side_effect=lambda python=None: None if python else "No module named '_ssl'"), \
                 mock.patch.object(install, "download_file") as download:
             with self.assertRaisesRegex(install.IntegrityError, "cannot open HTTPS connections: No module named '_ssl'"):
-                install.check_https_python(install.FileSource())
+                install.check_https_python(mock.Mock(is_online=True, base_url="https://vibemon.io/install"))
+            # A loopback HTTP source needs no TLS.
+            install.check_https_python(mock.Mock(is_online=True, base_url="http://127.0.0.1:8000/install"))
             download.assert_not_called()
 
     @pytest.mark.skipif(os.name == "nt", reason="Windows hooks pin the installer's interpreter")
     def test_warns_when_the_hook_python_cannot_load_ssl(self):
-        source = mock.Mock(is_online=True)
+        source = mock.Mock(is_online=True, base_url="https://vibemon.io/install")
         output = io.StringIO()
         with mock.patch.object(install.shutil, "which", return_value="/opt/python3"), \
                 mock.patch.object(install, "ssl_problem", side_effect=lambda python=None: "ImportError: no _ssl" if python else None), \
                 mock.patch("sys.stdout", output):
             install.check_https_python(source)
         self.assertIn("Hooks run /opt/python3, which cannot load its ssl module", output.getvalue())
+        self.assertIn("local Desktop App over HTTP still works", output.getvalue())
 
 
 class RemovalFailureTest(unittest.TestCase):
