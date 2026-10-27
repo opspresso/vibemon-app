@@ -18,15 +18,23 @@ def run_python(code, **kwargs):
 def test_deadline_opener_keeps_plain_http_without_ssl():
     result = run_python(
         f"sys.path.insert(0, {str(ROOT / 'collector')!r})\n"
+        "import threading\n"
+        "from http.server import BaseHTTPRequestHandler, HTTPServer\n"
         "from urllib.error import URLError\n"
         "from urllib.request import Request\n"
         "from vibemon_collector.http_deadline import DeadlineOpener\n"
+        "class Ok(BaseHTTPRequestHandler):\n"
+        "    def do_GET(self):\n"
+        "        self.send_response(200); self.send_header('Content-Length', '2'); self.end_headers(); self.wfile.write(b'ok')\n"
+        "    def log_message(self, *args): pass\n"
+        "server = HTTPServer(('127.0.0.1', 0), Ok)\n"
+        "threading.Thread(target=server.handle_request, daemon=True).start()\n"
         "opener = DeadlineOpener()\n"
         "try:\n    opener.open(Request('https://vibemon.invalid/'), timeout=2)\nexcept URLError as error:\n    print('https', error.reason)\n"
-        "try:\n    opener.open(Request('http://127.0.0.1:9/'), timeout=2)\nexcept URLError as error:\n    print('http', type(error.reason).__name__)\n")
+        "print('http', opener.open(Request(f'http://127.0.0.1:{server.server_port}/'), timeout=5).read().decode())\n")
     assert result.returncode == 0, result.stderr
     assert "https unknown url type: https" in result.stdout
-    assert "http ConnectionRefusedError" in result.stdout
+    assert "http ok" in result.stdout
 
 
 @pytest.mark.parametrize("tool", WRAPPERS)
