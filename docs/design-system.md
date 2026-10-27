@@ -42,6 +42,16 @@ Use the system font, readable secondary text, consistent gaps, and a visible key
 
 The shared animation policy pauses character loops when their page is hidden or the OS requests reduced motion. Reduced motion uses a still pose that updates with the current status; it does not freeze status reporting. Speech-bubble loading dots and metric transitions also stop moving. Visibility and preference listeners are removed with the renderer.
 
+### Platform presentation limits
+
+These differences are intentional. Keep the meaning, values, and order the same everywhere, and change these only with evidence that the smaller form no longer fits.
+
+| Where | Difference | Reason |
+| --- | --- | --- |
+| iPhone and Android Overview | The attention tile is titled **Attention** (`확인 필요`, `要確認`) with **All clear** or **Review below**; Desktop, Web, and Apple Watch use **Need attention**. | Three tiles share one phone row. **Need attention** truncates to "Need atte…" on an iPhone 17e. |
+| iPhone, Android, and Touch metric rows | Plan usage uses the short labels `metric.short.usageSessionPercent` and `metric.short.usageWeekPercent` (**Session**, **Weekly**). | Value and reset countdown share one narrow row. |
+| Touch | Values have no smaller, lighter fraction, and an account card has no connected-service link. | The LVGL 9.6 build has no label recolor or span widget, and the device has no **Connected services** screen to open. |
+
 Reference captures: [Desktop light](images/workspace-shared-light.png) and [Desktop dark](images/workspace-shared-dark.png).
 
 ## Verification
