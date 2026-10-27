@@ -349,3 +349,13 @@ test('widget choices identify accounts of the same provider and show their proje
   assert.equal(new Set(items.map(item => item.id)).size, 2);
   assert.ok(items.every(item => item.id.includes('auto:') && item.id.length > 64));
 });
+
+test('an account that only a connected service reports shows plan usage without context', () => {
+  const connected = agentSource({ sourceId: 'usage:6f1c2a3b-4d5e-4f60-8a7b-9c0d1e2f3a4b', agent: { state: 'standby', character: 'clawd', project: 'Claude plan' },
+    metrics: { usageSessionPercent: 12.5, usageWeekPercent: 42 } });
+  const [item] = build({ cloud: cloud([connected]) }).items;
+  assert.deepEqual(item.metrics.map(metric => [metric.key, metric.value]), [['usageSessionPercent', '12.5'], ['usageWeekPercent', '42']]);
+  // A hook report of the same account brings its context back.
+  const [reported] = build({ cloud: cloud([connected, agentSource()]) }).items;
+  assert.deepEqual(reported.metrics.map(metric => metric.key), ['contextPercent', 'usageSessionPercent', 'usageWeekPercent']);
+});
