@@ -492,6 +492,48 @@ class IntegrityError(RuntimeError):
     """A downloaded file did not match its manifest.json sha256."""
 
 
+def ssl_problem(python: str = None) -> str | None:
+    """Why `python` (default: this interpreter) cannot load its ssl module, or None.
+
+    An OpenSSL upgrade can remove the library that a compiled Python links to.
+    Such a Python can neither download these files nor send hook reports over HTTPS.
+    """
+    if python is None:
+        try:
+            import ssl  # noqa: F401
+        except ImportError as error:
+            return str(error).splitlines()[0]
+        return None
+    try:
+        result = subprocess.run([python, "-c", "import ssl"], capture_output=True, text=True, timeout=30)
+    except (OSError, subprocess.SubprocessError) as error:
+        return str(error)
+    if not result.returncode:
+        return None
+    # The traceback ends with loader details; the exception line names the failure.
+    errors = [line.strip() for line in result.stderr.splitlines() if re.match(r"\w+(Error|Exception): ", line.strip())]
+    return errors[-1] if errors else f"exit {result.returncode}"
+
+
+def check_https_python(source) -> None:
+    """Stop before a download that this Python cannot make, and name the hook Python that cannot report."""
+    # A loopback HTTP source (VIBEMON_ALLOW_HTTP_LOCAL) downloads without TLS.
+    problem = ssl_problem() if source.is_online and source.base_url.startswith("https:") else None
+    if problem:
+        raise IntegrityError(
+            f"This Python cannot open HTTPS connections: {problem}\n"
+            f"  Python: {sys.executable}\n"
+            "  Repair this Python (for example, reinstall it after an OpenSSL upgrade), "
+            "or run the installer with a Python that can import ssl, such as /usr/bin/python3. Nothing was written.")
+    # POSIX hook commands run `python3` from PATH, which can differ from this interpreter.
+    hooks_python = None if IS_WINDOWS else shutil.which("python3")
+    problem = ssl_problem(hooks_python) if hooks_python else None
+    if problem:
+        print(f"\n{colored('!', 'yellow')} Hooks run {hooks_python}, which cannot load its ssl module: {problem}")
+        print("  Hooks cannot send reports to VibeMon over HTTPS until you repair that Python.")
+        print("  Delivery to the local Desktop App over HTTP still works.")
+
+
 def load_manifest(source) -> dict:
     """Require a complete integrity reference before downloading remote files."""
     global _MANIFEST_LOADED, _MANIFEST_BASE, REMOTE_MANIFEST
@@ -502,6 +544,10 @@ def load_manifest(source) -> dict:
     pinned = os.environ.get("VIBEMON_MANIFEST_SHA256", "").strip()
     try:
         text = download_file(f"{source.base_url}/{MANIFEST_PATH}")
+    except RuntimeError as error:
+        # A network failure is not a publishing problem; report the actual reason.
+        raise IntegrityError(f"{error}. Check the network connection and retry. Nothing was written.") from error
+    try:
         files = json.loads(text)["files"]
         if not isinstance(files, dict) or not files or any(not isinstance(key, str) or not isinstance(digest, str) or not re.fullmatch(r"[0-9a-f]{64}", digest) for key, digest in files.items()):
             raise ValueError("Invalid manifest")
@@ -1831,7 +1877,7 @@ COLLECTOR_MODULES = (
 COLLECTOR_FILES = tuple(f"collector/vibemon_collector/{name}" for name in COLLECTOR_MODULES)
 PSUTIL_REQUIREMENT = "psutil>=5.9,<8"
 # The multi-arch image (amd64, arm64) built by collector-image.yml.
-COLLECTOR_IMAGE = "public.ecr.aws/z5d8x0d6/vibemon-collector@sha256:aa5492bab0efb68fec3c266d12f0eaccdce9e3d7ca60944d8e62e726dd7e8d7d"
+COLLECTOR_IMAGE = "public.ecr.aws/z5d8x0d6/vibemon-collector@sha256:9f7d01ad21a52747a3f680e2568adc239a685a5e4493bf7d766e42cdd6ceef7e"
 KUBERNETES_NAMESPACE = "vibemon"
 # Default context names of k3s and kubeadm clusters; they do not tell clusters apart.
 GENERIC_KUBERNETES_CONTEXTS = frozenset({"default", "kubernetes-admin@kubernetes"})
@@ -3085,6 +3131,7 @@ def main():
     print(f"  Mode: {colored(mode, 'yellow')}  Action: {colored(action.lower(), 'yellow')}")
 
     if not args.uninstall:
+        check_https_python(source)
         load_manifest(source)
 
     if not platforms:

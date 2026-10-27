@@ -8,8 +8,17 @@ import math
 import socket
 import time
 from contextvars import ContextVar
-from http.client import HTTPConnection, HTTPSConnection
-from urllib.request import HTTPHandler, HTTPSHandler, build_opener
+from http.client import HTTPConnection
+from urllib.request import HTTPHandler, build_opener
+
+try:
+    from http.client import HTTPSConnection
+    from urllib.request import HTTPSHandler
+except ImportError:
+    # A Python without a working ssl module has no HTTPS classes. Plain HTTP,
+    # such as delivery to the local Desktop App, still works; an https:// URL
+    # then fails with urllib's "unknown url type: https".
+    HTTPSConnection = HTTPSHandler = None
 
 
 class _Budget:
@@ -90,18 +99,19 @@ class _Connection(HTTPConnection):
         self._create_connection = lambda address, timeout, source: _connect(address, budget, source)
 
 
-class _TLSConnection(HTTPSConnection):
-    def __init__(self, *args, budget, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.budget = budget
-        self._create_connection = lambda address, timeout, source: _connect(address, budget, source)
+if HTTPSConnection:
+    class _TLSConnection(HTTPSConnection):
+        def __init__(self, *args, budget, **kwargs):
+            super().__init__(*args, **kwargs)
+            self.budget = budget
+            self._create_connection = lambda address, timeout, source: _connect(address, budget, source)
 
-    def connect(self):
-        # HTTPConnection also handles CONNECT proxies through the budgeted reader.
-        HTTPConnection.connect(self)
-        self.sock.settimeout(self.budget.remaining())
-        secured = self._context.wrap_socket(self.sock.socket, server_hostname=self._tunnel_host or self.host)
-        self.sock = _Socket(secured, self.budget)
+        def connect(self):
+            # HTTPConnection also handles CONNECT proxies through the budgeted reader.
+            HTTPConnection.connect(self)
+            self.sock.settimeout(self.budget.remaining())
+            secured = self._context.wrap_socket(self.sock.socket, server_hostname=self._tunnel_host or self.host)
+            self.sock = _Socket(secured, self.budget)
 
 
 _current_budget = ContextVar('http_request_budget', default=None)
@@ -112,15 +122,17 @@ class _HTTPHandler(HTTPHandler):
         return self.do_open(lambda *args, **kwargs: _Connection(*args, budget=_current_budget.get(), **kwargs), request)
 
 
-class _HTTPSHandler(HTTPSHandler):
-    def https_open(self, request):
-        return self.do_open(lambda *args, **kwargs: _TLSConnection(*args, budget=_current_budget.get(), **kwargs), request, context=self._context)
+if HTTPSHandler:
+    class _HTTPSHandler(HTTPSHandler):
+        def https_open(self, request):
+            return self.do_open(lambda *args, **kwargs: _TLSConnection(*args, budget=_current_budget.get(), **kwargs), request, context=self._context)
 
 
 class DeadlineOpener:
     """Each open call owns its budget; redirects retain it and concurrent calls do not share it."""
     def __init__(self, *handlers, context=None, clock=time.monotonic):
-        self.opener = build_opener(_HTTPHandler(), _HTTPSHandler(context=context), *handlers)
+        secure = (_HTTPSHandler(context=context),) if HTTPSHandler else ()
+        self.opener = build_opener(_HTTPHandler(), *secure, *handlers)
         self.clock = clock
 
     def open(self, request, *, timeout):
