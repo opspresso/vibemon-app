@@ -10,6 +10,7 @@ export function stateTone(state: string): StateTone;
 export type MetricTone = 'normal' | 'warning' | 'danger';
 export function resourceType(source: { kind: string; resourceType?: string }, t?: Translator): string;
 export function metricLabel(key: string, label: string, t?: Translator): string;
+export function weeklyModelLabel(model: string | null | undefined, t?: Translator): string;
 export function metricTone(key: string, value: unknown): MetricTone;
 export function measurementUnit(unit: string): string;
 export function formatMeasurement(value: unknown, unit?: string, exact?: boolean, unavailable?: string, includeUnit?: boolean, locale?: string): string;

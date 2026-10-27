@@ -1,4 +1,4 @@
-import { describeReset, formatAxisValue, resetMinutes } from '../../shared/design/presentation.mjs';
+import { describeReset, formatAxisValue, resetMinutes, weeklyModelLabel } from '../../shared/design/presentation.mjs';
 import { $, el, text, choices, keyed, svg, reading, measurement, badge, stateLabel, ago } from '../dom.js';
 import { accountCard, metricName, sourceState, sourceType, isConnectedOnly, isUsageSource, connectionChip, showsMetric } from './cards.js';
 import { t, locale } from '../i18n.js';
@@ -127,9 +127,12 @@ export function setupDetail({ getFrame, cloudTime, request, run, navigate }) {
     text($('detail-received'), t('detail.received', { age: ago(source.receivedAt, now).toLocaleLowerCase(locale) }));
     const connectedOnly = isConnectedOnly(source);
     const selectedMetrics = metrics(source).filter((metric) => showsMetric(source, metric));
+    // An account's weekly usage of one model family follows its weekly plan usage, as on every client.
+    const model = source.isAccount && source.modelUsage && selectedMetrics.some((metric) => metric.key === 'usageWeekPercent')
+      ? { ...source.modelUsage, label: weeklyModelLabel(source.modelUsage.model, t), selectionKey: '' } : null;
     keyed(
       $('detail-readings'),
-      selectedMetrics,
+      model ? [...selectedMetrics, model] : selectedMetrics,
       (metric) => metric.key,
       () => {
         const node = el('div', undefined, 'detail-reading');
@@ -137,7 +140,7 @@ export function setupDetail({ getFrame, cloudTime, request, run, navigate }) {
         return node;
       },
       (node, metric) => {
-        const value = source.metrics[metric.key];
+        const value = metric === model ? model.value : source.metrics[metric.key];
         text(node.children[0], metricName(metric));
         measurement(node.children[1], value, metric.unit, metric.selectionKey.startsWith('resource:'));
         const reset = typeof value === 'number' ? describeReset(resetMinutes(metric.resetAt, now), t) : null;

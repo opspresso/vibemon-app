@@ -32,6 +32,11 @@ export function metricLabel(key, label, t = english) {
   if (label === english('metric.unifiedMemory')) return t('metric.unifiedMemory');
   return label;
 }
+/**
+ * The label of an agent's weekly usage of one model family, such as "Weekly Opus".
+ * Account Details show this value after weekly plan usage on every client.
+ */
+export const weeklyModelLabel = (model, t = english) => model ? t('metric.weeklyModel', { model }) : t('metric.weeklyModelUnknown');
 // Thresholds come from monitoring.json `measurements.tones`: plan usage warns
 // before a limit, and other measurements have no thresholds. Bounds are inclusive.
 export function metricTone(key, value) {

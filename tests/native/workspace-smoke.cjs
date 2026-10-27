@@ -326,6 +326,8 @@ startFixture({ connections: [] }).then(async fixture => {
   state.sources = () => {
     const data = originalSources();
     const team = data.find(source => source.sourceId === 'codex-team');
+    // The newest observation, which supplies account usage, also reports weekly model usage.
+    team.agent = { ...team.agent, usageWeekModel: 37, usageWeekModelLabel: 'Opus', usageWeekModelResetsIn: 2880 };
     return [...data, { ...team, sourceId: 'waiting-review', displayName: 'release-review', observedAt: new Date(Date.now() - 1000).toISOString(), agent: { ...team.agent, state: 'notification', project: 'release-review' } }];
   };
   await client.poll(true);
@@ -337,6 +339,10 @@ startFixture({ connections: [] }).then(async fixture => {
   assert.equal(await text('#detail-status .chip'), 'Needs input');
   assert.ok((await text('#detail-members')).includes('release-review'));
   assert.ok((await text('#detail-readings')).includes('38%'), 'account usage still comes from its latest observation');
+  const readings = await text('#detail-readings');
+  assert.ok(readings.includes('Weekly Opus') && readings.includes('37%'), 'account details show weekly model usage');
+  assert.ok(readings.indexOf('Weekly Opus') > readings.indexOf('Weekly'), 'weekly model usage follows weekly plan usage');
+  await screenshot('account-detail-model');
   await click('[data-close-dialog="detail-dialog"]');
   state.sources = originalSources;
   await client.poll(true);

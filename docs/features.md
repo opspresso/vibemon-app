@@ -8,7 +8,7 @@ The tray's orange-red dot shows that something needs you. The same dot marks whe
 
 | Issue | Tray menu item | Workspace mark |
 |-------|----------------|----------------|
-| A selected resource or coding account needs attention | **Dashboard** | **Resources** or **Coding agents** in the sidebar |
+| A selected agent or resource needs attention | **Dashboard** | **Agents** or **Resources** in the sidebar |
 | The read connection failed | **Settings…** (opens Connections) | **Settings** and the **Connections** tab |
 | An integration needs repair or an update, local delivery settings are invalid, or the cloud delivery check failed | **Integrations…** | **Settings** and the **Integrations** tab |
 | An app update is available or ready to install | **About VibeMon** | **Settings** and the **About** tab |
@@ -247,7 +247,7 @@ A small, transparent window with input only on its visible body and tail that di
 
 ### Workspace and settings
 
-The tray icon opens a menu. Its first line shows the installed version, for example **VibeMon 3.8.5**. Below it are **Dashboard** and **Show companion** or **Hide companion**, then **Settings…** and **Integrations…**, then **About VibeMon** and **Quit VibeMon**. Select **Dashboard** to open the workspace with Overview, Resources, Coding agents, and Settings. Connections, Companion, Integrations, and About share its navigation and connection state. Preference changes apply immediately; connection and display-selection forms require Save. Search fields and unsaved choices survive automatic polling.
+The tray icon opens a menu. Its first line shows the installed version, for example **VibeMon 3.8.5**. Below it are **Dashboard** and **Show companion** or **Hide companion**, then **Settings…** and **Integrations…**, then **About VibeMon** and **Quit VibeMon**. Select **Dashboard** to open the workspace with Overview, Agents, Resources, and Settings. Connections, Companion, Integrations, and About share its navigation and connection state. Preference changes apply immediately; connection and display-selection forms require Save. Search fields and unsaved choices survive automatic polling.
 
 The tray menu provides Dashboard, Settings, Show companion or Hide companion, Integrations, About VibeMon, and Quit VibeMon. Usage and preference controls live in the workspace instead of submenus. **Show companion** appears while the character is off the desktop. It restores the character and speech bubble without waiting for another status event. **Hide companion** appears while the character is on the desktop; see [Show or hide the companion](#show-or-hide-the-companion).
 
