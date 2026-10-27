@@ -84,7 +84,7 @@ Each connection shows its service, plan, account label, state, the weekly usage 
 | State | Meaning |
 | --- | --- |
 | **Connected** | The last reading succeeded. |
-| **Waiting for a reading** | VibeMon has not read the account yet. |
+| **Waiting** | VibeMon has not read the account yet. |
 | **Not updated** | The last reading is more than 30 minutes old. |
 | **Temporarily limited** | The service limited reads; VibeMon tries again at the shown time and keeps the connection. |
 | **Not responding** | The service did not answer; the account card keeps the earlier reading. |

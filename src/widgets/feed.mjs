@@ -131,7 +131,10 @@ function localSource({ id, since, status }, offset, now) {
 function agentItem(account, stateAt, cloudUsage, usage, artwork, now, wall, offset, t, running) {
   const latest = account.latest;
   const project = accountActivity(account, now).project;
-  const metrics = AGENT_METRICS.map(({ key, label: message, usage: bucket }) => {
+  // A connected service (`usage:` sources) reads plan usage only: an account
+  // that only it reports has no context, as on every other client.
+  const connectedOnly = account.sources.every(source => source.sourceId.startsWith('usage:'));
+  const metrics = AGENT_METRICS.filter(metric => !connectedOnly || metric.usage).map(({ key, label: message, usage: bucket }) => {
     const label = t(message);
     if (!bucket) return metricEntry({ key, label, ...GAUGE }, latest.metrics[key]);
     if (cloudUsage) {
