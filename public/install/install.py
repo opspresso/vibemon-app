@@ -1463,13 +1463,36 @@ def remove_legacy_kiro_hooks(kiro_home: Path) -> None:
             agent = json.loads(agent_file.read_text(encoding="utf-8"))
         except ValueError:
             agent = None
-        if agent in ({}, {"hooks": {}}):
+        if agent in ({}, {"hooks": {}}, {"hooks": []}):
             remove_path(agent_file, display_path(agent_file))
     for hook_file in LEGACY_KIRO_HOOK_FILES:
         remove_path(
             kiro_home / "hooks" / hook_file,
             display_path(kiro_home / "hooks" / hook_file),
         )
+
+
+def kiro_cli_skips_global_hooks() -> bool | None:
+    """Whether `kiro-cli chat` starts on an engine that does not run global hooks.
+
+    Kiro CLI 2.x runs ~/.kiro/hooks/*.json only on its V3 engine, and its default
+    engine is V2 unless the `chat.agentEngine` setting selects another one.
+    Returns None when kiro-cli is absent or does not report its version.
+    """
+    command = shutil.which("kiro-cli")
+    if not command:
+        return None
+    try:
+        version = subprocess.run([command, "--version"], capture_output=True, text=True, timeout=15)
+        setting = subprocess.run([command, "settings", "chat.agentEngine"], capture_output=True, text=True, timeout=15)
+    except (OSError, subprocess.SubprocessError):
+        return None
+    # An unset key exits non-zero ("No value associated with chat.agentEngine").
+    engine = re.search(r"\bv(\d+)\b", setting.stdout) if setting.returncode == 0 else None
+    if engine:
+        return engine.group(1) != "3"
+    major = re.search(r"(\d+)\.\d+", version.stdout)
+    return int(major.group(1)) < 3 if version.returncode == 0 and major else None
 
 
 def install_kiro(source: FileSource, cli_token: str = None) -> bool:
@@ -1521,7 +1544,14 @@ def install_kiro(source: FileSource, cli_token: str = None) -> bool:
         return False
 
     print(f"\n{colored('Kiro installation complete!', 'green')}")
-    print("  • Global hooks apply to every local Kiro IDE and CLI project")
+    print("  • Global hooks apply to every local project in Kiro IDE and in the Kiro CLI V3 engine")
+    print("  • Restart Kiro IDE, then start a session to see it in VibeMon")
+    if kiro_cli_skips_global_hooks():
+        print(f"\n{colored('Action required for Kiro CLI:', 'yellow')}")
+        print("  • Your Kiro CLI uses the V2 engine, which does not run global hooks.")
+        print("    VibeMon does not see `kiro-cli chat` sessions until you select V3:")
+        print(f"      {colored('kiro-cli settings chat.agentEngine v3', 'cyan')}")
+        print("    To try one session first: kiro-cli chat --v3")
     return True
 
 

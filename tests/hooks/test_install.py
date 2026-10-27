@@ -819,6 +819,7 @@ class RemoveLegacyKiroAgentTest(unittest.TestCase):
         for leftover in (
             {"hooks": {"stop": [{"command": "python3", "args": ["~/.kiro/hooks/vibemon.py", "agentStop"]}]}},
             {"hooks": {}},
+            {"hooks": []},
         ):
             with self.subTest(leftover=leftover), tempfile.TemporaryDirectory() as directory:
                 agent_file = Path(directory) / "agents" / "default.json"
@@ -860,6 +861,54 @@ class InstallKiroV1Test(unittest.TestCase):
                 json.loads(agent_file.read_text())["hooks"]["stop"],
                 [{"command": "python3", "args": ["~/my-hook.py"]}],
             )
+
+
+class KiroCliEngineTest(unittest.TestCase):
+    def check(self, version, setting, which="/usr/local/bin/kiro-cli"):
+        def run(command, **_):
+            if command[1:] == ["--version"]:
+                return subprocess.CompletedProcess(command, 0, version, "")
+            code, out = setting
+            return subprocess.CompletedProcess(command, code, out, "error: No value associated with chat.agentEngine\n" if code else "")
+        with mock.patch.object(install.shutil, "which", return_value=which), \
+                mock.patch.object(install.subprocess, "run", side_effect=run):
+            return install.kiro_cli_skips_global_hooks()
+
+    def test_cli_2_without_engine_setting_skips_global_hooks(self):
+        self.assertTrue(self.check("kiro-cli 2.32.0\n", (1, "")))
+
+    def test_engine_setting_decides_for_any_version(self):
+        self.assertFalse(self.check("kiro-cli 2.32.0\n", (0, "\"v3\"\n")))
+        self.assertTrue(self.check("kiro-cli 3.1.0\n", (0, "v2\n")))
+
+    def test_cli_3_default_runs_global_hooks(self):
+        self.assertFalse(self.check("kiro-cli 3.0.0\n", (1, "")))
+
+    def test_unknown_without_kiro_cli_or_version(self):
+        self.assertIsNone(self.check("", (1, ""), which=None))
+        self.assertIsNone(self.check("unexpected\n", (1, "")))
+
+
+class InstallKiroEngineNoticeTest(unittest.TestCase):
+    def install(self, skips):
+        with tempfile.TemporaryDirectory() as directory:
+            home = Path(directory)
+            (home / ".kiro").mkdir()
+            output = io.StringIO()
+            with PosixInstall(home), mock.patch.object(install, "kiro_cli_skips_global_hooks", return_value=skips), \
+                    mock.patch("sys.stdout", output):
+                self.assertTrue(install.install_kiro(install.FileSource(DOCS_DIR)))
+            return output.getvalue()
+
+    def test_v2_engine_prints_the_command_that_enables_global_hooks(self):
+        output = self.install(True)
+        self.assertIn("kiro-cli settings chat.agentEngine v3", output)
+        self.assertIn("does not run global hooks", output)
+
+    def test_v3_or_unknown_engine_prints_no_action(self):
+        for skips in (False, None):
+            with self.subTest(skips=skips):
+                self.assertNotIn("chat.agentEngine", self.install(skips))
 
 
 class UninstallKiroTest(unittest.TestCase):

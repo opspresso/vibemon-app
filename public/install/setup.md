@@ -34,11 +34,13 @@ Choose the flag matching the tool:
 | --- | --- |
 | `--claude` | Claude Code hooks and status line |
 | `--codex` | Codex hooks; `~/.codex/config.toml` is not changed |
-| `--kiro` | Kiro global hooks |
+| `--kiro` | Kiro global hooks (Kiro IDE and the Kiro CLI V3 engine) |
 | `--openclaw` | OpenClaw plugin; macOS/Linux only |
 | `--opencode` | OpenCode plugin and Python adapter |
 | `--all` | Every detected tool |
 | `--vibemon` | Shared scripts and configuration only |
+
+Kiro CLI 2.x starts `kiro-cli chat` on its V2 engine, which does not run global hooks. After `--kiro`, select the V3 engine with `kiro-cli settings chat.agentEngine v3`, or start one session with `kiro-cli chat --v3`. The installer prints this step when it detects the V2 engine.
 
 Omit the flag for the interactive menu. A platform flag runs unattended and preserves existing user settings such as a custom Claude status line. Add `--yes` only to approve their replacement. VibeMon-owned scripts are upgraded in either mode.
 

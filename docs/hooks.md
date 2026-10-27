@@ -269,7 +269,7 @@ A tool approved at a permission prompt runs without a new hook event. The sessio
 
 Kiro CLI V3 runs no hook when the user cancels a turn with Esc. The hook finds the session record `~/.kiro/sessions/<workspace>/<session_id>/messages.jsonl` and passes it to the watcher as the transcript. While the turn runs, the watcher repeats its state every 60 seconds. When the record shows `turn_end` without a later hook, the watcher reports `done`.
 
-Kiro CLI 2.x runs global hooks only in V3 mode (`kiro-cli --v3 chat`). Its default V2 engine runs hooks only from a selected custom agent, so VibeMon does not see default V2 sessions. To report V2 sessions, add these hooks to the custom agent you use, for example `~/.kiro/agents/my-agent.json`:
+Kiro CLI 2.x runs global hooks only on its V3 engine: select it once with `kiro-cli settings chat.agentEngine v3`, or per session with `kiro-cli chat --v3`. The installer detects the V2 engine and prints this step. The default V2 engine runs hooks only from a selected custom agent, so VibeMon does not see default V2 sessions. To report V2 sessions, add these hooks to the custom agent you use, for example `~/.kiro/agents/my-agent.json`:
 
 ```json
 "hooks": {
