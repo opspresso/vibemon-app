@@ -24,11 +24,18 @@ for _core_dir in (
     if (_core_dir / "vibemon_core.py").is_file():
         sys.path.insert(0, str(_core_dir))
         break
+else:
+    _core_dir = None
 
 try:
     import vibemon_core as core
-except ImportError:
+except ImportError as error:
+    # A present file that fails to import is a broken interpreter, such as a
+    # Python whose ssl module no longer loads after an OpenSSL upgrade.
     print(
+        f"[vibemon] Cannot load {_core_dir / 'vibemon_core.py'} with {sys.executable}: {error}. "
+        "Repair this Python, then run any coding session again."
+        if _core_dir else
         "[vibemon] vibemon_core.py not found — re-run the installer: "
         "curl -fsSL https://vibemon.io/install/install.py | python3",
         file=sys.stderr,

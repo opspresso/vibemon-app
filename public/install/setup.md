@@ -40,6 +40,8 @@ Choose the flag matching the tool:
 | `--all` | Every detected tool |
 | `--vibemon` | Shared scripts and configuration only |
 
+The installer and the hooks need a Python that can import `ssl`. An OpenSSL upgrade can break a compiled Python, such as a pyenv build after Homebrew replaces `openssl@3`. The installer then stops before it downloads anything, names the Python and the missing library, and warns when the `python3` that hooks run cannot load `ssl`. Reinstall that Python version, then run the installer again.
+
 Kiro CLI 2.x starts `kiro-cli chat` on its V2 engine, which does not run global hooks. After `--kiro`, select the V3 engine with `kiro-cli settings chat.agentEngine v3`, or start one session with `kiro-cli chat --v3`. The installer prints this step when it detects the V2 engine.
 
 Omit the flag for the interactive menu. A platform flag runs unattended and preserves existing user settings such as a custom Claude status line. Add `--yes` only to approve their replacement. VibeMon-owned scripts are upgraded in either mode.

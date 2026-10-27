@@ -1622,6 +1622,48 @@ class ManifestAvailabilityTest(unittest.TestCase):
             self.assertFalse(install._MANIFEST_LOADED)
 
 
+class ManifestDownloadFailureTest(unittest.TestCase):
+    def test_a_download_failure_reports_its_reason_not_a_publishing_problem(self):
+        failure = RuntimeError("Failed to download https://vibemon.io/install/manifest.json: <urlopen error unknown url type: https>")
+        with mock.patch.object(install, '_MANIFEST_LOADED', False), mock.patch.object(install, 'download_file', side_effect=failure):
+            with self.assertRaises(install.IntegrityError) as raised:
+                install.load_manifest(install.FileSource())
+        self.assertIn("unknown url type: https", str(raised.exception))
+        self.assertIn("Nothing was written", str(raised.exception))
+        self.assertNotIn("Publish", str(raised.exception))
+
+
+class PythonSslPreflightTest(unittest.TestCase):
+    TRACEBACK = ("Traceback (most recent call last):\n  File \"<string>\", line 1\n"
+                 "ImportError: dlopen(_ssl.so): Library not loaded: /opt/homebrew/opt/openssl@3/lib/libssl.3.dylib\n"
+                 "  Reason: tried: '/opt/homebrew/opt/openssl@3/lib/libssl.3.dylib' (no such file)\n")
+
+    def test_names_the_exception_of_a_python_that_cannot_load_ssl(self):
+        failed = subprocess.CompletedProcess(["python3"], 1, "", self.TRACEBACK)
+        with mock.patch.object(install.subprocess, "run", return_value=failed):
+            self.assertEqual(install.ssl_problem("/usr/local/bin/python3"),
+                             "ImportError: dlopen(_ssl.so): Library not loaded: /opt/homebrew/opt/openssl@3/lib/libssl.3.dylib")
+        with mock.patch.object(install.subprocess, "run", return_value=subprocess.CompletedProcess(["python3"], 0, "", "")):
+            self.assertIsNone(install.ssl_problem("/usr/local/bin/python3"))
+
+    def test_an_online_install_stops_before_downloading_with_a_python_without_ssl(self):
+        with mock.patch.object(install, "ssl_problem", side_effect=lambda python=None: None if python else "No module named '_ssl'"), \
+                mock.patch.object(install, "download_file") as download:
+            with self.assertRaisesRegex(install.IntegrityError, "cannot open HTTPS connections: No module named '_ssl'"):
+                install.check_https_python(install.FileSource())
+            download.assert_not_called()
+
+    @pytest.mark.skipif(os.name == "nt", reason="Windows hooks pin the installer's interpreter")
+    def test_warns_when_the_hook_python_cannot_load_ssl(self):
+        source = mock.Mock(is_online=True)
+        output = io.StringIO()
+        with mock.patch.object(install.shutil, "which", return_value="/opt/python3"), \
+                mock.patch.object(install, "ssl_problem", side_effect=lambda python=None: "ImportError: no _ssl" if python else None), \
+                mock.patch("sys.stdout", output):
+            install.check_https_python(source)
+        self.assertIn("Hooks run /opt/python3, which cannot load its ssl module", output.getvalue())
+
+
 class RemovalFailureTest(unittest.TestCase):
     def test_shared_uninstall_reports_an_unremovable_script_as_failure(self):
         with tempfile.TemporaryDirectory() as directory:
