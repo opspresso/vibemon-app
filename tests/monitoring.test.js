@@ -425,6 +425,16 @@ describe('cloud monitoring', () => {
     expect(metrics.contextPercent).not.toHaveProperty('resetAt');
     expect(client.snapshot().sources.find(item => item.kind === 'host').displayMetrics.some(metric => 'resetAt' in metric)).toBe(false);
   });
+  test('carries an agent weekly model usage with its reset for account details', async () => {
+    const { client, fetchImpl } = fixture();
+    const observed = 1000000 - 90000;
+    const agent = { state: 'working', character: 'claude', project: 'demo', usageWeekModel: 37, usageWeekModelLabel: 'Opus', usageWeekModelResetsIn: 2880 };
+    fetchImpl.mockResolvedValue(okResponse({ sources: [source(1000000), { ...source(observed), sourceId: 'work', kind: 'agent', memoryType: null,
+      metrics: { usageWeekPercent: 20 }, account: { provider: 'claude', id: 'work', displayName: 'Work' }, agent }] }));
+    await client.poll(true);
+    expect(client.snapshot().accounts[0].latest.modelUsage).toEqual({ key: 'usageWeekModel', unit: '%', display: 'gauge', min: 0, max: 100, value: 37, model: 'Opus', resetAt: observed + 2880 * 60000 });
+    expect(client.snapshot().sources.find(item => item.kind === 'host').modelUsage).toBeNull();
+  });
 });
 
 describe('credential storage', () => {

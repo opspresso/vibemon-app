@@ -53,6 +53,7 @@ test('usage reset time anchors plan usage countdowns at the observation', () => 
   // A future observation cannot increase the countdown.
   expect(usageResetAt('usageSessionPercent', fields, observedAt, start - 30000)).toBe(start - 30000 + 65 * 60000);
   expect(usageResetAt('usageSessionPercent', fields, 'invalid', start + 5)).toBe(start + 5 + 65 * 60000);
+  expect(usageResetAt('usageWeekModel', { usageWeekModelResetsIn: 2880 }, observedAt, start)).toBe(start + 2880 * 60000);
   for (const key of ['contextPercent', 'usageWeekModel', 'constructor', '__proto__']) expect(usageResetAt(key, fields, observedAt, start)).toBeNull();
   for (const value of [undefined, null, '', '65', -1, 1.5, NaN, Number.MAX_SAFE_INTEGER + 1]) {
     expect(usageResetAt('usageSessionPercent', { usage5hResetsIn: value }, observedAt, start)).toBeNull();

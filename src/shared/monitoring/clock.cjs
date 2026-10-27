@@ -18,9 +18,12 @@ function remainingResetMinutes(minutes, observedAt, now = Date.now()) {
   return Math.max(0, minutes - Math.max(0, Math.floor((now - observed) / 60000)));
 }
 
-// Plan usage metrics that reset on a rolling window, and the agent field that
+// Plan usage values that reset on a rolling window, and the agent field that
 // reports the minutes until that reset, measured at the observation time.
-const USAGE_RESET_FIELDS = Object.freeze({ usageSessionPercent: 'usage5hResetsIn', usageWeekPercent: 'usageWeekResetsIn' });
+// `usageWeekModel` is the agent's weekly usage of one model family, not a metric.
+const USAGE_RESET_FIELDS = Object.freeze({
+  usageSessionPercent: 'usage5hResetsIn', usageWeekPercent: 'usageWeekResetsIn', usageWeekModel: 'usageWeekModelResetsIn'
+});
 
 // The time in milliseconds at which a plan usage metric resets, or null when
 // `fields` does not report it or the time is outside the Date range. A

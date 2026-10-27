@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { accountName, metricTone, statePresentation, providerLabel, formatMeasurement, formatMeasurementParts, observationAge, formatAxisValue, formatResetTime, resetCountdown } from '../src/shared/design/presentation.mjs';
+import { accountName, metricTone, statePresentation, providerLabel, formatMeasurement, formatMeasurementParts, observationAge, formatAxisValue, formatResetTime, resetCountdown, sharedTranslator, weeklyModelLabel } from '../src/shared/design/presentation.mjs';
 import { usageResetAt } from '../src/shared/monitoring/clock.cjs';
 import { dominantState, needsAttention, sourceState, accountState } from '../src/shared/monitoring/state.cjs';
 import { mergeMean } from '../src/shared/resource-schema.cjs';
@@ -154,4 +154,10 @@ test('semantic number segments preserve precision, signs, and locale grouping', 
   for (const value of [null, undefined, NaN, Infinity, '12']) {
     assert.deepEqual(formatMeasurementParts(value), { integer: '—', fraction: '' });
   }
+});
+
+test('weekly model usage names its model family, or the model when unnamed', () => {
+  assert.equal(weeklyModelLabel('Opus'), 'Weekly Opus');
+  assert.equal(weeklyModelLabel(null), 'Weekly model');
+  assert.equal(weeklyModelLabel('Opus', sharedTranslator('ko')), '주간 Opus');
 });

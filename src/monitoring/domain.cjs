@@ -19,6 +19,14 @@ function displayMetrics(source, now) {
     return { ...definition, key, selectionKey: selectionKey(source, key), ...(resetAt === null ? {} : { resetAt }) };
   });
 }
+// An agent's weekly usage of one model family, with its reset time on the report clock. Account
+// Details show it after weekly plan usage; `model` names the family when the agent reports one.
+function modelUsage(source, now) {
+  const value = source.agent?.usageWeekModel;
+  if (typeof value !== 'number') return null;
+  const resetAt = usageResetAt('usageWeekModel', source.agent, source.observedAt, now);
+  return { key: 'usageWeekModel', unit: '%', display: 'gauge', min: 0, max: 100, value, model: source.agent.usageWeekModelLabel ?? null, ...(resetAt === null ? {} : { resetAt }) };
+}
 function validTime(value) { return typeof value === 'string' && Number.isFinite(Date.parse(value)); }
 function validateSources(value) {
   if (!Array.isArray(value) || value.length > 1000) throw new Error(t('error.invalidSourceResponse'));
@@ -80,5 +88,5 @@ function validAccountId(value) {
 }
 module.exports = {
   METRICS, validId, validUuid, validPlan, USAGE_STATUSES, validAccountId, accountId, groupAccounts, webOrigin,
-  validateSources, validateTrend, validateDefinitions, validateOrder, displayMetrics, metricCatalog
+  validateSources, validateTrend, validateDefinitions, validateOrder, displayMetrics, modelUsage, metricCatalog
 };
