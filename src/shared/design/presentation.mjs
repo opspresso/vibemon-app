@@ -24,6 +24,13 @@ export const stateTone = state => statePresentation(state)[1];
 // A reported resource type is the owner's own text and stays as reported.
 export const resourceType = (source, t = english) => source.resourceType || t({ host: 'resource.host', cluster: 'resource.cluster' }[source.kind] ?? 'resource.other');
 /**
+ * The icon role of a resource card. Each client draws its own icon for the
+ * role: a server for a host, a chip for unified memory, stacked layers for a
+ * cluster, and a gauge for a custom resource.
+ */
+export const resourceIcon = source => source.kind === 'cluster' ? 'cluster'
+  : source.kind === 'host' ? source.memoryType === 'unified' ? 'unified' : 'host' : 'resource';
+/**
  * The label of a metric. Built-in metrics keep their reported English label
  * on the wire; the label is translated only when it is that built-in text.
  */

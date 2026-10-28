@@ -1,5 +1,5 @@
 import { compareCards } from '../../shared/design/card-order.mjs';
-import { accountName, describeReset, formatResetTime, measurementUnit, metricLabel, metricTone, resetMinutes, resourceType, stateTone } from '../../shared/design/presentation.mjs';
+import { accountName, describeReset, formatResetTime, measurementUnit, metricLabel, metricTone, resetMinutes, resourceIcon, resourceType, stateTone } from '../../shared/design/presentation.mjs';
 import { t, locale } from '../i18n.js';
 import { accountConnectionChip } from './service-labels.js';
 import {
@@ -243,9 +243,7 @@ export function renderCards(
           parts.image.replaceChildren(image);
         } else
           parts.image.replaceChildren(
-            icon(
-              source.kind === 'cluster' ? 'resources' : source.memoryType === 'unified' ? 'gauge' : 'cloud'
-            )
+            icon({ host: 'resources', unified: 'chip', cluster: 'layers', resource: 'gauge' }[resourceIcon(source)])
           );
         parts.image.dataset.identity = identity;
       }
