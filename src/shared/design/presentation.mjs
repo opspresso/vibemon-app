@@ -24,6 +24,15 @@ export const stateTone = state => statePresentation(state)[1];
 // A reported resource type is the owner's own text and stays as reported.
 export const resourceType = (source, t = english) => source.resourceType || t({ host: 'resource.host', cluster: 'resource.cluster' }[source.kind] ?? 'resource.other');
 /**
+ * The secondary line of a coding account card: the model and tool of the
+ * project responsible for its state, such as `gpt-5 · Editing`, or the number
+ * of reporting projects when there are several. `reporting` formats that number.
+ */
+export function accountActivityLine(active, projectCount, reporting) {
+  const detail = [active?.agent?.model, active?.agent?.tool].map(value => value?.trim()).filter(Boolean).join(' · ');
+  return detail || (projectCount > 1 ? reporting(projectCount) : '');
+}
+/**
  * The icon role of a resource card. Each client draws its own icon for the
  * role: a server for a host, a chip for unified memory, stacked layers for a
  * cluster, and a gauge for a custom resource.

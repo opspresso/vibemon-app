@@ -4,7 +4,7 @@ import { createTranslator, mergeCatalogs, resolveLocale } from '../src/shared/i1
 import messages from '../src/shared/i18n/shared-messages.mjs';
 import { readFileSync } from 'node:fs';
 import { validateCatalog, validateWidgetStrings } from '../scripts/generate-monitoring.mjs';
-import { describeReset, formatResetTime, metricLabel, observationAge, resetCountdown, resetMinutes, resourceIcon, resourceType, sharedTranslator, stateLabel } from '../src/shared/design/presentation.mjs';
+import { accountActivityLine, describeReset, formatResetTime, metricLabel, observationAge, resetCountdown, resetMinutes, resourceIcon, resourceType, sharedTranslator, stateLabel } from '../src/shared/design/presentation.mjs';
 
 test('resolves the first supported language and falls back to English', () => {
   assert.equal(resolveLocale(['ko-KR', 'en-US']), 'ko');
@@ -78,4 +78,11 @@ test('resource cards share one icon role per source kind', () => {
   assert.deepEqual([
     { kind: 'host' }, { kind: 'host', memoryType: 'unified' }, { kind: 'cluster' }, { kind: 'resource' }, { kind: 'resource', memoryType: 'unified' }
   ].map(resourceIcon), ['host', 'unified', 'cluster', 'resource', 'resource']);
+});
+
+test('an account card names the active model and tool, or counts several projects', () => {
+  const reporting = count => `${count} reporting projects`;
+  assert.equal(accountActivityLine({ agent: { model: 'gpt-5', tool: ' Editing ' } }, 3, reporting), 'gpt-5 · Editing');
+  assert.equal(accountActivityLine({ agent: { model: ' ', tool: null } }, 3, reporting), '3 reporting projects');
+  assert.equal(accountActivityLine(undefined, 1, reporting), '');
 });

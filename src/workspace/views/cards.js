@@ -1,5 +1,5 @@
 import { compareCards } from '../../shared/design/card-order.mjs';
-import { accountName, describeReset, formatResetTime, measurementUnit, metricLabel, metricTone, resetMinutes, resourceIcon, resourceType, stateTone } from '../../shared/design/presentation.mjs';
+import { accountActivityLine, accountName, describeReset, formatResetTime, measurementUnit, metricLabel, metricTone, resetMinutes, resourceIcon, resourceType, stateTone } from '../../shared/design/presentation.mjs';
 import { t, locale } from '../i18n.js';
 import { accountConnectionChip } from './service-labels.js';
 import {
@@ -24,6 +24,7 @@ export const accountCard = (account) => ({
   isAccount: true,
   provider: account.provider,
   displayState: account.displayState,
+  displaySourceId: account.displaySourceId,
   needsAttention: account.needsAttention,
   members: account.sources
 });
@@ -252,7 +253,8 @@ export function renderCards(
       const message =
         source.statusMessage ||
         (source.isAccount
-          ? connectedOnly ? '' : t('cards.reporting', { count: source.members.length })
+          ? connectedOnly ? '' : accountActivityLine(source.members.find(member => member.sourceId === source.displaySourceId),
+            source.members.length, count => t('cards.reporting', { count }))
           : '');
       text(parts.message, message);
       parts.message.hidden = !message;
