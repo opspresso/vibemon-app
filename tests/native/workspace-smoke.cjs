@@ -983,6 +983,18 @@ startFixture({ connections: [] }).then(async fixture => {
     await until(() => visible('#detail-dialog'), 'long source details');
     assert.equal(await text('#detail-type'), route === 'agents' ? `${'p'.repeat(32)} · ${'a'.repeat(15)}…${'a'.repeat(6)}` : '基'.repeat(64));
     await checkFit(`${route} detail`, '#detail-dialog, .dialog-heading, #detail-type, .detail-message, .detail-reading, .detail-member');
+    if (route === 'agents') {
+      const status = await ui(`(() => {
+        const node = document.querySelector('#detail-members .detail-member .muted');
+        const range = document.createRange(); range.selectNodeContents(node);
+        const heading = document.querySelector('#detail-dialog .dialog-heading').getBoundingClientRect();
+        const close = document.querySelector('#detail-dialog [data-close-dialog]').getBoundingClientRect();
+        return { label: node.textContent, lines: range.getClientRects().length, closeOffset: close.top - heading.top };
+      })()`);
+      assert.equal(status.label, 'Needs input');
+      assert.equal(status.lines, 1, 'a long project name must not split a short status across lines');
+      assert.ok(Math.abs(status.closeOffset) <= 1, 'the close action stays at the top when a name wraps');
+    }
     await screenshot(`long-${route}-detail`);
     await click('[data-close-dialog="detail-dialog"]');
   }
