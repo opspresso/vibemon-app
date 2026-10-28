@@ -60,6 +60,9 @@ These differences are intentional. Keep the meaning, values, and order the same 
 | iPhone and Android Overview | The attention tile is titled **Attention** (`확인 필요`, `要確認`) with **All clear** or **Review below**; Desktop, Web, and Apple Watch use **Need attention**. | Three tiles share one phone row. **Need attention** truncates to "Need atte…" on an iPhone 17e. |
 | iPhone, Android, and Touch metric rows | Plan usage uses the short labels `metric.short.usageSessionPercent` and `metric.short.usageWeekPercent` (**Session**, **Weekly**). | Value and reset countdown share one narrow row. |
 | Touch | Values have no smaller, lighter fraction, and an account card has no connected-service link. | The LVGL 9.6 build has no label recolor or span widget, and the device has no **Connected services** screen to open. |
+| Touch | An account footer shows the state and `N projects` instead of **N reporting projects**. | The state and the activity line share one footer row in a 240-pixel panel. |
+| Touch | Cards show large custom readings with compact suffixes, such as `12.3k`; details show the full value. | Three readings share a 240-pixel panel. |
+| Touch | Text is English only. | The device has no language setting; the firmware embeds only the English shared messages. Reported names keep their own language. |
 
 Reference captures: [Desktop light](images/workspace-shared-light.png) and [Desktop dark](images/workspace-shared-dark.png).
 
