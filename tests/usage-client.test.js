@@ -28,9 +28,14 @@ describe('usage responses', () => {
     ['a reading without its time', { observedAt: null }],
     ['a percentage above 100', { windows: [{ key: 'week', kind: 'week', usedPercent: 101, resetsAt: null }] }],
     ['a repeated window', { windows: [{ key: 'week', kind: 'week', usedPercent: 1 }, { key: 'week', kind: 'week', usedPercent: 2 }] }],
-    ['an unknown window kind', { windows: [{ key: 'month', kind: 'month', usedPercent: 1 }] }]
+    ['an invalid window of an unknown kind', { windows: [{ key: 'month', kind: 'month', usedPercent: 101 }] }]
   ])('a connection with %s is rejected', (_name, changes) => {
     expect(() => validateConnection(connection(changes))).toThrow(expect.objectContaining({ code: 'usage-invalid-response' }));
+  });
+
+  test('a window kind that this version does not know is left out, and the other windows remain', () => {
+    const windows = [{ key: 'month', kind: 'month', usedPercent: 10, resetsAt: null }, { key: 'week', kind: 'week', usedPercent: 42, resetsAt: null }];
+    expect(validateConnection(connection({ windows })).windows).toEqual([{ key: 'week', kind: 'week', model: null, usedPercent: 42, resetsAt: null }]);
   });
 
   test('a connection with a status that this version does not know is left out, like an unknown service', () => {
