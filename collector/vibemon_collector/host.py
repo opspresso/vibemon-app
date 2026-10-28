@@ -1,11 +1,23 @@
 """Local host adapter; RAM is system memory, including Spark unified memory."""
 import math
+import platform
 from pathlib import Path
 import shutil
 import subprocess
 import psutil
 from .domain import Sample
 from .disk import DISK_METRICS, HOST_DEFINITIONS, UNIFIED_HOST_DEFINITIONS, checked_capacity, disk_values
+
+# Platform names are product names, so clients show them untranslated.
+PLATFORM_NAMES = {"Darwin": "macOS"}
+
+
+def host_type(memory_type: str) -> str:
+    if memory_type == "unified":
+        return "DGX Spark"
+    system = platform.system()
+    # "Server" is the earlier generic type; keep it when the OS is unknown.
+    return PLATFORM_NAMES.get(system, system) or "Server"
 
 
 def number(value: str, maximum: float) -> float | None:
@@ -35,6 +47,7 @@ class HostSampler:
                 pass
         if self.memory_type == 'auto':
             self.memory_type = 'unified' if any(name in self.gpu_name.lower() for name in ('spark', 'gb10')) else 'ram'
+        self.resource_type = host_type(self.memory_type)
         if self.metric_definitions:
             self.metric_definitions = UNIFIED_HOST_DEFINITIONS if self.memory_type == 'unified' else HOST_DEFINITIONS
 
@@ -68,4 +81,4 @@ class HostSampler:
             except (OSError, subprocess.SubprocessError):
                 failed = True
         health = "error" if failed else "ok" if any(value is not None for value in values.values()) else "unknown"
-        return Sample(values, health, self.memory_type, self.metric_definitions)
+        return Sample(values, health, self.memory_type, self.metric_definitions, self.resource_type)

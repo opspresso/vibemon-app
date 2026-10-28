@@ -3,7 +3,7 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 from vibemon_collector.disk import DISK_METRICS
-from vibemon_collector.domain import HOST_METRICS, summarize
+from vibemon_collector.domain import HOST_METRICS, Sample, summarize
 from vibemon_collector.host import HostSampler
 
 
@@ -32,6 +32,13 @@ class HostDiskTests(unittest.TestCase):
             sampler = HostSampler(HOST_METRICS + DISK_METRICS, 'ram')
         self.assertEqual(list(sampler.metric_definitions), ['cpuPercent', 'memoryPercent', 'diskUsedPercent', 'diskAvailableGiB', 'diskTotalGiB', 'gpuPercent', 'gpuTemperatureC'])
         self.assertEqual(sampler.metric_definitions['memoryPercent']['label'], 'Memory')
+
+    def test_a_host_reports_its_platform_as_the_resource_type(self):
+        for system, expected in [('Darwin', 'macOS'), ('Linux', 'Linux'), ('', 'Server')]:
+            with self.subTest(system=system), patch('vibemon_collector.host.platform.system', return_value=system), patch('vibemon_collector.host.shutil.which', return_value=None), patch('vibemon_collector.host.psutil.cpu_percent'):
+                sampler = HostSampler(HOST_METRICS + DISK_METRICS, 'ram')
+                summary = summarize([Sample({'cpuPercent': 10}, metric_definitions=sampler.metric_definitions, resource_type=sampler.resource_type)], 'mac', 'host', 'Mac', 1000)
+                self.assertEqual(summary['resourceType'], expected)
 
     def test_full_disk_is_zero_but_failure_and_invalid_capacity_are_unavailable(self):
         sampler = self.sampler()

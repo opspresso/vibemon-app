@@ -1,5 +1,5 @@
 {
-  "installer": "488b4fa018d1b3db59c1f56ea8bf3636efdb43c2a81c61d2a588a3c25e21e665",
+  "installer": "13f6d2eed885090a1d11527400e3e1ef194f14f264d7b88311d5f8993fcab2c2",
   "files": {
     "claude/settings.json": "16364280f11c2e94a7c70d01b0f019aaf736ea82c8b0d8a2a9936072d0cfe009",
     "codex/hooks.json": "a5087e967b9d88aa214e50221a558262b0952bc7607fe8d7c8f452fcc7b6210d",
@@ -32,11 +32,11 @@
     "opencode/hooks/vibemon.py": "da828f3ec5f542127d3b41e5871bfeb3869f2670825ed979821c565d4ce26b0c",
     "collector/vibemon_collector/__init__.py": "26effa5a5c29344cc6735202dc619a5b37c3944854ca10da036043b3acf7c22c",
     "collector/vibemon_collector/__main__.py": "f8cb4084e8871bd01d0eaa4a107688faf79b09fbef5ed0468f1107bbda36117a",
-    "collector/vibemon_collector/application.py": "de075f4b1e28e5aa44da7f21595f29d5eae38b49cf30343ff9191ca5395e9d41",
+    "collector/vibemon_collector/application.py": "b43b18f6913f4e983ca505eb5007e10667610f7c1e2fa97d170659850f321cfd",
     "collector/vibemon_collector/disk.py": "e335840eb942f48e82158fc27b946c0923a35ae84bbe16fd76e7f47c49ca9af1",
-    "collector/vibemon_collector/domain.py": "77c6d7f2c9d0fdc54b9b43a8934b2f04538ebecfc5ca5264fd339428b4360ef8",
+    "collector/vibemon_collector/domain.py": "e21a245b4140c98b69027e480c9dd8e6d5bf9fd0577451b90da9df237164efef",
     "collector/vibemon_collector/health.py": "edecdd4623273688ae141a59a23be71b35b46f45d078e3c2b68d28c66a215d88",
-    "collector/vibemon_collector/host.py": "902eb85f06d5636e9db3a0b554ea5690e72cbb19070316e67be954b65fb049b1",
+    "collector/vibemon_collector/host.py": "cc1234a948846095340dbf3ae1d9e621e83565e793512edf35dd43b2a49dc09b",
     "collector/vibemon_collector/http_deadline.py": "3de0f0ad1de0f465049087906ec5a608ddf2aff45c20deeaaf0f14892e2878a7",
     "collector/vibemon_collector/kubelet.py": "2926f2526e138438613333d2803a98036cd76f2d3f5fd99faa9a2490011bfd73",
     "collector/vibemon_collector/kubernetes.py": "ea85dd9f452f62272b04f7cb144f440240e9aa9c245276d667fcfb57dbd3c683",
