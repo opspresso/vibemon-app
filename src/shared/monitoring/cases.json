@@ -785,6 +785,38 @@
       "expected": "3,755.45"
     }
   ],
+  "exactMeasurements": [
+    {
+      "value": 12.3456,
+      "unit": "ms",
+      "expected": "12.3456"
+    },
+    {
+      "value": 1234567.8,
+      "unit": "req",
+      "expected": "1,234,570"
+    },
+    {
+      "value": 0.000123456,
+      "unit": "",
+      "expected": "0.000123456"
+    },
+    {
+      "value": 42.555,
+      "unit": "%",
+      "expected": "42.56"
+    },
+    {
+      "value": -5.25,
+      "unit": "°C",
+      "expected": "-5.25"
+    },
+    {
+      "value": 100,
+      "unit": "",
+      "expected": "100"
+    }
+  ],
   "resetCountdowns": [
     {
       "name": "session countdown at the observation",
