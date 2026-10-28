@@ -993,7 +993,7 @@ startFixture({ connections: [] }).then(async fixture => {
       })()`);
       assert.equal(status.label, 'Needs input');
       assert.equal(status.lines, 1, 'a long project name must not split a short status across lines');
-      assert.ok(status.closeOffset <= 1, 'the close action stays at the top when a name wraps');
+      assert.ok(Math.abs(status.closeOffset) <= 1, 'the close action stays at the top when a name wraps');
     }
     await screenshot(`long-${route}-detail`);
     await click('[data-close-dialog="detail-dialog"]');
