@@ -5,7 +5,7 @@
 // agent account. Each item carries a timeline of its future display states,
 // so a widget keeps aging correctly between App writes. The last feed before
 // the App quits shows every item on standby: nothing updates it any more.
-import { accountName, formatMeasurementParts, measurementUnit, metricLabel, metricTone, providerLabel, resourceType, sharedTranslator, stateLabel, stateTone } from '../shared/design/presentation.mjs';
+import { accountName, formatMeasurementParts, measurementUnit, metricLabel, metricTone, providerLabel, resourceIcon, resourceType, sharedTranslator, stateLabel, stateTone } from '../shared/design/presentation.mjs';
 import { compareCards } from '../shared/design/card-order.mjs';
 import monitoring from '../shared/monitoring/state.cjs';
 import clock from '../shared/monitoring/clock.cjs';
@@ -83,7 +83,7 @@ function card(subject, stateAt, now, fields) {
 
 function resourceItem(source, stateAt, selected, now, wall, t) {
   const receivedAt = Date.parse(source.receivedAt);
-  const symbol = source.kind === 'cluster' ? 'cluster' : source.memoryType === 'unified' ? 'unified' : source.kind;
+  const symbol = resourceIcon(source);
   return {
     id: `resource:${source.sourceId}`,
     kind: 'resource',

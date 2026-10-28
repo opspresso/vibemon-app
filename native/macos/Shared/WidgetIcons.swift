@@ -7,10 +7,10 @@ enum WidgetIcons {
 
     static func resource(_ symbol: String?) -> String {
         switch symbol {
-        case "host": "desktopcomputer"
-        case "unified": "memorychip"
+        case "host": "server.rack"
+        case "unified": "cpu"
         case "cluster": "square.stack.3d.up"
-        default: "cylinder.split.1x2"
+        default: "gauge.with.dots.needle.50percent"
         }
     }
 

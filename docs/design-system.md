@@ -28,6 +28,15 @@ The new sprite is `vibemon-v2.png`. The public `characters/vibemon.png` URL reta
 
 Product cards use `--vm-radius-panel` (18 logical units) and `--vm-panel-padding` (16 logical units). Web and Desktop read the CSS tokens directly; the iOS and Android contract generators compile them into `ProductLayout`. State badges are soft capsules with a dot and a label, including neutral states. Active status is blue (`info`); violet (`accent`) identifies actions and resource icons. These meanings stay the same in light and dark appearance.
 
+A resource card's icon comes from `resourceIcon()` in `presentation.mjs`. Each client draws the same role with its own icon set:
+
+| Role | Source | Desktop | Web (Lucide) | iPhone and macOS widget (SF Symbols) | Android |
+| --- | --- | --- | --- | --- | --- |
+| `host` | Host collector | `resources` (server) | `Server` | `server.rack` | `ic_dns` |
+| `unified` | Host with unified memory, such as DGX Spark | `chip` | `Cpu` | `cpu` | `ic_memory` |
+| `cluster` | Kubernetes cluster | `layers` | `Layers` | `square.stack.3d.up` | `ic_layers` |
+| `resource` | Custom resource | `gauge` | `Gauge` | `gauge.with.dots.needle.50percent` | `ic_speed` |
+
 Keep each platform's system typography, accessible touch targets, navigation controls, and sheet behavior. The shared card geometry and information hierarchy do not require replacing native controls with browser controls.
 
 Coding account cards use the project responsible for the displayed state as their title. Older reporting input requests take priority over newer ordinary work; accounts on Standby keep their last project. Provider and account ID remain visible, and selection keys and latest account usage do not change. Desktop and Web share `agent-card.css`; iOS and Android render the same state effects with native drawing: working edges carry a moving light, thinking breathes, planning moves slowly, and compacting reverses a two-part trail. Input requests use a slow pulse; errors stay emphasized. Completed work settles into green, while idle and standby edges remain neutral. Hover and keyboard focus emphasize the edge without moving the card. The rounded track stays fixed; only its light angle and opacity animate. The `--vm-agent-*` durations in `tokens.css` also generate the native `AgentMotion` constants. Reduced-motion users receive a static edge. State-colored glow and a brighter moving light distinguish activity from the neutral canvas. Thinking uses violet, planning blends blue and teal, and compacting blends violet and rose. These edges are the `--vm-state-thinking`, `--vm-state-planning`, and `--vm-state-packing` tokens in `tokens.css`, as `light-dark()` hex pairs that clients can compile; the design test keeps them equal to their documented mixes of the base tokens. Other states use their tone color: active `--vm-info`, warning `--vm-warning`, danger `--vm-danger`, good `--vm-good`, and neutral `--vm-border`. Native effects do not intercept touches or add accessibility elements. Native frame updates stop when their card disappears or the app is inactive; completion settles once, and standby cards have no effect.

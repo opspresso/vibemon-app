@@ -4,7 +4,7 @@ import { createTranslator, mergeCatalogs, resolveLocale } from '../src/shared/i1
 import messages from '../src/shared/i18n/shared-messages.mjs';
 import { readFileSync } from 'node:fs';
 import { validateCatalog, validateWidgetStrings } from '../scripts/generate-monitoring.mjs';
-import { describeReset, formatResetTime, metricLabel, observationAge, resetCountdown, resetMinutes, resourceType, sharedTranslator, stateLabel } from '../src/shared/design/presentation.mjs';
+import { describeReset, formatResetTime, metricLabel, observationAge, resetCountdown, resetMinutes, resourceIcon, resourceType, sharedTranslator, stateLabel } from '../src/shared/design/presentation.mjs';
 
 test('resolves the first supported language and falls back to English', () => {
   assert.equal(resolveLocale(['ko-KR', 'en-US']), 'ko');
@@ -72,4 +72,10 @@ test('widget strings with shared English use the shared translations', () => {
   const span = ko => ({ strings: { '%lldd%lldh': { localizations: { ko: { stringUnit: { value: ko } }, ja: { stringUnit: { value: '%1$lld日%2$lld時間' } } } } } });
   assert.doesNotThrow(() => validateWidgetStrings(days, span('%1$lld일 %2$lld시간')));
   assert.throws(() => validateWidgetStrings(days, span('%2$lld일 %1$lld시간')), /must equal shared.json d/);
+});
+
+test('resource cards share one icon role per source kind', () => {
+  assert.deepEqual([
+    { kind: 'host' }, { kind: 'host', memoryType: 'unified' }, { kind: 'cluster' }, { kind: 'resource' }, { kind: 'resource', memoryType: 'unified' }
+  ].map(resourceIcon), ['host', 'unified', 'cluster', 'resource', 'resource']);
 });

@@ -8,6 +8,8 @@ export function statePresentation(state: string, t?: Translator): [string, State
 export function stateLabel(state: string, t?: Translator): string;
 export function stateTone(state: string): StateTone;
 export type MetricTone = 'normal' | 'warning' | 'danger';
+export type ResourceIcon = 'host' | 'unified' | 'cluster' | 'resource';
+export function resourceIcon(source: { kind: string; memoryType?: string | null }): ResourceIcon;
 export function resourceType(source: { kind: string; resourceType?: string }, t?: Translator): string;
 export function metricLabel(key: string, label: string, t?: Translator): string;
 export function weeklyModelLabel(model: string | null | undefined, t?: Translator): string;
