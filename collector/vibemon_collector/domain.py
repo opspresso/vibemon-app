@@ -24,6 +24,8 @@ class Sample:
     health: str = "ok"
     memory_type: str | None = None
     metric_definitions: dict | None = None
+    # The card subtitle that clients show for a host with metric definitions.
+    resource_type: str | None = None
 
 
 def summarize(samples: list[Sample], source_id: str, kind: str, name: str, observed_at: float) -> dict:
@@ -46,7 +48,7 @@ def summarize(samples: list[Sample], source_id: str, kind: str, name: str, obser
         "heartbeat": False, "metrics": metrics, "maximums": maximums,
     }
     if samples[-1].metric_definitions is not None:
-        resource_type = 'Kubernetes' if kind == 'cluster' else 'DGX Spark' if samples[-1].memory_type == 'unified' else 'Server'
+        resource_type = 'Kubernetes' if kind == 'cluster' else samples[-1].resource_type
         payload.update(resourceType=resource_type, metricDefinitions=samples[-1].metric_definitions, metricOrder=list(samples[-1].metric_definitions))
     return payload
 
