@@ -28,6 +28,8 @@ test('renderer labels match the validated canonical policy without network acces
 test('the macOS widget palette matches the shared design tokens', () => widgetPalette());
 test('measurement precision follows the shared device contract', () => {
   for (const { value, unit, expected } of fixtures.measurements) assert.equal(formatMeasurement(value, unit, false, '—', false), expected);
+  // Details of a resource that defines its metrics keep up to six significant digits; %/GiB keep their fixed precision.
+  for (const { value, unit, expected } of fixtures.exactMeasurements) assert.equal(formatMeasurement(value, unit, true, '—', false, 'en-US'), expected);
 });
 test('bubble bars change color at the inclusive usage tone thresholds', () => {
   assert.deepEqual([49.9, 50, 69.9, 70, 89.9, 90].map(barColor), ['#00AA00', '#FFCC00', '#FFCC00', '#FF8800', '#FF8800', '#FF4444']);
