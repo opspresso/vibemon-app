@@ -84,8 +84,8 @@ class MonitoringClient extends EventEmitter {
       evaluatedAt: now,
       selectedSources, selectedAccounts, accountCatalog: this.accountCatalog,
       accounts: groupAccounts(sources).map(account => {
-        const { state: displayState, project: displayProject } = accountActivity(account, now);
-        return { ...account, displayState, displayProject, needsAttention: needsAttention(displayState) };
+        const { state: displayState, project: displayProject, source } = accountActivity(account, now);
+        return { ...account, displayState, displayProject, displaySourceId: source?.sourceId ?? null, needsAttention: needsAttention(displayState) };
       }),
       attentionCount: attentionCount(sources, now),
       selectedMetrics,
