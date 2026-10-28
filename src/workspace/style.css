@@ -1266,6 +1266,9 @@ dialog::backdrop {
   max-width: calc(100vw - 44px);
   overflow-wrap: anywhere;
 }
+.detail-dialog .dialog-heading {
+  align-items: flex-start;
+}
 .detail-dialog .dialog-heading > div {
   min-width: 0;
 }
@@ -1329,6 +1332,16 @@ dialog::backdrop {
   gap: 12px;
   padding: 7px 0;
   border-bottom: 1px solid var(--vm-border);
+}
+.detail-member > :first-child {
+  flex: 1 1 0;
+  min-width: 0;
+}
+.detail-member > :last-child {
+  flex: 0 0 auto;
+  max-width: 40%;
+  overflow-wrap: break-word;
+  text-align: right;
 }
 #detail-history {
   border-top: 1px solid var(--vm-border);
