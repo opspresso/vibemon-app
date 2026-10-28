@@ -40,13 +40,16 @@ function validateConnection(value) {
     || !validTime(value.refreshableAt) || !Array.isArray(value.windows) || value.windows.length > MAX_WINDOWS) throw invalid();
   const observedAt = optionalTime(value.observedAt);
   const keys = new Set();
-  const windows = value.windows.map(window => {
-    if (!window || !validText(window.key, 80) || keys.has(window.key) || !['session', 'week'].includes(window.kind)
+  const windows = value.windows.flatMap(window => {
+    if (!window || !validText(window.key, 80) || keys.has(window.key) || !validText(window.kind, 40)
       || typeof window.usedPercent !== 'number' || !Number.isFinite(window.usedPercent) || window.usedPercent < 0 || window.usedPercent > 100
       || !(window.model === null || window.model === undefined || validText(window.model, 64))
       || !(window.durationSeconds === null || window.durationSeconds === undefined || (Number.isSafeInteger(window.durationSeconds) && window.durationSeconds > 0))) throw invalid();
     keys.add(window.key);
-    return { key: window.key, kind: window.kind, model: window.model ?? null, usedPercent: window.usedPercent, resetsAt: optionalTime(window.resetsAt) };
+    const resetsAt = optionalTime(window.resetsAt);
+    // A window kind that this version does not know is left out, so a newer VibeMon service can add one.
+    if (!['session', 'week'].includes(window.kind)) return [];
+    return [{ key: window.key, kind: window.kind, model: window.model ?? null, usedPercent: window.usedPercent, resetsAt }];
   });
   // A reading without its time cannot be shown with an age.
   if (windows.length && observedAt === null) throw invalid();
