@@ -2527,7 +2527,7 @@ def kubernetes_manifest(name: str, ident: str, origin: str, token: str) -> str:
                                    "--kubectl-command", "kubectl --cache-dir=/tmp/kubectl", "--url", origin, "--health-file", "/tmp/vibemon-health"],
                           "env": [{"name": "VIBEMON_WRITE_TOKEN", "valueFrom": {"secretKeyRef": {"name": "vibemon-collector", "key": "VIBEMON_WRITE_TOKEN"}}}],
                           "securityContext": {"allowPrivilegeEscalation": False, "readOnlyRootFilesystem": True, "capabilities": {"drop": ["ALL"]}},
-                          "resources": {"requests": {"cpu": "25m", "memory": "64Mi"}, "limits": {"memory": "192Mi"}},
+                          "resources": {"requests": {"cpu": "50m", "memory": "64Mi"}, "limits": {"memory": "192Mi"}},
                           "readinessProbe": {"exec": {"command": ["python", "-m", "vibemon_collector.health", "/tmp/vibemon-health"]},
                                              "initialDelaySeconds": 10, "periodSeconds": 5, "timeoutSeconds": 2, "failureThreshold": 1},
                           "volumeMounts": [{"name": "temporary", "mountPath": "/tmp"}]}],
