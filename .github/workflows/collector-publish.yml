@@ -1,0 +1,77 @@
+name: Collector publish
+# Run by hand on a pull request branch after changing the collector. The job
+# publishes a multi-platform image to ECR Public and commits its digest pin
+# and the regenerated installer manifest to the same branch. The Collector
+# image workflow then verifies the pin on the pull request.
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+  id-token: write
+concurrency:
+  group: collector-publish-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  publish:
+    # Only this environment can assume the publisher role (vibemon-web Terraform).
+    environment: collector-image
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Refuse the default branch
+        if: github.ref_name == github.event.repository.default_branch
+        run: |
+          echo "Publish from a pull request branch; the pin reaches main only through review." >&2
+          exit 1
+      - uses: actions/checkout@v6
+        with:
+          # A push with GITHUB_TOKEN does not start pull request checks.
+          token: ${{ secrets.GHP_TOKEN }}
+      - name: Read the image repository from the installer
+        id: image
+        run: |
+          repository=$(python3 -c 'import re; print(re.search(r"^COLLECTOR_IMAGE = \"([^\"@]+)@sha256:[0-9a-f]{64}\"$", open("public/install/install.py").read(), re.M)[1])')
+          echo "repository=$repository" >> "$GITHUB_OUTPUT"
+          echo "tag=$repository:git-${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+      - uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: arn:aws:iam::396608815058:role/github--vibemon-collector-ecr-public
+          aws-region: us-east-1
+      - uses: aws-actions/amazon-ecr-login@v2
+        with:
+          registry-type: public
+      - uses: docker/setup-qemu-action@v4
+      - uses: docker/setup-buildx-action@v4
+      - name: Build and push
+        id: build
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: collector/Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.image.outputs.tag }}
+      - name: Pin the image and regenerate the installer manifest
+        env:
+          IMAGE: ${{ steps.image.outputs.repository }}@${{ steps.build.outputs.digest }}
+        run: |
+          python3 - <<'PY'
+          import os, re
+          path = "public/install/install.py"
+          text = open(path).read()
+          updated, count = re.subn(r'^COLLECTOR_IMAGE = "[^"]+"$', f'COLLECTOR_IMAGE = "{os.environ["IMAGE"]}"', text, flags=re.M)
+          if count != 1:
+              raise SystemExit("COLLECTOR_IMAGE must appear exactly once")
+          open(path, "w").write(updated)
+          PY
+          python3 scripts/generate_manifest.py
+      - name: Commit the pin
+        env:
+          TAG: ${{ steps.image.outputs.tag }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add public/install/install.py public/install/manifest.json
+          git commit -m "chore: pin the collector image ${TAG##*:}"
+          git push origin "HEAD:${GITHUB_REF_NAME}"
+          echo "Pinned \`${TAG}\`" >> "$GITHUB_STEP_SUMMARY"
