@@ -15,13 +15,29 @@ DISK_QUERY_TIMEOUT = 5
 # Pod lists and kubelet summaries are the expensive reads. Reuse a successful
 # result for one 30-second summary window instead of repeating it every tick.
 SLOW_READ_REUSE_SECONDS = 30
+# Rollouts briefly leave new pods Pending or not ready. Count a pod only after
+# it has stayed not ready this long.
+UNREADY_GRACE_SECONDS = 120
 
 # Output only capacity/readiness fields; pod specs, environment and logs are not read into Python.
 NODE_FIELDS = '{range .items[*]}{.metadata.name}{"\\t"}{.status.capacity.cpu}{"\\t"}{.status.capacity.memory}{"\\t"}{.status.conditions[?(@.type=="Ready")].status}{"\\n"}{end}'
-POD_FIELDS = '{range .items[*]}{.status.phase}{"\\t"}{.status.conditions[?(@.type=="Ready")].status}{"\\n"}{end}'
+POD_FIELDS = '{range .items[*]}{.status.phase}{"\\t"}{.status.conditions[?(@.type=="Ready")].status}{"\\t"}{.status.conditions[?(@.type=="Ready")].lastTransitionTime}{"\\t"}{.metadata.creationTimestamp}{"\\t"}{.metadata.deletionTimestamp}{"\\n"}{end}'
 ENDPOINT_FIELDS = '{range .items[*]}{.metadata.name}{"\\t"}{.status.addresses[?(@.type=="InternalIP")].address}{"\\t"}{.status.daemonEndpoints.kubeletEndpoint.Port}{"\\n"}{end}'
 SCALES = {'n': 1e-9, 'u': 1e-6, 'm': 1e-3, '': 1, **{unit: 1000 ** (index + 1) for index, unit in enumerate('kMGTPE')}, **{unit + 'i': 1024 ** (index + 1) for index, unit in enumerate('KMGTPE')}}
 SCALES['K'] = 1000
+
+def timestamp(value):
+    return datetime.fromisoformat(value.replace('Z', '+00:00')).timestamp()
+
+def unhealthy_pod(row, now):
+    """Count pods that should be serving but are not. Completed and failed pods
+    are finished attempts, and terminating pods are being removed on purpose."""
+    phase, ready, ready_since, created, deleting = row
+    if deleting or phase in {'Succeeded', 'Failed'}:
+        return False
+    if phase == 'Unknown':
+        return True
+    return ready != 'True' and now - timestamp(ready_since or created) >= UNREADY_GRACE_SECONDS
 
 def quantity(value):
     match = re.fullmatch(r'([+]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?)([a-zA-Z]*)', str(value))
@@ -158,8 +174,8 @@ class KubernetesSampler:
         elif 'podsUnhealthy' in values:
             try:
                 rows = self.reader.read('pods')
-                if any(len(row) != 2 or row[0] not in {'Pending', 'Running', 'Succeeded', 'Failed', 'Unknown'} for row in rows): raise ValueError('Invalid pod summary')
-                values['podsUnhealthy'] = sum(phase in {'Pending', 'Failed', 'Unknown'} or (phase == 'Running' and ready != 'True') for phase, ready in rows)
+                if any(len(row) != 5 or row[0] not in {'Pending', 'Running', 'Succeeded', 'Failed', 'Unknown'} or not row[3] for row in rows): raise ValueError('Invalid pod summary')
+                values['podsUnhealthy'] = sum(unhealthy_pod(row, self.clock()) for row in rows)
                 self.remember('pods', values['podsUnhealthy'])
             except (OSError, ValueError, TypeError, subprocess.TimeoutExpired): failed = True
         core = {key: value for key, value in values.items() if key not in DISK_METRICS}

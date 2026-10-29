@@ -9,7 +9,10 @@ QUERIES = {
     "memoryPercent": '100 * (1 - sum(node_memory_MemAvailable_bytes) / sum(node_memory_MemTotal_bytes))',
     "nodesReady": 'sum(max by (node) (kube_node_status_condition{condition="Ready",status="true"}))',
     "nodesTotal": 'count(max by (node) (kube_node_info))',
-    "podsUnhealthy": 'sum(max by (namespace,pod) (kube_pod_status_phase{phase=~"Pending|Failed|Unknown"}) + on(namespace,pod) ((1 - max by (namespace,pod) (kube_pod_status_ready{condition="true"})) * max by (namespace,pod) (kube_pod_status_phase{phase="Running"})))',
+    # Matches the Metrics API backend: Unknown pods, and Pending or Running pods
+    # that are at least 120 seconds old and were not ready for the last 2 minutes.
+    # Finished and terminating pods are not counted.
+    "podsUnhealthy": 'sum((max by (namespace,pod) (kube_pod_status_phase{phase="Unknown"}) + on(namespace,pod) (max by (namespace,pod) (kube_pod_status_phase{phase=~"Pending|Running"}) * on(namespace,pod) (1 - max by (namespace,pod) (max_over_time(kube_pod_status_ready{condition="true"}[2m]))) * on(namespace,pod) (max by (namespace,pod) (time() - kube_pod_created) >= bool 120))) unless on(namespace,pod) kube_pod_deletion_timestamp)',
 }
 
 

@@ -8,6 +8,11 @@ from vibemon_collector.disk import DISK_METRICS
 from vibemon_collector.domain import CLUSTER_METRICS, summarize
 from vibemon_collector.kubernetes import KubernetesSampler, quantity
 
+OLD, NOW = '1970-01-01T00:00:00Z', '1970-01-01T00:16:40Z'
+
+def pod(phase, ready='', since=OLD, deleting=''):
+    return [phase, ready, since, OLD, deleting]
+
 class Reader:
     def __init__(self):
         self.nodes = [['one', '2', '1Gi', 'True'], ['two', '6', '3Gi', 'False']]
@@ -15,12 +20,13 @@ class Reader:
             {'metadata': {'name': 'one'}, 'timestamp': '1970-01-01T00:16:40Z', 'usage': {'cpu': '500000000n', 'memory': '512Mi'}},
             {'metadata': {'name': 'two'}, 'timestamp': '1970-01-01T00:16:40Z', 'usage': {'cpu': '1500m', 'memory': '512Mi'}},
         ]}
-        self.pods = [['Running', 'True'], ['Running', 'False'], ['Pending', ''], ['Failed', ''], ['Succeeded', 'False']]
+        self.pods = [pod('Running', 'True'), pod('Running', 'False'), pod('Pending', 'False'), pod('Unknown'), pod('Failed', 'False'), pod('Succeeded', 'False'),
+                     pod('Running', 'False', deleting=NOW), pod('Pending', 'False', since=NOW)]
     def read(self, kind): return getattr(self, kind)
 
 class KubernetesTests(unittest.TestCase):
     def sample(self, reader): return KubernetesSampler(reader, CLUSTER_METRICS, lambda: 1000).sample()
-    def test_capacity_weighting_and_unhealthy_pods_exclude_completed_jobs(self):
+    def test_capacity_weighting_and_unhealthy_pods_exclude_finished_terminating_and_starting_pods(self):
         result = self.sample(Reader())
         self.assertEqual(result.metrics, {'cpuPercent': 25, 'memoryPercent': 25, 'nodesReady': 1, 'nodesTotal': 2, 'podsUnhealthy': 3})
         self.assertEqual(result.health, 'warning')
@@ -38,7 +44,7 @@ class KubernetesTests(unittest.TestCase):
         result = self.sample(reader)
         self.assertEqual(result.metrics['cpuPercent'], 25); self.assertIsNone(result.metrics['memoryPercent'])
     def test_genuine_zero_usage_and_zero_unhealthy_remain_zero(self):
-        reader = Reader(); reader.pods = [['Succeeded', 'False'], ['Running', 'True']]
+        reader = Reader(); reader.pods = [pod('Succeeded', 'False'), pod('Running', 'True')]
         for item in reader.usage['items']: item['usage']['cpu'] = '0'
         result = self.sample(reader)
         self.assertEqual(result.metrics['cpuPercent'], 0); self.assertEqual(result.metrics['podsUnhealthy'], 0)
@@ -56,14 +62,24 @@ class KubernetesTests(unittest.TestCase):
         self.assertEqual(reads.count('pods'), 1)
         self.assertEqual(reads.count('usage'), 3)
         now[0] = 1030
-        reader.pods = [['Running', 'True']]
+        reader.pods = [pod('Running', 'True')]
         self.assertEqual(sampler.sample().metrics['podsUnhealthy'], 0)
-        reader.pods = [['Bogus', '']]
+        reader.pods = [pod('Bogus')]
         now[0] = 1060
         self.assertIsNone(sampler.sample().metrics['podsUnhealthy'])
-        reader.pods = [['Running', 'False']]
+        reader.pods = [pod('Running', 'False')]
         now[0] = 1070
         self.assertEqual(sampler.sample().metrics['podsUnhealthy'], 1)
+    def test_pod_counts_after_staying_unready_for_the_grace_period(self):
+        cases = [(pod('Running', 'False', since='1970-01-01T00:14:41Z'), 0), (pod('Running', 'False', since='1970-01-01T00:14:40Z'), 1),
+                 (['Pending', '', '', '1970-01-01T00:14:41Z', ''], 0), (['Pending', '', '', '1970-01-01T00:14:40Z', ''], 1)]
+        for row, expected in cases:
+            reader = Reader(); reader.pods = [row]
+            self.assertEqual(self.sample(reader).metrics['podsUnhealthy'], expected, row)
+    def test_invalid_pod_timestamp_is_unknown(self):
+        for row in [pod('Running', 'False', since='soon'), ['Running', 'False', '', '', '']]:
+            reader = Reader(); reader.pods = [row]
+            self.assertIsNone(self.sample(reader).metrics['podsUnhealthy'])
     def test_quantities(self):
         for value, expected in [('250m', .25), ('1Gi', 1073741824), ('1e3', 1000), ('5M', 5000000), ('0', 0)]: self.assertEqual(quantity(value), expected)
         for value in ['NaN', '-1', 'inf', '1unknown', '1e999']:
