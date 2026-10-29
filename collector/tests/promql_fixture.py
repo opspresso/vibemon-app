@@ -15,14 +15,21 @@ def fixture():
         for replica in ['one', 'two']:
             add(f'kube_node_info{{node="{node}",replica="{replica}"}}')
             add(f'kube_node_status_condition{{node="{node}",condition="Ready",status="true",replica="{replica}"}}', f'{ready}+0x8')
-    for pod, active, ready in [('pending', 'Pending', 0), ('unready', 'Running', 0), ('healthy', 'Running', 1), ('completed', 'Succeeded', 0)]:
+    # Evaluation is at 120s. A pod created at 30s is still starting.
+    pods = [('pending', 'Pending', '0', 0, False), ('unready', 'Running', '0', 0, False), ('lost', 'Unknown', '0', 0, False),
+            ('healthy', 'Running', '1', 0, False), ('completed', 'Succeeded', '0', 0, False), ('failed', 'Failed', '0', 0, False),
+            ('terminating', 'Running', '0', 0, True), ('starting', 'Running', '0', 30, False), ('recovering', 'Running', '1 1 1 1 1 0 0 0 0', 0, False)]
+    for pod, active, ready, created, deleting in pods:
         for replica in ['one', 'two']:
-            add(f'kube_pod_status_ready{{namespace="demo",pod="{pod}",condition="true",replica="{replica}"}}', f'{ready}+0x8')
+            add(f'kube_pod_status_ready{{namespace="demo",pod="{pod}",condition="true",replica="{replica}"}}', ready if ' ' in ready else f'{ready}+0x8')
+            add(f'kube_pod_created{{namespace="demo",pod="{pod}",replica="{replica}"}}', f'{created}+0x8')
+            if deleting:
+                add(f'kube_pod_deletion_timestamp{{namespace="demo",pod="{pod}",replica="{replica}"}}', '100+0x8')
             for phase in ['Pending', 'Failed', 'Unknown', 'Running', 'Succeeded']:
                 add(f'kube_pod_status_phase{{namespace="demo",pod="{pod}",phase="{phase}",replica="{replica}"}}', f'{int(phase == active)}+0x8')
-    expected = {'cpuPercent': 25, 'memoryPercent': 65, 'nodesReady': 1, 'nodesTotal': 2, 'podsUnhealthy': 2}
+    expected = {'cpuPercent': 25, 'memoryPercent': 65, 'nodesReady': 1, 'nodesTotal': 2, 'podsUnhealthy': 3}
     # PromQL rates can differ from exact decimal expectations by several ULPs.
-    tests = [{"name": "aggregate unequal hosts, deduplicate KSM replicas, exclude completed jobs, count running unready pods", "interval": "15s", "input_series": series, "promql_expr_test": [{"expr": f"abs(({expression}) - {expected[key]}) < bool 1e-9", "eval_time": "2m", "exp_samples": [{"labels": "{}", "value": 1}]} for key, expression in QUERIES.items()]}, {"name": "absent exporters are not zero", "interval": "15s", "input_series": [], "promql_expr_test": [{"expr": expression, "eval_time": "2m", "exp_samples": []} for expression in QUERIES.values()]}]
+    tests = [{"name": "aggregate unequal hosts, deduplicate KSM replicas, count lost and long-unready pods, exclude finished, terminating and starting pods", "interval": "15s", "input_series": series, "promql_expr_test": [{"expr": f"abs(({expression}) - {expected[key]}) < bool 1e-9", "eval_time": "2m", "exp_samples": [{"labels": "{}", "value": 1}]} for key, expression in QUERIES.items()]}, {"name": "absent exporters are not zero", "interval": "15s", "input_series": [], "promql_expr_test": [{"expr": expression, "eval_time": "2m", "exp_samples": []} for expression in QUERIES.values()]}]
     return {"evaluation_interval": "15s", "tests": tests}
 
 if __name__ == '__main__': print(json.dumps(fixture(), indent=2))

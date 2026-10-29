@@ -81,7 +81,7 @@ nvidia-smi --query-gpu=name,utilization.gpu,temperature.gpu,memory.total --forma
 
 Prometheus must scrape node-exporter CPU/memory and kube-state-metrics node conditions, node info, pod phases, and pod readiness. The queries target one cluster per Prometheus endpoint. A multi-cluster endpoint requires a dedicated scoped view before using this collector.
 
-CPU averages idle rates across cores. Memory is capacity-weighted across hosts. Node and pod metrics deduplicate kube-state-metrics replicas. Unhealthy pods include Pending, Failed, Unknown, and running-but-not-ready pods; completed Jobs are excluded. Absent exporter data produces `null`, never an invented healthy zero. These expressions expect kube-state-metrics v2's zero-valued phase/condition series; sparse-series schemas require updated fixtures and queries.
+CPU averages idle rates across cores. Memory is capacity-weighted across hosts. Node and pod metrics deduplicate kube-state-metrics replicas. Unhealthy pods are counted as described in [Unhealthy pods](#unhealthy-pods); the not-ready window uses `kube_pod_created` and the last 2 minutes of `kube_pod_status_ready`, and `kube_pod_deletion_timestamp` marks terminating pods. Absent exporter data produces `null`, never an invented healthy zero. These expressions expect kube-state-metrics v2's zero-valued phase/condition series; sparse-series schemas require updated fixtures and queries.
 
 Queries return exactly one unlabelled instant value each. The adapter rejects raw labelled series, stale timestamps, invalid values, and oversized responses. Only the resulting summary is sent to VibeMon.
 
@@ -95,7 +95,21 @@ vibemon-collector --kind cluster --cluster-backend metrics-api \
   --source-id k3s-ec2 --name "EC2 k3s" --url https://vibemon.io
 ```
 
-CPU is total measured cores divided by total node CPU capacity. Memory is total working-set bytes divided by total node memory capacity, weighted by capacity. The [Kubernetes Metrics API](https://kubernetes.io/docs/tasks/debug/debug-cluster/resource-metrics-pipeline/) supplies these measurements; its working-set memory differs from the Prometheus node-exporter available-memory expression. If any node's usage is missing or older than 120 seconds, utilization is unavailable rather than a partial cluster total. Node/pod status remains independently available. Completed pods are excluded from unhealthy counts.
+CPU is total measured cores divided by total node CPU capacity. Memory is total working-set bytes divided by total node memory capacity, weighted by capacity. The [Kubernetes Metrics API](https://kubernetes.io/docs/tasks/debug/debug-cluster/resource-metrics-pipeline/) supplies these measurements; its working-set memory differs from the Prometheus node-exporter available-memory expression. If any node's usage is missing or older than 120 seconds, utilization is unavailable rather than a partial cluster total. Node/pod status remains independently available. Unhealthy pods are counted as described in [Unhealthy pods](#unhealthy-pods).
+
+### Unhealthy pods
+
+`podsUnhealthy` counts pods that should serve but do not:
+
+- Pods in the `Unknown` phase, usually because their node stopped reporting.
+- `Pending` or `Running` pods that have not been ready for at least 120 seconds. The Metrics API backend measures from the Ready condition's last transition, or from pod creation when there is no Ready condition. New pods in a rollout therefore do not cause a warning.
+
+These pods are not counted:
+
+- `Succeeded` and `Failed` pods. They are finished attempts, for example completed Jobs or failed Argo Workflow steps that are kept for their logs.
+- Terminating pods (pods with a deletion timestamp). A rollout removes them on purpose, and they can stay not ready for their whole termination grace period.
+
+A cluster's health is `warning` when `podsUnhealthy` is above zero or a node is not ready.
 
 The Kubernetes installer enables disk collection. For an in-cluster collector that you deploy yourself, add `--disk` to read each node's root filesystem from the [kubelet Summary API](https://kubernetes.io/docs/reference/instrumentation/node-metrics/). Grant `get` on core `nodes/stats` and allow HTTPS to each node's advertised kubelet port (usually 10250). The collector uses its mounted service-account token and CA, verifies TLS, rejects redirects, and does not require `nodes/proxy`. The kubelet serving certificate must be trusted by that CA and include the node's InternalIP; failed verification produces unavailable disk metrics.
 
