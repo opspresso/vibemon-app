@@ -1,5 +1,5 @@
 {
-  "installer": "13f6d2eed885090a1d11527400e3e1ef194f14f264d7b88311d5f8993fcab2c2",
+  "installer": "b359cbefe0b489f309687e6546541a02c31a462e6e6468cf00cfb499dac37598",
   "files": {
     "claude/settings.json": "16364280f11c2e94a7c70d01b0f019aaf736ea82c8b0d8a2a9936072d0cfe009",
     "codex/hooks.json": "a5087e967b9d88aa214e50221a558262b0952bc7607fe8d7c8f452fcc7b6210d",
@@ -39,8 +39,8 @@
     "collector/vibemon_collector/host.py": "cc1234a948846095340dbf3ae1d9e621e83565e793512edf35dd43b2a49dc09b",
     "collector/vibemon_collector/http_deadline.py": "3de0f0ad1de0f465049087906ec5a608ddf2aff45c20deeaaf0f14892e2878a7",
     "collector/vibemon_collector/kubelet.py": "2926f2526e138438613333d2803a98036cd76f2d3f5fd99faa9a2490011bfd73",
-    "collector/vibemon_collector/kubernetes.py": "ea85dd9f452f62272b04f7cb144f440240e9aa9c245276d667fcfb57dbd3c683",
-    "collector/vibemon_collector/prometheus.py": "dc4dda8cb95488a4084d2d2e8e8885c953f0e29ffd52341faa10e0b3c16a23dd",
+    "collector/vibemon_collector/kubernetes.py": "0b6a5a2d0ca93e5ea13e6fdf9461f591e6bf59f14ca64e2739cd96025d7d0a94",
+    "collector/vibemon_collector/prometheus.py": "1f316f507fffef32b51bca97a5be1b1f8e5abd4957fe14f4d5f675a924724322",
     "collector/vibemon_collector/transport.py": "e4f78ffdf3a721fa4b878ab5d0f4ec1368e30c42d29d37f5dd2885b8fc763a1d"
   }
 }
