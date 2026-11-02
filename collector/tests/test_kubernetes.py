@@ -13,9 +13,12 @@ OLD, NOW = '1970-01-01T00:00:00Z', '1970-01-01T00:16:40Z'
 def pod(phase, ready='', since=OLD, deleting=''):
     return [phase, ready, since, OLD, deleting]
 
+def node(name, cpu='2', memory='1Gi', ready='True', created=OLD, deleting=''):
+    return [name, cpu, memory, ready, created, deleting]
+
 class Reader:
     def __init__(self):
-        self.nodes = [['one', '2', '1Gi', 'True'], ['two', '6', '3Gi', 'False']]
+        self.nodes = [node('one'), node('two', '6', '3Gi', 'False')]
         self.usage = {'items': [
             {'metadata': {'name': 'one'}, 'timestamp': '1970-01-01T00:16:40Z', 'usage': {'cpu': '500000000n', 'memory': '512Mi'}},
             {'metadata': {'name': 'two'}, 'timestamp': '1970-01-01T00:16:40Z', 'usage': {'cpu': '1500m', 'memory': '512Mi'}},
@@ -35,6 +38,98 @@ class KubernetesTests(unittest.TestCase):
         result = self.sample(reader)
         self.assertIsNone(result.metrics['cpuPercent']); self.assertIsNone(result.metrics['memoryPercent'])
         self.assertEqual(result.metrics['nodesTotal'], 2); self.assertEqual(result.health, 'error')
+
+    def test_new_node_waits_without_partial_usage_then_recovers(self):
+        reader = Reader(); reader.nodes[1] = node('two', '6', '3Gi', created=NOW); reader.pods = []
+        usage = reader.usage['items'].pop()
+        sampler = KubernetesSampler(reader, CLUSTER_METRICS, lambda: 1000)
+        waiting = sampler.sample()
+        self.assertEqual(waiting.health, 'unknown')
+        self.assertIsNone(waiting.metrics['cpuPercent']); self.assertIsNone(waiting.metrics['memoryPercent'])
+        self.assertEqual(waiting.metrics['nodesReady'], 2)
+        reader.usage['items'].append(usage)
+        recovered = sampler.sample()
+        self.assertEqual(recovered.health, 'ok'); self.assertEqual(recovered.metrics['cpuPercent'], 25)
+
+    def test_warmup_deadline_survives_collector_restart_and_escalates(self):
+        reader = Reader(); reader.nodes[1] = node('two', created='1970-01-01T00:14:41Z'); reader.pods = []
+        reader.usage['items'].pop()
+        now = [1000]
+        sampler = KubernetesSampler(reader, CLUSTER_METRICS, lambda: now[0])
+        self.assertEqual(sampler.sample().health, 'unknown')
+        now[0] = 1001
+        self.assertEqual(sampler.sample().health, 'error')
+        self.assertEqual(KubernetesSampler(reader, CLUSTER_METRICS, lambda: now[0]).sample().health, 'error')
+
+    def test_known_unhealthy_pod_is_not_hidden_by_node_warmup(self):
+        reader = Reader(); reader.nodes[1][4] = NOW; reader.usage['items'].pop()
+        self.assertEqual(self.sample(reader).health, 'warning')
+
+    def test_warmup_does_not_hide_stale_metrics_on_another_node(self):
+        reader = Reader(); reader.nodes[1][4] = NOW; reader.usage['items'].pop(); reader.pods = []
+        reader.usage['items'][0]['timestamp'] = OLD
+        self.assertEqual(self.sample(reader).health, 'error')
+
+    def test_terminating_node_does_not_contribute_usage_or_readiness(self):
+        reader = Reader(); reader.nodes[1][5] = NOW; reader.usage['items'].pop(); reader.pods = []
+        result = self.sample(reader)
+        self.assertEqual(result.health, 'ok')
+        self.assertEqual(result.metrics, {'cpuPercent': 25, 'memoryPercent': 50, 'nodesReady': 1, 'nodesTotal': 1, 'podsUnhealthy': 0})
+
+    def test_removed_node_is_reconciled_once_between_api_snapshots(self):
+        for remove_all in (False, True):
+            reader = Reader(); reader.usage['items'].pop(); reader.pods = []
+            original, reads = reader.read, []
+            def read(kind):
+                reads.append(kind)
+                if kind == 'nodes' and reads.count('nodes') == 2:
+                    reader.nodes = [] if remove_all else reader.nodes[:1]
+                return original(kind)
+            reader.read = read
+            result = self.sample(reader)
+            self.assertEqual(reads.count('nodes'), 2)
+            self.assertEqual(result.health, 'unknown' if remove_all else 'ok')
+            self.assertEqual(result.metrics['nodesTotal'], 0 if remove_all else 1)
+            self.assertEqual(result.metrics['memoryPercent'], None if remove_all else 50)
+
+    def test_reconciliation_keeps_new_nodes_and_does_not_hide_api_failure(self):
+        for fail in (False, True):
+            reader = Reader(); reader.nodes[1][4] = NOW; reader.usage['items'].pop(); reader.pods = []
+            original, reads = reader.read, []
+            def read(kind):
+                reads.append(kind)
+                if kind == 'nodes' and reads.count('nodes') == 2:
+                    if fail: raise OSError('credential must not appear in logs')
+                    reader.nodes = [reader.nodes[0], node('three', created=NOW)]
+                return original(kind)
+            reader.read = read
+            result = self.sample(reader)
+            self.assertEqual(result.health, 'error' if fail else 'unknown')
+            self.assertIsNone(result.metrics['cpuPercent'])
+
+    def test_invalid_creation_time_cannot_suppress_errors(self):
+        for created in ('invalid', '1970-01-01T00:16:40', '1970-01-01T00:17:40Z'):
+            reader = Reader(); reader.nodes[1][4] = created; reader.usage['items'].pop()
+            self.assertEqual(self.sample(reader).health, 'error')
+
+    def test_diagnostics_log_transitions_and_duration_without_raw_errors(self):
+        reader, now = Reader(), [1000]
+        reader.nodes[1] = node('two', created='1970-01-01T00:14:41Z'); reader.pods = []
+        usage = reader.usage['items'].pop()
+        sampler = KubernetesSampler(reader, CLUSTER_METRICS, lambda: now[0])
+        with self.assertLogs(level='INFO') as logs:
+            sampler.sample(); sampler.sample()
+            now[0] = 1001; sampler.sample()
+            reader.usage['items'].append(usage); sampler.sample()
+        self.assertEqual(len(logs.output), 3)
+        self.assertIn('reason=node_metrics_warming nodes=two', logs.output[0])
+        self.assertIn('reason=missing_node_usage', logs.output[1])
+        self.assertIn('duration_seconds=1', logs.output[2])
+        def denied(kind): raise OSError('secret-token-response-body')
+        reader.read = denied
+        with self.assertLogs(level='WARNING') as logs: sampler.sample()
+        self.assertNotIn('secret-token', str(logs.output))
+        self.assertIn('reason=OSError', str(logs.output))
     def test_stale_or_future_usage_is_unknown(self):
         for timestamp in ['1970-01-01T00:00:00Z', '1970-01-01T01:00:00Z']:
             reader = Reader(); reader.usage['items'][0]['timestamp'] = timestamp
@@ -137,6 +232,18 @@ class DiskTests(unittest.TestCase):
         self.assertEqual(sample.metrics['diskAvailableGiB'], 0)
         self.assertEqual(sample.metrics['diskUsedPercent'], 100)
 
+    def test_node_membership_invalidates_disk_cache_within_the_summary_window(self):
+        sampler = KubernetesSampler(self.reader, CLUSTER_METRICS + DISK_METRICS, lambda: 1000, self)
+        try:
+            self.assertEqual(sampler.sample().metrics['diskTotalGiB'], 100)
+            self.reader.nodes[1][5] = NOW
+            self.assertEqual(sampler.sample().metrics['diskTotalGiB'], 20)
+            self.reader.nodes[1][5] = ''
+            del self.responses['10.0.0.2']
+            self.assertIsNone(sampler.sample().metrics['diskTotalGiB'])
+        finally:
+            sampler.disk_executor.shutdown(wait=True)
+
     def test_partial_stale_or_invalid_disk_does_not_hide_cpu_or_report_partial_totals(self):
         original = deepcopy(self.responses)
         cases = [{'time': '1970-01-01T00:00:00Z'}, {'time': '1970-01-01T01:00:00Z'}, {'time': '1970-01-01T00:16:40'}, {'capacityBytes': 0}, {'availableBytes': -1}, {'availableBytes': float('nan')}, {'availableBytes': True}, {'availableBytes': 100 * 1024 ** 3}, {'availableBytes': None}]
@@ -209,7 +316,7 @@ class DiskTests(unittest.TestCase):
     def test_slow_node_batches_do_not_block_other_metrics_or_grow_worker_pool(self):
         release = Event()
         requests = []
-        self.reader.nodes = [[str(i), '2', '1Gi', 'True'] for i in range(20)]
+        self.reader.nodes = [node(str(i)) for i in range(20)]
         self.reader.endpoints = [[str(i), f'10.0.0.{i + 1}', '10250'] for i in range(20)]
         self.reader.usage['items'] = [{'metadata': {'name': str(i)}, 'timestamp': '1970-01-01T00:16:40Z', 'usage': {'cpu': '500m', 'memory': '256Mi'}} for i in range(20)]
         def stalled(_address, _port):
