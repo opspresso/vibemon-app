@@ -1,5 +1,6 @@
 """Read-only Metrics API adapter for clusters without Prometheus."""
 import json
+import logging
 import math
 import re
 import subprocess
@@ -18,16 +19,27 @@ SLOW_READ_REUSE_SECONDS = 30
 # Rollouts briefly leave new pods Pending or not ready. Count a pod only after
 # it has stayed not ready this long.
 UNREADY_GRACE_SECONDS = 120
+# A new kubelet needs time to publish the first pair of usage observations.
+# This window starts at node creation, not collector startup or each failure.
+NODE_METRICS_GRACE_SECONDS = 120
 
 # Output only capacity/readiness fields; pod specs, environment and logs are not read into Python.
-NODE_FIELDS = '{range .items[*]}{.metadata.name}{"\\t"}{.status.capacity.cpu}{"\\t"}{.status.capacity.memory}{"\\t"}{.status.conditions[?(@.type=="Ready")].status}{"\\n"}{end}'
+NODE_FIELDS = '{range .items[*]}{.metadata.name}{"\\t"}{.status.capacity.cpu}{"\\t"}{.status.capacity.memory}{"\\t"}{.status.conditions[?(@.type=="Ready")].status}{"\\t"}{.metadata.creationTimestamp}{"\\t"}{.metadata.deletionTimestamp}{"\\n"}{end}'
 POD_FIELDS = '{range .items[*]}{.status.phase}{"\\t"}{.status.conditions[?(@.type=="Ready")].status}{"\\t"}{.status.conditions[?(@.type=="Ready")].lastTransitionTime}{"\\t"}{.metadata.creationTimestamp}{"\\t"}{.metadata.deletionTimestamp}{"\\n"}{end}'
 ENDPOINT_FIELDS = '{range .items[*]}{.metadata.name}{"\\t"}{.status.addresses[?(@.type=="InternalIP")].address}{"\\t"}{.status.daemonEndpoints.kubeletEndpoint.Port}{"\\n"}{end}'
 SCALES = {'n': 1e-9, 'u': 1e-6, 'm': 1e-3, '': 1, **{unit: 1000 ** (index + 1) for index, unit in enumerate('kMGTPE')}, **{unit + 'i': 1024 ** (index + 1) for index, unit in enumerate('KMGTPE')}}
 SCALES['K'] = 1000
 
 def timestamp(value):
-    return datetime.fromisoformat(value.replace('Z', '+00:00')).timestamp()
+    parsed = datetime.fromisoformat(value.replace('Z', '+00:00'))
+    if parsed.tzinfo is None: raise ValueError('Missing timestamp timezone')
+    return parsed.timestamp()
+
+class CollectionIssue(ValueError):
+    """Only collector-owned reason codes and validated node names enter logs."""
+    def __init__(self, reason, nodes=(), pending=False):
+        super().__init__(reason)
+        self.reason, self.nodes, self.pending = reason, tuple(sorted(nodes)), pending
 
 def unhealthy_pod(row, now):
     """Count pods that should be serving but are not. Completed and failed pods
@@ -78,6 +90,36 @@ class KubernetesSampler:
         self.disk_executor = None
         self.disk_futures = []
         self.reused = {}
+        self.node_identity = None
+        self.diagnostics = {}
+
+    def report(self, stage, issue=None):
+        previous = self.diagnostics.get(stage)
+        if issue is None:
+            if previous:
+                logging.info('Kubernetes collection recovered: stage=%s duration_seconds=%.0f', stage, max(0, self.clock() - previous[1]))
+                del self.diagnostics[stage]
+            return
+        reason = issue.reason if isinstance(issue, CollectionIssue) else type(issue).__name__
+        nodes = issue.nodes if isinstance(issue, CollectionIssue) else ()
+        signature = (reason, nodes)
+        if previous and previous[0] == signature: return
+        since = previous[1] if previous else self.clock()
+        self.diagnostics[stage] = (signature, since)
+        level = logging.INFO if isinstance(issue, CollectionIssue) and issue.pending else logging.WARNING
+        logging.log(level, 'Kubernetes collection unavailable: stage=%s reason=%s nodes=%s node_count=%d duration_seconds=%.0f',
+                    stage, reason, ','.join(nodes[:8]) or '-', len(nodes), max(0, self.clock() - since))
+
+    def read_nodes(self):
+        rows = self.reader.read('nodes')
+        if any(len(row) != 6 or not re.fullmatch(r'[a-z0-9][a-z0-9.-]{0,252}', row[0]) or row[3] not in {'True', 'False', 'Unknown', ''} for row in rows):
+            raise CollectionIssue('invalid_node_summary')
+        nodes = {row[0]: row for row in rows}
+        if len(nodes) != len(rows): raise CollectionIssue('duplicate_node_summary')
+        for row in rows:
+            timestamp(row[4])
+            if row[5]: timestamp(row[5])
+        return {name: row for name, row in nodes.items() if not row[5]}
 
     def reuse(self, name):
         cached = self.reused.get(name)
@@ -94,25 +136,31 @@ class KubernetesSampler:
         nodes = None
         if set(self.metrics) - {'podsUnhealthy'}:
             try:
-                rows = self.reader.read('nodes')
-                if any(len(row) != 4 or not row[0] for row in rows): raise ValueError('Invalid node summary')
-                nodes = {row[0]: row for row in rows}
-                if len(nodes) != len(rows): raise ValueError('Duplicate node summary')
-                if 'nodesReady' in values: values['nodesReady'] = sum(row[3] == 'True' for row in rows)
-                if 'nodesTotal' in values: values['nodesTotal'] = len(rows)
-            except (OSError, ValueError, TypeError, subprocess.TimeoutExpired):
+                nodes = self.read_nodes()
+                self.report('nodes')
+            except (OSError, ValueError, TypeError, AttributeError, subprocess.TimeoutExpired) as error:
                 failed = True
+                self.report('nodes', error)
         usage_keys = [key for key in ('cpuPercent', 'memoryPercent') if key in values]
         if usage_keys and nodes:
             try:
                 response = self.reader.read('usage')
                 entries = response['items']
                 usage = {entry['metadata']['name']: entry for entry in entries}
-                if len(usage) != len(entries) or not set(nodes).issubset(usage): raise ValueError('Incomplete node usage')
-                for name in nodes:
-                    observed = datetime.fromisoformat(usage[name]['timestamp'].replace('Z', '+00:00')).timestamp()
-                    if not -30 <= self.clock() - observed <= 120: raise ValueError('Stale node usage')
-                for metric in usage_keys:
+                if len(usage) != len(entries): raise CollectionIssue('duplicate_node_usage')
+                if set(nodes) - usage.keys():
+                    # Reconcile independently read API snapshots once. A removed
+                    # node must not fail collection; newly added nodes still count.
+                    nodes = self.read_nodes()
+                missing = set(nodes) - usage.keys()
+                for name in nodes.keys() & usage.keys():
+                    observed = timestamp(usage[name]['timestamp'])
+                    if not -30 <= self.clock() - observed <= 120: raise CollectionIssue('stale_node_usage', [name])
+                if missing:
+                    pending = all(0 <= self.clock() - timestamp(nodes[name][4]) < NODE_METRICS_GRACE_SECONDS for name in missing)
+                    raise CollectionIssue('node_metrics_warming' if pending else 'missing_node_usage', missing, pending)
+                self.report('usage')
+                for metric in usage_keys if nodes else []:
                     field, column = ('cpu', 1) if metric == 'cpuPercent' else ('memory', 2)
                     try:
                         capacity = sum(quantity(row[column]) for row in nodes.values())
@@ -120,9 +168,20 @@ class KubernetesSampler:
                         percent = 100 * used / capacity
                         if not 0 <= percent <= 100: raise ValueError('Invalid node utilization')
                         values[metric] = percent
-                    except (KeyError, TypeError, ValueError, ZeroDivisionError): failed = True
-            except (OSError, ValueError, KeyError, TypeError, AttributeError, subprocess.TimeoutExpired):
-                failed = True
+                        self.report(metric)
+                    except (KeyError, TypeError, ValueError, ZeroDivisionError) as error:
+                        failed = True
+                        self.report(metric, error)
+            except (OSError, ValueError, KeyError, TypeError, AttributeError, subprocess.TimeoutExpired) as error:
+                failed |= not (isinstance(error, CollectionIssue) and error.pending)
+                self.report('usage', error)
+        if nodes is not None:
+            if 'nodesReady' in values: values['nodesReady'] = sum(row[3] == 'True' for row in nodes.values())
+            if 'nodesTotal' in values: values['nodesTotal'] = len(nodes)
+        identity = tuple(sorted((name, row[4]) for name, row in nodes.items())) if nodes is not None else None
+        if identity != self.node_identity:
+            self.reused.pop('disk', None)
+            self.node_identity = identity
         disk_keys = set(values).intersection(DISK_METRICS)
         reused_disk = self.reuse('disk') if disk_keys and nodes else None
         if reused_disk is not None:
@@ -164,10 +223,11 @@ class KubernetesSampler:
                 values.update({key: value for key, value in measured.items() if key in values})
                 if all(measured[key] is not None for key in disk_keys):
                     self.remember('disk', measured)
-            except (OSError, ValueError, KeyError, TypeError, AttributeError, IndexError, subprocess.TimeoutExpired):
+                    self.report('disk')
+            except (OSError, ValueError, KeyError, TypeError, AttributeError, IndexError, subprocess.TimeoutExpired) as error:
                 # Disk is optional: an unreachable kubelet leaves the disk values
                 # unavailable without making the cluster a collection error.
-                pass
+                self.report('disk', error)
         reused_pods = self.reuse('pods') if 'podsUnhealthy' in values else None
         if reused_pods is not None:
             values['podsUnhealthy'] = reused_pods
@@ -177,6 +237,9 @@ class KubernetesSampler:
                 if any(len(row) != 5 or row[0] not in {'Pending', 'Running', 'Succeeded', 'Failed', 'Unknown'} or not row[3] for row in rows): raise ValueError('Invalid pod summary')
                 values['podsUnhealthy'] = sum(unhealthy_pod(row, self.clock()) for row in rows)
                 self.remember('pods', values['podsUnhealthy'])
-            except (OSError, ValueError, TypeError, subprocess.TimeoutExpired): failed = True
+                self.report('pods')
+            except (OSError, ValueError, TypeError, subprocess.TimeoutExpired) as error:
+                failed = True
+                self.report('pods', error)
         core = {key: value for key, value in values.items() if key not in DISK_METRICS}
         return Sample(values, cluster_health(core, failed), metric_definitions=self.metric_definitions)
