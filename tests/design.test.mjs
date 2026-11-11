@@ -3,7 +3,7 @@ import { test } from 'node:test';
 import { accountName, metricTone, statePresentation, providerLabel, formatMeasurement, formatMeasurementParts, observationAge, formatAxisValue, formatResetTime, resetCountdown, sharedTranslator, weeklyModelLabel } from '../src/shared/design/presentation.mjs';
 import { usageResetAt } from '../src/shared/monitoring/clock.cjs';
 import { dominantState, needsAttention, sourceState, accountState } from '../src/shared/monitoring/state.cjs';
-import { mergeMean } from '../src/shared/resource-schema.cjs';
+import { displayDefinitions, displayValue, mergeMean } from '../src/shared/resource-schema.cjs';
 import { monitoringContract } from '../scripts/generate-monitoring.mjs';
 import { widgetPalette } from '../scripts/generate-widget-palette.mjs';
 import tokens from '../src/shared/design/tokens.cjs';
@@ -33,6 +33,20 @@ test('measurement precision follows the shared device contract', () => {
 });
 test('bubble bars change color at the inclusive usage tone thresholds', () => {
   assert.deepEqual([49.9, 50, 69.9, 70, 89.9, 90].map(barColor), ['#00AA00', '#FFCC00', '#FFCC00', '#FF8800', '#FF8800', '#FF4444']);
+});
+test('agent metrics follow the account order of the shared device contract', () => {
+  for (const { name, metricOrder, usageWeekModel, expected } of fixtures.agentMetricOrders) {
+    const source = { sourceId: 'work', kind: 'agent', displayName: 'Work', metrics: { contextPercent: 1, usageSessionPercent: null, usageWeekPercent: 3 },
+      agent: { state: 'idle', character: 'clawd', project: 'demo', ...(usageWeekModel === null ? {} : { usageWeekModel }) }, ...(metricOrder === undefined ? {} : { metricOrder }) };
+    if (expected === null) assert.throws(() => displayDefinitions(source), /agent metric order/, name);
+    else assert.deepEqual(Object.keys(displayDefinitions(source)), expected, name);
+  }
+  const fable = { kind: 'agent', metrics: { usageWeekPercent: 35 }, agent: { usageWeekModel: 71 } };
+  assert.equal(displayValue(fable, 'usageWeekModel'), 71);
+  assert.equal(displayValue(fable, 'usageWeekPercent'), 35);
+  assert.equal(displayValue({ ...fable, agent: {} }, 'usageWeekModel'), null);
+  // Resources keep their own definitions and order.
+  assert.deepEqual(Object.keys(displayDefinitions({ kind: 'host', memoryType: null })), ['cpuPercent', 'memoryPercent', 'gpuPercent', 'gpuTemperatureC']);
 });
 test('metric tones follow the shared device contract', () => {
   for (const { key, value, expected } of fixtures.metricTones) assert.equal(metricTone(key, value), expected, `${key} ${value}`);

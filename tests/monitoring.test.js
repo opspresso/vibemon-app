@@ -432,8 +432,25 @@ describe('cloud monitoring', () => {
     fetchImpl.mockResolvedValue(okResponse({ sources: [source(1000000), { ...source(observed), sourceId: 'work', kind: 'agent', memoryType: null,
       metrics: { usageWeekPercent: 20 }, account: { provider: 'claude', id: 'work', displayName: 'Work' }, agent }] }));
     await client.poll(true);
-    expect(client.snapshot().accounts[0].latest.modelUsage).toEqual({ key: 'usageWeekModel', unit: '%', display: 'gauge', min: 0, max: 100, value: 37, model: 'Opus', resetAt: observed + 2880 * 60000 });
-    expect(client.snapshot().sources.find(item => item.kind === 'host').modelUsage).toBeNull();
+    const latest = client.snapshot().accounts[0].latest;
+    expect(latest.displayMetrics.map(metric => metric.key)).toEqual(['contextPercent', 'usageSessionPercent', 'usageWeekPercent', 'usageWeekModel']);
+    expect(latest.displayMetrics.at(-1)).toEqual({ key: 'usageWeekModel', label: 'Weekly model', unit: '%', display: 'gauge', min: 0, max: 100, selectionKey: 'usageWeekModel', model: 'Opus', resetAt: observed + 2880 * 60000 });
+    expect(latest.metrics.usageWeekModel).toBe(37);
+    expect(client.snapshot().metrics.usageWeekModel).toMatchObject({ label: 'Weekly model', unit: '%' });
+    expect(client.snapshot().sources.find(item => item.kind === 'host').metrics).not.toHaveProperty('usageWeekModel');
+  });
+  test('orders agent metrics by the account order that Web sends', async () => {
+    const { client, fetchImpl } = fixture();
+    const agent = { state: 'working', character: 'claude', project: 'demo', usageWeekModel: 71, usageWeekModelLabel: 'Fable' };
+    const metricOrder = ['contextPercent', 'usageWeekPercent', 'usageWeekModel', 'usageSessionPercent'];
+    fetchImpl.mockResolvedValue(okResponse({ sources: [{ ...source(1000000), sourceId: 'work', kind: 'agent', memoryType: null,
+      metrics: { contextPercent: 15, usageWeekPercent: 35 }, account: { provider: 'claude', id: 'work', displayName: 'Work' }, agent, metricOrder }] }));
+    await client.poll(true);
+    expect(client.snapshot().accounts[0].latest.displayMetrics.map(metric => metric.key)).toEqual(metricOrder);
+    const raw = { ...source(1000000), kind: 'agent', memoryType: null, metrics: {}, account: { provider: 'claude', id: 'work', displayName: 'Work' }, agent };
+    expect(validateSources([{ ...raw, metricOrder: ['futureMetric', 'usageWeekModel'] }])[0].metricOrder).toEqual(['usageWeekModel', 'contextPercent', 'usageSessionPercent', 'usageWeekPercent']);
+    expect(validateSources([raw])[0]).not.toHaveProperty('metricOrder');
+    for (const metricOrder of ['usageWeekPercent', [1], Array(17).fill('usageWeekPercent')]) expect(() => validateSources([{ ...raw, metricOrder }])).toThrow();
   });
 });
 

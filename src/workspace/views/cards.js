@@ -1,5 +1,5 @@
 import { compareCards } from '../../shared/design/card-order.mjs';
-import { accountActivityLine, accountName, describeReset, formatResetTime, measurementUnit, metricLabel, metricTone, resetMinutes, resourceIcon, resourceType, stateTone } from '../../shared/design/presentation.mjs';
+import { accountActivityLine, accountName, describeReset, formatResetTime, measurementUnit, metricLabel, metricTone, resetMinutes, resourceIcon, resourceType, stateTone, weeklyModelLabel } from '../../shared/design/presentation.mjs';
 import { t, locale } from '../i18n.js';
 import { accountConnectionChip } from './service-labels.js';
 import {
@@ -30,8 +30,8 @@ export const accountCard = (account) => ({
 });
 export const sourceState = source => source.displayState;
 export const sourceType = source => source.isAccount ? `${providerName(source.provider)} · ${accountName(source.sourceId)}` : resourceType(source, t);
-/** A metric label in the App language; reported custom labels stay as they are. */
-export const metricName = metric => metricLabel(metric.key, metric.label, t);
+/** A metric label in the App language; reported custom labels stay as they are. The weekly model usage names its model family. */
+export const metricName = metric => metric.key === 'usageWeekModel' ? weeklyModelLabel(metric.model, t) : metricLabel(metric.key, metric.label, t);
 export const needsAttention = source => source.needsAttention;
 /** A source that only carries a connected service's reading, without hook reports. */
 export const isUsageSource = source => source.sourceId.startsWith('usage:');
@@ -39,7 +39,7 @@ export const isUsageSource = source => source.sourceId.startsWith('usage:');
 export const isConnectedOnly = source => Boolean(source.isAccount && source.members?.length && source.members.every(isUsageSource));
 // A connected service reads plan usage only. A connected-only account never
 // shows context, whatever the validated metrics contain.
-const PLAN_USAGE_METRICS = new Set(['usageSessionPercent', 'usageWeekPercent']);
+const PLAN_USAGE_METRICS = new Set(['usageSessionPercent', 'usageWeekPercent', 'usageWeekModel']);
 /** Whether `metric` belongs on `source`: a connected-only account shows plan usage only. */
 export const showsMetric = (source, metric) => !isConnectedOnly(source) || PLAN_USAGE_METRICS.has(metric.key);
 /** Apply an account's connected-service chip (account details); hidden without a connection. */

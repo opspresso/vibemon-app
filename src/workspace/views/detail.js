@@ -1,4 +1,4 @@
-import { describeReset, formatAxisValue, resetMinutes, weeklyModelLabel } from '../../shared/design/presentation.mjs';
+import { describeReset, formatAxisValue, resetMinutes } from '../../shared/design/presentation.mjs';
 import { $, el, text, choices, keyed, svg, reading, measurement, badge, stateLabel, ago } from '../dom.js';
 import { accountCard, metricName, sourceState, sourceType, isConnectedOnly, isUsageSource, connectionChip, showsMetric } from './cards.js';
 import { t, locale } from '../i18n.js';
@@ -16,7 +16,8 @@ export function setupDetail({ getFrame, cloudTime, request, run, navigate }) {
     return source.displayMetrics.filter((metric) => selectedKeys.has(metric.selectionKey));
   }
   // A connected-only account has no history: its readings come from the service, not from reports.
-  const trended = source => isConnectedOnly(source) ? [] : metrics(source);
+  // The weekly model usage has no history either.
+  const trended = source => isConnectedOnly(source) ? [] : metrics(source).filter((metric) => metric.key !== 'usageWeekModel');
   // Keep the chosen metric when it is still offered; otherwise choose the first.
   function chooseMetric(options, choice) {
     choices(
@@ -126,13 +127,11 @@ export function setupDetail({ getFrame, cloudTime, request, run, navigate }) {
     $('detail-message').hidden = !source.statusMessage;
     text($('detail-received'), t('detail.received', { age: ago(source.receivedAt, now).toLocaleLowerCase(locale) }));
     const connectedOnly = isConnectedOnly(source);
+    // Readings follow the account's metric order, the weekly model usage included.
     const selectedMetrics = metrics(source).filter((metric) => showsMetric(source, metric));
-    // An account's weekly usage of one model family follows its weekly plan usage, as on every client.
-    const model = source.isAccount && source.modelUsage && selectedMetrics.some((metric) => metric.key === 'usageWeekPercent')
-      ? { ...source.modelUsage, label: weeklyModelLabel(source.modelUsage.model, t), selectionKey: '' } : null;
     keyed(
       $('detail-readings'),
-      model ? [...selectedMetrics, model] : selectedMetrics,
+      selectedMetrics,
       (metric) => metric.key,
       () => {
         const node = el('div', undefined, 'detail-reading');
@@ -140,7 +139,7 @@ export function setupDetail({ getFrame, cloudTime, request, run, navigate }) {
         return node;
       },
       (node, metric) => {
-        const value = metric === model ? model.value : source.metrics[metric.key];
+        const value = source.metrics[metric.key];
         text(node.children[0], metricName(metric));
         measurement(node.children[1], value, metric.unit, metric.selectionKey.startsWith('resource:'));
         const reset = typeof value === 'number' ? describeReset(resetMinutes(metric.resetAt, now), t) : null;
@@ -163,7 +162,7 @@ export function setupDetail({ getFrame, cloudTime, request, run, navigate }) {
       }
     );
     const choice = $('trend-metric').value;
-    chooseMetric(historyMetrics ? metrics({ displayMetrics: historyMetrics }) : selectedMetrics, choice);
+    chooseMetric(historyMetrics ? metrics({ displayMetrics: historyMetrics }) : trended(source), choice);
     $('detail-history').hidden = !source.displayMetrics.length || connectedOnly;
     $('edit-resource').hidden = source.isAccount;
     const connection = source.isAccount ? source.account?.connection : null;

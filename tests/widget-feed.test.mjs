@@ -359,3 +359,26 @@ test('an account that only a connected service reports shows plan usage without 
   const [reported] = build({ cloud: cloud([connected, agentSource()]) }).items;
   assert.deepEqual(reported.metrics.map(metric => metric.key), ['contextPercent', 'usageSessionPercent', 'usageWeekPercent']);
 });
+
+test('agent rows follow the account metric order and show the weekly model usage while it is measured', () => {
+  const agent = { state: 'working', character: 'clawd', project: 'api', usageWeekModel: 71, usageWeekModelLabel: 'Fable', usageWeekModelResetsIn: 120 };
+  const metrics = { contextPercent: 15, usageSessionPercent: null, usageWeekPercent: 35 };
+  const [standard] = build({ cloud: cloud([agentSource({ agent, metrics })]) }).items;
+  assert.deepEqual(standard.metrics.map(metric => metric.key), ['contextPercent', 'usageSessionPercent', 'usageWeekPercent']);
+  const metricOrder = ['usageWeekModel', 'usageWeekPercent', 'contextPercent', 'usageSessionPercent'];
+  const [ordered] = build({ cloud: cloud([agentSource({ agent, metrics, metricOrder })]), locale: 'ko' }).items;
+  assert.deepEqual(ordered.metrics.map(metric => [metric.key, metric.label, metric.value]), [['usageWeekModel', '주간 Fable', '71'], ['usageWeekPercent', '주간', '35'], ['contextPercent', '컨텍스트', '15']]);
+  assert.equal(ordered.metrics[0].tone, 'warning');
+  assert.equal(ordered.metrics[0].resetsAt, iso(-minutes(2) + minutes(120)));
+  // Without a measurement, the next metric in the order takes the row.
+  const [unmeasured] = build({ cloud: cloud([agentSource({ metrics, metricOrder })]) }).items;
+  assert.deepEqual(unmeasured.metrics.map(metric => metric.key), ['usageWeekPercent', 'contextPercent', 'usageSessionPercent']);
+});
+
+test('a local-only account shows its cached weekly model usage in the default order', () => {
+  const usage = { 'claude:work': { week: bucket(35), modelWeek: { ...bucket(71), label: 'Fable' } } };
+  const [item] = build({ cloud: cloud([]), local: [localReport()], usage }).items;
+  assert.deepEqual(item.metrics.map(metric => metric.key), ['contextPercent', 'usageSessionPercent', 'usageWeekPercent']);
+  const [reported] = build({ cloud: cloud([]), local: [localReport({ usageWeekModel: 64, usageWeekModelLabel: 'Fable', usage5h: undefined })], usage: {} }).items;
+  assert.equal(reported.metrics.length, 3);
+});
