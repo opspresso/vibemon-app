@@ -166,7 +166,15 @@ jobs:
           name: windows-latest-artifacts
           path: windows
       - name: Install Authenticode verifier
-        run: sudo apt-get update && sudo apt-get install -y osslsigncode
+        # The image's Homebrew installs a bottle from ghcr.io, so a release does not
+        # depend on the Ubuntu archive or its DNS (ns*.canonical.com).
+        env:
+          HOMEBREW_NO_AUTO_UPDATE: '1'
+          HOMEBREW_NO_INSTALL_CLEANUP: '1'
+        run: |
+          eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"
+          brew install osslsigncode
+          echo "$(brew --prefix osslsigncode)/bin" >> "$GITHUB_PATH"
       - name: Verify publisher, file integrity and trusted timestamp
         run: bash scripts/verify-windows-release.sh windows
       - name: Confirm modified executables are rejected
