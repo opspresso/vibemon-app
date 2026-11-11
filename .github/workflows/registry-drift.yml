@@ -53,7 +53,8 @@ jobs:
         shell: pwsh
         run: ./tests/hooks/install.test.ps1
   installer-python39:
-    runs-on: ubuntu-latest
+    # Prebuilt Python 3.9 exists for Ubuntu 22.04 and 24.04 only; ubuntu-latest is now 26.04.
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v6
         with:
