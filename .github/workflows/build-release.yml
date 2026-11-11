@@ -155,9 +155,7 @@ jobs:
 
   verify-windows:
     needs: [resolve, build]
-    # osslsigncode comes from the Ubuntu archive. On the ubuntu-26.04 image (20261101.186.1),
-    # apt could not resolve the Ubuntu archive hosts; the ubuntu-24.04 image installs it.
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
         with:
