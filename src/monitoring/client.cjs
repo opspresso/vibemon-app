@@ -25,10 +25,17 @@ class MonitoringClient extends EventEmitter {
     // Before selection version 2, saving Customize view froze the lists even
     // when every item was chosen, hiding accounts created later. A frozen list
     // cannot be told apart from a deliberate subset, so it resets to all once.
-    if (preferences.get('selectionVersion') !== 2) {
+    // Version 3 lists the weekly usage of one model family (`usageWeekModel`)
+    // as a metric. Before, it was shown with weekly usage, so a version 2
+    // metric list with weekly usage adds it once.
+    const version = preferences.get('selectionVersion');
+    if (version !== 2 && version !== 3) {
       for (const key of ['selectedAccounts', 'selectedSources', 'selectedMetrics']) preferences.delete(key);
-      preferences.set('selectionVersion', 2);
+    } else if (version === 2) {
+      const metrics = preferences.get('selectedMetrics');
+      if (Array.isArray(metrics) && metrics.includes('usageWeekPercent') && !metrics.includes('usageWeekModel')) preferences.set('selectedMetrics', [...metrics, 'usageWeekModel']);
     }
+    preferences.set('selectionVersion', 3);
     this.credentials = credentials;
     this.fetch = fetchImpl;
     this.allowLocalHttp = allowLocalHttp;
