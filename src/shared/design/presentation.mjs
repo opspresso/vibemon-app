@@ -46,6 +46,7 @@ export const resourceIcon = source => source.kind === 'cluster' ? 'cluster'
 export function metricLabel(key, label, t = english) {
   if (label === english(`metric.${key}`)) return t(`metric.${key}`);
   if (label === english('metric.unifiedMemory')) return t('metric.unifiedMemory');
+  if (label === english('metric.weeklyModelUnknown')) return t('metric.weeklyModelUnknown');
   return label;
 }
 /**

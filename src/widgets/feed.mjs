@@ -5,14 +5,16 @@
 // agent account. Each item carries a timeline of its future display states,
 // so a widget keeps aging correctly between App writes. The last feed before
 // the App quits shows every item on standby: nothing updates it any more.
-import { accountName, formatMeasurementParts, measurementUnit, metricLabel, metricTone, providerLabel, resourceIcon, resourceType, sharedTranslator, stateLabel, stateTone } from '../shared/design/presentation.mjs';
+import { accountName, formatMeasurementParts, measurementUnit, metricLabel, metricTone, providerLabel, resourceIcon, resourceType, sharedTranslator, stateLabel, stateTone, weeklyModelLabel } from '../shared/design/presentation.mjs';
 import { compareCards } from '../shared/design/card-order.mjs';
 import monitoring from '../shared/monitoring/state.cjs';
 import clock from '../shared/monitoring/clock.cjs';
 import constants from '../shared/constants.cjs';
+import schema from '../shared/resource-schema.cjs';
 
 const { accountActivity, agentTransition, groupAccounts, needsAttention, sourceState } = monitoring;
 const { usageResetAt } = clock;
+const { agentMetricOrder, displayValue } = schema;
 
 export const WIDGET_FEED_VERSION = 2;
 // A small widget shows three metric rows.
@@ -20,11 +22,14 @@ const METRIC_LIMIT = 3;
 // Every agent state chain ends within this window; resources go on standby sooner.
 const HORIZON_MS = 60 * 60 * 1000;
 // `label` is a shared message key; agent rows use the short usage labels.
-const AGENT_METRICS = [
-  { key: 'contextPercent', label: 'metric.contextPercent' },
-  { key: 'usageSessionPercent', label: 'metric.short.usageSessionPercent', usage: 'session' },
-  { key: 'usageWeekPercent', label: 'metric.short.usageWeekPercent', usage: 'week' }
-];
+// `usage` names the plan usage bucket of the local usage cache. The account's
+// metric order (`metricOrder`) decides which three of them a widget shows.
+const AGENT_METRICS = {
+  contextPercent: { label: 'metric.contextPercent' },
+  usageSessionPercent: { label: 'metric.short.usageSessionPercent', usage: 'session' },
+  usageWeekPercent: { label: 'metric.short.usageWeekPercent', usage: 'week' },
+  usageWeekModel: { usage: 'modelWeek' }
+};
 const GAUGE = { unit: '%', display: 'gauge', min: 0, max: 100 };
 const LINKS = { resource: 'vibemon://dashboard/resources', agent: 'vibemon://dashboard/agents' };
 
@@ -113,15 +118,15 @@ function localSource({ id, since, status }, offset, now) {
   const observedAt = new Date(since + offset).toISOString();
   // `since` is when the state began. Hooks measure reset countdowns when they
   // build a report, so those count from the report's own observation time.
-  const resets = Object.fromEntries(AGENT_METRICS.map(({ key }) => {
+  const resets = Object.fromEntries(Object.keys(AGENT_METRICS).map(key => {
     const resetAt = usageResetAt(key, status, status.observedAt, now);
     return [key, resetAt === null ? null : resetAt + offset];
   }));
   return {
     sourceId: id, kind: 'agent', displayName: status.project, health: 'ok',
     observedAt, receivedAt: observedAt, account: status.account,
-    agent: { state: status.state, character: status.character, project: status.project },
-    metrics: { contextPercent: status.memory ?? null, usageSessionPercent: status.usage5h ?? null, usageWeekPercent: status.usageWeek ?? null },
+    agent: { state: status.state, character: status.character, project: status.project, ...(status.usageWeekModelLabel ? { usageWeekModelLabel: status.usageWeekModelLabel } : {}) },
+    metrics: { contextPercent: status.memory ?? null, usageSessionPercent: status.usage5h ?? null, usageWeekPercent: status.usageWeek ?? null, usageWeekModel: status.usageWeekModel ?? null },
     // A heartbeat's report time is activity, not a new usage measurement.
     usageMeasuredAt: Date.parse(status.usageObservedAt ?? (status.heartbeat ? undefined : status.observedAt)) + offset,
     resets
@@ -134,15 +139,22 @@ function agentItem(account, stateAt, cloudUsage, usage, artwork, now, wall, offs
   // A connected service (`usage:` sources) reads plan usage only: an account
   // that only it reports has no context, as on every other client.
   const connectedOnly = account.sources.every(source => source.sourceId.startsWith('usage:'));
-  const metrics = AGENT_METRICS.filter(metric => !connectedOnly || metric.usage).map(({ key, label: message, usage: bucket }) => {
-    const label = t(message);
-    if (!bucket) return metricEntry({ key, label, ...GAUGE }, latest.metrics[key]);
+  // The order and the weekly model usage come from the cloud account when it has one.
+  const ordered = agentMetricOrder((cloudUsage ?? latest).metricOrder);
+  const readings = ordered.filter(key => !connectedOnly || AGENT_METRICS[key].usage).map(key => {
+    const { usage: bucket } = AGENT_METRICS[key];
+    if (!bucket) return { key, value: latest.metrics[key], resetsAt: null };
     if (cloudUsage) {
       const resetAt = usageResetAt(key, cloudUsage.agent, cloudUsage.observedAt, now);
-      return metricEntry({ key, label, ...GAUGE }, cloudUsage.metrics[key], resetAt === null ? null : isoTime(resetAt - offset));
+      return { key, value: displayValue(cloudUsage, key), resetsAt: resetAt === null ? null : isoTime(resetAt - offset), model: cloudUsage.agent?.usageWeekModelLabel };
     }
     const reading = localUsage(account.sources, key, usage?.[bucket], now, offset);
-    return metricEntry({ key, label, ...GAUGE }, reading?.value, reading?.resetsAt == null ? null : isoTime(reading.resetsAt - offset));
+    return { key, value: reading?.value, resetsAt: reading?.resetsAt == null ? null : isoTime(reading.resetsAt - offset), model: reading?.label };
+  });
+  // The weekly model usage takes a row only while it is measured.
+  const metrics = readings.filter(({ key, value }) => key !== 'usageWeekModel' || Number.isFinite(value)).slice(0, METRIC_LIMIT).map(({ key, value, resetsAt, model }) => {
+    const label = key === 'usageWeekModel' ? weeklyModelLabel(model, t) : t(AGENT_METRICS[key].label);
+    return metricEntry({ key, label, ...GAUGE }, value, resetsAt);
   });
   const changes = account.sources.flatMap(source => agentChanges(source.agent.state, Date.parse(source.observedAt)));
   return {
@@ -165,11 +177,12 @@ function agentItem(account, stateAt, cloudUsage, usage, artwork, now, wall, offs
 
 /** Local-only accounts use the newest unexpired measurement of each window. */
 function localUsage(sources, key, cached, now, offset) {
-  const candidates = sources.map(source => ({ value: source.metrics[key], measuredAt: source.usageMeasuredAt, resetsAt: source.resets[key] }));
+  const candidates = sources.map(source => ({ value: source.metrics[key], measuredAt: source.usageMeasuredAt, resetsAt: source.resets[key], label: source.agent.usageWeekModelLabel }));
   if (cached) candidates.push({
     value: cached.pct,
     measuredAt: cached.updatedAt * 1000 + offset,
-    resetsAt: typeof cached.resetsAt === 'number' ? cached.resetsAt * 1000 + offset : null
+    resetsAt: typeof cached.resetsAt === 'number' ? cached.resetsAt * 1000 + offset : null,
+    label: cached.label
   });
   let chosen;
   for (const reading of candidates) {

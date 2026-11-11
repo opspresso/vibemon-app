@@ -20,6 +20,15 @@ const PRESETS = {
   cluster: ['cpuPercent', 'memoryPercent', 'nodesReady', 'nodesTotal', 'podsUnhealthy'],
   agent: ['contextPercent', 'usageSessionPercent', 'usageWeekPercent']
 };
+// The metrics that an agent account shows, in their default order. Account
+// cards, details, and widgets use this order; widgets show the first three.
+// `usageWeekModel` is the weekly usage of one model family, such as Fable. It
+// is not a reported metric: its value is `agent.usageWeekModel`, and it is
+// shown only while the agent reports it. Web stores each account's order and
+// sends it as the agent source's `metricOrder` (see agentMetricOrder).
+const AGENT_DISPLAY_METRICS = Object.freeze(['contextPercent', 'usageSessionPercent', 'usageWeekPercent', 'usageWeekModel']);
+const WEEKLY_MODEL_METRIC = Object.freeze({ label: 'Weekly model', unit: '%', display: 'gauge', min: 0, max: 100 });
+const MAX_AGENT_METRIC_ORDER = 16;
 const validText = (value, limit, empty = false) => typeof value === 'string' && (empty || value.trim().length > 0) && value.length <= limit && !/[\u0000-\u001f\u007f\ud800-\udfff]/u.test(value);
 const validMetricKey = key => /^[a-zA-Z][a-zA-Z0-9_]{0,63}$/.test(key) && !['constructor', 'prototype', '__proto__'].includes(key);
 const object = value => value !== null && typeof value === 'object' && !Array.isArray(value);
@@ -63,16 +72,45 @@ function definitionsFor(source) {
     label: key === 'memoryPercent' && source.memoryType === 'unified' ? 'Unified memory' : BUILTIN_METRICS[key].label
   }]));
 }
+/**
+ * The display order of an agent account. Without `metricOrder` it is the
+ * default order. Keys that this version does not know and repeated keys are
+ * ignored, and known keys that the order leaves out follow in their default
+ * order, so a newer Web can add a metric. A value that is not a list of at most
+ * 16 strings is invalid.
+ */
+function agentMetricOrder(value) {
+  if (value === undefined) return [...AGENT_DISPLAY_METRICS];
+  if (!Array.isArray(value) || value.length > MAX_AGENT_METRIC_ORDER || value.some(key => typeof key !== 'string')) throw new Error('Invalid agent metric order');
+  const known = value.filter((key, index) => AGENT_DISPLAY_METRICS.includes(key) && value.indexOf(key) === index);
+  return [...known, ...AGENT_DISPLAY_METRICS.filter(key => !known.includes(key))];
+}
+/** The metrics to display, in order: an agent's in its account order with its weekly model usage while reported, otherwise definitionsFor. */
+function displayDefinitions(source) {
+  if (source.kind !== 'agent') return definitionsFor(source);
+  const preset = definitionsFor(source);
+  const model = validPercentage(source.agent?.usageWeekModel);
+  return Object.fromEntries(agentMetricOrder(source.metricOrder).flatMap(key => key === 'usageWeekModel'
+    ? model ? [[key, WEEKLY_MODEL_METRIC]] : []
+    : Object.hasOwn(preset, key) ? [[key, preset[key]]] : []));
+}
+/** The value of a display metric; the weekly model usage comes from the agent details. */
+function displayValue(source, key) {
+  if (key === 'usageWeekModel' && source.kind === 'agent') return validPercentage(source.agent?.usageWeekModel) ? source.agent.usageWeekModel : null;
+  return source.metrics?.[key] ?? null;
+}
 function selectionKey(source, key) {
   return source.kind === 'resource' || source.metricDefinitions ? `resource:${encodeURIComponent(source.sourceId)}:${key}` : key;
 }
 function metricCatalog(sources) {
   const result = {};
   for (const source of sources) {
-    for (const [key, definition] of Object.entries(definitionsFor(source))) {
+    // An agent offers every agent display metric, also one that it does not report now.
+    const definitions = source.kind === 'agent' ? Object.fromEntries(AGENT_DISPLAY_METRICS.map(key => [key, BUILTIN_METRICS[key] ?? WEEKLY_MODEL_METRIC])) : definitionsFor(source);
+    for (const [key, definition] of Object.entries(definitions)) {
       result[selectionKey(source, key)] = source.kind === 'resource' || source.metricDefinitions
         ? { ...definition, label: `${source.displayName} · ${definition.label}` }
-        : BUILTIN_METRICS[key];
+        : BUILTIN_METRICS[key] ?? definition;
     }
   }
   return result;
@@ -87,4 +125,4 @@ function mergeMean(previous, previousCount, value, count = 1) {
   const mean = previous + (value - previous) * (count / (previousCount + count));
   return Math.min(Math.max(previous, value), Math.max(Math.min(previous, value), mean));
 }
-module.exports = { MAX_METRICS, MAX_VALUE, AGENT_TEXT_LIMITS, BUILTIN_METRICS, validPercentage, validText, validMetricKey, validateDefinitions, validateValues, validateOrder, sameMeaning, canExtendDefinitions, definitionsFor, selectionKey, metricCatalog, mergeMean };
+module.exports = { MAX_METRICS, MAX_VALUE, AGENT_TEXT_LIMITS, BUILTIN_METRICS, AGENT_DISPLAY_METRICS, WEEKLY_MODEL_METRIC, agentMetricOrder, displayDefinitions, displayValue, validPercentage, validText, validMetricKey, validateDefinitions, validateValues, validateOrder, sameMeaning, canExtendDefinitions, definitionsFor, selectionKey, metricCatalog, mergeMean };

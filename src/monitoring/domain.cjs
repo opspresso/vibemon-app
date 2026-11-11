@@ -2,7 +2,7 @@ const { webOrigin } = require('../shared/web-origin.cjs');
 const { t } = require('../shared/i18n/locale.cjs');
 const { usageResetAt } = require('../shared/monitoring/clock.cjs');
 const { accountKey: accountId, groupAccounts } = require('../shared/monitoring/state.cjs');
-const { BUILTIN_METRICS: METRICS, AGENT_TEXT_LIMITS, validPercentage, validateDefinitions, validateValues, validateOrder, validText, definitionsFor, selectionKey, metricCatalog } = require('../shared/resource-schema.cjs');
+const { BUILTIN_METRICS: METRICS, AGENT_TEXT_LIMITS, validPercentage, validateDefinitions, validateValues, validateOrder, validText, agentMetricOrder, displayDefinitions, selectionKey, metricCatalog } = require('../shared/resource-schema.cjs');
 const validId = id => typeof id === 'string' && /^[a-zA-Z0-9][a-zA-Z0-9_.:-]{0,127}$/.test(id);
 // Web's usage connection and sign-in IDs are UUIDs.
 const validUuid = id => typeof id === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
@@ -12,20 +12,15 @@ function metrics(value, definitions = METRICS) {
   // Edited display ranges do not invalidate measurements outside the visible gauge.
   return validateValues(value, definitions, definitions === METRICS);
 }
-// Agent plan usage metrics also carry `resetAt`, the report-clock time at which they reset.
+// The metrics to display, in order. Agent plan usage metrics also carry
+// `resetAt`, the report-clock time at which they reset, and the weekly usage of
+// one model family carries `model`, the family that the agent reports.
 function displayMetrics(source, now) {
-  return Object.entries(definitionsFor(source)).map(([key, definition]) => {
+  return Object.entries(displayDefinitions(source)).map(([key, definition]) => {
     const resetAt = source.agent ? usageResetAt(key, source.agent, source.observedAt, now) : null;
-    return { ...definition, key, selectionKey: selectionKey(source, key), ...(resetAt === null ? {} : { resetAt }) };
+    return { ...definition, key, selectionKey: selectionKey(source, key), ...(key === 'usageWeekModel' ? { model: source.agent.usageWeekModelLabel ?? null } : {}),
+      ...(resetAt === null ? {} : { resetAt }) };
   });
-}
-// An agent's weekly usage of one model family, with its reset time on the report clock. Account
-// Details show it after weekly plan usage; `model` names the family when the agent reports one.
-function modelUsage(source, now) {
-  const value = source.agent?.usageWeekModel;
-  if (typeof value !== 'number') return null;
-  const resetAt = usageResetAt('usageWeekModel', source.agent, source.observedAt, now);
-  return { key: 'usageWeekModel', unit: '%', display: 'gauge', min: 0, max: 100, value, model: source.agent.usageWeekModelLabel ?? null, ...(resetAt === null ? {} : { resetAt }) };
 }
 function validTime(value) { return typeof value === 'string' && Number.isFinite(Date.parse(value)); }
 function validateSources(value) {
@@ -55,6 +50,12 @@ function validateSources(value) {
         const number = source.agent[key];
         if (number !== undefined && (key === 'usageWeekModel' ? !validPercentage(number) : !Number.isSafeInteger(number) || number < 0)) throw new Error(t('error.invalidAgentResponse'));
         if (number !== undefined) agent[key] = number;
+      }
+      // The account's display order of its metrics, set on Web.
+      try {
+        if (source.metricOrder !== undefined) resource = { metricOrder: agentMetricOrder(source.metricOrder) };
+      } catch {
+        throw new Error(t('error.invalidAgentResponse'));
       }
       account = { id: source.account.id, provider: source.account.provider, displayName: source.account.displayName };
       // The connected service that reads this account's plan usage (Web's `account.connection`).
@@ -88,5 +89,5 @@ function validAccountId(value) {
 }
 module.exports = {
   METRICS, validId, validUuid, validPlan, USAGE_STATUSES, validAccountId, accountId, groupAccounts, webOrigin,
-  validateSources, validateTrend, validateDefinitions, validateOrder, displayMetrics, modelUsage, metricCatalog
+  validateSources, validateTrend, validateDefinitions, validateOrder, displayMetrics, metricCatalog
 };

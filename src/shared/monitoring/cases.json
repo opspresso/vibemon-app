@@ -999,5 +999,124 @@
       "value": 99,
       "expected": "normal"
     }
+  ],
+  "agentMetricOrders": [
+    {
+      "name": "the default order without a weekly model usage",
+      "usageWeekModel": null,
+      "expected": [
+        "contextPercent",
+        "usageSessionPercent",
+        "usageWeekPercent"
+      ]
+    },
+    {
+      "name": "the default order adds a reported weekly model usage last",
+      "usageWeekModel": 71,
+      "expected": [
+        "contextPercent",
+        "usageSessionPercent",
+        "usageWeekPercent",
+        "usageWeekModel"
+      ]
+    },
+    {
+      "name": "an account order moves the weekly model usage up",
+      "metricOrder": [
+        "contextPercent",
+        "usageWeekPercent",
+        "usageWeekModel",
+        "usageSessionPercent"
+      ],
+      "usageWeekModel": 71,
+      "expected": [
+        "contextPercent",
+        "usageWeekPercent",
+        "usageWeekModel",
+        "usageSessionPercent"
+      ]
+    },
+    {
+      "name": "an unreported weekly model usage leaves its place empty",
+      "metricOrder": [
+        "usageWeekModel",
+        "usageWeekPercent",
+        "contextPercent",
+        "usageSessionPercent"
+      ],
+      "usageWeekModel": null,
+      "expected": [
+        "usageWeekPercent",
+        "contextPercent",
+        "usageSessionPercent"
+      ]
+    },
+    {
+      "name": "keys that the order leaves out follow in the default order",
+      "metricOrder": [
+        "usageWeekModel"
+      ],
+      "usageWeekModel": 0,
+      "expected": [
+        "usageWeekModel",
+        "contextPercent",
+        "usageSessionPercent",
+        "usageWeekPercent"
+      ]
+    },
+    {
+      "name": "unknown and repeated keys are ignored",
+      "metricOrder": [
+        "futureMetric",
+        "usageWeekPercent",
+        "usageWeekPercent",
+        "contextPercent"
+      ],
+      "usageWeekModel": null,
+      "expected": [
+        "usageWeekPercent",
+        "contextPercent",
+        "usageSessionPercent"
+      ]
+    },
+    {
+      "name": "an order that is not a list is invalid",
+      "metricOrder": "usageWeekPercent",
+      "usageWeekModel": null,
+      "expected": null
+    },
+    {
+      "name": "an order with a value that is not a string is invalid",
+      "metricOrder": [
+        "usageWeekPercent",
+        1
+      ],
+      "usageWeekModel": null,
+      "expected": null
+    },
+    {
+      "name": "an order with more than 16 keys is invalid",
+      "metricOrder": [
+        "usageWeekPercent",
+        "usageWeekPercent",
+        "usageWeekPercent",
+        "usageWeekPercent",
+        "usageWeekPercent",
+        "usageWeekPercent",
+        "usageWeekPercent",
+        "usageWeekPercent",
+        "usageWeekPercent",
+        "usageWeekPercent",
+        "usageWeekPercent",
+        "usageWeekPercent",
+        "usageWeekPercent",
+        "usageWeekPercent",
+        "usageWeekPercent",
+        "usageWeekPercent",
+        "usageWeekPercent"
+      ],
+      "usageWeekModel": null,
+      "expected": null
+    }
   ]
 }
