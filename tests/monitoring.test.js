@@ -666,10 +666,25 @@ describe('selection saved before version 2', () => {
     const client = new MonitoringClient({ preferences, credentials: { has: () => true, get: () => rawToken }, fetchImpl, now: () => 1000000, monotonicNow: () => 1000000 });
     await client.poll();
     expect(fetchImpl.mock.calls[0][0]).toBe('https://web.example/api/v1/sources');
-    expect(preferences.get('selectionVersion')).toBe(2);
+    expect(preferences.get('selectionVersion')).toBe(3);
     preferences.set('selectedAccounts', ['codex:default']);
     new MonitoringClient({ preferences, credentials: { has: () => true, get: () => rawToken }, fetchImpl });
     expect(preferences.get('selectedAccounts')).toEqual(['codex:default']);
+  });
+  test('a version 2 metric list with weekly usage also shows the weekly model usage, once', () => {
+    const credentials = { has: () => false, get: () => null };
+    const preferences = store({ ...saved, selectionVersion: 2, selectedMetrics: ['contextPercent', 'usageWeekPercent'] });
+    new MonitoringClient({ preferences, credentials });
+    expect(preferences.get('selectedMetrics')).toEqual(['contextPercent', 'usageWeekPercent', 'usageWeekModel']);
+    expect(preferences.get('selectedSources')).toEqual(saved.selectedSources);
+    expect(preferences.get('selectionVersion')).toBe(3);
+    // A later choice without it stays.
+    preferences.set('selectedMetrics', ['usageWeekPercent']);
+    new MonitoringClient({ preferences, credentials });
+    expect(preferences.get('selectedMetrics')).toEqual(['usageWeekPercent']);
+    const without = store({ ...saved, selectionVersion: 2, selectedMetrics: ['contextPercent'] });
+    new MonitoringClient({ preferences: without, credentials });
+    expect(without.get('selectedMetrics')).toEqual(['contextPercent']);
   });
 });
 
