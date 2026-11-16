@@ -61,7 +61,7 @@ def test_statusline_uses_the_hook_session_account_even_after_profile_login_chang
 def test_account_persistence_failure_does_not_publish_misattributed_activity(tmp_path, monkeypatch):
     monkeypatch.setattr(sys, 'argv', ['vibemon.py'])
     monkeypatch.setattr(core, 'read_input', lambda: json.dumps({'session_id': 's1', 'hook_event_name': 'SessionStart'}))
-    def fail(*args): raise OSError('fixture storage unavailable')
+    def fail(*args, **kwargs): raise OSError('fixture storage unavailable')
     monkeypatch.setattr(core, 'prepare_account', fail)
     sent = []
     monkeypatch.setattr(core, 'send_to_all', lambda *args: sent.append(args))
@@ -151,3 +151,97 @@ def test_background_profile_queries_do_not_bind_to_the_desktop_process(tmp_path,
     assert account_context.prepare_account('codex') == first
     assert account_context.prepare_account('codex') == second
     assert json.loads(Path(account_context.registry_path()).read_text())['sessions'] == {}
+
+
+def test_session_identified_after_login_removes_its_provisional_source(tmp_path, monkeypatch):
+    from account_service import AccountService
+    from account_store import JsonAccountStore
+    monkeypatch.delenv('VIBEMON_ACCOUNT_ID', raising=False)
+    monkeypatch.setenv('CODEX_HOME', str(tmp_path / 'codex'))
+    monkeypatch.setattr(sys, 'argv', ['vibemon.py'])
+    config = core.Config((), None, str(tmp_path / 'projects.json'), False, 'https://web.example', 'fixture-token')
+    monkeypatch.setattr(core, 'get_config', lambda: config)
+    clock = [100]
+    monkeypatch.setattr(account_context, 'account_service', lambda: AccountService(account_context._source, JsonAccountStore(account_context.registry_path()), now=lambda: clock[0]))
+    sent, removed, results = [], [], [False, True]
+    monkeypatch.setattr(core, 'send_to_all', lambda payload, is_start, context, deadline=None: sent.append(context))
+    monkeypatch.setattr(core, 'remove_vibemon_source', lambda url, token, source, deadline=None: removed.append(source) or results.pop(0))
+
+    def event(name):
+        monkeypatch.setattr(core, 'read_input', lambda: json.dumps({'session_id': 's1', 'hook_event_name': name, 'cwd': str(tmp_path)}))
+        core.run({'SessionStart': 'start', 'UserPromptSubmit': 'thinking', 'Stop': 'done'},
+            lambda state, tool, project, data: {'state': state, 'tool': tool, 'project': 'fixture', 'character': 'codex'},
+            'SessionStart', account_provider='codex')
+
+    event('SessionStart')
+    provisional = sent[-1]
+    assert provisional['account']['id'].startswith('profile:')
+    login = authenticated('codex', 'user', 'org', 'Codex · person', 'fixture')
+    monkeypatch.setattr(account_context._source, 'resolve', lambda *_: login)
+    clock[0] += 60
+    event('UserPromptSubmit')
+    assert sent[-1]['account'] == login.public()
+    assert sent[-1]['sourceId'] != provisional['sourceId']
+    # A failed removal stays listed, and the next hook retries it.
+    assert removed == [provisional['sourceId']]
+    event('Stop')
+    assert removed == [provisional['sourceId']] * 2
+    event('UserPromptSubmit')
+    assert len(removed) == 2
+    assert account_context.replaced_accounts('codex', {'session_id': 's1'}) == []
+
+
+def test_provisional_source_removal_treats_a_missing_source_as_removed(monkeypatch, serve):
+    from http.server import BaseHTTPRequestHandler
+    seen = []
+
+    class Handler(BaseHTTPRequestHandler):
+        def do_DELETE(self):
+            seen.append((self.path, self.headers.get('Authorization')))
+            self.send_response(int(self.path.rsplit('-', 1)[-1]))
+            self.send_header('Content-Length', '0')
+            self.end_headers()
+
+    monkeypatch.setenv('VIBEMON_ALLOW_HTTP_LOCAL', '1')
+    url = f'http://127.0.0.1:{serve(Handler).server_address[1]}'
+    assert core.remove_vibemon_source(url, 'fixture-token', 'agent:source-204')
+    assert core.remove_vibemon_source(url, 'fixture-token', 'agent:source-404')
+    assert not core.remove_vibemon_source(url, 'fixture-token', 'agent:source-500')
+    assert seen[0] == ('/api/v1/sources/agent%3Asource-204', 'Bearer fixture-token')
+
+
+def test_claude_status_line_identifies_the_login_and_the_next_hook_removes_the_provisional_source(tmp_path, monkeypatch):
+    from account_service import AccountService
+    from account_store import JsonAccountStore
+    monkeypatch.delenv('VIBEMON_ACCOUNT_ID', raising=False)
+    monkeypatch.delenv('CLAUDE_CONFIG_DIR', raising=False)
+    monkeypatch.setattr(sys, 'argv', ['vibemon.py'])
+    root = str(Path(statusline.__file__).resolve().parent)
+    config = core.Config((), None, str(tmp_path / 'projects.json'), False, 'https://web.example', 'fixture-token')
+    monkeypatch.setattr(core, 'get_config', lambda: config)
+    clock = [100]
+    monkeypatch.setattr(account_context, 'account_service', lambda: AccountService(account_context._source, JsonAccountStore(account_context.registry_path()), now=lambda: clock[0]))
+    sent, removed = [], []
+    monkeypatch.setattr(core, 'send_to_all', lambda payload, is_start, context, deadline=None: sent.append(context))
+    monkeypatch.setattr(core, 'remove_vibemon_source', lambda url, token, source, deadline=None: removed.append(source) or True)
+
+    def event(name):
+        monkeypatch.setattr(core, 'read_input', lambda: json.dumps({'session_id': 's1', 'hook_event_name': name, 'cwd': str(tmp_path)}))
+        core.run({'SessionStart': 'start', 'UserPromptSubmit': 'thinking'},
+            lambda state, tool, project, data: {'state': state, 'tool': tool, 'project': 'fixture', 'character': 'clawd'},
+            'SessionStart', account_provider='claude', profile_root=root)
+
+    event('SessionStart')
+    provisional = sent[-1]
+    assert provisional['account']['displayName'].endswith('Account not identified')
+    login = authenticated('claude', 'user', 'org', 'Claude · person', 'fixture')
+    monkeypatch.setattr(account_context._source, 'resolve', lambda *_: login)
+    clock[0] += 60
+    seen = []
+    monkeypatch.setattr(statusline, 'read_input', lambda: json.dumps({'session_id': 's1'}))
+    monkeypatch.setattr(statusline, 'render_statusline', lambda data: seen.append(account_context.current_account('claude')))
+    statusline.main()
+    assert seen == [login]
+    event('UserPromptSubmit')
+    assert sent[-1]['account'] == login.public()
+    assert removed == [provisional['sourceId']]

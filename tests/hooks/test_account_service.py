@@ -87,3 +87,80 @@ def test_slow_old_session_start_cannot_replace_a_newer_resume(tmp_path):
     entry = next(iter(service.store.read()['sessions'].values()))
     assert entry['boundAt'] == 101
     assert service.bind(target, env, 'same', 'Stop') == newer
+
+
+def provisional_fixture(tmp_path):
+    service, source, target, env = fixture(tmp_path)
+    clock = [100]
+    service.now = lambda: clock[0]
+    source.resolve.return_value = target.unidentified()
+    return service, source, target, env, clock
+
+
+def test_provisional_session_moves_to_the_login_identified_later(tmp_path):
+    service, source, target, env, clock = provisional_fixture(tmp_path)
+    provisional = service.bind(target, env, 'session', 'SessionStart')
+    assert provisional.kind == 'profile'
+    login = authenticated('codex', 'user-a', 'org-a', 'Account A', 'fixture')
+    source.resolve.return_value = login
+    clock[0] += 60
+    assert service.bind(target, env, 'session', 'PreToolUse') == login
+    assert service.replaced(target, env, 'session') == [provisional]
+    # The identified account is final for the session.
+    source.resolve.return_value = authenticated('codex', 'user-b', 'org-b', 'Account B', 'fixture')
+    clock[0] += 3600
+    assert service.bind(target, env, 'session', 'PreToolUse') == login
+    assert source.resolve.call_count == 2
+    assert service.store.read()['profiles'][target.key]['account']['id'] == login.id
+
+
+def test_provisional_recheck_waits_for_its_interval_and_can_be_skipped(tmp_path):
+    service, source, target, env, clock = provisional_fixture(tmp_path)
+    provisional = service.bind(target, env, 'session', 'SessionStart')
+    source.resolve.return_value = authenticated('codex', 'user-a', 'org-a', 'Account A', 'fixture')
+    clock[0] += 59
+    assert service.bind(target, env, 'session', 'PreToolUse') == provisional
+    clock[0] += 1
+    assert service.bind(target, env, 'session', 'SessionEnd', recheck=False) == provisional
+    assert source.resolve.call_count == 1
+    assert service.replaced(target, env, 'session') == []
+
+
+def test_failed_recheck_keeps_the_provisional_binding_until_the_next_interval(tmp_path):
+    service, source, target, env, clock = provisional_fixture(tmp_path)
+    provisional = service.bind(target, env, 'session', 'SessionStart')
+    clock[0] += 60
+    assert service.bind(target, env, 'session', 'PreToolUse') == provisional
+    clock[0] += 30
+    assert service.bind(target, env, 'session', 'PreToolUse') == provisional
+    assert source.resolve.call_count == 2
+
+
+def test_concurrent_recheck_keeps_the_account_that_committed_first(tmp_path):
+    service, source, target, env, clock = provisional_fixture(tmp_path)
+    provisional = service.bind(target, env, 'session', 'SessionStart')
+    clock[0] += 60
+    first = authenticated('codex', 'user-a', 'org-a', 'Account A', 'fixture')
+    late = authenticated('codex', 'user-b', 'org-b', 'Account B', 'fixture')
+
+    def resolve(*args):
+        source.resolve.side_effect = None
+        source.resolve.return_value = first
+        assert service.bind(target, env, 'session', 'PreToolUse') == first
+        return late
+    source.resolve.side_effect = resolve
+    assert service.bind(target, env, 'session', 'PostToolUse') == first
+    assert service.replaced(target, env, 'session') == [provisional]
+
+
+def test_forgetting_a_replaced_identity_keeps_the_others(tmp_path):
+    service, source, target, env, clock = provisional_fixture(tmp_path)
+    provisional = service.bind(target, env, 'session', 'SessionStart')
+    source.resolve.return_value = authenticated('codex', 'user-a', 'org-a', 'Account A', 'fixture')
+    clock[0] += 60
+    service.bind(target, env, 'session', 'PreToolUse')
+    service.forget_replaced(target, env, 'session', ['another'])
+    assert service.replaced(target, env, 'session') == [provisional]
+    service.forget_replaced(target, env, 'session', [provisional.id])
+    assert service.replaced(target, env, 'session') == []
+    assert 'replaced' not in next(iter(service.store.read()['sessions'].values()))

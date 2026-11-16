@@ -54,12 +54,30 @@ def event_context(provider: str, data: dict) -> dict:
     return result
 
 
-def prepare_account(provider: str, data: dict | None = None, root: str | None = None) -> AccountIdentity:
+def account_service() -> AccountService:
+    return AccountService(_source, JsonAccountStore(registry_path()))
+
+
+def prepare_account(provider: str, data: dict | None = None, root: str | None = None, recheck: bool = True) -> AccountIdentity:
+    """Bind the event's session. `recheck` lets a provisional binding probe the login again."""
     data = event_context(provider, data or {})
     target, hint = profile_context(provider, root, data.get('account_hint'))
-    service = AccountService(_source, JsonAccountStore(registry_path()))
-    return service.bind(target, dict(os.environ), data.get('session_id'), data.get('hook_event_name', ''),
-        data.get('cwd') if isinstance(data.get('cwd'), str) and Path(data['cwd']).is_dir() else None, hint, cache_path=projects_cache_path())
+    return account_service().bind(target, dict(os.environ), data.get('session_id'), data.get('hook_event_name', ''),
+        data.get('cwd') if isinstance(data.get('cwd'), str) and Path(data['cwd']).is_dir() else None, hint,
+        cache_path=projects_cache_path(), recheck=recheck)
+
+
+def replaced_accounts(provider: str, data: dict | None = None, root: str | None = None) -> list[AccountIdentity]:
+    """Provisional identities that the event's session reported under before its login was identified."""
+    data = event_context(provider, data or {})
+    target, hint = profile_context(provider, root, data.get('account_hint'))
+    return account_service().replaced(target, dict(os.environ), data.get('session_id'), hint)
+
+
+def forget_replaced_accounts(provider: str, data: dict | None, ids, root: str | None = None) -> None:
+    data = event_context(provider, data or {})
+    target, hint = profile_context(provider, root, data.get('account_hint'))
+    account_service().forget_replaced(target, dict(os.environ), data.get('session_id'), ids, hint)
 
 
 @contextmanager

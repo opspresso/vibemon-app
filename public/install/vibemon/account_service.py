@@ -7,7 +7,25 @@ from dataclasses import asdict
 from account_identity import AccountIdentity, fingerprint, named, text
 
 SESSION_TOUCH_SECONDS = 3600
+# A session that starts before its login can be identified (for example, the
+# tool asks the person to sign in) binds a provisional profile identity. Later
+# events recheck that login at most this often.
+PROVISIONAL_RECHECK_SECONDS = 60
 MAX_SESSIONS = 1024
+MAX_REPLACED = 8
+
+
+def provisional(identity: AccountIdentity) -> bool:
+    """A profile identity names local configuration only; no login was identified."""
+    return identity.kind == 'profile'
+
+
+def restore_all(values) -> list[AccountIdentity]:
+    result = []
+    for value in values if isinstance(values, list) else []:
+        try: result.append(AccountIdentity.restore(value))
+        except ValueError: continue
+    return result
 
 
 def identity_hint(value) -> dict[str, str]:
@@ -39,8 +57,16 @@ class AccountService:
             identity = AccountIdentity(identity.provider, identity.id, label, identity.kind, identity.evidence)
         return identity
 
-    def bind(self, target, environment: dict, session: str | None, event: str = '', cwd: str | None = None, hint: dict | None = None, cache_path: str | None = None) -> AccountIdentity:
+    def bind(self, target, environment: dict, session: str | None, event: str = '', cwd: str | None = None, hint: dict | None = None, cache_path: str | None = None, recheck: bool = True) -> AccountIdentity:
         """Freeze account ownership for a session; a new SessionStart may rebind a resume.
+
+        An identified account never changes during a session. A provisional
+        binding is rechecked at most once per PROVISIONAL_RECHECK_SECONDS when
+        `recheck` is set. Once the login is identified, the session moves to
+        that account, and the provisional identity stays listed under
+        `replaced` until the caller removes what was reported under it. Before
+        the login completes, the tool cannot use any account, so the session's
+        activity belongs to the identified account.
 
         Old heartbeat payloads retain their original account independently of
         this registry. Resolving credentials never runs inside the file lock.
@@ -52,16 +78,27 @@ class AccountService:
         existing = before.get('sessions', {}).get(key) if key else None
         now = self.now()
         identity = None
+        stale = None
         if event != 'SessionStart' and isinstance(existing, dict):
             try: identity = AccountIdentity.restore(existing.get('account'))
             except ValueError: pass
             seen = existing.get('seenAt', existing.get('boundAt', 0))
-            if identity and isinstance(seen, (int, float)) and now - seen < SESSION_TOUCH_SECONDS:
+            checked = existing.get('checkedAt', existing.get('boundAt', 0))
+            if identity and recheck and provisional(identity) and isinstance(checked, (int, float)) and now - checked >= PROVISIONAL_RECHECK_SECONDS:
+                stale = identity
+            elif identity and isinstance(seen, (int, float)) and now - seen < SESSION_TOUCH_SECONDS:
                 return identity
-        # Elapsed time cannot change a running session's owner. Retain the
-        # bounded registry by last activity, and re-identify only a new start.
-        probed = identity is None
-        identity = identity or self.resolve(target, environment, cwd, hint)
+        # Elapsed time cannot change an identified session's owner. Retain the
+        # bounded registry by last activity, and re-identify only a new start
+        # or a due provisional binding.
+        probed = identity is None or stale is not None
+        upgraded = None
+        if probed:
+            resolved = self.resolve(target, environment, cwd, hint)
+            if identity is None:
+                identity = resolved
+            elif not provisional(resolved):
+                identity = upgraded = resolved
         chosen = {'identity': identity}
 
         def save(current):
@@ -72,12 +109,24 @@ class AccountService:
             winner = sessions.get(key) if key else None
             if event == 'SessionStart' and isinstance(winner, dict) and winner.get('boundAt', 0) <= now:
                 winner = None
+            saved = None
             if isinstance(winner, dict):
-                try: chosen['identity'] = AccountIdentity.restore(winner.get('account'))
+                try: saved = chosen['identity'] = AccountIdentity.restore(winner.get('account'))
                 except ValueError: pass
+            if key and isinstance(winner, dict) and stale is not None and saved is not None and saved.id == stale.id:
+                # Only the provisional binding read above may change. A
+                # concurrent hook that already moved it keeps its account.
+                entry = {**winner, 'checkedAt': now}
+                if upgraded is not None:
+                    earlier = [value for value in restore_all(winner.get('replaced')) if value.id != stale.id]
+                    entry.update(account=upgraded.record(), replaced=[value.record() for value in [*earlier, stale][-MAX_REPLACED:]])
+                    chosen['identity'] = upgraded
+                sessions[key] = entry
             identity = chosen['identity']
             if key and not isinstance(winner, dict):
                 sessions[key] = {'account': identity.record(), 'profile': target.key, 'sessionId': session, 'boundAt': now, 'seenAt': now}
+                if upgraded is not None and stale is not None:
+                    sessions[key]['replaced'] = [stale.record()]
             if key and key in sessions:
                 sessions[key] = {**sessions[key], 'seenAt': max(now, sessions[key].get('seenAt', now))}
             sessions = dict(sorted(sessions.items(), key=lambda item: item[1].get('seenAt', item[1]['boundAt']), reverse=True)[:MAX_SESSIONS])
@@ -90,3 +139,29 @@ class AccountService:
 
         self.store.update(save)
         return chosen['identity']
+
+    def replaced(self, target, environment: dict, session: str | None, hint: dict | None = None) -> list[AccountIdentity]:
+        """Provisional identities that the session reported under before its login was identified."""
+        session = text(session)
+        if not session:
+            return []
+        entry = self.store.read().get('sessions', {}).get(session_key(target, session, environment, identity_hint(hint)))
+        return restore_all(entry.get('replaced')) if isinstance(entry, dict) else []
+
+    def forget_replaced(self, target, environment: dict, session: str | None, ids, hint: dict | None = None) -> None:
+        """Stop listing provisional identities whose reported activity was removed."""
+        session, ids = text(session), set(ids)
+        if not session or not ids:
+            return
+        key = session_key(target, session, environment, identity_hint(hint))
+
+        def save(current):
+            sessions = dict(current.get('sessions', {}))
+            entry = sessions.get(key)
+            if not isinstance(entry, dict) or not isinstance(entry.get('replaced'), list):
+                return current
+            remaining = [value for value in entry['replaced'] if not (isinstance(value, dict) and value.get('id') in ids)]
+            sessions[key] = {**entry, 'replaced': remaining} if remaining else {name: value for name, value in entry.items() if name != 'replaced'}
+            return {**current, 'sessions': sessions}
+
+        self.store.update(save)
