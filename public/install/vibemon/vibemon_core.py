@@ -25,11 +25,11 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable
 from urllib.error import HTTPError, URLError
-from urllib.parse import urlsplit
+from urllib.parse import quote, urlsplit
 from urllib.request import Request
 from http.client import HTTPException
 
-from account_context import cloud_context, project_cache_key, prepare_account, using_account, activity_key, event_context
+from account_context import cloud_context, project_cache_key, prepare_account, using_account, activity_key, event_context, replaced_accounts, forget_replaced_accounts
 from account_identity import AccountIdentity
 from account_service import identity_hint
 from cache_io import projects_cache_path, usage_cache_path
@@ -757,6 +757,57 @@ def send_vibemon_api(url: str, token: str, payload: dict[str, Any], context: dic
         return False
 
 
+def remove_vibemon_source(url: str, token: str, source_id: str, deadline: float | None = None) -> bool:
+    """Remove one stored VibeMon source with a write token. A missing source counts as removed."""
+    try:
+        request = Request(f"{url.rstrip('/')}/api/v1/sources/{quote(source_id, safe='')}",
+            headers={"Authorization": f"Bearer {token}"}, method="DELETE")
+        with open_credential_request(request, timeout=request_timeout(deadline)) as response:
+            return 200 <= response.status < 300
+    except HTTPError as error:
+        error.close()
+        if error.code == 404:
+            return True
+        print(f"[vibemon] Could not remove the provisional VibeMon source (HTTP {error.code}); the next hook retries.", file=sys.stderr)
+        return False
+    except (URLError, TimeoutError, OSError, HTTPException) as error:
+        print(f"[vibemon] Could not remove the provisional VibeMon source ({type(error).__name__}); the next hook retries.", file=sys.stderr)
+        return False
+
+
+def retire_replaced_sources(provider: str, data: dict[str, Any], character: str, project: str, cwd: str | None,
+                            profile_root: str | None = None, deadline: float | None = None, source_scope: str | None = None) -> None:
+    """Remove what the session reported under a provisional identity before its login was identified.
+
+    The provisional source has the same project, workspace and source scope
+    under the provisional account. An identity stays listed until its source
+    is gone, so a failed or timed-out request is retried by the next hook.
+    """
+    try:
+        replaced = replaced_accounts(provider, data, profile_root)
+    except (OSError, ValueError):
+        return
+    if not replaced or not project:
+        return
+    config = get_config()
+    if not config.vibemon_url or not config.vibemon_token:
+        return
+    removed = []
+    for identity in replaced:
+        try:
+            source = cloud_context(character, project, cwd, identity=identity, source_scope=source_scope)["sourceId"]
+        except ValueError:
+            removed.append(identity.id)
+            continue
+        if remove_vibemon_source(config.vibemon_url, config.vibemon_token, source, deadline):
+            removed.append(identity.id)
+    if removed:
+        try:
+            forget_replaced_accounts(provider, data, removed, profile_root)
+        except (OSError, ValueError):
+            print("[vibemon] Could not save the removed provisional sources; the next hook checks them again.", file=sys.stderr)
+
+
 # ============================================================================
 # Target Resolution
 # ============================================================================
@@ -1201,10 +1252,14 @@ def send_cloud_status(provider: str) -> bool:
             context["observedAt"] = payload.get("observedAt")
         if payload.get("heartbeat") is True:
             context["heartbeat"] = True
-        return send_vibemon_api(config.vibemon_url, config.vibemon_token, payload, context)
+        sent = send_vibemon_api(config.vibemon_url, config.vibemon_token, payload, context)
     except (OSError, ValueError):
         print("[vibemon] Invalid cloud account configuration", file=sys.stderr)
         return False
+    if sent:
+        retire_replaced_sources(provider, payload, provider, payload["project"], payload.get("cwd"),
+            source_scope=plugin_source_scope(payload), deadline=HOOK_STARTED + START_BUDGET_SECONDS)
+    return sent
 
 
 # Command-line entry points, dispatched before hook input is read.
@@ -1388,10 +1443,14 @@ def process_event(data, event_name, event_state_map, build_payload, start_event,
         deliver_report(payload, cwd, report.observed_at, is_start=event_name == start_event,
             account=identity.record() if identity else None,
             deadline=HOOK_STARTED + SYNC_EVENT_BUDGET_SECONDS if event_name in sync_events else None)
+        if identity is not None:
+            retire_replaced_sources(account_provider, data, str(payload.get("character", "vibemon")), str(payload.get("project", "")), cwd, profile_root,
+                deadline=HOOK_STARTED + (SYNC_EVENT_BUDGET_SECONDS if event_name in sync_events else START_BUDGET_SECONDS))
 
     if account_provider:
         try:
-            identity = prepare_account(account_provider, data, profile_root)
+            # A synchronous event has no time for a login probe.
+            identity = prepare_account(account_provider, data, profile_root, recheck=event_name not in sync_events)
         except (OSError, ValueError):
             print("[vibemon] Could not bind this session to its account; no report was sent.", file=sys.stderr)
             return
