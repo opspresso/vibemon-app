@@ -164,3 +164,26 @@ def test_forgetting_a_replaced_identity_keeps_the_others(tmp_path):
     service.forget_replaced(target, env, 'session', [provisional.id])
     assert service.replaced(target, env, 'session') == []
     assert 'replaced' not in next(iter(service.store.read()['sessions'].values()))
+
+
+def test_identified_resume_of_a_provisional_session_replaces_it_and_keeps_pending_removals(tmp_path):
+    service, source, target, env, clock = provisional_fixture(tmp_path)
+    provisional = service.bind(target, env, 'session', 'SessionStart')
+    login = authenticated('codex', 'user-a', 'org-a', 'Account A', 'fixture')
+    source.resolve.return_value = login
+    clock[0] += 1
+    assert service.bind(target, env, 'session', 'SessionStart') == login
+    assert service.replaced(target, env, 'session') == [provisional]
+    # A later resume, even under another login, keeps the removal pending.
+    source.resolve.return_value = authenticated('codex', 'user-b', 'org-b', 'Account B', 'fixture')
+    clock[0] += 1
+    assert service.bind(target, env, 'session', 'SessionStart').id != login.id
+    assert service.replaced(target, env, 'session') == [provisional]
+
+
+def test_resume_under_another_identified_login_replaces_nothing(tmp_path):
+    service, source, target, env = fixture(tmp_path)
+    service.bind(target, env, 'same', 'SessionStart')
+    source.resolve.return_value = authenticated('codex', 'user-b', 'org-b', 'Account B', 'fixture')
+    service.bind(target, env, 'same', 'SessionStart')
+    assert service.replaced(target, env, 'same') == []

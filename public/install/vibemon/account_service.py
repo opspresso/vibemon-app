@@ -28,6 +28,15 @@ def restore_all(values) -> list[AccountIdentity]:
     return result
 
 
+def replaced_records(identities: list[AccountIdentity]) -> list[dict[str, str]]:
+    """The newest MAX_REPLACED distinct identities, oldest first."""
+    unique = {}
+    for identity in identities:
+        unique.pop(identity.id, None)
+        unique[identity.id] = identity
+    return [identity.record() for identity in list(unique.values())[-MAX_REPLACED:]]
+
+
 def identity_hint(value) -> dict[str, str]:
     if not isinstance(value, dict):
         return {}
@@ -106,7 +115,8 @@ class AccountService:
                 if isinstance(v, dict) and isinstance(v.get('boundAt'), (int, float))}
             # Two first hooks can probe concurrently. The first committed
             # binding owns that session; subsequent activity must use it.
-            winner = sessions.get(key) if key else None
+            prior = sessions.get(key) if key else None
+            winner = prior
             if event == 'SessionStart' and isinstance(winner, dict) and winner.get('boundAt', 0) <= now:
                 winner = None
             saved = None
@@ -118,15 +128,20 @@ class AccountService:
                 # concurrent hook that already moved it keeps its account.
                 entry = {**winner, 'checkedAt': now}
                 if upgraded is not None:
-                    earlier = [value for value in restore_all(winner.get('replaced')) if value.id != stale.id]
-                    entry.update(account=upgraded.record(), replaced=[value.record() for value in [*earlier, stale][-MAX_REPLACED:]])
+                    entry.update(account=upgraded.record(), replaced=replaced_records([*restore_all(winner.get('replaced')), stale]))
                     chosen['identity'] = upgraded
                 sessions[key] = entry
             identity = chosen['identity']
             if key and not isinstance(winner, dict):
                 sessions[key] = {'account': identity.record(), 'profile': target.key, 'sessionId': session, 'boundAt': now, 'seenAt': now}
-                if upgraded is not None and stale is not None:
-                    sessions[key]['replaced'] = [stale.record()]
+                # A resume keeps sources that still need removal, and an
+                # identified resume of a provisional session replaces it.
+                carried = restore_all(prior.get('replaced')) if isinstance(prior, dict) else []
+                previous = restore_all([prior.get('account')]) if isinstance(prior, dict) else []
+                carried += [value for value in [*previous, *([stale] if stale else [])]
+                    if provisional(value) and not provisional(identity) and value.id != identity.id]
+                if carried:
+                    sessions[key]['replaced'] = replaced_records(carried)
             if key and key in sessions:
                 sessions[key] = {**sessions[key], 'seenAt': max(now, sessions[key].get('seenAt', now))}
             sessions = dict(sorted(sessions.items(), key=lambda item: item[1].get('seenAt', item[1]['boundAt']), reverse=True)[:MAX_SESSIONS])
